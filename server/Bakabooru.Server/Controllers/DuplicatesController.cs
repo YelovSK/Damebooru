@@ -1,5 +1,6 @@
 using Bakabooru.Core.Entities;
 using Bakabooru.Data;
+using Bakabooru.Server.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +21,7 @@ public class DuplicatesController : ControllerBase
     /// Returns all unresolved duplicate groups with their post details.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult> GetDuplicateGroups(CancellationToken cancellationToken)
+    public async Task<ActionResult<IEnumerable<DuplicateGroupDto>>> GetDuplicateGroups(CancellationToken cancellationToken)
     {
         var groups = await _context.DuplicateGroups
             .Where(g => !g.IsResolved)
@@ -30,26 +31,26 @@ public class DuplicatesController : ControllerBase
             .ThenByDescending(g => g.DetectedDate)
             .ToListAsync(cancellationToken);
 
-        var result = groups.Select(g => new
+        var result = groups.Select(g => new DuplicateGroupDto
         {
-            g.Id,
-            g.Type,
-            g.SimilarityPercent,
-            g.DetectedDate,
-            Posts = g.Entries.Select(e => new
+            Id = g.Id,
+            Type = g.Type,
+            SimilarityPercent = g.SimilarityPercent,
+            DetectedDate = g.DetectedDate,
+            Posts = g.Entries.Select(e => new DuplicatePostDto
             {
-                e.Post.Id,
-                e.Post.LibraryId,
-                e.Post.RelativePath,
+                Id = e.Post.Id,
+                LibraryId = e.Post.LibraryId,
+                RelativePath = e.Post.RelativePath,
                 ContentHash = e.Post.ContentHash,
-                e.Post.Width,
-                e.Post.Height,
-                e.Post.ContentType,
-                e.Post.SizeBytes,
-                e.Post.ImportDate,
+                Width = e.Post.Width,
+                Height = e.Post.Height,
+                ContentType = e.Post.ContentType,
+                SizeBytes = e.Post.SizeBytes,
+                ImportDate = e.Post.ImportDate,
                 ThumbnailUrl = $"/thumbnails/{e.Post.ContentHash}.jpg",
                 ContentUrl = $"/api/posts/{e.Post.Id}/content"
-            })
+            }).ToList()
         });
 
         return Ok(result);
@@ -96,7 +97,7 @@ public class DuplicatesController : ControllerBase
     /// Bulk-resolve all exact (content-hash) duplicate groups by keeping the oldest post in each.
     /// </summary>
     [HttpPost("resolve-all-exact")]
-    public async Task<ActionResult> ResolveAllExact(CancellationToken cancellationToken)
+    public async Task<ActionResult<ResolveAllExactResponseDto>> ResolveAllExact(CancellationToken cancellationToken)
     {
         var exactGroups = await _context.DuplicateGroups
             .Where(g => !g.IsResolved && g.Type == "exact")
@@ -106,7 +107,7 @@ public class DuplicatesController : ControllerBase
             .ToListAsync(cancellationToken);
 
         if (exactGroups.Count == 0)
-            return Ok(new { resolved = 0 });
+            return Ok(new ResolveAllExactResponseDto { Resolved = 0 });
 
         int resolved = 0;
         foreach (var group in exactGroups)
@@ -120,7 +121,7 @@ public class DuplicatesController : ControllerBase
         }
 
         await _context.SaveChangesAsync(cancellationToken);
-        return Ok(new { resolved });
+        return Ok(new ResolveAllExactResponseDto { Resolved = resolved });
     }
 
     private async Task ResolveGroupKeepingPost(DuplicateGroup group, int keepPostId, CancellationToken cancellationToken, bool saveChanges = true)

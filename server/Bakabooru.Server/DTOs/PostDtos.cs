@@ -22,3 +22,15 @@ public class PostListDto
     public int Page { get; set; }
     public int PageSize { get; set; }
 }
+
+public class MicroPostDto
+{
+    public int Id { get; set; }
+    public string ThumbnailUrl { get; set; } = string.Empty;
+}
+
+public class PostsAroundDto
+{
+    public MicroPostDto? Prev { get; set; }
+    public MicroPostDto? Next { get; set; }
+}

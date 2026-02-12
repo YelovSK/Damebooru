@@ -176,13 +176,16 @@
             <span class="text-sm">{{ sidebarCollapsed() ? '→' : '←' }}</span>
         </button>
 
-        <div class="w-[9999px] h-[9999px] max-w-full max-h-full flex justify-center items-center relative" [style.aspect-ratio]="pd.canvasWidth + '/' + pd.canvasHeight">
+        <div class="w-[9999px] h-[9999px] max-w-full max-h-full flex justify-center items-center relative"
+             [style.aspect-ratio]="(pd.canvasWidth > 0 && pd.canvasHeight > 0) ? (pd.canvasWidth + '/' + pd.canvasHeight) : null">
             <!-- Thumbnail shown while loading large images, layered behind -->
             @if (pd.fileSize > 3_000_000) {
                 <img [src]="environment.mediaBaseUrl + pd.thumbnailUrl" [alt]="pd.id"
                      class="absolute inset-0 w-full h-full object-contain transition-opacity duration-200"
                      [class.opacity-0]="!imageLoading()"
-                     decoding="async" [width]="pd.canvasWidth" [height]="pd.canvasHeight"/>
+                     decoding="async"
+                     [attr.width]="pd.canvasWidth > 0 ? pd.canvasWidth : null"
+                     [attr.height]="pd.canvasHeight > 0 ? pd.canvasHeight : null"/>
             }
 
             @switch (pd.type) {
@@ -191,7 +194,9 @@
                 <img (load)="imageLoading.set(false)" [src]="environment.mediaBaseUrl + pd.contentUrl" [alt]="pd.id"
                      class="max-w-full max-h-full object-contain transition-opacity duration-200"
                      [class.opacity-0]="imageLoading() && pd.fileSize > 3_000_000"
-                     decoding="async" [width]="pd.canvasWidth" [height]="pd.canvasHeight"/>
+                     decoding="async"
+                     [attr.width]="pd.canvasWidth > 0 ? pd.canvasWidth : null"
+                     [attr.height]="pd.canvasHeight > 0 ? pd.canvasHeight : null"/>
                 }
                 @case ('video') {
                 <video [src]="environment.mediaBaseUrl + pd.contentUrl" (loadeddata)="imageLoading.set(false)"

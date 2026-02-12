@@ -1,10 +1,14 @@
 using Bakabooru.Core.Config;
 using Bakabooru.Data;
 using Bakabooru.Processing;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 var bakabooruConfig = builder.Configuration.GetSection(BakabooruConfig.SectionName).Get<BakabooruConfig>() ?? new BakabooruConfig();
+var authEnabled = bakabooruConfig.Auth.Enabled;
 
 builder.Services.Configure<BakabooruConfig>(builder.Configuration.GetSection(BakabooruConfig.SectionName));
 
@@ -12,6 +16,59 @@ builder.Services.Configure<BakabooruConfig>(builder.Configuration.GetSection(Bak
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+if (authEnabled)
+{
+    builder.Services
+        .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        .AddCookie(options =>
+        {
+            options.Cookie.Name = "bakabooru_auth";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            options.SlidingExpiration = true;
+            options.ExpireTimeSpan = TimeSpan.FromDays(30);
+
+            options.Events = new CookieAuthenticationEvents
+            {
+                OnRedirectToLogin = context =>
+                {
+                    if (context.Request.Path.StartsWithSegments("/api")
+                        || context.Request.Path.StartsWithSegments("/thumbnails"))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        return Task.CompletedTask;
+                    }
+
+                    context.Response.Redirect(context.RedirectUri);
+                    return Task.CompletedTask;
+                },
+                OnRedirectToAccessDenied = context =>
+                {
+                    if (context.Request.Path.StartsWithSegments("/api")
+                        || context.Request.Path.StartsWithSegments("/thumbnails"))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return Task.CompletedTask;
+                    }
+
+                    context.Response.Redirect(context.RedirectUri);
+                    return Task.CompletedTask;
+                }
+            };
+        });
+}
+
+builder.Services.AddAuthorization(options =>
+{
+    if (authEnabled)
+    {
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+    }
+});
 
 // CORS
 builder.Services.AddCors(options =>
@@ -57,6 +114,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowAngular");
 
+if (authEnabled)
+{
+    app.UseAuthentication();
+}
+
 var thumbnailPath = StoragePathResolver.ResolvePath(
     builder.Environment.ContentRootPath,
     bakabooruConfig.Storage.ThumbnailPath,
@@ -87,6 +149,21 @@ if (app.Environment.IsDevelopment())
         {
             await next();
         }
+    });
+}
+
+if (authEnabled)
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/thumbnails")
+            && !(context.User.Identity?.IsAuthenticated ?? false))
+        {
+            await context.ChallengeAsync();
+            return;
+        }
+
+        await next();
     });
 }
 

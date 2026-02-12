@@ -24,7 +24,9 @@ export class MainLayoutComponent {
   }
 
   onLogout() {
-    this.bakabooru.logout();
-    this.router.navigate(AppLinks.home());
+    this.bakabooru.logout().subscribe({
+      next: () => this.router.navigate(AppLinks.login()),
+      error: () => this.router.navigate(AppLinks.login())
+    });
   }
 }

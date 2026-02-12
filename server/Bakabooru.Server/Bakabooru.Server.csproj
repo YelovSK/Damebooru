@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\Bakabooru.Core\Bakabooru.Core.csproj" />
@@ -19,6 +19,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>6f9e1428-7430-4ed8-91f6-2c7b2ed8a4ba</UserSecretsId>
   </PropertyGroup>
 
 </Project>

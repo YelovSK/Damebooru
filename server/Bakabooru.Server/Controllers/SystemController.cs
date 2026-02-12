@@ -1,4 +1,5 @@
 using Bakabooru.Data;
+using Bakabooru.Server.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,14 +17,14 @@ public class SystemController : ControllerBase
     }
 
     [HttpGet("info")]
-    public async Task<IActionResult> GetInfo()
+    public async Task<ActionResult<SystemInfoDto>> GetInfo()
     {
         var postCount = await _dbContext.Posts.CountAsync();
         var totalSizeBytes = await _dbContext.Posts.SumAsync(p => p.SizeBytes);
         var tagCount = await _dbContext.Tags.CountAsync();
         var libraryCount = await _dbContext.Libraries.CountAsync();
 
-        return Ok(new
+        return Ok(new SystemInfoDto
         {
             PostCount = postCount,
             TotalSizeBytes = totalSizeBytes,

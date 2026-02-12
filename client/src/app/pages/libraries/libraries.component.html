@@ -1,35 +1,123 @@
-<div class="container mx-auto p-4 max-w-4xl">
-    <h1 class="text-2xl font-bold mb-6 text-text">Library Management</h1>
-
-    <!-- Create new library -->
-    <div class="bg-surface-panel p-4 rounded-lg mb-8 shadow-sm">
-        <h2 class="text-xl font-semibold mb-4 text-text">Create New Library</h2>
-        <div class="flex gap-4">
-            <input type="text" [(ngModel)]="newLibraryName" placeholder="Library Name"
-                class="flex-1 px-4 py-2 bg-background border border-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text"
-                (keyup.enter)="createLibrary()" />
-            <app-button (click)="createLibrary()" [disabled]="!newLibraryName() || isLoading()">
-                Create
-            </app-button>
-        </div>
+<div class="max-w-6xl mx-auto py-8">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-accent-primary">Libraries</h1>
     </div>
 
-    <!-- List existing libraries -->
-    <div class="bg-surface-panel p-4 rounded-lg shadow-sm">
-        <h2 class="text-xl font-semibold mb-4 text-text">Existing Libraries</h2>
+    <section class="glass-card p-6 mb-8">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+            <span class="w-2 h-6 bg-accent-primary rounded-full"></span>
+            Add Library
+        </h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block text-sm text-text-dim mb-1">Name</label>
+                <input
+                    type="text"
+                    [ngModel]="newLibraryName()"
+                    (ngModelChange)="newLibraryName.set($event)"
+                    placeholder="e.g. Edited Photos"
+                    class="w-full px-4 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text" />
+            </div>
+            <div>
+                <label class="block text-sm text-text-dim mb-1">Server Path</label>
+                <input
+                    type="text"
+                    [ngModel]="newLibraryPath()"
+                    (ngModelChange)="newLibraryPath.set($event)"
+                    placeholder="/mtn/media/dslr (or C:\Media\Photos)"
+                    class="w-full px-4 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text"
+                    (keyup.enter)="createLibrary()" />
+            </div>
+        </div>
+
+        <div class="flex gap-3 items-center">
+            <app-button
+                (click)="createLibrary()"
+                [disabled]="!newLibraryName().trim() || !newLibraryPath().trim() || isCreating()">
+                {{ isCreating() ? 'Creating...' : 'Create Library' }}
+            </app-button>
+        </div>
+
+        <p class="text-sm text-text-dim mt-3">
+            Enter the exact path visible to the server process (container path when running in Docker).
+        </p>
+    </section>
+
+    <section class="glass-card p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+            <span class="w-2 h-6 bg-accent-secondary rounded-full"></span>
+            Existing Libraries
+        </h2>
 
         <div *ngIf="libraries().length === 0" class="text-text-dim italic">
             No libraries found.
         </div>
 
-        <ul class="space-y-2">
-            <li *ngFor="let lib of libraries()"
-                class="flex justify-between items-center p-3 bg-background rounded border border-border">
-                <span class="text-text font-medium">{{ lib.path }}</span>
-                <app-button variant="danger" size="sm" (click)="deleteLibrary(lib)" [disabled]="isLoading()">
-                    Delete
-                </app-button>
-            </li>
-        </ul>
-    </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <article
+                *ngFor="let lib of libraries()"
+                class="p-4 bg-glass-bg rounded border border-glass-border">
+                <div class="flex justify-between items-start gap-3">
+                    <div class="flex-1">
+                        @if (editingLibraryId() === lib.id) {
+                            <div class="flex gap-2 items-center">
+                                <input
+                                    type="text"
+                                    [ngModel]="editingName()"
+                                    (ngModelChange)="editingName.set($event)"
+                                    class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text"
+                                    (keyup.enter)="saveRename(lib)" />
+                                <app-button size="sm" [disabled]="renamingLibraryId() === lib.id" (click)="saveRename(lib)">
+                                    Save
+                                </app-button>
+                                <app-button size="sm" variant="secondary" (click)="cancelRename()">Cancel</app-button>
+                            </div>
+                        } @else {
+                            <h3 class="font-semibold text-text text-lg">{{ lib.name }}</h3>
+                        }
+                        <p class="text-sm text-text-dim break-all">{{ lib.path }}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <app-button
+                            variant="secondary"
+                            size="sm"
+                            [disabled]="editingLibraryId() === lib.id"
+                            (click)="startRename(lib)">
+                            Rename
+                        </app-button>
+                        <app-button
+                            variant="secondary"
+                            size="sm"
+                            [disabled]="scanningLibraryId() === lib.id || editingLibraryId() === lib.id"
+                            (click)="scanLibrary(lib)">
+                            {{ scanningLibraryId() === lib.id ? 'Queueing...' : 'Scan' }}
+                        </app-button>
+                        <app-button
+                            variant="danger"
+                            size="sm"
+                            (click)="deleteLibrary(lib)"
+                            [disabled]="isLoading() || editingLibraryId() === lib.id">
+                            Delete
+                        </app-button>
+                    </div>
+                </div>
+
+                <div class="mt-4 space-y-2">
+                    <div class="flex justify-between items-center py-2 border-b border-white/5">
+                        <span class="text-text-muted">Posts</span>
+                        <span class="text-[0.95rem] font-semibold">{{ lib.postCount }}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-white/5">
+                        <span class="text-text-muted">Total Size</span>
+                        <span class="text-[0.95rem] font-semibold">{{ formatSize(lib.totalSizeBytes) }}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2">
+                        <span class="text-text-muted">Last Import</span>
+                        <span class="text-[0.9rem] font-medium">{{ lib.lastImportDate ? (lib.lastImportDate | date:'medium') : 'Never' }}</span>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
 </div>

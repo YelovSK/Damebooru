@@ -7,6 +7,8 @@ public class BakabooruConfig
     public StorageConfig Storage { get; set; } = new();
     public ScannerConfig Scanner { get; set; } = new();
     public ProcessingConfig Processing { get; set; } = new();
+    public IngestionConfig Ingestion { get; set; } = new();
+    public AuthConfig Auth { get; set; } = new();
 }
 
 public class StorageConfig
@@ -32,7 +34,6 @@ public class StorageConfig
 
 public class ScannerConfig
 {
-    public bool SkipVideoHashing { get; set; } = true;
     public int BatchSize { get; set; } = 100;
     public int Parallelism { get; set; } = 2;
 }
@@ -40,4 +41,17 @@ public class ScannerConfig
 public class ProcessingConfig
 {
     public bool RunScheduler { get; set; } = true;
+}
+
+public class IngestionConfig
+{
+    public int BatchSize { get; set; } = 100;
+    public int ChannelCapacity { get; set; } = 1000;
+}
+
+public class AuthConfig
+{
+    public bool Enabled { get; set; } = true;
+    public string Username { get; set; } = "admin";
+    public string Password { get; set; } = "change-me";
 }

@@ -10,11 +10,15 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   // Only add auth header to internal API requests
   const isInternalApi = req.url.startsWith(environment.apiBaseUrl);
 
-  if (isInternalApi && auth && !req.headers.has("Authorization")) {
+  if (isInternalApi) {
+    const setHeaders =
+      auth && !req.headers.has("Authorization")
+        ? { Authorization: auth }
+        : undefined;
+
     req = req.clone({
-      setHeaders: {
-        Authorization: auth,
-      },
+      withCredentials: true,
+      setHeaders,
     });
   }
 

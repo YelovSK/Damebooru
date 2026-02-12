@@ -1,11 +1,10 @@
 import { Injectable, signal, computed, inject } from "@angular/core";
 import {
     HttpClient,
-    HttpHeaders,
     HttpParams,
 } from "@angular/common/http";
 import { Observable, of } from "rxjs";
-import { map } from "rxjs/operators";
+import { catchError, finalize, map, shareReplay } from "rxjs/operators";
 import {
     Post,
     Tag,
@@ -16,7 +15,6 @@ import {
     GlobalInfo,
     Comment,
     Pool,
-    UserToken,
     PostsAround,
     PostField,
     UserRank,
@@ -27,8 +25,17 @@ import { StrictEncoder } from "../oxibooru/strict-encoder";
 
 export interface Library {
     id: number;
+    name: string;
     path: string;
     scanIntervalHours: number;
+    postCount: number;
+    totalSizeBytes: number;
+    lastImportDate: string | null;
+}
+
+interface AuthSessionResponse {
+    username: string;
+    isAuthenticated: boolean;
 }
 
 @Injectable({
@@ -36,38 +43,86 @@ export interface Library {
 })
 export class BakabooruService {
     private baseUrl = environment.apiBaseUrl;
+    private authCheckInFlight$: Observable<boolean> | null = null;
 
-    // Auth stubs
+    // Kept for compatibility with legacy Oxibooru-based code paths.
     authHeader = signal<string | null>(null);
-    currentUser = signal<string | null>("StartUser"); // Mock user
-    isLoggedIn = computed(() => true);
+    currentUser = signal<string | null>(null);
+    isLoggedIn = computed(() => !!this.currentUser());
+    private authChecked = signal(false);
 
     private http = inject(HttpClient);
 
     constructor() { }
 
-    // --- Auth Stubs ---
-    login(username: string, password: string): Observable<UserToken> {
-        return of({ token: "mock-token", name: username } as any);
+    // --- Auth ---
+    login(username: string, password: string): Observable<void> {
+        return this.http.post<AuthSessionResponse>(`${this.baseUrl}/auth/login`, { username, password }).pipe(
+            map(response => {
+                this.currentUser.set(response.username);
+                this.authChecked.set(true);
+                return;
+            })
+        );
     }
 
     register(username: string, password: string): Observable<void> {
         return of(void 0);
     }
 
-    logout() { }
+    logout(): Observable<void> {
+        return this.http.post<void>(`${this.baseUrl}/auth/logout`, {}).pipe(
+            map(() => {
+                this.currentUser.set(null);
+                this.authChecked.set(true);
+            })
+        );
+    }
+
+    ensureAuthState(): Observable<boolean> {
+        if (this.authChecked()) {
+            return of(this.isLoggedIn());
+        }
+
+        if (this.authCheckInFlight$) {
+            return this.authCheckInFlight$;
+        }
+
+        this.authCheckInFlight$ = this.http.get<AuthSessionResponse>(`${this.baseUrl}/auth/me`).pipe(
+            map(response => {
+                this.currentUser.set(response.username);
+                this.authChecked.set(true);
+                return true;
+            }),
+            catchError(() => {
+                this.currentUser.set(null);
+                this.authChecked.set(true);
+                return of(false);
+            }),
+            finalize(() => {
+                this.authCheckInFlight$ = null;
+            }),
+            shareReplay(1)
+        );
+
+        return this.authCheckInFlight$;
+    }
 
     // --- Libraries (New) ---
     getLibraries(): Observable<Library[]> {
         return this.http.get<Library[]>(`${this.baseUrl}/libraries`);
     }
 
-    createLibrary(path: string): Observable<Library> {
-        return this.http.post<Library>(`${this.baseUrl}/libraries`, { path });
+    createLibrary(name: string, path: string): Observable<Library> {
+        return this.http.post<Library>(`${this.baseUrl}/libraries`, { name, path });
     }
 
     deleteLibrary(id: number): Observable<void> {
         return this.http.delete<void>(`${this.baseUrl}/libraries/${id}`);
+    }
+
+    renameLibrary(id: number, name: string): Observable<Library> {
+        return this.http.patch<Library>(`${this.baseUrl}/libraries/${id}/name`, { name });
     }
 
     // --- Posts ---
@@ -116,7 +171,7 @@ export class BakabooruService {
     }
 
     scanLibrary(libraryId: number): Observable<void> {
-        return this.http.post<void>(`${this.baseUrl}/admin/jobs/scan/${libraryId}`, {});
+        return this.http.post<void>(`${this.baseUrl}/libraries/${libraryId}/scan`, {});
     }
 
     private mapPost(dto: any): Post {
@@ -225,7 +280,12 @@ export class BakabooruService {
     // Add other necessary stubs as empty observables or specific "not implemented" errors if critical
 
     getPostsAround(id: number, query = ""): Observable<PostsAround> {
-        return of({ prev: null, next: null });
+        let params = new HttpParams();
+        if (query) {
+            params = params.set("tags", query);
+        }
+
+        return this.http.get<PostsAround>(`${this.baseUrl}/posts/${id}/around`, { params });
     }
 
     updatePost(id: number, metadata: any): Observable<Post> {

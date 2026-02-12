@@ -1,9 +1,11 @@
+using Bakabooru.Core.Config;
 using Bakabooru.Core.Entities;
 using Bakabooru.Core.Interfaces;
 using Bakabooru.Data;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Threading.Channels;
 
 namespace Bakabooru.Processing.Services;
@@ -16,18 +18,20 @@ public class ChannelPostIngestionService : IPostIngestionService, IHostedService
     private readonly CancellationTokenSource _shutdownCts = new();
     private Task? _processingTask;
     private int _pendingWorkItems = 0;
-    
-    // Config
-    private const int BatchSize = 100;
-    private const int ChannelCapacity = 1000;
+    private readonly int _batchSize;
 
-    public ChannelPostIngestionService(IServiceScopeFactory scopeFactory, ILogger<ChannelPostIngestionService> logger)
+    public ChannelPostIngestionService(
+        IServiceScopeFactory scopeFactory,
+        ILogger<ChannelPostIngestionService> logger,
+        IOptions<BakabooruConfig> options)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _batchSize = Math.Max(1, options.Value.Ingestion.BatchSize);
+        var channelCapacity = Math.Max(10, options.Value.Ingestion.ChannelCapacity);
         
         // Bounded channel provides backpressure - if the DB is slow, the scanner will eventually pause at Enqueue
-        _channel = Channel.CreateBounded<Post>(new BoundedChannelOptions(ChannelCapacity)
+        _channel = Channel.CreateBounded<Post>(new BoundedChannelOptions(channelCapacity)
         {
             FullMode = BoundedChannelFullMode.Wait,
             SingleReader = true,
@@ -85,7 +89,7 @@ public class ChannelPostIngestionService : IPostIngestionService, IHostedService
     private async Task ProcessQueueAsync()
     {
         _logger.LogInformation("Ingestion service started.");
-        var batch = new List<Post>(BatchSize);
+        var batch = new List<Post>(_batchSize);
 
         try 
         {
@@ -94,7 +98,7 @@ public class ChannelPostIngestionService : IPostIngestionService, IHostedService
                 while (_channel.Reader.TryRead(out var post))
                 {
                     batch.Add(post);
-                    if (batch.Count >= BatchSize)
+                    if (batch.Count >= _batchSize)
                     {
                         await SaveBatchAsync(batch);
                         batch.Clear();

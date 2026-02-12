@@ -10,7 +10,7 @@ public class BakabooruDbContextFactory : IDesignTimeDbContextFactory<BakabooruDb
 {
     public BakabooruDbContext CreateDbContext(string[] args)
     {
-        var contentRoot = AppContext.BaseDirectory;
+        var contentRoot = ResolveContentRoot();
 
         IConfigurationRoot configuration = new ConfigurationBuilder()
             .SetBasePath(contentRoot)
@@ -29,5 +29,44 @@ public class BakabooruDbContextFactory : IDesignTimeDbContextFactory<BakabooruDb
         builder.UseSqlite(resolvedConnectionString);
 
         return new BakabooruDbContext(builder.Options);
+    }
+
+    private static string ResolveContentRoot()
+    {
+        var explicitRoot = Environment.GetEnvironmentVariable("BAKABOORU_CONTENT_ROOT");
+        if (!string.IsNullOrWhiteSpace(explicitRoot) && Directory.Exists(explicitRoot))
+            return Path.GetFullPath(explicitRoot);
+
+        var candidates = new[]
+        {
+            Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory,
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."),
+        };
+
+        foreach (var candidate in candidates)
+        {
+            var root = FindServerProjectRoot(candidate);
+            if (root != null)
+                return root;
+        }
+
+        return Directory.GetCurrentDirectory();
+    }
+
+    private static string? FindServerProjectRoot(string startPath)
+    {
+        var current = new DirectoryInfo(Path.GetFullPath(startPath));
+        while (current != null)
+        {
+            var hasCsproj = File.Exists(Path.Combine(current.FullName, "Bakabooru.Server.csproj"));
+            var hasAppSettings = File.Exists(Path.Combine(current.FullName, "appsettings.json"));
+            if (hasCsproj && hasAppSettings)
+                return current.FullName;
+
+            current = current.Parent;
+        }
+
+        return null;
     }
 }

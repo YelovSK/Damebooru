@@ -18,6 +18,28 @@ public class PostsController : ControllerBase
         _context = context;
     }
 
+    private static IQueryable<Post> ApplyTagFilters(IQueryable<Post> query, string? tags)
+    {
+        if (string.IsNullOrWhiteSpace(tags))
+        {
+            return query;
+        }
+
+        var parsedQuery = Bakabooru.Processing.Pipeline.QueryParser.Parse(tags);
+
+        foreach (var tag in parsedQuery.IncludedTags)
+        {
+            query = query.Where(p => p.PostTags.Any(pt => pt.Tag.Name == tag));
+        }
+
+        foreach (var tag in parsedQuery.ExcludedTags)
+        {
+            query = query.Where(p => !p.PostTags.Any(pt => pt.Tag.Name == tag));
+        }
+
+        return query;
+    }
+
     [HttpGet]
     public async Task<ActionResult<PostListDto>> GetPosts(
         [FromQuery] string? tags = null,
@@ -28,24 +50,7 @@ public class PostsController : ControllerBase
         if (pageSize < 1) pageSize = 20;
         if (pageSize > 100) pageSize = 100;
 
-        var query = _context.Posts.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(tags))
-        {
-            var parsedQuery = Bakabooru.Processing.Pipeline.QueryParser.Parse(tags);
-            
-            // Inclusion logic (AND)
-            foreach (var tag in parsedQuery.IncludedTags)
-            {
-                query = query.Where(p => p.PostTags.Any(pt => pt.Tag.Name == tag));
-            }
-
-            // Exclusion logic (NOT)
-            foreach (var tag in parsedQuery.ExcludedTags)
-            {
-                query = query.Where(p => !p.PostTags.Any(pt => pt.Tag.Name == tag));
-            }
-        }
+        var query = ApplyTagFilters(_context.Posts.AsQueryable(), tags);
 
         var totalCount = await query.CountAsync();
         var items = await query
@@ -85,6 +90,54 @@ public class PostsController : ControllerBase
             Page = page,
             PageSize = pageSize
         };
+    }
+
+    [HttpGet("{id}/around")]
+    public async Task<ActionResult<PostsAroundDto>> GetPostsAround(int id, [FromQuery] string? tags = null)
+    {
+        var current = await _context.Posts
+            .Where(p => p.Id == id)
+            .Select(p => new { p.Id, p.ImportDate })
+            .FirstOrDefaultAsync();
+
+        if (current == null)
+        {
+            return NotFound();
+        }
+
+        var query = ApplyTagFilters(_context.Posts.AsQueryable(), tags);
+
+        var prev = await query
+            .Where(p => p.Id != current.Id
+                        && (p.ImportDate > current.ImportDate
+                            || (p.ImportDate == current.ImportDate && p.Id > current.Id)))
+            .OrderBy(p => p.ImportDate)
+            .ThenBy(p => p.Id)
+            .Select(p => new MicroPostDto
+            {
+                Id = p.Id,
+                ThumbnailUrl = $"/thumbnails/{p.ContentHash}.jpg"
+            })
+            .FirstOrDefaultAsync();
+
+        var next = await query
+            .Where(p => p.Id != current.Id
+                        && (p.ImportDate < current.ImportDate
+                            || (p.ImportDate == current.ImportDate && p.Id < current.Id)))
+            .OrderByDescending(p => p.ImportDate)
+            .ThenByDescending(p => p.Id)
+            .Select(p => new MicroPostDto
+            {
+                Id = p.Id,
+                ThumbnailUrl = $"/thumbnails/{p.ContentHash}.jpg"
+            })
+            .FirstOrDefaultAsync();
+
+        return Ok(new PostsAroundDto
+        {
+            Prev = prev,
+            Next = next
+        });
     }
 
     [HttpGet("{id}")]

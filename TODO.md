@@ -1,17 +1,17 @@
 - job progress bar on the jobs page not working (works in info page). Should use the same component
-- when metadata is not yet calculated for a post, it sets width height to 0 (I think), so on post details page the image is invisible because its dimensions are set to 0x0
+- [x] when metadata is not yet calculated for a post, it sets width height to 0 (I think), so on post details page the image is invisible because its dimensions are set to 0x0
 - check if ffmpeg stuff cannot be sped up, e.g. dHash calculation and metadata extraction is slow despite the CPU nor HDD seems to be heavily utilized
-- add endpoint for posts around some query (similar to oxibooru), so that I can go to next/previous post in post details with the given filter
+- [x] add endpoint for posts around some query (similar to oxibooru), so that I can go to next/previous post in post details with the given filter
 - implement tag and tag category management (view, add, delete, assign, rename, merge, etc)
 - check if polling jobs API is better than having a websocket connection
-- remove jobs from the info page
-- remove scan libraries button from info page
-- libraries page is bad
-    - creating new library should be done via a file picker
-    - library should have a name
-    - per library info should be displayed
-    - individual libraries should be scannable
-- implement simple auth (no roles, just putting everything behind a login)
+- [x] remove jobs from the info page
+- [x] remove scan libraries button from info page
+- [x] libraries page is bad
+- [x] creating new library should be done via a file picker
+- [x] library should have a name
+- [x] per library info should be displayed
+- [x] individual libraries should be scannable
+- [x] implement simple auth (no roles, just putting everything behind a login)
 - add more search options, e.g. by type (image, video), by tag count, etc
 - dockerize everything (should be able to map db and thumbnail paths)
 - write a script that will migrate tags from oxibooru to bakabooru (go through posts, reverse search, get tags). Will have to decode jxl to jpg first cuz oxibooru doesnt support jxl

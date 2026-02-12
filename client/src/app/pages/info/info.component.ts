@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, signal, OnInit } from '@angular/core';
 import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
 import { GlobalInfo } from '@services/api/oxibooru/models';
 import { CommonModule, DecimalPipe, DatePipe } from '@angular/common';
@@ -10,43 +10,14 @@ import { CommonModule, DecimalPipe, DatePipe } from '@angular/common';
     templateUrl: './info.component.html',
     styleUrl: './info.component.css'
 })
-export class InfoComponent implements OnInit, OnDestroy {
+export class InfoComponent implements OnInit {
     private readonly bakabooru = inject(BakabooruService);
 
     info = signal<GlobalInfo | null>(null);
-    activeJobs = signal<any[]>([]);
-    private refreshInterval: any;
 
     ngOnInit() {
         this.bakabooru.getGlobalInfo().subscribe(info => {
             this.info.set(info);
-        });
-
-        this.loadJobs();
-        this.refreshInterval = setInterval(() => this.loadJobs(), 5000);
-    }
-
-    ngOnDestroy() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-        }
-    }
-
-    loadJobs() {
-        this.bakabooru.getJobs().subscribe(jobs => {
-            this.activeJobs.set(jobs);
-        });
-    }
-
-    onScanAll() {
-        this.bakabooru.scanAllLibraries().subscribe(() => {
-            this.loadJobs();
-        });
-    }
-
-    onCancelJob(jobId: string) {
-        this.bakabooru.cancelJob(jobId).subscribe(() => {
-            this.loadJobs();
         });
     }
 

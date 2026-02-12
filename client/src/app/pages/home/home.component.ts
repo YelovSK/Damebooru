@@ -17,9 +17,11 @@ export class HomeComponent implements OnInit {
   private readonly router = inject(Router);
 
   ngOnInit() {
-    if (this.bakabooru.isLoggedIn()) {
-      this.router.navigate(AppLinks.posts());
-    }
+    this.bakabooru.ensureAuthState().subscribe(isLoggedIn => {
+      if (isLoggedIn) {
+        this.router.navigate(AppLinks.posts());
+      }
+    });
   }
 
   goToLogin() {

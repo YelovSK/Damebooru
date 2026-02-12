@@ -1,49 +1,7 @@
 <div class="max-w-4xl mx-auto py-8">
-    <div class="flex justify-between items-center mb-8">
+    <div class="mb-8">
         <h1 class="text-3xl font-bold text-accent-primary">System Information</h1>
-        <button (click)="onScanAll()"
-            class="px-4 py-2 bg-accent-primary hover:bg-accent-primary-glow text-white rounded-lg font-bold transition-all flex items-center gap-2">
-            <i class="icon-refresh"></i> Scan All Libraries
-        </button>
     </div>
-
-    @if (activeJobs().length > 0) {
-    <div class="glass-card p-6 mb-8 border-accent-primary/20">
-        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-            <span class="w-2 h-6 bg-status-info rounded-full animate-pulse"></span>
-            Active Background Jobs
-        </h2>
-        <div class="space-y-4">
-            @for (job of activeJobs(); track job.jobId) {
-            <div class="p-4 bg-white/5 rounded-lg border border-white/5">
-                <div class="flex justify-between items-center mb-2">
-                    <div>
-                        <span class="font-bold text-text-primary">{{ job.name }}</span>
-                        <span
-                            class="ml-2 text-[0.7rem] text-text-muted px-2 py-0.5 bg-white/5 rounded uppercase tracking-wider">{{
-                            job.status }}</span>
-                    </div>
-                    <button (click)="onCancelJob(job.jobId)"
-                        class="text-status-danger hover:text-red-400 text-sm font-bold transition-colors">
-                        Cancel
-                    </button>
-                </div>
-
-                <div class="space-y-1 mt-2">
-                    <div class="flex justify-between text-[0.75rem] text-text-muted">
-                        <span>{{ job.message }}</span>
-                        <span>{{ job.progress }}%</span>
-                    </div>
-                    <div class="h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div class="h-full bg-accent-primary transition-all duration-300"
-                            [style.width.%]="job.progress"></div>
-                    </div>
-                </div>
-            </div>
-            }
-        </div>
-    </div>
-    }
 
     @if (info(); as data) {
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

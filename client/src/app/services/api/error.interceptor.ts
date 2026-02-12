@@ -16,6 +16,11 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
+      const isSessionProbe = req.url.includes('/auth/me');
+      if (isSessionProbe && error.status === 401) {
+        return throwError(() => error);
+      }
+
       let errorMessage = 'An unexpected error occurred';
 
       if (error.error instanceof ErrorEvent) {
