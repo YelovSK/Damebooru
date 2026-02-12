@@ -5,6 +5,7 @@ import { Subscription, interval } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { PaginatorComponent } from '../../shared/components/paginator/paginator.component';
+import { ProgressBarComponent } from '../../shared/components/progress-bar/progress-bar.component';
 import { ToastService } from '../../services/toast.service';
 import { ConfirmService } from '../../services/confirm.service';
 
@@ -22,7 +23,7 @@ const MODAL_JOBS = new Set(['Generate Thumbnails', 'Extract Metadata', 'Compute 
 @Component({
   selector: 'app-jobs-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonComponent, PaginatorComponent],
+  imports: [CommonModule, FormsModule, ButtonComponent, PaginatorComponent, ProgressBarComponent],
   template: `
     <div class="container mx-auto p-6">
       <h1 class="text-3xl font-bold mb-2 text-terminal-green">Job Queues</h1>
@@ -43,10 +44,8 @@ const MODAL_JOBS = new Set(['Generate Thumbnails', 'Extract Metadata', 'Compute 
 
           <!-- Progress Bar (when running) -->
           <div *ngIf="job.isRunning && job.activeJobInfo" class="mb-4">
-            <div class="w-full bg-gray-700 rounded-full h-2 mb-1.5">
-              <div class="bg-terminal-green h-2 rounded-full transition-all duration-500" [style.width.%]="job.activeJobInfo.progress"></div>
-            </div>
-            <p class="text-xs text-gray-400">{{ job.activeJobInfo.message }}</p>
+            <app-progress-bar class="mb-1.5" [progress]="job.activeJobInfo.progress" [trackClass]="'bg-gray-700'" [fillClass]="'bg-accent-primary'"></app-progress-bar>
+            <p class="text-xs text-gray-400">{{ job.activeJobInfo.message }} ({{ getProgressPercent(job.activeJobInfo.progress) | number:'1.0-0' }}%)</p>
           </div>
 
           <!-- Action Buttons -->
@@ -128,7 +127,7 @@ const MODAL_JOBS = new Set(['Generate Thumbnails', 'Extract Metadata', 'Compute 
               </td>
               <td class="py-2">{{run.startTime | date:'medium'}}</td>
               <td class="py-2">
-                {{ run.endTime ? getDuration(run.startTime, run.endTime) : '-' }}
+                {{ getHistoryDuration(run) }}
               </td>
               <td class="py-2 text-red-400 text-sm">{{run.errorMessage}}</td>
             </tr>
@@ -151,11 +150,13 @@ export class JobsPageComponent implements OnInit, OnDestroy {
   jobs = signal<JobViewModel[]>([]);
   schedules = signal<ScheduledJob[]>([]);
   history = signal<JobExecution[]>([]);
+  now = signal(Date.now());
   historyPage = signal(1);
   historyTotal = signal(0);
   historyPageSize = 20;
   historyTotalPages = computed(() => Math.max(1, Math.ceil(this.historyTotal() / this.historyPageSize)));
   private pollSub?: Subscription;
+  private clockSub?: Subscription;
 
   constructor(
     private jobService: JobService,
@@ -170,10 +171,15 @@ export class JobsPageComponent implements OnInit, OnDestroy {
       this.jobService.getJobs().subscribe(data => this.jobs.set(data));
       this.loadHistory();
     });
+
+    this.clockSub = interval(1000).subscribe(() => {
+      this.now.set(Date.now());
+    });
   }
 
   ngOnDestroy() {
     this.pollSub?.unsubscribe();
+    this.clockSub?.unsubscribe();
   }
 
   refreshData() {
@@ -251,5 +257,25 @@ export class JobsPageComponent implements OnInit, OnDestroy {
     const mins = Math.floor(diff / 60);
     const secs = diff % 60;
     return `${mins}m ${secs}s`;
+  }
+
+  getHistoryDuration(run: JobExecution): string {
+    if (run.endTime) {
+      return this.getDuration(run.startTime, run.endTime);
+    }
+
+    if (run.status === 1) {
+      return this.getDuration(run.startTime, new Date(this.now()).toISOString());
+    }
+
+    return '-';
+  }
+
+  getProgressPercent(progress: number): number {
+    if (!Number.isFinite(progress)) return 0;
+
+    // Be tolerant if backend ever reports 0..1 instead of 0..100.
+    const normalized = progress <= 1 ? progress * 100 : progress;
+    return Math.max(0, Math.min(100, normalized));
   }
 }

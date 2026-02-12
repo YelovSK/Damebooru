@@ -1,4 +1,4 @@
-- job progress bar on the jobs page not working (works in info page). Should use the same component
+- [x] job progress bar on the jobs page not working (works in info page). Should use the same component
 - [x] when metadata is not yet calculated for a post, it sets width height to 0 (I think), so on post details page the image is invisible because its dimensions are set to 0x0
 - check if ffmpeg stuff cannot be sped up, e.g. dHash calculation and metadata extraction is slow despite the CPU nor HDD seems to be heavily utilized
 - [x] add endpoint for posts around some query (similar to oxibooru), so that I can go to next/previous post in post details with the given filter
@@ -7,7 +7,7 @@
 - [x] remove jobs from the info page
 - [x] remove scan libraries button from info page
 - [x] libraries page is bad
-- [x] creating new library should be done via a file picker
+- [ ] creating new library should be done via a file picker (dropped in favor of manual server path input)
 - [x] library should have a name
 - [x] per library info should be displayed
 - [x] individual libraries should be scannable

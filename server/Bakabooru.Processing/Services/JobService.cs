@@ -112,7 +112,9 @@ public class JobService : IJobService
                     JobId = jobId,
                     CancellationToken = cts.Token,
                     Progress = new Progress<float>(percent => {
-                        jobInfo.Progress = (int)percent;
+                        // Accept both 0..1 and 0..100 progress reporting styles.
+                        var normalized = percent <= 1f ? percent * 100f : percent;
+                        jobInfo.Progress = Math.Clamp(normalized, 0f, 100f);
                     }),
                     Status = new Progress<string>(message => {
                         jobInfo.Message = message;

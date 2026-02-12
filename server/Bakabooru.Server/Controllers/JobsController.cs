@@ -25,17 +25,23 @@ public class JobsController : ControllerBase
     {
         var available = _jobService.GetAvailableJobs();
         var activeJobs = _jobService.GetActiveJobs();
-        
-        // Group by name to handle multiple instances of same job type running (if that ever happens)
+
+        // Prefer currently running entries if there are multiple active records with same name.
         var active = activeJobs
-            .GroupBy(j => j.Name)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(j => j.StartTime).First(), StringComparer.OrdinalIgnoreCase);
+            .GroupBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderByDescending(j => j.Status == JobStatus.Running)
+                    .ThenByDescending(j => j.StartTime)
+                    .First(),
+                StringComparer.OrdinalIgnoreCase);
 
         var result = available.Select(name => new JobViewDto
         {
             Name = name,
-            IsRunning = active.ContainsKey(name) && active[name].Status == JobStatus.Running,
-            ActiveJobInfo = active.GetValueOrDefault(name)
+            IsRunning = active.TryGetValue(name, out var info) && info.Status == JobStatus.Running,
+            ActiveJobInfo = active.TryGetValue(name, out var activeInfo) ? activeInfo : null
         });
 
         return Ok(result);

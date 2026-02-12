@@ -12,11 +12,7 @@
           {{ toast.message }}
         </div>
         @if (toast.progress !== undefined) {
-          <div class="mt-2 h-1.5 w-full bg-black/10 rounded-full overflow-hidden">
-            <div class="h-full bg-accent-primary transition-all duration-300"
-              [style.width.%]="toast.progress">
-            </div>
-          </div>
+          <app-progress-bar class="mt-2" [progress]="toast.progress" [heightClass]="'h-1.5'" [trackClass]="'bg-black/10'" [fillClass]="'bg-accent-primary'"></app-progress-bar>
         }
       </div>
 

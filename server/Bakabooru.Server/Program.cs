@@ -1,4 +1,5 @@
 using Bakabooru.Core.Config;
+using Bakabooru.Core.Interfaces;
 using Bakabooru.Data;
 using Bakabooru.Processing;
 using Microsoft.AspNetCore.Authentication;
@@ -103,6 +104,25 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
     db.Database.Migrate();
+
+    // Reconcile stale "Running" executions left behind by shutdown/crash.
+    var staleRunningExecutions = db.JobExecutions
+        .Where(j => j.Status == JobStatus.Running && j.EndTime == null)
+        .ToList();
+
+    if (staleRunningExecutions.Count > 0)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var execution in staleRunningExecutions)
+        {
+            execution.Status = JobStatus.Cancelled;
+            execution.EndTime = now;
+            execution.ErrorMessage ??= "Marked as cancelled after server restart.";
+        }
+
+        db.SaveChanges();
+        app.Logger.LogWarning("Reconciled {Count} stale running job execution(s) on startup.", staleRunningExecutions.Count);
+    }
 }
 
 // Configure the HTTP request pipeline.

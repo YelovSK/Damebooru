@@ -19,13 +19,14 @@ import { RateLimiterService } from '@services/rate-limiting/rate-limiter.service
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { AutoTaggingResultsComponent } from '@shared/components/auto-tagging-results/auto-tagging-results.component';
+import { ProgressBarComponent } from '@shared/components/progress-bar/progress-bar.component';
 import { escapeTagName } from '@shared/utils/utils';
 import { AppLinks } from '@app/app.paths';
 
 @Component({
   selector: 'app-upload-item',
   standalone: true,
-  imports: [CommonModule, AutocompleteComponent, RouterLink, ButtonComponent, AutoTaggingResultsComponent],
+  imports: [CommonModule, AutocompleteComponent, RouterLink, ButtonComponent, AutoTaggingResultsComponent, ProgressBarComponent],
   templateUrl: './upload-item.component.html',
   styleUrl: './upload-item.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

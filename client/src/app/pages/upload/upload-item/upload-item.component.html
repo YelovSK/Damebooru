@@ -18,9 +18,7 @@
     @if (item.status !== 'completed') {
     <div class="absolute inset-0 bg-black/60 flex flex-col justify-center items-center gap-2">
       @if (item.status === 'uploading') {
-      <div class="w-4/5 h-1 bg-white/10 rounded-full overflow-hidden">
-        <div class="h-full bg-accent-primary transition-all duration-300" [style.width.%]="item.progress"></div>
-      </div>
+      <app-progress-bar class="w-4/5" [progress]="item.progress" [heightClass]="'h-1'" [trackClass]="'bg-white/10'" [fillClass]="'bg-accent-primary'"></app-progress-bar>
       }
       <span class="text-[0.7rem] uppercase font-bold tracking-wider text-white">{{ item.status }}</span>
     </div>

@@ -2,11 +2,12 @@ import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { animate, style, transition, trigger } from '@angular/animations';
 import { ToastService } from '@services/toast.service';
+import { ProgressBarComponent } from '@shared/components/progress-bar/progress-bar.component';
 
 @Component({
   selector: 'app-toasts',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ProgressBarComponent],
   templateUrl: './toasts.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
   animations: [
