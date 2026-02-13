@@ -1,4 +1,4 @@
-namespace Bakabooru.Server.DTOs;
+namespace Bakabooru.Core.DTOs;
 
 public class PostDto
 {
@@ -12,21 +12,15 @@ public class PostDto
     public DateTime ImportDate { get; set; }
     public string ThumbnailUrl { get; set; } = string.Empty;
     public string ContentUrl { get; set; } = string.Empty;
-    public List<TagDto> Tags { get; set; } = new();
+    public List<TagDto> Tags { get; set; } = [];
 }
 
 public class PostListDto
 {
-    public IEnumerable<PostDto> Items { get; set; } = new List<PostDto>();
+    public IReadOnlyList<PostDto> Items { get; set; } = [];
     public int TotalCount { get; set; }
     public int Page { get; set; }
     public int PageSize { get; set; }
-}
-
-public class MicroPostDto
-{
-    public int Id { get; set; }
-    public string ThumbnailUrl { get; set; } = string.Empty;
 }
 
 public class PostsAroundDto

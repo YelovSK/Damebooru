@@ -22,7 +22,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
-    # API proxy - strips /api prefix
+    # API proxy
     location ~ ^/api$ {
         return 302 /api/;
     }
@@ -46,9 +46,8 @@ server {
         gzip_proxied expired no-cache no-store private auth;
         gzip_types text/plain application/json;
 
-        # Rewrite and proxy
-        rewrite ^/api/(.*)$ /$1 break;  # ← Key change: use rewrite instead of $1
-        proxy_pass http://backend;       # ← No path here
+        # Preserve /api/* routes as-is for Bakabooru server
+        proxy_pass http://backend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.idea/
+
+data/
+server/
+*.db
+*.db-shm
+*.db-wal
+
+.git/
+.github/

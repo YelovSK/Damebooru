@@ -2,7 +2,7 @@ using Bakabooru.Core.Entities;
 using Bakabooru.Core.Interfaces;
 using System.ComponentModel.DataAnnotations;
 
-namespace Bakabooru.Server.DTOs;
+namespace Bakabooru.Core.DTOs;
 
 public class JobViewDto
 {

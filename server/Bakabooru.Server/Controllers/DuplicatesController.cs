@@ -1,7 +1,7 @@
 using Bakabooru.Core.Entities;
+using Bakabooru.Core.DTOs;
+using Bakabooru.Core.Paths;
 using Bakabooru.Data;
-using Bakabooru.Server.DTOs;
-using Bakabooru.Server.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 

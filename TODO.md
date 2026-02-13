@@ -16,7 +16,7 @@
 - add post sources table, APIs, and integrate in UI
 - add the abilitiy to favorite posts
 - remove old compabitility with oxibooru.. just use bakabooru apis. Remove stuff not needed for bakabooru like registration, upload etc
-- add more search options, e.g. by type (image, video), by tag count, favorite, etc
+- [x] add more search options, e.g. by type (image, video), by tag count, favorite, etc
 - add help page with keyboard shortcuts, search syntax, etc
 - dockerize everything (should be able to map db and thumbnail paths). Have github action to publish client and server images to ghcr
 - [x] write a script that will migrate tags from bakabooru to bakabooru (go through posts, reverse search, get tags). Will have to decode jxl to jpg first cuz bakabooru doesnt support jxl

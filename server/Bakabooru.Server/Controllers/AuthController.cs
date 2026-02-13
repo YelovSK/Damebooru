@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Bakabooru.Core.Config;
-using Bakabooru.Server.DTOs;
+using Bakabooru.Core.DTOs;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;

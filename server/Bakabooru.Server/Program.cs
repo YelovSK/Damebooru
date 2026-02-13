@@ -1,8 +1,9 @@
 using Bakabooru.Core.Config;
+using Bakabooru.Core.Paths;
 using Bakabooru.Core.Interfaces;
 using Bakabooru.Data;
 using Bakabooru.Processing;
-using Bakabooru.Server.Infrastructure;
+using Bakabooru.Processing.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -93,6 +94,8 @@ var resolvedConnectionString = StoragePathResolver.ResolveSqliteConnectionString
 
 builder.Services.AddDbContext<BakabooruDbContext>(options =>
     options.UseSqlite(resolvedConnectionString));
+builder.Services.AddScoped<PostReadService>();
+builder.Services.AddScoped<PostWriteService>();
 
 
 // Modular Processing Pipeline

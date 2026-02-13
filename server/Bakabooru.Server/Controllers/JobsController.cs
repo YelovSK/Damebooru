@@ -1,6 +1,6 @@
+using Bakabooru.Core.DTOs;
 using Bakabooru.Core.Interfaces;
 using Bakabooru.Data;
-using Bakabooru.Server.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;

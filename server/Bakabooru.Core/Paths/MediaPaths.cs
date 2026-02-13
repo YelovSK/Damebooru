@@ -1,4 +1,4 @@
-namespace Bakabooru.Server.Infrastructure;
+namespace Bakabooru.Core.Paths;
 
 public static class MediaPaths
 {

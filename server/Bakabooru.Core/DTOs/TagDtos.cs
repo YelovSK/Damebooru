@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Bakabooru.Server.DTOs;
+namespace Bakabooru.Core.DTOs;
 
 public class CreateTagCategoryDto
 {
