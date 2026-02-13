@@ -124,6 +124,7 @@ export class PostDetailComponent {
   );
 
   imageLoading = signal(true);
+  readonly displayAspectRatio = signal<string | null>(null);
 
   constructor() {
     effect(() => {
@@ -140,6 +141,16 @@ export class PostDetailComponent {
       if (!this.editService.isEditing()) {
         this.sourcesValue.set('');
         this.tagSearchValue.set('');
+      }
+    });
+
+    // Keep previous ratio while navigating; update to the new ratio on image load.
+    effect(() => {
+      const post = this.post();
+      if (!post) return;
+
+      if (this.displayAspectRatio() == null) {
+        this.displayAspectRatio.set(this.getAspectRatio(post.width, post.height));
       }
     });
 
@@ -364,6 +375,21 @@ export class PostDetailComponent {
     if (contentType.startsWith('video/')) return 'video';
     if (contentType === 'image/gif') return 'animation';
     return 'image';
+  }
+
+  onDisplayedImageLoad() {
+    const post = this.post();
+    if (!post) return;
+
+    this.displayAspectRatio.set(this.getAspectRatio(post.width, post.height));
+  }
+
+  private getAspectRatio(width: number, height: number): string | null {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return null;
+    }
+
+    return `${width}/${height}`;
   }
 
 }

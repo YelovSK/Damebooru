@@ -22,6 +22,6 @@ public class MetadataStep : IMediaProcessingStep
         var metadata = await _mediaProcessor.GetMetadataAsync(context.FilePath, cancellationToken);
         context.Width = metadata.Width;
         context.Height = metadata.Height;
-        context.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(context.FilePath));
+        context.ContentType = metadata.ContentType ?? SupportedMedia.GetMimeType(Path.GetExtension(context.FilePath));
     }
 }

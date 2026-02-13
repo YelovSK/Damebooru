@@ -172,11 +172,12 @@
             <img [src]="environment.mediaBaseUrl + pd.thumbnailUrl"
                 [appProgressiveImage]="environment.mediaBaseUrl + pd.contentUrl"
                 [alt]="pd.id"
-                class="h-full w-auto max-w-none transition-opacity duration-150"
-                [style.aspect-ratio]="pd.width + '/' + pd.height"
+                class="h-full w-auto max-w-none"
+                [style.aspect-ratio]="displayAspectRatio() ?? (pd.width + '/' + pd.height)"
                 decoding="async"
                 [attr.width]="pd.width"
                 [attr.height]="pd.height"
+                (load)="onDisplayedImageLoad()"
             />
             }
             @case ('video') {

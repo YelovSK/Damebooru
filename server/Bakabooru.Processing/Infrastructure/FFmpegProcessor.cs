@@ -1,3 +1,4 @@
+using Bakabooru.Core;
 using Bakabooru.Core.Interfaces;
 using FFMpegCore;
 using Microsoft.Extensions.Logging;
@@ -86,17 +87,50 @@ public class FFmpegProcessor : IImageProcessor
         try
         {
             var analysis = await FFProbe.AnalyseAsync(filePath, null, cancellationToken);
+            var detectedContentType = DetectContentType(
+                analysis.Format.FormatName,
+                analysis.PrimaryVideoStream?.CodecName);
+
             return new ImageMetadata
             {
                 Width = analysis.PrimaryVideoStream?.Width ?? 0,
                 Height = analysis.PrimaryVideoStream?.Height ?? 0,
-                Format = analysis.Format.FormatName
+                Format = analysis.Format.FormatName,
+                ContentType = detectedContentType
             };
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to read metadata for {Path}", filePath);
-            return new ImageMetadata { Width = 0, Height = 0, Format = "Unknown" };
+            return new ImageMetadata
+            {
+                Width = 0,
+                Height = 0,
+                Format = "Unknown",
+                ContentType = SupportedMedia.GetMimeType(Path.GetExtension(filePath))
+            };
         }
+    }
+
+    private static string? DetectContentType(string? formatName, string? codecName)
+    {
+        var format = (formatName ?? string.Empty).ToLowerInvariant();
+        var codec = (codecName ?? string.Empty).ToLowerInvariant();
+
+        // FFprobe format names can be comma-separated aliases (e.g. "mov,mp4,m4a,3gp,3g2,mj2").
+        if (format.Contains("png") || codec == "png") return "image/png";
+        if (format.Contains("jpeg") || format.Contains("mjpeg") || codec == "mjpeg") return "image/jpeg";
+        if (format.Contains("gif") || codec == "gif") return "image/gif";
+        if (format.Contains("webp") || codec == "webp") return "image/webp";
+        if (format.Contains("bmp") || codec == "bmp") return "image/bmp";
+        if (format.Contains("jxl") || codec == "jpegxl") return "image/jxl";
+
+        if (format.Contains("mov,mp4") || format.Contains("mp4")) return "video/mp4";
+        if (format.Contains("matroska") || format.Contains("mkv")) return "video/x-matroska";
+        if (format.Contains("webm")) return "video/webm";
+        if (format.Contains("avi")) return "video/x-msvideo";
+        if (format.Contains("quicktime") || format.Contains("mov")) return "video/quicktime";
+
+        return null;
     }
 }

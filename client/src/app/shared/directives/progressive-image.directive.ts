@@ -9,31 +9,17 @@ export class ProgressiveImageDirective {
 
   private requestId = 0;
   private readonly destroyRef = inject(DestroyRef);
-  private readonly unlistenLoad: () => void;
 
   constructor(
     private readonly el: ElementRef<HTMLImageElement>,
     private readonly renderer: Renderer2,
   ) {
-    // Show image once whichever source currently assigned to the host finishes loading.
-    this.unlistenLoad = this.renderer.listen(this.el.nativeElement, 'load', () => {
-      this.renderer.setStyle(this.el.nativeElement, 'opacity', '1');
-    });
-
     effect(() => {
       const src = this.fullSrc();
-      if (!src?.trim()) {
-        this.renderer.setStyle(this.el.nativeElement, 'opacity', '1');
-        return;
-      }
-
-      // Hide while swapping to avoid "old image in new layout" flash.
-      this.renderer.setStyle(this.el.nativeElement, 'opacity', '0');
       this.loadFullImage(src);
     });
 
     this.destroyRef.onDestroy(() => {
-      this.unlistenLoad();
       this.requestId++;
     });
   }
@@ -46,7 +32,6 @@ export class ProgressiveImageDirective {
     
     // Full source already displayed.
     if (host.getAttribute('src') === target) {
-      this.renderer.setStyle(host, 'opacity', '1');
       return;
     }
 
@@ -59,14 +44,10 @@ export class ProgressiveImageDirective {
       if (req !== this.requestId) return;
 
       this.renderer.setAttribute(host, 'src', target);
-      // In case full load resolves before host emits its own load event.
-      this.renderer.setStyle(host, 'opacity', '1');
     };
 
     loader.onerror = () => {
       if (req !== this.requestId) return;
-      // Keep thumbnail visible if full image fails.
-      this.renderer.setStyle(host, 'opacity', '1');
     };
 
     loader.src = target;
