@@ -38,9 +38,12 @@ public class SearchQuery
 {
     public List<string> IncludedTags { get; set; } = new();
     public List<string> ExcludedTags { get; set; } = new();
+    public List<string> IncludedFilenames { get; set; } = new();
+    public List<string> ExcludedFilenames { get; set; } = new();
     public HashSet<PostMediaType> IncludedMediaTypes { get; set; } = [];
     public HashSet<PostMediaType> ExcludedMediaTypes { get; set; } = [];
     public NumericFilter? TagCountFilter { get; set; }
+    public bool? FavoriteFilter { get; set; }
     public SearchSortField SortField { get; set; } = SearchSortField.ImportDate;
     public SearchSortDirection SortDirection { get; set; } = SearchSortDirection.Desc;
 }
@@ -135,6 +138,17 @@ public static class QueryParser
             return true;
         }
 
+        if (key is "favorite" or "fav")
+        {
+            if (!TryParseBoolean(value, out var favoriteValue))
+            {
+                return true;
+            }
+
+            result.FavoriteFilter = isNegated ? !favoriteValue : favoriteValue;
+            return true;
+        }
+
         if (key is "sort" or "order")
         {
             if (TryParseSort(value, out var sortField, out var sortDirection))
@@ -146,7 +160,53 @@ public static class QueryParser
             return true;
         }
 
+        if (key is "filename" or "file")
+        {
+            var parsedAny = false;
+            foreach (var raw in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    continue;
+                }
+
+                parsedAny = true;
+                if (isNegated)
+                {
+                    result.ExcludedFilenames.Add(raw);
+                }
+                else
+                {
+                    result.IncludedFilenames.Add(raw);
+                }
+            }
+
+            return parsedAny;
+        }
+
         return false;
+    }
+
+    private static bool TryParseBoolean(string value, out bool result)
+    {
+        switch (value.Trim().ToLowerInvariant())
+        {
+            case "1":
+            case "true":
+            case "yes":
+            case "on":
+                result = true;
+                return true;
+            case "0":
+            case "false":
+            case "no":
+            case "off":
+                result = false;
+                return true;
+            default:
+                result = false;
+                return false;
+        }
     }
 
     private static bool TryParseMediaType(string value, out PostMediaType mediaType)
@@ -176,36 +236,68 @@ public static class QueryParser
     private static bool TryParseSort(string value, out SearchSortField field, out SearchSortDirection direction)
     {
         var normalized = value.Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(normalized))
+        {
+            field = default;
+            direction = default;
+            return false;
+        }
+
         var explicitDirection = (SearchSortDirection?)null;
 
-        if (normalized.StartsWith('+'))
+        // Preferred syntax: sort:<field>[:asc|desc]
+        var fieldToken = normalized;
+        var separatorIndex = normalized.IndexOf(':');
+        if (separatorIndex >= 0)
         {
-            explicitDirection = SearchSortDirection.Asc;
-            normalized = normalized[1..];
+            fieldToken = normalized[..separatorIndex].Trim();
+            var directionToken = normalized[(separatorIndex + 1)..].Trim();
+            if (string.IsNullOrEmpty(fieldToken) || string.IsNullOrEmpty(directionToken) || directionToken.Contains(':'))
+            {
+                field = default;
+                direction = default;
+                return false;
+            }
+
+            if (!TryParseSortDirection(directionToken, out var parsedDirection))
+            {
+                field = default;
+                direction = default;
+                return false;
+            }
+
+            explicitDirection = parsedDirection;
         }
-        else if (normalized.StartsWith('-'))
+        else
         {
-            explicitDirection = SearchSortDirection.Desc;
-            normalized = normalized[1..];
+            // Backward compatibility: sort:+id / sort:-id / sort:id_asc / sort:id_desc
+            if (fieldToken.StartsWith('+'))
+            {
+                explicitDirection = SearchSortDirection.Asc;
+                fieldToken = fieldToken[1..];
+            }
+            else if (fieldToken.StartsWith('-'))
+            {
+                explicitDirection = SearchSortDirection.Desc;
+                fieldToken = fieldToken[1..];
+            }
+
+            if (fieldToken.EndsWith("_asc", StringComparison.Ordinal))
+            {
+                explicitDirection ??= SearchSortDirection.Asc;
+                fieldToken = fieldToken[..^4];
+            }
+            else if (fieldToken.EndsWith("_desc", StringComparison.Ordinal))
+            {
+                explicitDirection ??= SearchSortDirection.Desc;
+                fieldToken = fieldToken[..^5];
+            }
         }
 
-        if (normalized.EndsWith("_asc", StringComparison.Ordinal))
-        {
-            explicitDirection ??= SearchSortDirection.Asc;
-            normalized = normalized[..^4];
-        }
-        else if (normalized.EndsWith("_desc", StringComparison.Ordinal))
-        {
-            explicitDirection ??= SearchSortDirection.Desc;
-            normalized = normalized[..^5];
-        }
-
-        switch (normalized)
+        switch (fieldToken)
         {
             case "new":
             case "newest":
-            case "date":
-            case "import-date":
                 field = SearchSortField.ImportDate;
                 direction = explicitDirection ?? SearchSortDirection.Desc;
                 return true;
@@ -214,32 +306,53 @@ public static class QueryParser
                 field = SearchSortField.ImportDate;
                 direction = explicitDirection ?? SearchSortDirection.Asc;
                 return true;
+            case "date":
+            case "import-date":
+                field = SearchSortField.ImportDate;
+                direction = explicitDirection ?? SearchSortDirection.Asc;
+                return true;
             case "tag-count":
             case "tagcount":
             case "tags":
                 field = SearchSortField.TagCount;
-                direction = explicitDirection ?? SearchSortDirection.Desc;
+                direction = explicitDirection ?? SearchSortDirection.Asc;
                 return true;
             case "id":
                 field = SearchSortField.Id;
-                direction = explicitDirection ?? SearchSortDirection.Desc;
+                direction = explicitDirection ?? SearchSortDirection.Asc;
                 return true;
             case "width":
                 field = SearchSortField.Width;
-                direction = explicitDirection ?? SearchSortDirection.Desc;
+                direction = explicitDirection ?? SearchSortDirection.Asc;
                 return true;
             case "height":
                 field = SearchSortField.Height;
-                direction = explicitDirection ?? SearchSortDirection.Desc;
+                direction = explicitDirection ?? SearchSortDirection.Asc;
                 return true;
             case "size":
             case "size-bytes":
             case "filesize":
                 field = SearchSortField.SizeBytes;
-                direction = explicitDirection ?? SearchSortDirection.Desc;
+                direction = explicitDirection ?? SearchSortDirection.Asc;
                 return true;
             default:
                 field = default;
+                direction = default;
+                return false;
+        }
+    }
+
+    private static bool TryParseSortDirection(string value, out SearchSortDirection direction)
+    {
+        switch (value.Trim().ToLowerInvariant())
+        {
+            case "asc":
+                direction = SearchSortDirection.Asc;
+                return true;
+            case "desc":
+                direction = SearchSortDirection.Desc;
+                return true;
+            default:
                 direction = default;
                 return false;
         }

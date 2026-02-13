@@ -6,16 +6,16 @@ import { RouterLink, Router } from '@angular/router';
 import { Subject, switchMap, of, map, catchError, combineLatest, startWith, scan } from 'rxjs';
 import { HotkeysService } from '@services/hotkeys.service';
 import { environment } from '@env/environment';
-import { PagedSearchResult, Post, Tag } from '@models';
+import { BakabooruPostListDto, BakabooruTagDto } from '@models';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
-import { FormSelectComponent, FormSelectOption } from '@shared/components/form-select/form-select.component';
+import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { escapeTagName } from '@shared/utils/utils';
 import { StorageService, STORAGE_KEYS } from '@services/storage.service';
 import { AppLinks } from '@app/app.paths';
 
 interface PostsState {
-    data: PagedSearchResult<Post> | null;
+    data: BakabooruPostListDto | null;
     isLoading: boolean;
     error: unknown;
 }
@@ -23,12 +23,12 @@ interface PostsState {
 // Type for the loading state that retains previous data
 interface LoadingState extends PostsState {
     isLoading: true;
-    data: PagedSearchResult<Post>; // Required to retain previous data
+    data: BakabooruPostListDto; // Required to retain previous data
 }
 
 @Component({
     selector: 'app-posts',
-    imports: [CommonModule, RouterLink, AutocompleteComponent, FormSelectComponent, PaginatorComponent],
+    imports: [CommonModule, RouterLink, AutocompleteComponent, FormDropdownComponent, PaginatorComponent],
     templateUrl: './posts.component.html',
     styleUrl: './posts.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush
@@ -49,7 +49,7 @@ export class PostsComponent {
     environment = environment;
 
     pageSize = signal(this.storage.getNumber(STORAGE_KEYS.POSTS_PAGE_SIZE) ?? 50);
-    pageSizeOptions: FormSelectOption<number>[] = [10, 25, 50, 75, 100].map(size => ({
+    pageSizeOptions: FormDropdownOption<number>[] = [10, 25, 50, 75, 100].map(size => ({
         label: `${size} per page`,
         value: size
     }));
@@ -76,7 +76,7 @@ export class PostsComponent {
                 );
             })
         ),
-        { initialValue: [] as Tag[] }
+        { initialValue: [] as BakabooruTagDto[] }
     );
 
     private postsState$ = combineLatest([
@@ -135,7 +135,7 @@ export class PostsComponent {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(state => {
                 if (state.data) {
-                    this.totalItems.set(state.data.total);
+                    this.totalItems.set(state.data.totalCount);
                 }
             });
 
@@ -158,14 +158,14 @@ export class PostsComponent {
         this.tagQuery$.next(escapeTagName(cleanWord));
     }
 
-    onSelection(tag: Tag) {
+    onSelection(tag: BakabooruTagDto) {
         const value = this.currentSearchValue();
         const parts = value.split(/\s+/);
         // Detect if the user was typing an exclusion
         const lastPart = parts[parts.length - 1] || '';
         const prefix = lastPart.startsWith('-') ? '-' : '';
 
-        parts[parts.length - 1] = prefix + escapeTagName(tag.names[0]);
+        parts[parts.length - 1] = prefix + escapeTagName(tag.name);
         const newValue = parts.join(' ').trim() + ' ';
 
         this.currentSearchValue.set(newValue);
@@ -209,5 +209,11 @@ export class PostsComponent {
             queryParamsHandling: 'merge',
             replaceUrl: true
         });
+    }
+
+    getMediaType(contentType: string): 'image' | 'animation' | 'video' {
+        if (contentType.startsWith('video/')) return 'video';
+        if (contentType === 'image/gif') return 'animation';
+        return 'image';
     }
 }

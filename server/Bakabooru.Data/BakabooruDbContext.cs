@@ -14,11 +14,13 @@ public class BakabooruDbContext : DbContext
     public DbSet<Tag> Tags { get; set; } = null!;
     public DbSet<TagCategory> TagCategories { get; set; } = null!;
     public DbSet<PostTag> PostTags { get; set; } = null!;
+    public DbSet<PostSource> PostSources { get; set; } = null!;
 
     public DbSet<JobExecution> JobExecutions { get; set; } = null!;
     public DbSet<ScheduledJob> ScheduledJobs { get; set; } = null!;
 
     public DbSet<ExcludedFile> ExcludedFiles { get; set; } = null!;
+    public DbSet<LibraryIgnoredPath> LibraryIgnoredPaths { get; set; } = null!;
     public DbSet<DuplicateGroup> DuplicateGroups { get; set; } = null!;
     public DbSet<DuplicateGroupEntry> DuplicateGroupEntries { get; set; } = null!;
 
@@ -47,6 +49,12 @@ public class BakabooruDbContext : DbContext
             .HasOne(pt => pt.Tag)
             .WithMany(t => t.PostTags)
             .HasForeignKey(pt => pt.TagId);
+
+        modelBuilder.Entity<PostSource>()
+            .HasOne(ps => ps.Post)
+            .WithMany(p => p.Sources)
+            .HasForeignKey(ps => ps.PostId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Configure Library -> Post relationship
         modelBuilder.Entity<Post>()
@@ -84,8 +92,15 @@ public class BakabooruDbContext : DbContext
         modelBuilder.Entity<Post>()
             .HasIndex(p => new { p.LibraryId, p.RelativePath });
 
+        modelBuilder.Entity<Post>()
+            .HasIndex(p => p.IsFavorite);
+
         modelBuilder.Entity<PostTag>()
             .HasIndex(p => new { p.TagId, p.PostId });
+
+        modelBuilder.Entity<PostSource>()
+            .HasIndex(ps => new { ps.PostId, ps.Order })
+            .IsUnique();
 
         modelBuilder.Entity<Tag>()
             .HasIndex(t => t.Name)
@@ -116,6 +131,16 @@ public class BakabooruDbContext : DbContext
 
         modelBuilder.Entity<ExcludedFile>()
             .HasIndex(e => new { e.LibraryId, e.RelativePath })
+            .IsUnique();
+
+        modelBuilder.Entity<LibraryIgnoredPath>()
+            .HasOne(p => p.Library)
+            .WithMany()
+            .HasForeignKey(p => p.LibraryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<LibraryIgnoredPath>()
+            .HasIndex(p => new { p.LibraryId, p.RelativePathPrefix })
             .IsUnique();
     }
 }

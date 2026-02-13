@@ -12,6 +12,7 @@ import { ConfirmService } from '../../services/confirm.service';
 const JOB_DESCRIPTIONS: Record<string, string> = {
   'Scan All Libraries': 'Discovers new files and creates post records. Fast — only computes content hashes.',
   'Generate Thumbnails': 'Creates thumbnail images for posts.',
+  'Cleanup Orphaned Thumbnails': 'Deletes thumbnail files that no longer belong to any post.',
   'Extract Metadata': 'Reads image dimensions and content type for posts.',
   'Compute Similarity': 'Computes perceptual hashes (dHash) for duplicate detection.',
   'Find Duplicates': 'Finds exact (content hash) and perceptual (dHash) duplicate post groups.'

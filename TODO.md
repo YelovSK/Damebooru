@@ -12,12 +12,18 @@
 - [x] individual libraries should be scannable
 - [x] implement simple auth (no roles, just putting everything behind a login)
 - [x] posts order should be by the real file creation/modified date
-- ability to add paths to ignore list (e.g. subfolder of a library)
-- add post sources table, APIs, and integrate in UI
-- add the abilitiy to favorite posts
-- remove old compabitility with oxibooru.. just use bakabooru apis. Remove stuff not needed for bakabooru like registration, upload etc
+- [x]dropdown component is awful, the dropdown part is ugly af (white, unreadable text). It was good before.
+- [x] search by filename, e.g. filename:abc.jpg
+- [x] add job to cleanup orphaned thumbnails (if not implemented yet, check first)
+- [x] ability to add paths to ignore list (e.g. subfolder of a library)
+- [x] thumbnails for videos should not be generated from the first frame
 - [x] add more search options, e.g. by type (image, video), by tag count, favorite, etc
-- add help page with keyboard shortcuts, search syntax, etc
-- dockerize everything (should be able to map db and thumbnail paths). Have github action to publish client and server images to ghcr
+- [x] add help page with keyboard shortcuts, search syntax, etc
+- [x] dockerize everything (should be able to map db and thumbnail paths). Have github action to publish client and server images to ghcr
 - [x] write a script that will migrate tags from bakabooru to bakabooru (go through posts, reverse search, get tags). Will have to decode jxl to jpg first cuz bakabooru doesnt support jxl
+- [x] add the abilitiy to favorite posts
+- [x] add post sources table, APIs, and integrate in UI
+- [x] i dont like services returning AddTagResult, FavoriteResult etc. Either use a generic Result<T> or throw exceptions and use middleware.
+- [x] remove old compabitility with oxibooru.. just use bakabooru apis. Remove stuff not needed for bakabooru like registration, upload etc
+- check if server memory usage cannot be lowered (right now around 400mb)
 - re-consider how to handle auto-tagging (e.g. should it move to server-side, whether to implement hash-based reverse lookup for gelbooru and danbooru, deepdanbooru, ...)

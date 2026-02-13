@@ -52,6 +52,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IJob, Jobs.ScanAllLibrariesJob>();
         services.AddTransient<IJob, Jobs.FindDuplicatesJob>();
         services.AddTransient<IJob, Jobs.GenerateThumbnailsJob>();
+        services.AddTransient<IJob, Jobs.CleanupOrphanedThumbnailsJob>();
         services.AddTransient<IJob, Jobs.ExtractMetadataJob>();
         services.AddTransient<IJob, Jobs.ComputeSimilarityJob>();
 

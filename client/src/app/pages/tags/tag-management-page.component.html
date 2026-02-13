@@ -91,12 +91,12 @@
       class="rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60" />
 
     <label class="text-sm text-text-muted">Category</label>
-    <app-form-select
+    <app-form-dropdown
       [value]="createTagCategoryId()"
       [options]="categorySelectOptions()"
       placeholder="Uncategorized"
       (valueChange)="createTagCategoryId.set($event)">
-    </app-form-select>
+    </app-form-dropdown>
   </div>
 
   <div class="mt-4 flex justify-end gap-2">
@@ -116,12 +116,12 @@
         class="rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60" />
 
       <label class="text-sm text-text-muted">Category</label>
-      <app-form-select
+      <app-form-dropdown
         [value]="model.categoryId"
         [options]="categorySelectOptions()"
         placeholder="Uncategorized"
         (valueChange)="updateEditTag({ categoryId: $event })">
-      </app-form-select>
+      </app-form-dropdown>
 
       <label class="text-sm text-text-muted">Merge Into</label>
       <div class="flex gap-2">

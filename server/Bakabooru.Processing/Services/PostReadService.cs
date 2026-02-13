@@ -1,6 +1,7 @@
 using Bakabooru.Core.Entities;
 using Bakabooru.Core.DTOs;
 using Bakabooru.Core.Paths;
+using Bakabooru.Core.Results;
 using Bakabooru.Data;
 using Bakabooru.Processing.Extensions;
 using Bakabooru.Processing.Pipeline;
@@ -17,7 +18,7 @@ public class PostReadService
         _context = context;
     }
 
-    public async Task<PostListDto> GetPostsAsync(string? tags, int page, int pageSize, CancellationToken cancellationToken)
+    public async Task<Result<PostListDto>> GetPostsAsync(string? tags, int page, int pageSize, CancellationToken cancellationToken)
     {
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 20;
@@ -41,27 +42,35 @@ public class PostReadService
                 Height = p.Height,
                 ContentType = p.ContentType,
                 ImportDate = p.ImportDate,
+                IsFavorite = p.IsFavorite,
+                Sources = new List<string>(),
                 ThumbnailUrl = MediaPaths.GetThumbnailUrl(p.ContentHash),
                 ContentUrl = MediaPaths.GetPostContentUrl(p.Id),
                 Tags = new List<TagDto>(),
             })
             .ToListAsync(cancellationToken);
 
-        return new PostListDto
+        return Result<PostListDto>.Success(new PostListDto
         {
             Items = items,
             TotalCount = totalCount,
             Page = page,
             PageSize = pageSize
-        };
+        });
     }
 
-    public Task<PostDto?> GetPostAsync(int id, CancellationToken cancellationToken)
+    public async Task<Result<PostDto>> GetPostAsync(int id, CancellationToken cancellationToken)
     {
-        return LoadPostAsync(id, cancellationToken);
+        var post = await LoadPostAsync(id, cancellationToken);
+        if (post == null)
+        {
+            return Result<PostDto>.Failure(OperationError.NotFound, "Post not found");
+        }
+
+        return Result<PostDto>.Success(post);
     }
 
-    public async Task<PostsAroundDto?> GetPostsAroundAsync(int id, string? tags, CancellationToken cancellationToken)
+    public async Task<Result<PostsAroundDto>> GetPostsAroundAsync(int id, string? tags, CancellationToken cancellationToken)
     {
         var parsedQuery = QueryParser.Parse(tags ?? string.Empty);
 
@@ -73,7 +82,7 @@ public class PostReadService
 
         if (current == null)
         {
-            return null;
+            return Result<PostsAroundDto>.Failure(OperationError.NotFound, "Post not found");
         }
 
         var query = await ApplySearchFiltersAsync(_context.Posts.AsNoTracking(), parsedQuery, cancellationToken);
@@ -137,11 +146,11 @@ public class PostReadService
             next = await LoadPostAsync(nextRaw.Id, cancellationToken);
         }
 
-        return new PostsAroundDto
+        return Result<PostsAroundDto>.Success(new PostsAroundDto
         {
             Prev = prev,
             Next = next
-        };
+        });
     }
 
     private async Task<PostDto?> LoadPostAsync(int id, CancellationToken cancellationToken)
@@ -158,7 +167,8 @@ public class PostReadService
                 Width = post.Width,
                 Height = post.Height,
                 ContentType = post.ContentType,
-                ImportDate = post.ImportDate
+                ImportDate = post.ImportDate,
+                IsFavorite = post.IsFavorite
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -178,6 +188,13 @@ public class PostReadService
             })
             .ToListAsync(cancellationToken);
 
+        var sources = await _context.PostSources
+            .AsNoTracking()
+            .Where(ps => ps.PostId == id)
+            .OrderBy(ps => ps.Order)
+            .Select(ps => ps.Url)
+            .ToListAsync(cancellationToken);
+
         return new PostDto
         {
             Id = postCore.Id,
@@ -188,6 +205,8 @@ public class PostReadService
             Height = postCore.Height,
             ContentType = postCore.ContentType,
             ImportDate = postCore.ImportDate,
+            IsFavorite = postCore.IsFavorite,
+            Sources = sources,
             ThumbnailUrl = MediaPaths.GetThumbnailUrl(postCore.ContentHash),
             ContentUrl = MediaPaths.GetPostContentUrl(postCore.Id),
             Tags = tags
@@ -198,6 +217,8 @@ public class PostReadService
     {
         var includedTags = parsedQuery.IncludedTags.Distinct().ToList();
         var excludedTags = parsedQuery.ExcludedTags.Distinct().ToList();
+        var includedFilenames = parsedQuery.IncludedFilenames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var excludedFilenames = parsedQuery.ExcludedFilenames.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var allTagNames = includedTags.Concat(excludedTags).Distinct().ToList();
 
         if (allTagNames.Count > 0)
@@ -273,6 +294,40 @@ public class PostReadService
             };
         }
 
+        if (parsedQuery.FavoriteFilter.HasValue)
+        {
+            var isFavorite = parsedQuery.FavoriteFilter.Value;
+            query = query.Where(p => p.IsFavorite == isFavorite);
+        }
+
+        foreach (var filename in includedFilenames)
+        {
+            var pattern = BuildFilenamePattern(filename);
+            query = query.Where(p => EF.Functions.Like(p.RelativePath, pattern));
+        }
+
+        foreach (var filename in excludedFilenames)
+        {
+            var pattern = BuildFilenamePattern(filename);
+            query = query.Where(p => !EF.Functions.Like(p.RelativePath, pattern));
+        }
+
         return query;
+    }
+
+    private static string BuildFilenamePattern(string rawFilenameFilter)
+    {
+        var filter = rawFilenameFilter.Trim();
+        if (string.IsNullOrEmpty(filter))
+        {
+            return "%";
+        }
+
+        if (filter.Contains('*') || filter.Contains('?'))
+        {
+            return filter.Replace('*', '%').Replace('?', '_');
+        }
+
+        return $"%{filter}%";
     }
 }

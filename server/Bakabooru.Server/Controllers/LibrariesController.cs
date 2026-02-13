@@ -1,9 +1,7 @@
-using Bakabooru.Core.Entities;
-using Bakabooru.Core.Interfaces;
 using Bakabooru.Core.DTOs;
-using Bakabooru.Data;
+using Bakabooru.Processing.Services;
+using Bakabooru.Server.Extensions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Bakabooru.Server.Controllers;
 
@@ -11,165 +9,69 @@ namespace Bakabooru.Server.Controllers;
 [Route("api/[controller]")]
 public class LibrariesController : ControllerBase
 {
-    private readonly BakabooruDbContext _context;
-    private readonly IJobService _jobService;
-    private readonly IScannerService _scannerService;
+    private readonly LibraryService _libraryService;
 
-    public LibrariesController(BakabooruDbContext context, IJobService jobService, IScannerService scannerService)
+    public LibrariesController(LibraryService libraryService)
     {
-        _context = context;
-        _jobService = jobService;
-        _scannerService = scannerService;
+        _libraryService = libraryService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LibraryDto>>> GetLibraries(CancellationToken cancellationToken = default)
     {
-        var libraries = await _context.Libraries
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-
-        var stats = await _context.Posts
-            .AsNoTracking()
-            .GroupBy(p => p.LibraryId)
-            .Select(g => new
-            {
-                LibraryId = g.Key,
-                PostCount = g.Count(),
-                TotalSizeBytes = g.Sum(p => p.SizeBytes),
-                LastImportDate = g.Max(p => p.ImportDate)
-            })
-            .ToDictionaryAsync(x => x.LibraryId, cancellationToken);
-
-        return libraries.Select(l =>
-        {
-            stats.TryGetValue(l.Id, out var s);
-            return new LibraryDto
-            {
-                Id = l.Id,
-                Name = l.Name,
-                Path = l.Path,
-                ScanIntervalHours = l.ScanInterval.TotalHours,
-                PostCount = s?.PostCount ?? 0,
-                TotalSizeBytes = s?.TotalSizeBytes ?? 0,
-                LastImportDate = s?.LastImportDate
-            };
-        }).ToList();
+        return Ok(await _libraryService.GetLibrariesAsync(cancellationToken));
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<LibraryDto>> GetLibrary(int id, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetLibrary(int id, CancellationToken cancellationToken = default)
     {
-        var library = await _context.Libraries.FindAsync(new object[] { id }, cancellationToken);
-
-        if (library == null)
-        {
-            return NotFound();
-        }
-
-        return new LibraryDto
-        {
-            Id = library.Id,
-            Name = library.Name,
-            Path = library.Path,
-            ScanIntervalHours = library.ScanInterval.TotalHours,
-            PostCount = await _context.Posts.CountAsync(p => p.LibraryId == library.Id, cancellationToken),
-            TotalSizeBytes = await _context.Posts
-                .Where(p => p.LibraryId == library.Id)
-                .Select(p => (long?)p.SizeBytes)
-                .SumAsync(cancellationToken) ?? 0,
-            LastImportDate = await _context.Posts.Where(p => p.LibraryId == library.Id).MaxAsync(p => (DateTime?)p.ImportDate, cancellationToken)
-        };
+        return await _libraryService.GetLibraryAsync(id, cancellationToken).ToHttpResult();
     }
 
     [HttpPost]
-    public async Task<ActionResult<LibraryDto>> CreateLibrary(CreateLibraryDto dto)
+    public async Task<IActionResult> CreateLibrary(CreateLibraryDto dto)
     {
-        if (!Directory.Exists(dto.Path))
-        {
-            return BadRequest($"Directory specified does not exist: {dto.Path}");
-        }
+        return await _libraryService
+            .CreateLibraryAsync(dto)
+            .ToHttpResult(library => CreatedAtAction(nameof(GetLibrary), new { id = library!.Id }, library));
+    }
 
-        var library = new Library
-        {
-            Name = string.IsNullOrWhiteSpace(dto.Name)
-                ? Path.GetFileName(Path.TrimEndingDirectorySeparator(dto.Path))
-                : dto.Name.Trim(),
-            Path = dto.Path,
-            ScanInterval = TimeSpan.FromHours(1) // Default
-        };
+    [HttpGet("{id}/ignored-paths")]
+    public async Task<IActionResult> GetIgnoredPaths(int id, CancellationToken cancellationToken = default)
+    {
+        return await _libraryService.GetIgnoredPathsAsync(id, cancellationToken).ToHttpResult();
+    }
 
-        _context.Libraries.Add(library);
-        await _context.SaveChangesAsync();
+    [HttpPost("{id}/ignored-paths")]
+    public async Task<IActionResult> AddIgnoredPath(int id, [FromBody] AddLibraryIgnoredPathDto dto)
+    {
+        return await _libraryService.AddIgnoredPathAsync(id, dto).ToHttpResult();
+    }
 
-        return CreatedAtAction(nameof(GetLibrary), new { id = library.Id }, new LibraryDto
-        {
-            Id = library.Id,
-            Name = library.Name,
-            Path = library.Path,
-            ScanIntervalHours = library.ScanInterval.TotalHours,
-            PostCount = 0,
-            TotalSizeBytes = 0,
-            LastImportDate = null
-        });
+    [HttpDelete("{id}/ignored-paths/{ignoredPathId:int}")]
+    public async Task<IActionResult> DeleteIgnoredPath(int id, int ignoredPathId)
+    {
+        return await _libraryService.DeleteIgnoredPathAsync(id, ignoredPathId).ToHttpResult();
     }
 
     [HttpPost("{id}/scan")]
-    public async Task<ActionResult<object>> ScanLibrary(int id)
+    public async Task<IActionResult> ScanLibrary(int id)
     {
-        var libraryExists = await _context.Libraries.AnyAsync(l => l.Id == id);
-        if (!libraryExists)
-        {
-            return NotFound("Library not found.");
-        }
-
-        var jobName = $"Scan Library #{id}";
-        var jobId = await _jobService.StartJobAsync(
-            jobName,
-            ct => _scannerService.ScanLibraryAsync(id, cancellationToken: ct));
-
-        return Accepted(new { JobId = jobId });
+        return await _libraryService
+            .ScanLibraryAsync(id)
+            .ToHttpResult(jobId => Accepted(new { JobId = jobId }));
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteLibrary(int id)
     {
-        var library = await _context.Libraries.FindAsync(new object[] { id });
-        if (library == null)
-        {
-            return NotFound();
-        }
-
-        _context.Libraries.Remove(library);
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+        return await _libraryService.DeleteLibraryAsync(id).ToHttpResult();
     }
 
     [HttpPatch("{id}/name")]
-    public async Task<ActionResult<LibraryDto>> RenameLibrary(int id, [FromBody] RenameLibraryDto dto)
+    public async Task<IActionResult> RenameLibrary(int id, [FromBody] RenameLibraryDto dto)
     {
-        var library = await _context.Libraries.FindAsync(new object[] { id });
-        if (library == null)
-        {
-            return NotFound();
-        }
-
-        library.Name = dto.Name.Trim();
-        await _context.SaveChangesAsync();
-
-        return Ok(new LibraryDto
-        {
-            Id = library.Id,
-            Name = library.Name,
-            Path = library.Path,
-            ScanIntervalHours = library.ScanInterval.TotalHours,
-            PostCount = await _context.Posts.CountAsync(p => p.LibraryId == library.Id),
-            TotalSizeBytes = await _context.Posts
-                .Where(p => p.LibraryId == library.Id)
-                .Select(p => (long?)p.SizeBytes)
-                .SumAsync() ?? 0,
-            LastImportDate = await _context.Posts.Where(p => p.LibraryId == library.Id).MaxAsync(p => (DateTime?)p.ImportDate)
-        });
+        return await _libraryService.RenameLibraryAsync(id, dto).ToHttpResult();
     }
 }
+

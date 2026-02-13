@@ -9,7 +9,7 @@ import { PaginatorComponent } from '@shared/components/paginator/paginator.compo
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
 import { SearchInputComponent } from '@shared/components/search-input/search-input.component';
-import { FormSelectComponent, FormSelectOption } from '@shared/components/form-select/form-select.component';
+import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
 import { DataTableColumn, DataTableComponent } from '@shared/components/data-table/data-table.component';
 import { ModalComponent } from '@shared/components/modal/modal.component';
 
@@ -38,7 +38,7 @@ type EditCategoryModel = {
     TabsComponent,
     TabComponent,
     SearchInputComponent,
-    FormSelectComponent,
+    FormDropdownComponent,
     DataTableComponent,
     ModalComponent,
   ],
@@ -79,7 +79,7 @@ export class TagManagementPageComponent implements OnInit {
     Math.max(1, Math.ceil(this.filteredCategories().length / this.categoriesPageSize())),
   );
 
-  categorySelectOptions = computed<FormSelectOption<number | null>[]>(() =>
+  categorySelectOptions = computed<FormDropdownOption<number | null>[]>(() =>
     this.categories().map(category => ({ label: category.name, value: category.id })),
   );
 

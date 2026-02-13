@@ -1,6 +1,6 @@
 services:
   server:
-    image: ghcr.io/YelovSK/bakabooru-server:latest
+    image: ghcr.io/yelovsk/bakabooru-server:latest
     restart: unless-stopped
     environment:
       ASPNETCORE_URLS: http://+:6666
@@ -13,11 +13,9 @@ services:
     volumes:
       - ./data/server:/app/data
       - ./media:/media
-    ports:
-      - "6666:6666"
 
   client:
-    image: ghcr.io/YelovSK/bakabooru-client:latest
+    image: ghcr.io/yelovsk/bakabooru-client:latest
     restart: unless-stopped
     depends_on:
       - server

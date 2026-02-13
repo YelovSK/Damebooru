@@ -17,7 +17,7 @@ import { AutoTaggingService, TaggingEntry } from '@services/auto-tagging/auto-ta
 import { RateLimiterService } from '@services/rate-limiting/rate-limiter.service';
 import { ToastService } from '@services/toast.service';
 import { environment } from '@env/environment';
-import { Post, PagedSearchResult, Tag } from '@models';
+import { BakabooruPostDto, BakabooruPostListDto, BakabooruTagDto } from '@models';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
@@ -26,13 +26,13 @@ import { escapeTagName } from '@shared/utils/utils';
 import type { TaggingState } from '@services/tagging/models';
 
 interface BulkTaggingState {
-    data: PagedSearchResult<Post> | null;
+    data: BakabooruPostListDto | null;
     isLoading: boolean;
     error: unknown;
 }
 
 interface PostTaggingStatus {
-    post: Post;
+    post: BakabooruPostDto;
     state: TaggingState;
     result?: TaggingEntry;
 }
@@ -75,7 +75,7 @@ export class BulkTaggingComponent {
                 );
             }),
         ),
-        { initialValue: [] as Tag[] },
+        { initialValue: [] as BakabooruTagDto[] },
     );
 
     // Pagination
@@ -93,8 +93,7 @@ export class BulkTaggingComponent {
         switchMap(([q, off]) => {
             const query = q || 'tag-count:0';
             const offsetNum = Number(off ?? '0') || 0;
-            // Include contentUrl so we can fetch the image for tagging
-            return this.bakabooru.getPosts(query, offsetNum, this.pageSize(), ['id', 'thumbnailUrl', 'contentUrl', 'type', 'tags']).pipe(
+            return this.bakabooru.getPosts(query, offsetNum, this.pageSize()).pipe(
                 map((data) => ({ data, isLoading: false, error: null } as BulkTaggingState)),
                 catchError((error) => of({ data: null, isLoading: false, error } as BulkTaggingState)),
             );
@@ -105,7 +104,7 @@ export class BulkTaggingComponent {
         initialValue: { data: null, isLoading: true, error: null } as BulkTaggingState,
     });
 
-    totalItems = computed(() => this.postsState().data?.total ?? 0);
+    totalItems = computed(() => this.postsState().data?.totalCount ?? 0);
     totalPages = computed(() => Math.ceil(this.totalItems() / this.pageSize()));
 
     // Tagging status per post
@@ -166,7 +165,7 @@ export class BulkTaggingComponent {
             .subscribe((state) => {
                 if (state.data) {
                     const newStatuses = new Map<number, PostTaggingStatus>();
-                    for (const post of state.data.results) {
+                    for (const post of state.data.items) {
                         const existing = this.postStatuses().get(post.id);
                         newStatuses.set(post.id, existing ?? { post, state: 'idle' });
                     }
@@ -180,10 +179,10 @@ export class BulkTaggingComponent {
         this.tagQuery$.next(escapeTagName(word));
     }
 
-    onSelection(tag: Tag) {
+    onSelection(tag: BakabooruTagDto) {
         const value = this.currentSearchValue().trimEnd();
         const parts = value.split(/\s+/);
-        parts[parts.length - 1] = escapeTagName(tag.names[0]);
+        parts[parts.length - 1] = escapeTagName(tag.name);
         const newValue = parts.join(' ') + ' ';
         this.currentSearchValue.set(newValue);
         this.tagQuery$.next('');
@@ -198,7 +197,7 @@ export class BulkTaggingComponent {
     }
 
     selectAll() {
-        const posts = this.postsState().data?.results ?? [];
+        const posts = this.postsState().data?.items ?? [];
         this.selectedPosts.set(new Set(posts.map((p) => p.id)));
     }
 
@@ -242,7 +241,7 @@ export class BulkTaggingComponent {
 
         // Get posts to tag - only those that are idle (not already queued/tagging/done)
         const statuses = this.postStatuses();
-        const postsToTag = this.postsState().data?.results.filter((p) => {
+        const postsToTag = this.postsState().data?.items.filter((p) => {
             if (!selected.has(p.id)) return false;
             const status = statuses.get(p.id);
             // Only queue posts that are idle
@@ -370,10 +369,9 @@ export class BulkTaggingComponent {
             .pipe(
                 switchMap((post) => {
                     if (!post) throw new Error('Post not found');
-                    const existingTags = post.tags.map((t) => t.names[0]);
+                    const existingTags = post.tags.map((t) => t.name);
                     const newTags = [...new Set([...existingTags, ...allTags])];
-                    // Cast needed: API accepts string[] for tags, but interface has MicroTag[]
-                    return this.bakabooru.updatePost(postId, { tags: newTags as unknown as typeof post.tags, version: post.version });
+                    return this.bakabooru.updatePost(postId, { tags: newTags });
                 }),
                 takeUntilDestroyed(this.destroyRef),
             )

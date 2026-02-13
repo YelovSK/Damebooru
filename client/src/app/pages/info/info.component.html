@@ -18,7 +18,15 @@
                 </div>
                 <div class="flex justify-between items-center py-2 border-b border-white/5">
                     <span class="text-text-muted">Total Size</span>
-                    <span class="text-xl font-bold">{{ formatSize(data.diskUsage) }}</span>
+                    <span class="text-xl font-bold">{{ formatSize(data.totalSizeBytes) }}</span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-white/5">
+                    <span class="text-text-muted">Tags</span>
+                    <span class="text-xl font-bold">{{ data.tagCount | number }}</span>
+                </div>
+                <div class="flex justify-between items-center py-2 border-b border-white/5">
+                    <span class="text-text-muted">Libraries</span>
+                    <span class="text-xl font-bold">{{ data.libraryCount | number }}</span>
                 </div>
                 <div class="flex justify-between items-center py-2">
                     <span class="text-text-muted">Server Time (UTC)</span>
@@ -31,17 +39,12 @@
         <div class="glass-card p-6">
             <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
                 <span class="w-2 h-6 bg-accent-secondary rounded-full"></span>
-                Configuration
+                Backend
             </h2>
             <div class="space-y-4">
                 <div class="flex justify-between items-center py-2 border-b border-white/5">
                     <span class="text-text-muted">Backend</span>
                     <span class="badge text-accent-primary font-bold">Bakabooru API</span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-white/5">
-                    <span class="text-text-muted">Safety System</span>
-                    <span class="text-status-warning font-medium">{{ data.config.enableSafety ? 'Enabled' : 'Disabled'
-                        }}</span>
                 </div>
                 <div class="flex justify-between items-center py-2">
                     <span class="text-text-muted">Version</span>

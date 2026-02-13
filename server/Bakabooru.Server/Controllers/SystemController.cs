@@ -1,7 +1,6 @@
 using Bakabooru.Core.DTOs;
-using Bakabooru.Data;
+using Bakabooru.Processing.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Bakabooru.Server.Controllers;
 
@@ -9,28 +8,16 @@ namespace Bakabooru.Server.Controllers;
 [Route("api/[controller]")]
 public class SystemController : ControllerBase
 {
-    private readonly BakabooruDbContext _dbContext;
+    private readonly SystemReadService _systemReadService;
 
-    public SystemController(BakabooruDbContext dbContext)
+    public SystemController(SystemReadService systemReadService)
     {
-        _dbContext = dbContext;
+        _systemReadService = systemReadService;
     }
 
     [HttpGet("info")]
     public async Task<ActionResult<SystemInfoDto>> GetInfo(CancellationToken cancellationToken = default)
     {
-        var postCount = await _dbContext.Posts.CountAsync(cancellationToken);
-        var totalSizeBytes = await _dbContext.Posts.SumAsync(p => p.SizeBytes, cancellationToken);
-        var tagCount = await _dbContext.Tags.CountAsync(cancellationToken);
-        var libraryCount = await _dbContext.Libraries.CountAsync(cancellationToken);
-
-        return Ok(new SystemInfoDto
-        {
-            PostCount = postCount,
-            TotalSizeBytes = totalSizeBytes,
-            TagCount = tagCount,
-            LibraryCount = libraryCount,
-            ServerTime = DateTime.UtcNow
-        });
+        return Ok(await _systemReadService.GetInfoAsync(cancellationToken));
     }
 }

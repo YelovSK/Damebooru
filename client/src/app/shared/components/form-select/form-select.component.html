@@ -1,9 +1,0 @@
-<select
-  [value]="stringify(value())"
-  (change)="onChange($event)"
-  class="w-full rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none transition-colors focus:border-accent-primary/60">
-  <option value="">{{ placeholder() }}</option>
-  @for (option of options(); track $index) {
-    <option [value]="stringify(option.value)">{{ option.label }}</option>
-  }
-</select>

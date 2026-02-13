@@ -6,13 +6,12 @@ import { Subject, switchMap, catchError, of, map, combineLatest, tap } from 'rxj
 import { toObservable, toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
-import { ConfirmService } from '@services/confirm.service';
 import { SettingsService } from '@services/settings.service';
 import { ToastService } from '@services/toast.service';
 import { environment } from '@env/environment';
 import { TagPipe } from '@shared/pipes/escape-tag.pipe';
 import { escapeTagName } from '@shared/utils/utils';
-import { MicroTag, PostsAround, TagCategory, Tag, Post } from '@models';
+import { BakabooruPostDto, BakabooruPostsAroundDto, BakabooruTagDto, ManagedTagCategory } from '@models';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { AutoTaggingResultsComponent } from '@shared/components/auto-tagging-results/auto-tagging-results.component';
@@ -36,7 +35,6 @@ export class PostDetailComponent {
   private readonly http = inject(HttpClient);
   private readonly hotkeys = inject(HotkeysService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly confirmService = inject(ConfirmService);
   private readonly settingsService = inject(SettingsService);
   private readonly toastService = inject(ToastService);
   readonly editService = inject(PostEditService);
@@ -57,7 +55,7 @@ export class PostDetailComponent {
 
   // Triggers a local post stream refresh after in-place edits.
   private refreshTrigger = signal(0);
-  private readonly postCache = signal(new Map<number, Post>());
+  private readonly postCache = signal(new Map<number, BakabooruPostDto>());
 
   // Registered auto-tagging providers
   registeredProviders = computed(() => this.editService.getRegisteredProviders());
@@ -75,7 +73,7 @@ export class PostDetailComponent {
       }),
       takeUntilDestroyed(this.destroyRef),
     ),
-    { initialValue: [] as Tag[] },
+    { initialValue: [] as BakabooruTagDto[] },
   );
   tagSearchValue = signal('');
 
@@ -106,7 +104,7 @@ export class PostDetailComponent {
         }),
         catchError((err) => {
           console.error('Around API failed (disabling keyboard nav for this post):', err);
-          return of({ prev: null, next: null } as PostsAround);
+          return of({ prev: null, next: null } as BakabooruPostsAroundDto);
         })
       ))
     )
@@ -115,13 +113,12 @@ export class PostDetailComponent {
   // Fetch tag categories for proper tag coloring
   tagCategories = toSignal(
     this.bakabooru.getTagCategories().pipe(
-      map(res => res.results),
       catchError(() => {
         console.error('Failed to load tag categories');
         return of([]);
       })
     ),
-    { initialValue: [] as TagCategory[] }
+    { initialValue: [] as ManagedTagCategory[] }
   );
 
   imageLoading = signal(true);
@@ -158,7 +155,7 @@ export class PostDetailComponent {
     );
   }
 
-  private setCachedPost(post: Post) {
+  private setCachedPost(post: BakabooruPostDto) {
     this.postCache.update(existing => {
       const next = new Map(existing);
       next.set(post.id, post);
@@ -198,18 +195,11 @@ export class PostDetailComponent {
         }
       });
 
-    // Delete
-    this.hotkeys.on('d')
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        if (!this.editService.isEditing()) {
-          this.confirmDelete();
-        }
-      });
   }
 
-  getTagCategory(tag: MicroTag): TagCategory | undefined {
-    return this.tagCategories().find(cat => cat.name === tag.category);
+  getTagCategory(tag: BakabooruTagDto): ManagedTagCategory | undefined {
+    if (!tag.categoryName) return undefined;
+    return this.tagCategories().find(cat => cat.name === tag.categoryName);
   }
 
   // Sidebar toggle
@@ -222,7 +212,7 @@ export class PostDetailComponent {
     const post = this.post();
     if (post) {
       this.editService.startEditing(post);
-      this.sourcesValue.set(post.source?.split('\n').filter(s => s.trim()).join('\n') || '');
+      this.sourcesValue.set((post.sources || []).join('\n'));
     }
   }
 
@@ -239,11 +229,6 @@ export class PostDetailComponent {
     });
   }
 
-  // Safety
-  setSafety(safety: string) {
-    this.editService.setSafety(safety as 'safe' | 'sketchy' | 'unsafe');
-  }
-
   // Sources
   onSourcesChange(event: Event) {
     const value = (event.target as HTMLTextAreaElement).value;
@@ -257,8 +242,8 @@ export class PostDetailComponent {
     this.tagQuery$.next(escapeTagName(word));
   }
 
-  onTagSelection(tag: Tag) {
-    this.editService.addTag(tag.names[0]);
+  onTagSelection(tag: BakabooruTagDto) {
+    this.editService.addTag(tag.name);
     this.tagSearchValue.set('');
     this.tagQuery$.next('');
   }
@@ -350,51 +335,32 @@ export class PostDetailComponent {
     }
   }
 
-  applyAutoSafety(providerId: string) {
-    const result = this.editService.autoTags().find(r => r.providerId === providerId);
-    if (!result?.safety) return;
-
-    const stateBefore = this.editService.currentState();
-    const safetyBefore = stateBefore?.safety;
-
-    this.editService.applyAutoSafety(providerId);
-
-    const stateAfter = this.editService.currentState();
-    const safetyAfter = stateAfter?.safety;
-
-    if (safetyAfter && safetyAfter !== safetyBefore) {
-      this.toastService.success(`Set safety to "${safetyAfter}" from ${result.provider}`);
-    } else {
-      this.toastService.info(`Safety already set to "${safetyAfter}"`);
-    }
-  }
-
-  // Delete
-  confirmDelete() {
+  toggleFavorite() {
     const post = this.post();
     if (!post) return;
 
-    this.confirmService.confirm({
-      title: 'Delete Post',
-      message: 'Are you sure you want to delete this post? This action cannot be undone.',
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
-      variant: 'danger'
-    }).subscribe(confirmed => {
-      if (confirmed) {
-        this.editService.delete(post).subscribe(success => {
-          if (success) {
-            const nav = this.around();
-            if (nav?.next) {
-              this.router.navigate(AppLinks.post(nav.next.id), { queryParams: { query: this.query() } });
-            } else if (nav?.prev) {
-              this.router.navigate(AppLinks.post(nav.prev.id), { queryParams: { query: this.query() } });
-            } else {
-              this.router.navigate(AppLinks.posts());
-            }
-          }
-        });
-      }
-    });
+    const operation = post.isFavorite
+      ? this.bakabooru.unfavoritePost(post.id)
+      : this.bakabooru.favoritePost(post.id);
+
+    operation
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updatedPost => {
+          this.setCachedPost(updatedPost);
+          this.refreshTrigger.update(n => n + 1);
+          this.toastService.success(updatedPost.isFavorite ? 'Post favorited' : 'Post unfavorited');
+        },
+        error: () => {
+          this.toastService.error('Failed to update favorite');
+        }
+      });
   }
+
+  getMediaType(contentType: string): 'image' | 'animation' | 'video' {
+    if (contentType.startsWith('video/')) return 'video';
+    if (contentType === 'image/gif') return 'animation';
+    return 'image';
+  }
+
 }

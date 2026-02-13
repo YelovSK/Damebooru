@@ -117,6 +117,45 @@
                         <span class="text-[0.9rem] font-medium">{{ lib.lastImportDate ? (lib.lastImportDate | date:'medium') : 'Never' }}</span>
                     </div>
                 </div>
+
+                <div class="mt-4 pt-4 border-t border-white/10 space-y-3">
+                    <div class="text-sm font-semibold text-text">Ignored Paths</div>
+
+                    <div class="flex gap-2 items-center">
+                        <input
+                            type="text"
+                            [ngModel]="getIgnoredPathDraft(lib.id)"
+                            (ngModelChange)="setIgnoredPathDraft(lib.id, $event)"
+                            placeholder="e.g. _trash or folders/temporary"
+                            class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text"
+                            (keyup.enter)="addIgnoredPath(lib)" />
+                        <app-button
+                            size="sm"
+                            [disabled]="addingIgnoredPathLibraryId() === lib.id || !getIgnoredPathDraft(lib.id).trim()"
+                            (click)="addIgnoredPath(lib)">
+                            {{ addingIgnoredPathLibraryId() === lib.id ? 'Adding...' : 'Add' }}
+                        </app-button>
+                    </div>
+
+                    <div *ngIf="lib.ignoredPaths.length === 0" class="text-sm text-text-dim italic">
+                        No ignored paths.
+                    </div>
+
+                    <div *ngIf="lib.ignoredPaths.length > 0" class="space-y-2">
+                        <div
+                            *ngFor="let ignored of lib.ignoredPaths"
+                            class="flex items-center justify-between gap-2 px-3 py-2 bg-black/15 rounded border border-white/10">
+                            <span class="text-sm break-all">{{ ignored.path }}</span>
+                            <app-button
+                                variant="danger"
+                                size="sm"
+                                [disabled]="removingIgnoredPathId() === ignored.id"
+                                (click)="removeIgnoredPath(lib, ignored.id, ignored.path)">
+                                {{ removingIgnoredPathId() === ignored.id ? 'Removing...' : 'Remove' }}
+                            </app-button>
+                        </div>
+                    </div>
+                </div>
             </article>
         </div>
     </section>

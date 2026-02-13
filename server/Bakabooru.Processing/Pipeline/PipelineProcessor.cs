@@ -2,6 +2,7 @@ using Bakabooru.Core;
 using Bakabooru.Core.Config;
 using Bakabooru.Core.Entities;
 using Bakabooru.Core.Interfaces;
+using Bakabooru.Core.Paths;
 using Bakabooru.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,7 +38,19 @@ public class PipelineProcessor : IMediaProcessor
     }
 
     /// <summary>Snapshot of an existing post for fast in-memory comparison.</summary>
-    private record ExistingPostInfo(int Id, string Hash, long SizeBytes, DateTime? FileModifiedDate);
+    private record ExistingPostInfo(int Id, string RelativePath, string Hash, long SizeBytes, DateTime? FileModifiedDate);
+
+    /// <summary>Potential file move/rename detected during scan (same content hash, new path).</summary>
+    private record PotentialMoveCandidate(string RelativePath, string Hash, long SizeBytes, DateTime LastModifiedUtc);
+
+    /// <summary>Resolved post move/rename that should update one existing post path.</summary>
+    private record MoveUpdate(
+        int Id,
+        string OldRelativePath,
+        string NewRelativePath,
+        string Hash,
+        long NewSize,
+        DateTime NewMtime);
 
     public async Task ProcessDirectoryAsync(Library library, string directoryPath, IProgress<float>? progress = null, IProgress<string>? status = null, CancellationToken cancellationToken = default)
     {
@@ -51,28 +64,54 @@ public class PipelineProcessor : IMediaProcessor
         _logger.LogInformation("Loading existing posts for library {Library}...", library.Name);
 
         Dictionary<string, ExistingPostInfo> existingPosts;
+        Dictionary<string, List<ExistingPostInfo>> existingPostsByHash;
         ConcurrentDictionary<string, byte> knownHashes;
         HashSet<string> excludedPaths;
+        HashSet<string> ignoredPathPrefixes;
 
         using (var scope = _scopeFactory.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
-            var posts = await dbContext.Posts
+            var libraryPosts = await dbContext.Posts
                 .AsNoTracking()
-                .Select(p => new { p.Id, p.LibraryId, p.RelativePath, p.ContentHash, p.SizeBytes, p.FileModifiedDate })
+                .Where(p => p.LibraryId == library.Id)
+                .Select(p => new { p.Id, p.RelativePath, p.ContentHash, p.SizeBytes, p.FileModifiedDate })
                 .ToListAsync(cancellationToken);
 
-            existingPosts = posts
-                .Where(p => p.LibraryId == library.Id)
+            var knownContentHashes = await dbContext.Posts
+                .AsNoTracking()
+                .Select(p => p.ContentHash)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            existingPosts = libraryPosts
                 .GroupBy(p => p.RelativePath, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(
                     g => g.Key,
-                    g => new ExistingPostInfo(g.First().Id, g.First().ContentHash, g.First().SizeBytes, g.First().FileModifiedDate),
+                    g =>
+                    {
+                        var first = g.First();
+                        return new ExistingPostInfo(
+                            first.Id,
+                            first.RelativePath,
+                            first.ContentHash,
+                            first.SizeBytes,
+                            first.FileModifiedDate);
+                    },
+                    StringComparer.OrdinalIgnoreCase);
+
+            existingPostsByHash = libraryPosts
+                .Where(p => !string.IsNullOrEmpty(p.ContentHash))
+                .GroupBy(p => p.ContentHash, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(p => new ExistingPostInfo(p.Id, p.RelativePath, p.ContentHash, p.SizeBytes, p.FileModifiedDate)).ToList(),
                     StringComparer.OrdinalIgnoreCase);
 
             knownHashes = new ConcurrentDictionary<string, byte>(
-                posts.Select(p => p.ContentHash).Distinct(StringComparer.OrdinalIgnoreCase)
-                     .Select(h => new KeyValuePair<string, byte>(h, 0)),
+                knownContentHashes
+                    .Where(h => !string.IsNullOrEmpty(h))
+                    .Select(h => new KeyValuePair<string, byte>(h!, 0)),
                 StringComparer.OrdinalIgnoreCase);
 
             excludedPaths = (await dbContext.ExcludedFiles
@@ -81,6 +120,15 @@ public class PipelineProcessor : IMediaProcessor
                 .Select(e => e.RelativePath)
                 .ToListAsync(cancellationToken))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            ignoredPathPrefixes = (await dbContext.LibraryIgnoredPaths
+                .AsNoTracking()
+                .Where(p => p.LibraryId == library.Id)
+                .Select(p => p.RelativePathPrefix)
+                .ToListAsync(cancellationToken))
+                .Select(RelativePathMatcher.NormalizePath)
+                .Where(p => !string.IsNullOrEmpty(p))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
         _logger.LogInformation("Loaded {Count} existing posts and {HashCount} unique hashes.", existingPosts.Count, knownHashes.Count);
 
@@ -88,6 +136,8 @@ public class PipelineProcessor : IMediaProcessor
         var seenPaths = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
         // Track posts that need updating (changed files)
         var postsToUpdate = new ConcurrentBag<(int Id, string NewHash, long NewSize, DateTime NewMtime, bool HashChanged)>();
+        // Track new paths that were deduplicated by hash and may actually be moves.
+        var potentialMoves = new ConcurrentBag<PotentialMoveCandidate>();
 
         status?.Report($"Scanning files...");
         _logger.LogInformation("Streaming files from {Path}...", directoryPath);
@@ -104,8 +154,17 @@ public class PipelineProcessor : IMediaProcessor
 
         await Parallel.ForEachAsync(items, parallelOptions, async (item, ct) =>
         {
-            seenPaths.TryAdd(item.RelativePath, 0);
-            await ProcessFileOptimizedAsync(library, item, existingPosts, knownHashes, excludedPaths, postsToUpdate, ct);
+            await ProcessFileOptimizedAsync(
+                library,
+                item,
+                existingPosts,
+                knownHashes,
+                excludedPaths,
+                ignoredPathPrefixes,
+                seenPaths,
+                postsToUpdate,
+                potentialMoves,
+                ct);
             Interlocked.Increment(ref scanned);
 
             if (scanned % 10 == 0 || scanned == total)
@@ -120,11 +179,19 @@ public class PipelineProcessor : IMediaProcessor
 
         await _ingestionService.FlushAsync(cancellationToken);
 
+        // Resolve move/rename candidates before orphan cleanup.
+        var postsToMove = ResolveMoveCandidates(potentialMoves, existingPostsByHash, seenPaths);
+
         // Phase 2: Update changed files
-        if (!postsToUpdate.IsEmpty)
+        if (!postsToUpdate.IsEmpty || postsToMove.Count > 0)
         {
-            status?.Report($"Updating {postsToUpdate.Count} changed files...");
-            _logger.LogInformation("Updating {Count} changed files in library {Library}", postsToUpdate.Count, library.Name);
+            var totalUpdates = postsToUpdate.Count + postsToMove.Count;
+            status?.Report($"Updating {totalUpdates} posts ({postsToUpdate.Count} changed, {postsToMove.Count} moved)...");
+            _logger.LogInformation(
+                "Updating posts in library {Library}: {ChangedCount} changed, {MovedCount} moved",
+                library.Name,
+                postsToUpdate.Count,
+                postsToMove.Count);
 
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
@@ -147,6 +214,28 @@ public class PipelineProcessor : IMediaProcessor
                         post.PerceptualHash = null;
                     }
                 }
+            }
+
+            foreach (var move in postsToMove)
+            {
+                var post = await dbContext.Posts.FindAsync(new object[] { move.Id }, cancellationToken);
+                if (post == null)
+                {
+                    continue;
+                }
+
+                post.RelativePath = move.NewRelativePath;
+                post.ContentHash = move.Hash;
+                post.SizeBytes = move.NewSize;
+                post.FileModifiedDate = move.NewMtime;
+                post.ImportDate = move.NewMtime;
+                post.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(move.NewRelativePath));
+
+                _logger.LogInformation(
+                    "Moved post {PostId}: {OldPath} -> {NewPath}",
+                    move.Id,
+                    move.OldRelativePath,
+                    move.NewRelativePath);
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -181,7 +270,8 @@ public class PipelineProcessor : IMediaProcessor
         }
 
         progress?.Report(100);
-        status?.Report($"Finished scanning {library.Name} — {scanned} files, {postsToUpdate.Count} updated, {orphanPaths.Count} orphans removed");
+        status?.Report(
+            $"Finished scanning {library.Name} — {scanned} files, {postsToUpdate.Count} updated, {postsToMove.Count} moved, {orphanPaths.Count} orphans removed");
     }
 
     public async Task ProcessFileAsync(Library library, MediaSourceItem item, CancellationToken cancellationToken)
@@ -208,10 +298,21 @@ public class PipelineProcessor : IMediaProcessor
         Dictionary<string, ExistingPostInfo> existingPosts,
         ConcurrentDictionary<string, byte> knownHashes,
         HashSet<string> excludedPaths,
+        HashSet<string> ignoredPathPrefixes,
+        ConcurrentDictionary<string, byte> seenPaths,
         ConcurrentBag<(int Id, string NewHash, long NewSize, DateTime NewMtime, bool HashChanged)> postsToUpdate,
+        ConcurrentBag<PotentialMoveCandidate> potentialMoves,
         CancellationToken cancellationToken)
     {
         var relativePath = item.RelativePath;
+
+        var normalizedRelativePath = RelativePathMatcher.NormalizePath(relativePath);
+        if (ignoredPathPrefixes.Any(prefix => RelativePathMatcher.IsWithinPrefix(normalizedRelativePath, prefix)))
+        {
+            return;
+        }
+
+        seenPaths.TryAdd(relativePath, 0);
 
         // Skip files on the exclusion list (e.g. duplicates resolved by user)
         if (excludedPaths.Contains(relativePath)) return;
@@ -250,6 +351,7 @@ public class PipelineProcessor : IMediaProcessor
         // Check global deduplication
         if (!knownHashes.TryAdd(hash, 0))
         {
+            potentialMoves.Add(new PotentialMoveCandidate(relativePath, hash, item.SizeBytes, item.LastModifiedUtc));
             _logger.LogDebug("Skipping duplicate content {Hash} at {Path}", hash, relativePath);
             return;
         }
@@ -278,5 +380,49 @@ public class PipelineProcessor : IMediaProcessor
         };
 
         await _ingestionService.EnqueuePostAsync(post, cancellationToken);
+    }
+
+    private static List<MoveUpdate> ResolveMoveCandidates(
+        IEnumerable<PotentialMoveCandidate> potentialMoves,
+        IReadOnlyDictionary<string, List<ExistingPostInfo>> existingPostsByHash,
+        ConcurrentDictionary<string, byte> seenPaths)
+    {
+        var moves = new List<MoveUpdate>();
+        var movedOldPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var movedPostIds = new HashSet<int>();
+
+        foreach (var candidate in potentialMoves)
+        {
+            if (!existingPostsByHash.TryGetValue(candidate.Hash, out var candidatesByHash) || candidatesByHash.Count == 0)
+            {
+                continue;
+            }
+
+            var source = candidatesByHash.FirstOrDefault(existing =>
+                !seenPaths.ContainsKey(existing.RelativePath)
+                && !movedOldPaths.Contains(existing.RelativePath)
+                && !movedPostIds.Contains(existing.Id));
+
+            if (source == null)
+            {
+                continue;
+            }
+
+            moves.Add(new MoveUpdate(
+                source.Id,
+                source.RelativePath,
+                candidate.RelativePath,
+                candidate.Hash,
+                candidate.SizeBytes,
+                candidate.LastModifiedUtc));
+
+            movedOldPaths.Add(source.RelativePath);
+            movedPostIds.Add(source.Id);
+
+            // Mark old path as "seen" to prevent orphan deletion.
+            seenPaths.TryAdd(source.RelativePath, 0);
+        }
+
+        return moves;
     }
 }

@@ -1,8 +1,8 @@
 using Bakabooru.Core.DTOs;
 using Bakabooru.Core.Interfaces;
-using Bakabooru.Data;
+using Bakabooru.Processing.Services;
+using Bakabooru.Server.Extensions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
 namespace Bakabooru.Server.Controllers;
@@ -12,12 +12,12 @@ namespace Bakabooru.Server.Controllers;
 public class JobsController : ControllerBase
 {
     private readonly IJobService _jobService;
-    private readonly BakabooruDbContext _context;
+    private readonly JobScheduleService _jobScheduleService;
 
-    public JobsController(IJobService jobService, BakabooruDbContext context)
+    public JobsController(IJobService jobService, JobScheduleService jobScheduleService)
     {
         _jobService = jobService;
-        _context = context;
+        _jobScheduleService = jobScheduleService;
     }
 
     [HttpGet]
@@ -105,50 +105,12 @@ public class JobsController : ControllerBase
     [HttpGet("schedules")]
     public async Task<ActionResult<IEnumerable<ScheduledJobDto>>> GetSchedules(CancellationToken cancellationToken)
     {
-        var schedules = await _context.ScheduledJobs.ToListAsync(cancellationToken);
-        return Ok(schedules.Select(s => new ScheduledJobDto
-        {
-            Id = s.Id,
-            JobName = s.JobName,
-            CronExpression = s.CronExpression,
-            IsEnabled = s.IsEnabled,
-            LastRun = s.LastRun,
-            NextRun = s.NextRun
-        }));
+        return Ok(await _jobScheduleService.GetSchedulesAsync(cancellationToken));
     }
 
     [HttpPut("schedules/{id}")]
-    public async Task<ActionResult<ScheduledJobDto>> UpdateSchedule(int id, [FromBody] ScheduledJobUpdateDto update)
+    public async Task<IActionResult> UpdateSchedule(int id, [FromBody] ScheduledJobUpdateDto update)
     {
-        var schedule = await _context.ScheduledJobs.FindAsync(new object[] { id });
-        if (schedule == null) return NotFound();
-
-        // Validate cron expression
-        try
-        {
-            Cronos.CronExpression.Parse(update.CronExpression);
-        }
-        catch
-        {
-            return BadRequest($"Invalid cron expression: '{update.CronExpression}'");
-        }
-
-        schedule.CronExpression = update.CronExpression;
-        schedule.IsEnabled = update.IsEnabled;
-
-        // Always calculate NextRun so the UI shows when it would run
-        var cron = Cronos.CronExpression.Parse(schedule.CronExpression);
-        schedule.NextRun = cron.GetNextOccurrence(DateTime.UtcNow, inclusive: false);
-
-        await _context.SaveChangesAsync();
-        return Ok(new ScheduledJobDto
-        {
-            Id = schedule.Id,
-            JobName = schedule.JobName,
-            CronExpression = schedule.CronExpression,
-            IsEnabled = schedule.IsEnabled,
-            LastRun = schedule.LastRun,
-            NextRun = schedule.NextRun
-        });
+        return await _jobScheduleService.UpdateScheduleAsync(id, update).ToHttpResult();
     }
 }

@@ -29,6 +29,9 @@ public class Post
 
     /// <summary>File's last modified time at time of scan, for change detection.</summary>
     public DateTime? FileModifiedDate { get; set; }
+
+    public bool IsFavorite { get; set; }
     
     public ICollection<PostTag> PostTags { get; set; } = new List<PostTag>();
+    public ICollection<PostSource> Sources { get; set; } = new List<PostSource>();
 }

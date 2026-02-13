@@ -28,6 +28,9 @@ export class LibrariesComponent {
     scanningLibraryId = signal<number | null>(null);
     renamingLibraryId = signal<number | null>(null);
     editingLibraryId = signal<number | null>(null);
+    addingIgnoredPathLibraryId = signal<number | null>(null);
+    removingIgnoredPathId = signal<number | null>(null);
+    ignoredPathDrafts = signal<Record<number, string>>({});
     editingName = signal('');
     private refreshTrigger = signal(0);
 
@@ -120,6 +123,51 @@ export class LibrariesComponent {
             error: (err) => {
                 this.toast.error(err.error?.description || 'Failed to rename library');
                 this.renamingLibraryId.set(null);
+            }
+        });
+    }
+
+    getIgnoredPathDraft(libraryId: number): string {
+        return this.ignoredPathDrafts()[libraryId] || '';
+    }
+
+    setIgnoredPathDraft(libraryId: number, value: string) {
+        this.ignoredPathDrafts.update(drafts => ({ ...drafts, [libraryId]: value }));
+    }
+
+    addIgnoredPath(lib: Library) {
+        const path = this.getIgnoredPathDraft(lib.id).trim();
+        if (!path) return;
+
+        this.addingIgnoredPathLibraryId.set(lib.id);
+        this.bakabooru.addLibraryIgnoredPath(lib.id, path).subscribe({
+            next: (result) => {
+                const removedText = result.removedPostCount > 0
+                    ? ` and removed ${result.removedPostCount} post(s)`
+                    : '';
+                this.toast.success(`Ignored path "${result.ignoredPath.path}" saved${removedText}`);
+                this.setIgnoredPathDraft(lib.id, '');
+                this.refreshTrigger.update(v => v + 1);
+                this.addingIgnoredPathLibraryId.set(null);
+            },
+            error: (err) => {
+                this.toast.error(err.error?.description || 'Failed to add ignored path');
+                this.addingIgnoredPathLibraryId.set(null);
+            }
+        });
+    }
+
+    removeIgnoredPath(lib: Library, ignoredPathId: number, path: string) {
+        this.removingIgnoredPathId.set(ignoredPathId);
+        this.bakabooru.removeLibraryIgnoredPath(lib.id, ignoredPathId).subscribe({
+            next: () => {
+                this.toast.success(`Removed ignored path "${path}"`);
+                this.refreshTrigger.update(v => v + 1);
+                this.removingIgnoredPathId.set(null);
+            },
+            error: (err) => {
+                this.toast.error(err.error?.description || 'Failed to remove ignored path');
+                this.removingIgnoredPathId.set(null);
             }
         });
     }

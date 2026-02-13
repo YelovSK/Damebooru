@@ -1,0 +1,46 @@
+<div class="relative w-full">
+  @if (label()) {
+    <label class="mb-1.5 ml-1 block text-[0.85rem] font-medium text-text-muted">{{ label() }}</label>
+  }
+
+  <button
+    type="button"
+    (click)="toggle()"
+    class="group flex w-full items-center justify-between rounded-xl border border-glass-border bg-glass-bg px-4 py-2.5 text-left transition-all hover:bg-glass-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+    [disabled]="isDisabled()"
+    [class.border-accent-primary]="isOpen()"
+    [class.shadow-[0_0_15px_rgba(56,189,248,0.1)]]="isOpen()">
+    <span class="truncate text-[0.9rem] font-medium text-text-primary">
+      {{ selectedOption()?.label || placeholder() }}
+    </span>
+
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="text-text-muted transition-transform duration-200 group-hover:text-text-secondary"
+      [class.rotate-180]="isOpen()">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </button>
+
+  @if (isOpen()) {
+    <ul class="box-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-[1000] m-0 max-h-[300px] list-none overflow-y-auto rounded-xl border border-white/10 bg-bg-secondary p-2 shadow-glass">
+      @for (option of options(); track $index) {
+        <li
+          (click)="select(option)"
+          class="mb-0.5 cursor-pointer rounded-lg px-4 py-2.5 text-[0.85rem] font-medium text-text-secondary transition-all duration-150 last:mb-0 hover:bg-accent-primary/15 hover:text-white"
+          [class.bg-accent-primary/10]="option.value === selectedOption()?.value"
+          [class.text-accent-primary]="option.value === selectedOption()?.value">
+          {{ option.label }}
+        </li>
+      }
+    </ul>
+  }
+</div>

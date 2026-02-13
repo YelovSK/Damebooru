@@ -151,6 +151,30 @@ namespace Bakabooru.Data.Migrations
                     b.ToTable("Libraries");
                 });
 
+            modelBuilder.Entity("Bakabooru.Core.Entities.LibraryIgnoredPath", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LibraryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RelativePathPrefix")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LibraryId", "RelativePathPrefix")
+                        .IsUnique();
+
+                    b.ToTable("LibraryIgnoredPaths");
+                });
+
             modelBuilder.Entity("Bakabooru.Core.Entities.Post", b =>
                 {
                     b.Property<int>("Id")
@@ -176,6 +200,9 @@ namespace Bakabooru.Data.Migrations
                     b.Property<DateTime>("ImportDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsFavorite")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("LibraryId")
                         .HasColumnType("INTEGER");
 
@@ -197,6 +224,8 @@ namespace Bakabooru.Data.Migrations
 
                     b.HasIndex("ContentHash");
 
+                    b.HasIndex("IsFavorite");
+
                     b.HasIndex("FileModifiedDate", "Id");
 
                     b.HasIndex("ImportDate", "Id");
@@ -204,6 +233,31 @@ namespace Bakabooru.Data.Migrations
                     b.HasIndex("LibraryId", "RelativePath");
 
                     b.ToTable("Posts");
+                });
+
+            modelBuilder.Entity("Bakabooru.Core.Entities.PostSource", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Order")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PostId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostId", "Order")
+                        .IsUnique();
+
+                    b.ToTable("PostSources");
                 });
 
             modelBuilder.Entity("Bakabooru.Core.Entities.PostTag", b =>
@@ -328,6 +382,17 @@ namespace Bakabooru.Data.Migrations
                     b.Navigation("Library");
                 });
 
+            modelBuilder.Entity("Bakabooru.Core.Entities.LibraryIgnoredPath", b =>
+                {
+                    b.HasOne("Bakabooru.Core.Entities.Library", "Library")
+                        .WithMany()
+                        .HasForeignKey("LibraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Library");
+                });
+
             modelBuilder.Entity("Bakabooru.Core.Entities.Post", b =>
                 {
                     b.HasOne("Bakabooru.Core.Entities.Library", "Library")
@@ -337,6 +402,17 @@ namespace Bakabooru.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Library");
+                });
+
+            modelBuilder.Entity("Bakabooru.Core.Entities.PostSource", b =>
+                {
+                    b.HasOne("Bakabooru.Core.Entities.Post", "Post")
+                        .WithMany("Sources")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Post");
                 });
 
             modelBuilder.Entity("Bakabooru.Core.Entities.PostTag", b =>
@@ -376,6 +452,8 @@ namespace Bakabooru.Data.Migrations
             modelBuilder.Entity("Bakabooru.Core.Entities.Post", b =>
                 {
                     b.Navigation("PostTags");
+
+                    b.Navigation("Sources");
                 });
 
             modelBuilder.Entity("Bakabooru.Core.Entities.Tag", b =>

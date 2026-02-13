@@ -6,7 +6,7 @@
                 (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
                 <ng-template let-tag>
                     <div class="flex justify-between w-full items-center">
-                        <span class="text-accent-primary ">{{ tag.names[0] }}</span>
+                        <span class="text-accent-primary ">{{ tag.name }}</span>
                         <span class="badge">{{ tag.usages | number }}</span>
                     </div>
                 </ng-template>
@@ -28,12 +28,12 @@
 
             <!-- Page Size Dropdown -->
             <div class="w-48">
-                <app-form-select
+                <app-form-dropdown
                     [options]="pageSizeOptions"
                     [value]="pageSize()"
                     placeholder="Page size"
                     (valueChange)="onPageSizeChange($event ?? 50)">
-                </app-form-select>
+                </app-form-dropdown>
             </div>
         </div>
     </header>
@@ -53,12 +53,20 @@
         <!-- Actual Content Grid -->
         @if (postsState.data; as pagedPosts) {
         <div class="grid gap-2" [style.grid-template-columns]="'repeat(auto-fill, minmax(' + gridSize() + 'px, 1fr))'">
-            @for (post of pagedPosts.results; track post.id) {
+            @for (post of pagedPosts.items; track post.id) {
             <a class="relative rounded-lg overflow-hidden aspect-square bg-bg-secondary cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:scale-110 hover:shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:z-5 group" [routerLink]="appLinks.post(post.id)" [queryParams]="{ query: query() }">
                 <img [src]="environment.mediaBaseUrl + post.thumbnailUrl" [alt]="'Post ' + post.id" class="block w-full h-full object-cover"
                     decoding="async" [attr.loading]="$index <= 3 ? 'eager' : 'lazy'" />
 
-                @switch (post.type) {
+                @if (post.isFavorite) {
+                <div class="absolute top-2.5 left-2.5 bg-bg-primary/90 w-8 h-8 rounded-md flex justify-center items-center text-status-error z-5 border border-white/10 shadow-lg pointer-events-none">
+                    <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z"/>
+                    </svg>
+                </div>
+                }
+
+                @switch (getMediaType(post.contentType)) {
                 @case ('video') {
                 <div class="absolute bottom-2.5 right-2.5 bg-bg-primary/90 w-8 h-8 rounded-md flex justify-center items-center text-accent-primary z-5 border border-white/10 shadow-lg pointer-events-none">
                     <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
@@ -80,13 +88,13 @@
 
                 <div class="absolute bottom-0 left-0 right-0 p-4 pr-14 bg-linear-to-t from-black/80 to-transparent flex justify-between opacity-0 group-hover:opacity-100 transition-opacity z-4">
                     <span class="font-bold text-[0.8rem] text-white">#{{ post.id }}</span>
-                    <span class="text-status-success font-bold">+{{ post.score }}</span>
+                    <span class="text-text-dim text-[0.8rem]">{{ post.tags.length }} tags</span>
                 </div>
             </a>
             }
         </div>
 
-        @if (pagedPosts.results.length === 0) {
+        @if (pagedPosts.items.length === 0) {
         <div class="col-span-full text-center p-12 text-text-muted bg-glass-bg rounded-lg">
             No posts match your search.
         </div>

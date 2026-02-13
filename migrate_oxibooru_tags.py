@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Migrate tags and tag categories from Oxibooru to Bakabooru by reverse-searching
-Bakabooru posts against Oxibooru.
+Migrate tags, tag categories, and sources from Oxibooru to Bakabooru by
+reverse-searching Bakabooru posts against Oxibooru.
 
 Flow:
 1. Iterate Bakabooru posts (paged).
@@ -9,8 +9,9 @@ Flow:
 3. Download post content from Bakabooru.
 4. If source is JXL, decode it to JPEG using `djxl`.
 5. Reverse-search file in Oxibooru (`/posts/reverse-search`).
-6. If exact match exists, sync tag categories + tags to Bakabooru.
-7. Add missing tags to the Bakabooru post.
+6. If exact match exists (or a sufficiently close similar match), sync tag
+   categories + tags to Bakabooru.
+7. Add missing sources to the Bakabooru post.
 
 Requirements:
 - Python 3.10+
@@ -268,6 +269,31 @@ class BakabooruClient:
         self._raise_for_status(response, f"Bakabooru add tag '{tag_name}' to post {post_id}")
         return False, response.status_code
 
+    def get_post_sources(self, post_id: int) -> list[str]:
+        response = self.session.get(
+            self._url(f"/posts/{post_id}/sources"),
+            timeout=self.timeout,
+        )
+        self._raise_for_status(response, f"Bakabooru get sources for post {post_id}")
+        payload = response.json()
+        if not isinstance(payload, list):
+            raise RuntimeError(f"Bakabooru sources payload for post {post_id} is not a list.")
+        result: list[str] = []
+        for item in payload:
+            if isinstance(item, str):
+                value = item.strip()
+                if value:
+                    result.append(value)
+        return result
+
+    def set_post_sources(self, post_id: int, sources: list[str]) -> None:
+        response = self.session.put(
+            self._url(f"/posts/{post_id}/sources"),
+            json=sources,
+            timeout=self.timeout,
+        )
+        self._raise_for_status(response, f"Bakabooru set sources for post {post_id}")
+
 
 class OxibooruClient:
     def __init__(
@@ -338,6 +364,52 @@ class OxibooruClient:
         if not isinstance(payload, dict):
             raise RuntimeError("Oxibooru reverse search payload is invalid.")
         return payload
+
+
+def select_reverse_search_match(
+    reverse_result: dict[str, Any],
+    max_similar_distance: float,
+) -> tuple[dict[str, Any] | None, str, float | None]:
+    """
+    Pick the most reliable reverse-search candidate.
+
+    Returns: (post, match_kind, distance)
+      - match_kind: "exact", "similar", "none", "too_far"
+    """
+    exact = reverse_result.get("exactPost")
+    if isinstance(exact, dict):
+        return exact, "exact", 0.0
+
+    similar_posts = reverse_result.get("similarPosts") or []
+    if not isinstance(similar_posts, list) or not similar_posts:
+        return None, "none", None
+
+    candidates: list[tuple[float, dict[str, Any]]] = []
+    for item in similar_posts:
+        if not isinstance(item, dict):
+            continue
+        post = item.get("post")
+        if not isinstance(post, dict):
+            continue
+
+        distance_raw = item.get("distance")
+        try:
+            distance = float(distance_raw)
+        except (TypeError, ValueError):
+            continue
+
+        candidates.append((distance, post))
+
+    if not candidates:
+        return None, "none", None
+
+    candidates.sort(key=lambda pair: pair[0])
+    best_distance, best_post = candidates[0]
+    if best_distance > max_similar_distance:
+        return None, "too_far", best_distance
+
+    print("Found non-exact similar match with distance =", best_distance)
+    return best_post, "similar", best_distance
 
 
 class Migrator:
@@ -463,6 +535,59 @@ class Migrator:
 
         return discovered_count, added_count
 
+    def migrate_post_sources(self, post_id: int, oxi_post: dict[str, Any]) -> tuple[int, int]:
+        oxi_sources = extract_oxibooru_sources(oxi_post)
+        discovered_count = len(oxi_sources)
+        if discovered_count == 0:
+            return 0, 0
+
+        current_sources = self.baka.get_post_sources(post_id)
+        current_lookup = {s.strip() for s in current_sources}
+        to_add = [s for s in oxi_sources if s.strip() not in current_lookup]
+        if not to_add:
+            return discovered_count, 0
+
+        if self.dry_run:
+            for source in to_add:
+                print(f"[dry-run] add source to post {post_id}: {source}")
+            return discovered_count, len(to_add)
+
+        merged_sources = current_sources + to_add
+        self.baka.set_post_sources(post_id, merged_sources)
+        for source in to_add:
+            print(f"[post:{post_id}] +source '{source}'")
+        return discovered_count, len(to_add)
+
+
+def extract_oxibooru_sources(oxi_post: dict[str, Any]) -> list[str]:
+    """
+    Oxibooru post has a single `source` field, but we normalize into list and
+    support multi-line values.
+    """
+    raw = oxi_post.get("source")
+    if raw is None:
+        return []
+
+    if isinstance(raw, str):
+        candidates = raw.splitlines()
+    elif isinstance(raw, list):
+        candidates = [x for x in raw if isinstance(x, str)]
+    else:
+        return []
+
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in candidates:
+        value = item.strip()
+        if not value:
+            continue
+        key = value.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(value)
+    return result
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -480,6 +605,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--page-size", type=int, default=100, help="Bakabooru posts page size.")
     parser.add_argument("--start-page", type=int, default=1, help="Bakabooru start page.")
     parser.add_argument("--max-posts", type=int, default=0, help="Stop after processing this many posts (0 = no limit).")
+    parser.add_argument(
+        "--max-similar-distance",
+        type=float,
+        default=0.05,
+        help="Accept similar reverse-search match only when distance is <= this value.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Do not write changes to Bakabooru.")
     parser.add_argument("--fail-fast", action="store_true", help="Abort on first per-post failure.")
     parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout in seconds.")
@@ -494,6 +625,9 @@ def main() -> int:
         return 2
     if args.start_page < 1:
         print("Invalid --start-page", file=sys.stderr)
+        return 2
+    if args.max_similar_distance < 0 or args.max_similar_distance > 1:
+        print("Invalid --max-similar-distance (expected 0..1).", file=sys.stderr)
         return 2
     if (args.bakabooru_username and not args.bakabooru_password) or (
         args.bakabooru_password and not args.bakabooru_username
@@ -517,10 +651,15 @@ def main() -> int:
     processed_total = 0
     scanned_total = 0
     matched_total = 0
+    exact_matched_total = 0
+    similar_matched_total = 0
+    too_far_similar_total = 0
     skipped_type_total = 0
     failed_total = 0
     discovered_tags_total = 0
     added_tags_total = 0
+    discovered_sources_total = 0
+    added_sources_total = 0
 
     page = args.start_page
     max_posts = args.max_posts if args.max_posts > 0 else None
@@ -542,9 +681,14 @@ def main() -> int:
                     scanned_total,
                     processed_total,
                     matched_total,
+                    exact_matched_total,
+                    similar_matched_total,
+                    too_far_similar_total,
                     skipped_type_total,
                     discovered_tags_total,
                     added_tags_total,
+                    discovered_sources_total,
+                    added_sources_total,
                     failed_total,
                 )
                 return 0
@@ -576,12 +720,24 @@ def main() -> int:
                     filename=filename,
                     content_type=upload_mime,
                 )
-                exact = reverse_result.get("exactPost")
-                if not exact:
+                matched_post, match_kind, match_distance = select_reverse_search_match(
+                    reverse_result=reverse_result,
+                    max_similar_distance=args.max_similar_distance,
+                )
+                if not matched_post:
+                    if match_kind == "too_far":
+                        too_far_similar_total += 1
                     continue
 
                 matched_total += 1
-                oxi_tags = exact.get("tags") or []
+                if match_kind == "exact":
+                    exact_matched_total += 1
+                elif match_kind == "similar":
+                    similar_matched_total += 1
+                    if match_distance is not None:
+                        print(f"[post:{post_id}] using similar match (distance={match_distance:.6f})")
+
+                oxi_tags = matched_post.get("tags") or []
                 discovered, added = migrator.migrate_post_tags(
                     post_id=post_id,
                     post_tags=post_tags,
@@ -589,6 +745,12 @@ def main() -> int:
                 )
                 discovered_tags_total += discovered
                 added_tags_total += added
+                discovered_sources, added_sources = migrator.migrate_post_sources(
+                    post_id=post_id,
+                    oxi_post=matched_post,
+                )
+                discovered_sources_total += discovered_sources
+                added_sources_total += added_sources
 
             except Exception as exc:
                 failed_total += 1
@@ -598,9 +760,14 @@ def main() -> int:
                         scanned_total,
                         processed_total,
                         matched_total,
+                        exact_matched_total,
+                        similar_matched_total,
+                        too_far_similar_total,
                         skipped_type_total,
                         discovered_tags_total,
                         added_tags_total,
+                        discovered_sources_total,
+                        added_sources_total,
                         failed_total,
                     )
                     return 1
@@ -613,9 +780,14 @@ def main() -> int:
         scanned_total,
         processed_total,
         matched_total,
+        exact_matched_total,
+        similar_matched_total,
+        too_far_similar_total,
         skipped_type_total,
         discovered_tags_total,
         added_tags_total,
+        discovered_sources_total,
+        added_sources_total,
         failed_total,
     )
     return 0
@@ -625,18 +797,28 @@ def print_summary(
     scanned_total: int,
     processed_total: int,
     matched_total: int,
+    exact_matched_total: int,
+    similar_matched_total: int,
+    too_far_similar_total: int,
     skipped_type_total: int,
     discovered_tags_total: int,
     added_tags_total: int,
+    discovered_sources_total: int,
+    added_sources_total: int,
     failed_total: int,
 ) -> None:
     print("\n=== Migration Summary ===")
     print(f"Scanned posts:          {scanned_total}")
     print(f"Processed image posts:  {processed_total}")
     print(f"Skipped by type:        {skipped_type_total}")
-    print(f"Exact matches found:    {matched_total}")
+    print(f"Matched posts:          {matched_total}")
+    print(f"  exact matches:        {exact_matched_total}")
+    print(f"  similar matches:      {similar_matched_total}")
+    print(f"  too-far similars:     {too_far_similar_total}")
     print(f"Discovered tags:        {discovered_tags_total}")
     print(f"Added tags to posts:    {added_tags_total}")
+    print(f"Discovered sources:     {discovered_sources_total}")
+    print(f"Added sources to posts: {added_sources_total}")
     print(f"Failures:               {failed_total}")
 
 

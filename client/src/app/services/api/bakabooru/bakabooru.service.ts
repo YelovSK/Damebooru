@@ -4,10 +4,10 @@ import {
     HttpHeaders,
     HttpParams,
 } from "@angular/common/http";
-import { Observable, of, forkJoin, switchMap, throwError } from "rxjs";
+import { Observable, of, forkJoin, switchMap } from "rxjs";
 import { catchError, finalize, map, shareReplay } from "rxjs/operators";
 import { environment } from "@env/environment";
-import { AuthSessionResponse, Library, PostField, PagedSearchResult, Post, BakabooruPagedResponse, BakabooruPostDto, BakabooruJobInfo, BakabooruTagDto, GlobalInfo, BakabooruSystemInfoDto, Tag, UnpagedSearchResult, TagCategory, ManagedTagCategory, Pool, PostsAround, UpdatePostMetadata, UploadProgressResult, Safety, ImageSearchResult, ManagedTag, BakabooruPostsAroundDto } from "./models";
+import { AddLibraryIgnoredPathResult, AuthSessionResponse, Library, LibraryIgnoredPath, PagedSearchResult, BakabooruPagedResponse, BakabooruPostDto, BakabooruPostListDto, BakabooruJobInfo, BakabooruTagDto, BakabooruSystemInfoDto, ManagedTagCategory, UpdatePostMetadata, ManagedTag, BakabooruPostsAroundDto, Comment as BakabooruComment } from "./models";
 
 @Injectable({
     providedIn: "root",
@@ -35,10 +35,6 @@ export class BakabooruService {
                 return;
             })
         );
-    }
-
-    register(username: string, password: string): Observable<void> {
-        return of(void 0);
     }
 
     logout(): Observable<void> {
@@ -96,13 +92,24 @@ export class BakabooruService {
         return this.http.patch<Library>(`${this.baseUrl}/libraries/${id}/name`, { name });
     }
 
+    getLibraryIgnoredPaths(libraryId: number): Observable<LibraryIgnoredPath[]> {
+        return this.http.get<LibraryIgnoredPath[]>(`${this.baseUrl}/libraries/${libraryId}/ignored-paths`);
+    }
+
+    addLibraryIgnoredPath(libraryId: number, path: string): Observable<AddLibraryIgnoredPathResult> {
+        return this.http.post<AddLibraryIgnoredPathResult>(`${this.baseUrl}/libraries/${libraryId}/ignored-paths`, { path });
+    }
+
+    removeLibraryIgnoredPath(libraryId: number, ignoredPathId: number): Observable<void> {
+        return this.http.delete<void>(`${this.baseUrl}/libraries/${libraryId}/ignored-paths/${ignoredPathId}`);
+    }
+
     // --- Posts ---
     getPosts(
         query = "",
         offset = 0,
         limit = 100,
-        fields: PostField[] = ["id", "thumbnailUrl", "type", "score"],
-    ): Observable<PagedSearchResult<Post>> {
+    ): Observable<BakabooruPostListDto> {
         const page = Math.floor(offset / limit) + 1;
 
         let params = new HttpParams()
@@ -113,19 +120,7 @@ export class BakabooruService {
             params = params.set("tags", query);
         }
 
-        return this.http.get<BakabooruPagedResponse<BakabooruPostDto>>(`${this.baseUrl}/posts`, { params }).pipe(
-            map(response => {
-                const items = response.items || response.Items || [];
-                const results = items.map(dto => this.mapPost(dto));
-                return {
-                    query,
-                    offset,
-                    limit,
-                    total: response.totalCount || response.TotalCount || 0,
-                    results
-                };
-            })
-        );
+        return this.http.get<BakabooruPostListDto>(`${this.baseUrl}/posts`, { params });
     }
 
     // --- Admin & Jobs (New) ---
@@ -145,59 +140,8 @@ export class BakabooruService {
         return this.http.post<void>(`${this.baseUrl}/libraries/${libraryId}/scan`, {});
     }
 
-    private mapPost(dto: BakabooruPostDto): Post {
-        return {
-            id: dto.id,
-            version: '1',
-            creationTime: dto.importDate,
-            lastEditTime: dto.importDate,
-            safety: 'safe',
-            source: '',
-            type: this.getTypeFromContentType(dto.contentType),
-            checksum: dto.contentHash,
-            contentHash: dto.contentHash,
-            fileSize: 0, // Not provided by DTO yet
-            canvasWidth: dto.width,
-            canvasHeight: dto.height,
-            contentUrl: dto.contentUrl || `${this.baseUrl}/posts/${dto.id}/content`,
-            thumbnailUrl: dto.thumbnailUrl || dto.contentUrl || `${this.baseUrl}/posts/${dto.id}/content`,
-            flags: [],
-            tags: (dto.tags || []).map((t: BakabooruTagDto) => ({
-                names: [t.name],
-                category: t.categoryName || 'general',
-                usages: t.usages || 0
-            })),
-            relations: [],
-            notes: [],
-            user: { name: 'System', avatarUrl: '' },
-            score: 0,
-            ownScore: 0,
-            ownFavorite: false,
-            tagCount: (dto.tags || []).length,
-            favoriteCount: 0,
-            commentCount: 0,
-            noteCount: 0,
-            featureCount: 0,
-            relationCount: 0,
-            lastFeatureTime: null,
-            favoritedBy: [],
-            hasCustomThumbnail: false,
-            mimeType: dto.contentType,
-            comments: [],
-            pools: []
-        };
-    }
-
-    private getTypeFromContentType(contentType: string): Post["type"] {
-        if (contentType.startsWith('video/')) return 'video';
-        if (contentType === 'image/gif') return 'animation';
-        return 'image';
-    }
-
-    getPost(id: number): Observable<Post> {
-        return this.http.get<BakabooruPostDto>(`${this.baseUrl}/posts/${id}`).pipe(
-            map(dto => this.mapPost(dto))
-        );
+    getPost(id: number): Observable<BakabooruPostDto> {
+        return this.http.get<BakabooruPostDto>(`${this.baseUrl}/posts/${id}`);
     }
 
     getPostContentUrl(id: number): string {
@@ -205,32 +149,11 @@ export class BakabooruService {
     }
 
     // --- Stubs for Compatibility ---
-    getGlobalInfo(): Observable<GlobalInfo> {
-        return this.http.get<BakabooruSystemInfoDto>(`${this.baseUrl}/system/info`).pipe(
-            map(res => ({
-                postCount: res.postCount,
-                diskUsage: res.totalSizeBytes,
-                featuredPost: null,
-                featuringTime: null,
-                featuringUser: null,
-                serverTime: res.serverTime,
-                config: {
-                    name: "Bakabooru",
-                    userNameRegex: ".*",
-                    passwordRegex: ".*",
-                    tagNameRegex: ".*",
-                    tagCategoryNameRegex: ".*",
-                    defaultUserRank: "regular",
-                    enableSafety: false,
-                    contact_email: "",
-                    canSendMails: false,
-                    privileges: {}
-                }
-            }))
-        );
+    getGlobalInfo(): Observable<BakabooruSystemInfoDto> {
+        return this.http.get<BakabooruSystemInfoDto>(`${this.baseUrl}/system/info`);
     }
 
-    getTags(query = "", offset = 0, limit = 100): Observable<PagedSearchResult<Tag>> {
+    getTags(query = "", offset = 0, limit = 100): Observable<PagedSearchResult<BakabooruTagDto>> {
         const page = Math.floor(offset / limit) + 1;
         const params = new HttpParams()
             .set("query", query)
@@ -239,18 +162,7 @@ export class BakabooruService {
 
         return this.http.get<BakabooruPagedResponse<BakabooruTagDto>>(`${this.baseUrl}/tags`, { params }).pipe(
             map(response => {
-                const items = response.items || response.Items || [];
-                const results = items.map(t => ({
-                    names: [t.name],
-                    category: t.categoryName || 'general',
-                    usages: t.usages || 0,
-                    version: '1',
-                    implications: [],
-                    suggestions: [],
-                    creationTime: '',
-                    lastEditTime: '',
-                    description: ''
-                } as Tag));
+                const results = response.items || response.Items || [];
 
                 return {
                     query,
@@ -263,91 +175,70 @@ export class BakabooruService {
         );
     }
 
-    getTagCategories(): Observable<UnpagedSearchResult<TagCategory>> {
-        return this.http.get<ManagedTagCategory[]>(`${this.baseUrl}/tagcategories`).pipe(
-            map(items => ({
-                results: (items || []).map(c => ({
-                    version: '1',
-                    name: c.name,
-                    color: c.color,
-                    usages: c.tagCount || 0,
-                    order: c.order,
-                    default: false
-                } as TagCategory))
-            }))
-        );
+    getTagCategories(): Observable<ManagedTagCategory[]> {
+        return this.http.get<ManagedTagCategory[]>(`${this.baseUrl}/tagcategories`);
     }
 
-    getTag(name: string): Observable<Tag> {
-        const normalizedName = name.trim().toLowerCase();
-        if (!normalizedName) {
-            return throwError(() => new Error("Tag name cannot be empty."));
-        }
-
-        return this.getManagedTags(normalizedName, 0, 100).pipe(
-            map(result => {
-                const existing = result.results.find(t => t.name.toLowerCase() === normalizedName);
-                if (!existing) {
-                    throw new Error(`Tag "${name}" not found.`);
-                }
-                return this.mapManagedTagToTag(existing);
-            }),
-        );
-    }
-
-    getPools(): Observable<PagedSearchResult<Pool>> {
-        return of({ query: "", offset: 0, limit: 100, total: 0, results: [] });
-    }
-
-    getComments(): Observable<PagedSearchResult<Comment>> {
+    getComments(): Observable<PagedSearchResult<BakabooruComment>> {
         return of({ query: "", offset: 0, limit: 100, total: 0, results: [] });
     }
 
     // Add other necessary stubs as empty observables or specific "not implemented" errors if critical
 
-    getPostsAround(id: number, query = ""): Observable<PostsAround> {
+    getPostsAround(id: number, query = ""): Observable<BakabooruPostsAroundDto> {
         let params = new HttpParams();
         if (query) {
             params = params.set("tags", query);
         }
 
-        return this.http.get<BakabooruPostsAroundDto>(`${this.baseUrl}/posts/${id}/around`, { params }).pipe(
-            map(response => ({
-                prev: response.prev ? this.mapPost(response.prev) : null,
-                next: response.next ? this.mapPost(response.next) : null,
-            })),
-        );
+        return this.http.get<BakabooruPostsAroundDto>(`${this.baseUrl}/posts/${id}/around`, { params });
     }
 
-    updatePost(id: number, metadata: UpdatePostMetadata): Observable<Post> {
+    updatePost(id: number, metadata: UpdatePostMetadata): Observable<BakabooruPostDto> {
         const desiredTagsRaw = this.normalizeUpdateTags(metadata?.tags);
+        const desiredSourcesRaw = this.normalizeUpdateSources(metadata);
 
-        // Current backend only supports incremental tag add/remove endpoints.
-        if (desiredTagsRaw === null) {
+        if (desiredTagsRaw === null && desiredSourcesRaw === null) {
             return this.getPost(id);
         }
 
         const normalizeTag = (tagName: string) => tagName.trim().toLowerCase();
-        const desiredTags = Array.from(
-            new Set(
-                desiredTagsRaw
-                    .map(t => t?.trim())
-                    .filter((t): t is string => !!t),
-            ),
-        );
-        const desiredTagLookup = new Set(desiredTags.map(normalizeTag));
+        const desiredTags = desiredTagsRaw === null
+            ? null
+            : Array.from(
+                new Set(
+                    desiredTagsRaw
+                        .map(t => t?.trim())
+                        .filter((t): t is string => !!t),
+                ),
+            );
+        const desiredTagLookup = desiredTags === null
+            ? null
+            : new Set(desiredTags.map(normalizeTag));
 
         return this.getPost(id).pipe(
             switchMap(post => {
-                const currentTags = Array.from(new Set(post.tags.map(t => t.names[0].trim())));
-                const currentTagLookup = new Set(currentTags.map(normalizeTag));
-                const toAdd = desiredTags.filter(t => !currentTagLookup.has(normalizeTag(t)));
-                const toRemove = currentTags.filter(t => !desiredTagLookup.has(normalizeTag(t)));
+                const currentSources = post.sources
+                    .map(s => s.trim())
+                    .filter(s => !!s);
 
-                const operations: Observable<unknown>[] = [
-                    ...toAdd.map(tag => this.addTagToPost(id, tag)),
-                    ...toRemove.map(tag => this.removeTagFromPost(id, tag)),
-                ];
+                const operations: Observable<unknown>[] = [];
+
+                if (desiredTags !== null && desiredTagLookup !== null) {
+                    const currentTags = Array.from(new Set(post.tags.map(t => t.name.trim())));
+                    const currentTagLookup = new Set(currentTags.map(normalizeTag));
+                    const toAdd = desiredTags.filter(t => !currentTagLookup.has(normalizeTag(t)));
+                    const toRemove = currentTags.filter(t => !desiredTagLookup.has(normalizeTag(t)));
+
+                    operations.push(
+                        ...toAdd.map(tag => this.addTagToPost(id, tag)),
+                        ...toRemove.map(tag => this.removeTagFromPost(id, tag)),
+                    );
+                }
+
+                if (desiredSourcesRaw !== null && !this.areStringListsEqual(currentSources, desiredSourcesRaw)) {
+                    operations.push(this.setPostSources(id, desiredSourcesRaw));
+                }
 
                 if (operations.length === 0) {
                     return this.getPost(id);
@@ -370,77 +261,52 @@ export class BakabooruService {
                 continue;
             }
 
-            if (tag && Array.isArray(tag.names) && tag.names.length > 0) {
-                normalized.push(tag.names[0]);
+            if (tag && typeof tag === "object") {
+                if ("name" in tag && typeof tag.name === "string") {
+                    normalized.push(tag.name);
+                    continue;
+                }
+
+                if ("names" in tag && Array.isArray(tag.names) && tag.names.length > 0 && typeof tag.names[0] === "string") {
+                    normalized.push(tag.names[0]);
+                }
             }
         }
 
         return normalized;
     }
 
-    deletePost(id: number, version: string): Observable<void> {
-        return of(void 0);
-    }
-
-    updateTag(name: string, tag: Partial<Tag>): Observable<Tag> {
-        const normalizedName = name.trim().toLowerCase();
-        if (!normalizedName) {
-            return throwError(() => new Error("Tag name cannot be empty."));
+    private normalizeUpdateSources(metadata: UpdatePostMetadata): string[] | null {
+        if (Array.isArray(metadata?.sources)) {
+            return metadata.sources
+                .map(s => (typeof s === "string" ? s.trim() : ""))
+                .filter((s): s is string => !!s);
         }
 
-        return this.getManagedTags(normalizedName, 0, 100).pipe(
-            switchMap(result => {
-                const existing = result.results.find(t => t.name.toLowerCase() === normalizedName);
-                if (!existing) {
-                    return throwError(() => new Error(`Tag "${name}" not found.`));
-                }
+        if (typeof metadata?.source === "string") {
+            return metadata.source
+                .split('\n')
+                .map(s => s.trim())
+                .filter((s): s is string => !!s);
+        }
 
-                const nextName = tag.names?.[0]?.trim().toLowerCase() || existing.name;
-                const categoryName = tag.category?.trim() || null;
-
-                if (categoryName === null || categoryName.toLowerCase() === "general") {
-                    return this.updateManagedTag(existing.id, nextName, null).pipe(map(updated => this.mapManagedTagToTag(updated)));
-                }
-
-                return this.getManagedTagCategories().pipe(
-                    switchMap(categories => {
-                        const category = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
-                        if (!category) {
-                            return throwError(() => new Error(`Category "${categoryName}" not found.`));
-                        }
-
-                        return this.updateManagedTag(existing.id, nextName, category.id).pipe(
-                            map(updated => this.mapManagedTagToTag(updated)),
-                        );
-                    }),
-                );
-            }),
-        );
+        return null;
     }
 
-    ratePost(id: number, score: number): Observable<Post> {
-        return of({} as Post);
+    private areStringListsEqual(a: string[], b: string[]): boolean {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) return false;
+        }
+        return true;
     }
 
-    favoritePost(id: number): Observable<Post> {
-        return of({} as Post);
+    favoritePost(id: number): Observable<BakabooruPostDto> {
+        return this.http.post<BakabooruPostDto>(`${this.baseUrl}/posts/${id}/favorite`, {});
     }
 
-    unfavoritePost(id: number): Observable<Post> {
-        return of({} as Post);
-    }
-
-    uploadFile(file: File): Observable<UploadProgressResult> {
-        // Mock upload progress
-        return of({ token: "mock-token", progress: 100 });
-    }
-
-    createPost(token: string, safety: Safety, tags: string[], source: string): Observable<Post> {
-        return of({} as Post);
-    }
-
-    reverseSearch(file: File): Observable<ImageSearchResult> {
-        return of({ exactPost: null, similarPosts: [] });
+    unfavoritePost(id: number): Observable<BakabooruPostDto> {
+        return this.http.delete<BakabooruPostDto>(`${this.baseUrl}/posts/${id}/favorite`);
     }
 
     // --- Tag Management ---
@@ -505,17 +371,10 @@ export class BakabooruService {
         return this.http.delete<void>(`${this.baseUrl}/posts/${id}/tags/${encodeURIComponent(tagName)}`);
     }
 
-    private mapManagedTagToTag(tag: ManagedTag): Tag {
-        return {
-            names: [tag.name],
-            category: tag.categoryName || "general",
-            usages: tag.usages || 0,
-            version: "1",
-            implications: [],
-            suggestions: [],
-            creationTime: "",
-            lastEditTime: "",
-            description: "",
-        };
+    private setPostSources(id: number, sources: string[]): Observable<void> {
+        return this.http.put(`${this.baseUrl}/posts/${id}/sources`, sources).pipe(
+            map(() => void 0),
+        );
     }
+
 }

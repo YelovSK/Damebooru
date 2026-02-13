@@ -4,11 +4,10 @@ import { Observable, of, forkJoin, catchError, tap, switchMap, map } from 'rxjs'
 import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
 import { AutoTaggingService } from '@services/auto-tagging/auto-tagging.service';
 import { ToastService } from '@services/toast.service';
-import { Post, Safety } from '@models';
+import { BakabooruPostDto, UpdatePostMetadata, ManagedTagCategory } from '@models';
 import { AutoTaggingResult, TaggingStatus } from '@services/auto-tagging/models';
 
 export interface PostEditState {
-  safety: Safety;
   sources: string[];
   tags: string[];
 }
@@ -19,7 +18,7 @@ export class PostEditService {
   private readonly autoTagging = inject(AutoTaggingService);
   private readonly toast = inject(ToastService);
 
-  private originalPost = signal<Post | null>(null);
+  private originalPost = signal<BakabooruPostDto | null>(null);
   private editState = signal<PostEditState | null>(null);
 
   isEditing = signal(false);
@@ -34,23 +33,21 @@ export class PostEditService {
     const current = this.editState();
     if (!original || !current) return false;
 
-    const originalTags = original.tags.map(t => t.names[0]).sort();
+    const originalTags = original.tags.map(t => t.name).sort();
     const currentTags = [...current.tags].sort();
-    const originalSources = original.source?.split('\n').filter(s => s.trim()) || [];
+    const originalSources = original.sources || [];
 
     return (
-      original.safety !== current.safety ||
       JSON.stringify(originalSources) !== JSON.stringify(current.sources) ||
       JSON.stringify(originalTags) !== JSON.stringify(currentTags)
     );
   });
 
-  startEditing(post: Post) {
+  startEditing(post: BakabooruPostDto) {
     this.originalPost.set(post);
     this.editState.set({
-      safety: post.safety,
-      sources: post.source?.split('\n').filter(s => s.trim()) || [],
-      tags: post.tags.map(t => t.names[0]),
+      sources: post.sources || [],
+      tags: post.tags.map(t => t.name),
     });
     this.isEditing.set(true);
     this.autoTags.set([]);
@@ -62,10 +59,6 @@ export class PostEditService {
     this.editState.set(null);
     this.autoTags.set([]);
     this.taggingStatus.set('idle');
-  }
-
-  setSafety(safety: Safety) {
-    this.editState.update(state => state ? { ...state, safety } : null);
   }
 
   setSources(sources: string[]) {
@@ -118,16 +111,6 @@ export class PostEditService {
         newSources.add(source);
       }
       return { ...state, sources: Array.from(newSources) };
-    });
-  }
-
-  applyAutoSafety(providerId: string) {
-    const result = this.autoTags().find(r => r.providerId === providerId);
-    if (!result?.safety) return;
-
-    this.editState.update(state => {
-      if (!state) return state;
-      return { ...state, safety: result.safety! };
     });
   }
 
@@ -195,33 +178,26 @@ export class PostEditService {
     return this.autoTagging.getEnabledProviders();
   }
 
-  save(destroyRef: DestroyRef): Observable<Post | null> {
+  save(destroyRef: DestroyRef): Observable<BakabooruPostDto | null> {
     const post = this.originalPost();
     const state = this.editState();
     if (!post || !state) return of(null);
 
     this.isSaving.set(true);
 
-    const payload: Record<string, unknown> = {
-      version: post.version,
-    };
-
-    if (post.safety !== state.safety) {
-      payload['safety'] = state.safety;
-    }
-
-    const originalSources = post.source?.split('\n').filter(s => s.trim()) || [];
+    const payload: UpdatePostMetadata = {};
+    const originalSources = post.sources || [];
     if (JSON.stringify(originalSources) !== JSON.stringify(state.sources)) {
-      payload['source'] = state.sources.join('\n');
+      payload.sources = state.sources;
     }
 
-    const originalTags = post.tags.map(t => t.names[0]).sort();
+    const originalTags = post.tags.map(t => t.name).sort();
     const currentTags = [...state.tags].sort();
     if (JSON.stringify(originalTags) !== JSON.stringify(currentTags)) {
-      payload['tags'] = state.tags;
+      payload.tags = state.tags;
     }
 
-    return this.bakabooru.updatePost(post.id, payload as Partial<Post>).pipe(
+    return this.bakabooru.updatePost(post.id, payload).pipe(
       switchMap(updatedPost => {
         // Update tag categories from auto-tagging results
         const categorizedTags = this.collectCategorizedTags();
@@ -245,21 +221,6 @@ export class PostEditService {
     );
   }
 
-  delete(post: Post): Observable<boolean> {
-    if (!post) return of(false);
-
-    return this.bakabooru.deletePost(post.id, post.version).pipe(
-      tap(() => {
-        this.toast.success('Post deleted');
-      }),
-      map(() => true),
-      catchError(err => {
-        this.toast.error(err.error?.description || 'Failed to delete post');
-        return of(false);
-      }),
-    );
-  }
-
   private collectCategorizedTags(): { name: string; category: string }[] {
     const categorizedTags: { name: string; category: string }[] = [];
     for (const result of this.autoTags()) {
@@ -276,17 +237,26 @@ export class PostEditService {
     categorizedTags: { name: string; category: string }[],
     destroyRef: DestroyRef,
   ) {
-    const updateTasks = categorizedTags.map(ct =>
-      this.bakabooru.getTag(ct.name).pipe(
-        switchMap(tag =>
-          this.bakabooru.updateTag(ct.name, {
-            category: ct.category,
-            version: tag.version,
-          }),
-        ),
-        catchError(() => of(null)),
-      ),
+    return this.bakabooru.getManagedTagCategories().pipe(
+      switchMap(categories => {
+        const updateTasks = categorizedTags.map(ct =>
+          this.bakabooru.getManagedTags(ct.name, 0, 100).pipe(
+            switchMap(tags => {
+              const tag = tags.results.find(t => t.name.toLowerCase() === ct.name.toLowerCase());
+              if (!tag) return of(null);
+
+              const category = categories.find(c => c.name.toLowerCase() === ct.category.toLowerCase()) as ManagedTagCategory | undefined;
+              if (!category) return of(null);
+
+              return this.bakabooru.updateManagedTag(tag.id, tag.name, category.id);
+            }),
+            catchError(() => of(null)),
+          ),
+        );
+
+        return forkJoin(updateTasks);
+      }),
+      takeUntilDestroyed(destroyRef),
     );
-    return forkJoin(updateTasks).pipe(takeUntilDestroyed(destroyRef));
   }
 }

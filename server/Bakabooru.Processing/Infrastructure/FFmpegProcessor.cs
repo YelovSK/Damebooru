@@ -10,6 +10,8 @@ namespace Bakabooru.Processing.Infrastructure;
 public class FFmpegProcessor : IImageProcessor
 {
     private readonly ILogger<FFmpegProcessor> _logger;
+    private static readonly TimeSpan MinVideoCaptureTime = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan MaxVideoCaptureTime = TimeSpan.FromSeconds(10);
 
     public FFmpegProcessor(ILogger<FFmpegProcessor> logger)
     {
@@ -24,12 +26,11 @@ public class FFmpegProcessor : IImageProcessor
             var hasVideo = analysis.PrimaryVideoStream != null;
             var duration = analysis.Duration;
 
-            if (hasVideo && duration.TotalSeconds > 1)
+            if (hasVideo)
             {
-                // Video — take a snapshot at 1 second
-                var captureTime = TimeSpan.FromSeconds(1);
+                // Video — avoid the first frame (often black/fade-in/logo).
+                var captureTime = GetVideoCaptureTime(duration);
                 _logger.LogDebug("Taking video snapshot of {Path} at {Time}", sourcePath, captureTime);
-                // Use -1 for height to preserve aspect ratio, fitting within max width
                 await FFMpegArguments
                     .FromFileInput(sourcePath, true, options => options.Seek(captureTime))
                     .OutputToFile(destinationPath, true, options => options
@@ -40,7 +41,7 @@ public class FFmpegProcessor : IImageProcessor
             }
             else
             {
-                // Image (including JXL, AVIF, WebP) or very short video — convert first frame
+                // Image (including JXL, AVIF, WebP) — convert first frame.
                 _logger.LogDebug("Converting to thumbnail: {Path}", sourcePath);
                 await FFMpegArguments
                     .FromFileInput(sourcePath)
@@ -56,6 +57,28 @@ public class FFmpegProcessor : IImageProcessor
             _logger.LogError(ex, "Failed to generate thumbnail for {Path}", sourcePath);
             throw;
         }
+    }
+
+    private static TimeSpan GetVideoCaptureTime(TimeSpan duration)
+    {
+        if (duration <= TimeSpan.Zero)
+        {
+            return MinVideoCaptureTime;
+        }
+
+        // Prefer a frame from ~20% into the video, bounded to avoid seeking too far.
+        var preferred = TimeSpan.FromTicks((long)(duration.Ticks * 0.2));
+        var clamped = preferred < MinVideoCaptureTime
+            ? MinVideoCaptureTime
+            : preferred > MaxVideoCaptureTime
+                ? MaxVideoCaptureTime
+                : preferred;
+
+        // Never seek beyond last frame.
+        var safeUpperBound = duration - TimeSpan.FromMilliseconds(50);
+        return safeUpperBound > MinVideoCaptureTime && clamped > safeUpperBound
+            ? safeUpperBound
+            : clamped;
     }
 
     public async Task<ImageMetadata> GetMetadataAsync(string filePath, CancellationToken cancellationToken = default)

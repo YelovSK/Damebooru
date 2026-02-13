@@ -1,8 +1,7 @@
 using Bakabooru.Core.DTOs;
-using Bakabooru.Data;
 using Bakabooru.Processing.Services;
+using Bakabooru.Server.Extensions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Bakabooru.Server.Controllers;
 
@@ -10,98 +9,98 @@ namespace Bakabooru.Server.Controllers;
 [Route("api/[controller]")]
 public class PostsController : ControllerBase
 {
-    private readonly BakabooruDbContext _context;
     private readonly PostReadService _postReadService;
     private readonly PostWriteService _postWriteService;
+    private readonly PostContentService _postContentService;
 
-    public PostsController(BakabooruDbContext context, PostReadService postReadService, PostWriteService postWriteService)
+    public PostsController(PostReadService postReadService, PostWriteService postWriteService, PostContentService postContentService)
     {
-        _context = context;
         _postReadService = postReadService;
         _postWriteService = postWriteService;
+        _postContentService = postContentService;
     }
 
     [HttpGet]
-    public async Task<ActionResult<PostListDto>> GetPosts(
+    public async Task<IActionResult> GetPosts(
         [FromQuery] string? tags = null,
         [FromQuery] int page = 1, 
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        return await _postReadService.GetPostsAsync(tags, page, pageSize, cancellationToken);
+        return await _postReadService.GetPostsAsync(tags, page, pageSize, cancellationToken).ToHttpResult();
     }
 
     [HttpGet("{id}/around")]
-    public async Task<ActionResult<PostsAroundDto>> GetPostsAround(int id, [FromQuery] string? tags = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetPostsAround(int id, [FromQuery] string? tags = null, CancellationToken cancellationToken = default)
     {
-        var around = await _postReadService.GetPostsAroundAsync(id, tags, cancellationToken);
-        if (around == null) return NotFound();
-        return Ok(around);
+        return await _postReadService.GetPostsAroundAsync(id, tags, cancellationToken).ToHttpResult();
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<PostDto>> GetPost(int id, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetPost(int id, CancellationToken cancellationToken = default)
     {
-        var post = await _postReadService.GetPostAsync(id, cancellationToken);
-        if (post == null) return NotFound();
-        return post;
+        return await _postReadService.GetPostAsync(id, cancellationToken).ToHttpResult();
     }
 
     [HttpPost("{id}/tags")]
     public async Task<IActionResult> AddTag(int id, [FromBody] string tagName)
     {
-        var result = await _postWriteService.AddTagAsync(id, tagName);
-        return result.Error switch
-        {
-            AddTagError.None => NoContent(),
-            AddTagError.PostNotFound => NotFound("Post not found"),
-            AddTagError.EmptyTagName => BadRequest("Tag name cannot be empty"),
-            AddTagError.TagAlreadyAssigned => Conflict("Tag already assigned"),
-            _ => StatusCode(StatusCodes.Status500InternalServerError)
-        };
+        return await _postWriteService.AddTagAsync(id, tagName).ToHttpResult();
     }
     
     [HttpDelete("{id}/tags/{tagName}")]
     public async Task<IActionResult> RemoveTag(int id, string tagName)
     {
-        var result = await _postWriteService.RemoveTagAsync(id, tagName);
-        return result.Error switch
+        return await _postWriteService.RemoveTagAsync(id, tagName).ToHttpResult();
+    }
+
+    [HttpPost("{id}/favorite")]
+    public async Task<IActionResult> Favorite(int id)
+    {
+        var result = await _postWriteService.FavoriteAsync(id);
+        if (!result.IsSuccess)
         {
-            RemoveTagError.None => NoContent(),
-            RemoveTagError.PostNotFound => NotFound("Post not found"),
-            RemoveTagError.TagNotFoundOnPost => NotFound("Tag not found on post"),
-            _ => StatusCode(StatusCodes.Status500InternalServerError)
-        };
+            return result.ToHttpResult();
+        }
+
+        return await _postReadService.GetPostAsync(id, CancellationToken.None).ToHttpResult();
+    }
+
+    [HttpDelete("{id}/favorite")]
+    public async Task<IActionResult> Unfavorite(int id)
+    {
+        var result = await _postWriteService.UnfavoriteAsync(id);
+        if (!result.IsSuccess)
+        {
+            return result.ToHttpResult();
+        }
+
+        return await _postReadService.GetPostAsync(id, CancellationToken.None).ToHttpResult();
+    }
+
+    [HttpGet("{id}/sources")]
+    public async Task<IActionResult> GetSources(int id, CancellationToken cancellationToken = default)
+    {
+        return await _postReadService.GetPostAsync(id, cancellationToken).ToHttpResult(post => Ok(post?.Sources ?? []));
+    }
+
+    [HttpPut("{id}/sources")]
+    public async Task<IActionResult> SetSources(int id, [FromBody] List<string> sources)
+    {
+        var result = await _postWriteService.SetSourcesAsync(id, sources ?? []);
+        if (!result.IsSuccess)
+        {
+            return result.ToHttpResult();
+        }
+
+        return await _postReadService.GetPostAsync(id, CancellationToken.None).ToHttpResult();
     }
 
     [HttpGet("{id}/content")]
     public async Task<IActionResult> GetPostContent(int id, CancellationToken cancellationToken = default)
     {
-        var post = await _context.Posts
-            .Where(p => p.Id == id)
-            .Select(p => new
-            {
-                p.RelativePath,
-                p.ContentType,
-                LibraryPath = p.Library.Path
-            })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (post == null) return NotFound();
-
-        var fullPath = Path.GetFullPath(Path.Combine(post.LibraryPath, post.RelativePath));
-        var libraryRoot = Path.GetFullPath(post.LibraryPath + Path.DirectorySeparatorChar);
-
-        if (!fullPath.StartsWith(libraryRoot, StringComparison.OrdinalIgnoreCase))
-        {
-            return BadRequest("Invalid file path");
-        }
-
-        if (!System.IO.File.Exists(fullPath))
-        {
-            return NotFound("File not found on disk");
-        }
-
-        return PhysicalFile(fullPath, post.ContentType, enableRangeProcessing: true);
+        return await _postContentService
+            .GetPostContentAsync(id, cancellationToken)
+            .ToHttpResult(descriptor => PhysicalFile(descriptor!.FullPath, descriptor.ContentType, enableRangeProcessing: true));
     }
 }

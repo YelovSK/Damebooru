@@ -18,10 +18,7 @@
                     </app-button>
                 </div>
             } @else {
-                <div class="flex gap-2">
-                    <app-button variant="secondary" size="sm" (click)="startEditing()" class="flex-1">Edit</app-button>
-                    <app-button variant="danger" size="sm" (click)="confirmDelete()" class="flex-1">Delete</app-button>
-                </div>
+                <app-button variant="secondary" size="sm" (click)="startEditing()" class="w-full">Edit</app-button>
             }
         </section>
 
@@ -34,34 +31,17 @@
                         <span class="text-text-muted">ID</span>
                         <span class="text-text-primary font-medium">#{{ pd.id }}</span>
 
-                        <span class="text-text-muted">Uploader</span>
-                        <span class="text-text-primary font-medium">{{ pd.user.name }}</span>
+                        <span class="text-text-muted">Library</span>
+                        <span class="text-text-primary font-medium">#{{ pd.libraryId }}</span>
 
                         <span class="text-text-muted">Created</span>
-                        <span class="text-text-primary font-medium">{{ pd.creationTime | date:'medium' }}</span>
+                        <span class="text-text-primary font-medium">{{ pd.importDate | date:'medium' }}</span>
 
                         <span class="text-text-muted">Dimensions</span>
-                        <span class="text-text-primary font-medium">{{ pd.canvasWidth }} x {{ pd.canvasHeight }}</span>
+                        <span class="text-text-primary font-medium">{{ pd.width }} x {{ pd.height }}</span>
 
-                        <span class="text-text-muted">Rating</span>
-                        @if (editService.isEditing() && editService.currentState(); as state) {
-                            <div class="flex gap-1">
-                                @for (s of ['safe', 'sketchy', 'unsafe']; track s) {
-                                    <app-button
-                                        (click)="setSafety(s)"
-                                        [variant]="state.safety === s ? (s === 'safe' ? 'success' : s === 'sketchy' ? 'warning' : 'danger') : 'ghost'"
-                                        size="xs"
-                                        class="capitalize">
-                                        {{ s }}
-                                    </app-button>
-                                }
-                            </div>
-                        } @else {
-                            <span class="text-text-primary font-medium capitalize" [class.text-status-success]="pd.safety === 'safe'" [class.text-status-warning]="pd.safety === 'sketchy'" [class.text-status-error]="pd.safety === 'unsafe'">{{ pd.safety }}</span>
-                        }
-
-                        <span class="text-text-muted">Score</span>
-                        <span class="text-status-success font-medium">+{{ pd.score }}</span>
+                        <span class="text-text-muted">Type</span>
+                        <span class="text-text-primary font-medium">{{ pd.contentType }}</span>
                     </div>
 
                     @if (!editService.isEditing()) {
@@ -70,10 +50,11 @@
                                 Original File
                             </app-button>
                             <app-button variant="secondary" class="flex-1"
-                                [class.!bg-status-error/10]="pd.ownFavorite"
-                                [class.!text-status-error]="pd.ownFavorite"
-                                [class.!border-status-error/30]="pd.ownFavorite">
-                                {{ pd.ownFavorite ? 'Favorited' : 'Favorites' }}
+                                [class.!bg-status-error/10]="pd.isFavorite"
+                                [class.!text-status-error]="pd.isFavorite"
+                                [class.!border-status-error/30]="pd.isFavorite"
+                                (click)="toggleFavorite()">
+                                {{ pd.isFavorite ? 'Unfavorite' : 'Favorite' }}
                             </app-button>
                         </div>
                     }
@@ -94,7 +75,7 @@
                                 (valueChange)="tagSearchValue.set($event)">
                                 <ng-template let-tag>
                                     <div class="flex justify-between w-full items-center">
-                                        <span class="text-accent-primary font-semibold text-[0.8rem]">{{ tag.names[0] }}</span>
+                                        <span class="text-accent-primary font-semibold text-[0.8rem]">{{ tag.name }}</span>
                                         <span class="badge text-[0.7rem]">{{ tag.usages | number }}</span>
                                     </div>
                                 </ng-template>
@@ -112,12 +93,12 @@
                         } @else if (pd.tags.length > 0) {
                             <!-- View mode tag list -->
                             <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
-                                @for (tag of pd.tags; track tag.names[0]) {
-                                    <a class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-glass-bg rounded-sm border-l-3 cursor-pointer transition-all hover:bg-glass-bg-hover" [routerLink]="appLinks.posts()" [queryParams]="{ query: tag.names[0] | tag }"
+                                @for (tag of pd.tags; track tag.name) {
+                                    <a class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-glass-bg rounded-sm border-l-3 cursor-pointer transition-all hover:bg-glass-bg-hover" [routerLink]="appLinks.posts()" [queryParams]="{ query: tag.name | tag }"
                                         [style.border-left-color]="getTagCategory(tag)?.color || 'var(--text-dim)'"
                                         [appTooltip]="getTagCategory(tag)?.name || 'Uncategorized'"
                                         tooltipPosition="right">
-                                        <span class="text-text-link flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{ tag.names[0] }}</span>
+                                        <span class="text-text-link flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{ tag.name }}</span>
                                         <span class="text-text-dim shrink-0">{{ tag.usages }}</span>
                                     </a>
                                 }
@@ -136,12 +117,10 @@
                             (input)="onSourcesChange($event)"
                             placeholder="Sources (one per line)..."
                             class="w-full flex-1 min-h-0 px-3 py-2 bg-glass-bg border border-white/10 rounded-lg text-[0.85rem] text-text-primary placeholder-text-dim resize-none focus:outline-none focus:border-accent-primary/50 focus:ring-1 focus:ring-accent-primary/25"></textarea>
-                    } @else if (pd.source) {
+                    } @else if (pd.sources && pd.sources.length > 0) {
                         <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
-                            @for (sourceUrl of pd.source.split('\n'); track sourceUrl) {
-                                @if (sourceUrl.trim()) {
-                                    <a [href]="sourceUrl.trim()" target="_blank" class="text-text-link break-all text-[0.85rem] no-underline transition-colors hover:text-text-link-hover hover:underline">{{ sourceUrl.trim() }}</a>
-                                }
+                            @for (sourceUrl of pd.sources; track sourceUrl) {
+                                <a [href]="sourceUrl" target="_blank" class="text-text-link break-all text-[0.85rem] no-underline transition-colors hover:text-text-link-hover hover:underline">{{ sourceUrl }}</a>
                             }
                         </div>
                     } @else {
@@ -158,8 +137,7 @@
                         [showProviderButtons]="true"
                         (runProvider)="triggerProviderAutoTagging($event)"
                         (applyTags)="applyAutoTags($event)"
-                        (applySources)="applyAutoSources($event)"
-                        (applySafety)="applyAutoSafety($event)">
+                        (applySources)="applyAutoSources($event)">
                     </app-auto-tagging-results>
                 </app-simple-tab>
             </app-simple-tabs>
@@ -177,18 +155,8 @@
         </button>
 
         <div class="w-[9999px] h-[9999px] max-w-full max-h-full flex justify-center items-center relative"
-             [style.aspect-ratio]="(pd.canvasWidth > 0 && pd.canvasHeight > 0) ? (pd.canvasWidth + '/' + pd.canvasHeight) : null">
-            <!-- Thumbnail shown while loading large videos -->
-            @if (pd.type === 'video' && pd.fileSize > 3_000_000) {
-                <img [src]="environment.mediaBaseUrl + pd.thumbnailUrl" [alt]="pd.id"
-                     class="absolute inset-0 w-full h-full object-contain transition-opacity duration-200"
-                     [class.opacity-0]="!imageLoading()"
-                     decoding="async"
-                     [attr.width]="pd.canvasWidth > 0 ? pd.canvasWidth : null"
-                     [attr.height]="pd.canvasHeight > 0 ? pd.canvasHeight : null"/>
-            }
-
-            @switch (pd.type) {
+             [style.aspect-ratio]="(pd.width > 0 && pd.height > 0) ? (pd.width + '/' + pd.height) : null">
+            @switch (getMediaType(pd.contentType)) {
                 @case ('image')
                 @case ('animation') {
                 <img [src]="environment.mediaBaseUrl + pd.thumbnailUrl"
@@ -196,13 +164,12 @@
                      [alt]="pd.id"
                      class="max-w-full max-h-full object-contain"
                      decoding="async"
-                     [attr.width]="pd.canvasWidth > 0 ? pd.canvasWidth : null"
-                     [attr.height]="pd.canvasHeight > 0 ? pd.canvasHeight : null"/>
+                     [attr.width]="pd.width > 0 ? pd.width : null"
+                     [attr.height]="pd.height > 0 ? pd.height : null"/>
                 }
                 @case ('video') {
                 <video [src]="environment.mediaBaseUrl + pd.contentUrl" (loadeddata)="imageLoading.set(false)"
                        class="max-w-full max-h-full object-contain transition-opacity duration-200"
-                       [class.opacity-0]="imageLoading() && pd.fileSize > 3_000_000"
                        controls [autoplay]="autoPlayVideos()" [muted]="startVideosMuted()" loop></video>
                 }
             }
