@@ -96,3 +96,7 @@ Then reference `bakabooru-server` and `bakabooru-client` in your compose file.
 
 ## Documentation
 - Architecture: `docs/architecture.md`
+
+## Images
+<img width="1745" height="1245" alt="image" src="https://github.com/user-attachments/assets/4cac6826-a8d5-4f29-a4ba-5096013ddc4c" />
+<img width="1748" height="1243" alt="image" src="https://github.com/user-attachments/assets/9598ef89-07bd-4923-996f-fbe305f0031d" />
