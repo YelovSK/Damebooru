@@ -1,68 +1,97 @@
 # Bakabooru
 
-Self-hosted booru monorepo (ASP.NET Core backend + Angular client).
+Bakabooru is a self-hosted booru monorepo with:
+- ASP.NET Core backend (`server/`)
+- Angular frontend (`client/`)
 
-## Current State Snapshot
-- Backend is usable for library scanning, post browsing, job orchestration, and duplicate workflows.
-- Client is present and actively used, but still carries Bakabooru compatibility shims and multiple stubbed API paths.
-- Large parts of the product are still work in progress.
+This README is the main entry point for running locally and deploying with Docker.
 
-## Monorepo Structure
-- `server/` - .NET 10 backend solution (`Bakabooru.Server`, `Bakabooru.Processing`, `Bakabooru.Data`, `Bakabooru.Core`).
-- `client/` - Angular client adapted from an Bakabooru-oriented codebase.
-- `data/` - runtime storage location (thumbnails/temp/db depending on your config).
+## Repository Layout
+- `server/` - .NET backend solution (`Bakabooru.Server`, `Bakabooru.Processing`, `Bakabooru.Data`, `Bakabooru.Core`)
+- `client/` - Angular frontend
+- `docs/` - supporting documentation
+- `docker-compose.example.yml` - example production-ish deployment with prebuilt GHCR images
 
-## Prerequisites
+## Prerequisites (Local Development)
 - .NET 10 SDK
 - Node.js 22+ and npm
-- FFmpeg + FFprobe available on `PATH` (required for thumbnailing, metadata, and perceptual hashing)
+- FFmpeg + FFprobe on `PATH` (required for thumbnails/metadata/similarity jobs)
 
-## Quick Start (Windows)
-From repository root:
+## Configuration
+Before first run, verify these settings in `server/Bakabooru.Server/appsettings.json`:
+- `ConnectionStrings:DefaultConnection`
+- `Bakabooru:Storage:DatabasePath`
+- `Bakabooru:Storage:ThumbnailPath`
+- `Bakabooru:Storage:TempPath`
 
-**PowerShell**
-```powershell
-.\DevStart.ps1
-```
+Notes:
+- Relative storage paths are resolved from `server/Bakabooru.Server`.
+- Scheduler behavior is controlled by `Bakabooru:Processing:RunScheduler`.
 
-**Command Prompt**
-```cmd
-DevStart.bat
-```
+## Run Locally
 
-This launches API and client in separate windows.
+Backend:
 
-## Manual Start
-### Backend API
 ```bash
 cd server
 dotnet run --project Bakabooru.Server
 ```
 
-### Frontend
+Frontend:
+
 ```bash
 cd client
 npm install
 npm start
 ```
 
-### Optional Manual Migration Command
-`Bakabooru.Server` auto-applies pending migrations on startup. If you want to run EF manually:
+### Database Migrations
+Migrations are auto-applied when `Bakabooru.Server` starts.
+
+Optional manual command:
 
 ```bash
 cd server
 dotnet ef database update --project Bakabooru.Data --startup-project Bakabooru.Server
 ```
 
-## Process Roles and Scheduler Caveat
-- `Bakabooru.Server` hosts HTTP controllers and background services from `Bakabooru.Processing`.
-- Scheduler execution is controlled via `Bakabooru:Processing:RunScheduler`.
+## Deploy with Docker
 
-For predictable local behavior, run API + client as the default setup.
+### Option A: Use Published Images from GHCR
+1. Copy the example compose file:
+
+```bash
+cp docker-compose.example.yml docker-compose.yml
+```
+
+2. Edit values as needed:
+- `Bakabooru__Auth__Username` / `Bakabooru__Auth__Password`
+- volume mounts (`./data/server`, `./media`)
+- client port mapping (`8080:80`)
+
+3. Start:
+
+```bash
+docker compose up -d
+```
+
+Open the app at `http://localhost:8080` (or your mapped host port).
+
+### Option B: Build Images Locally
+From repo root:
+
+```bash
+docker build -t bakabooru-server ./server
+docker build -t bakabooru-client ./client
+```
+
+Then reference `bakabooru-server` and `bakabooru-client` in your compose file.
+
+## Notes
+- Server internal container port is `6666` (`ASPNETCORE_URLS=http://+:6666`).
+- Client uses `BACKEND_HOST` and `BACKEND_PORT` to point Nginx to the API container.
+- In `docker-compose.example.yml`, server is intentionally not published to host by default; the client talks to it over the compose network.
 
 ## Documentation
-- Server overview: [server/README.md](server/README.md)
-- Server setup: [server/SETUP.md](server/SETUP.md)
-- Server architecture: [server/ARCHITECTURE.md](server/ARCHITECTURE.md)
-- Client overview: [client/README.md](client/README.md)
-- Known gaps/backlog: [TODO.md](TODO.md)
+- Architecture: `docs/architecture.md`
+- Agent notes: `agents/`

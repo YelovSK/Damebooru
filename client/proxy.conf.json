@@ -4,19 +4,8 @@
     "secure": false,
     "changeOrigin": true
   },
-  "/hubs": {
-    "target": "http://localhost:5119",
-    "secure": false,
-    "ws": true,
-    "changeOrigin": true
-  },
   "/thumbnails": {
     "target": "http://localhost:5119",
-    "secure": false,
-    "changeOrigin": true
-  },
-  "/data": {
-    "target": "http://ugreen:8080",
     "secure": false,
     "changeOrigin": true
   },
@@ -51,7 +40,7 @@
     }
   },
   "/wd-tagger": {
-    "target": "http://ugreen:33841",
+    "target": "http://localhost:33841",
     "secure": false,
     "changeOrigin": true,
     "pathRewrite": {

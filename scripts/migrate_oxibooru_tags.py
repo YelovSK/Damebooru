@@ -33,8 +33,8 @@ from typing import Any
 import requests
 
 
-DEFAULT_OXIBOORU_API = "https://oxibooru.yelov.net/api"
-DEFAULT_BAKABOORU_API = "http://localhost:4200/api"
+DEFAULT_OXIBOORU_API = "https://oxibooru.example.com/api"
+DEFAULT_BAKABOORU_API = "http://localhost:5119/api"
 
 
 def normalize_name(name: str) -> str:

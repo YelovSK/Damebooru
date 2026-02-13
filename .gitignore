@@ -25,7 +25,11 @@ artifacts/
 *.db-shm
 *.db-wal
 
+# Thumbnails
 data/
+
+# LLM shit (99% of the time the info is outdated, so I don't feel like committing it)
+agents/
 
 # Python
 __pycache__/
