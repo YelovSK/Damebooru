@@ -1,6 +1,7 @@
 using Bakabooru.Core;
 using Bakabooru.Core.Config;
 using Bakabooru.Core.Interfaces;
+using Bakabooru.Core.Paths;
 using Bakabooru.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,10 +29,9 @@ public class GenerateThumbnailsJob : IJob
         _scopeFactory = scopeFactory;
         _logger = logger;
         _parallelism = Math.Max(1, options.Value.Processing.ThumbnailParallelism);
-        _thumbnailPath = StoragePathResolver.ResolvePath(
+        _thumbnailPath = MediaPaths.ResolveThumbnailStoragePath(
             hostEnvironment.ContentRootPath,
-            options.Value.Storage.ThumbnailPath,
-            "../../data/thumbnails");
+            options.Value.Storage.ThumbnailPath);
 
         if (!Directory.Exists(_thumbnailPath))
             Directory.CreateDirectory(_thumbnailPath);
@@ -45,7 +45,7 @@ public class GenerateThumbnailsJob : IJob
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
-        var imageProcessor = scope.ServiceProvider.GetRequiredService<IImageProcessor>();
+        var mediaFileProcessor = scope.ServiceProvider.GetRequiredService<IMediaFileProcessor>();
 
         var query = db.Posts
             .AsNoTracking()
@@ -85,7 +85,7 @@ public class GenerateThumbnailsJob : IJob
             CancellationToken = context.CancellationToken
         };
 
-        const int batchSize = 200;
+        const int batchSize = 20;
         while (true)
         {
             var batch = await query
@@ -111,7 +111,7 @@ public class GenerateThumbnailsJob : IJob
             else
             {
                 toProcess = batch
-                    .Where(p => !File.Exists(Path.Combine(_thumbnailPath, $"{p.ContentHash}.jpg")))
+                    .Where(p => !File.Exists(MediaPaths.GetThumbnailFilePath(_thumbnailPath, p.ContentHash)))
                     .ToList();
 
                 skipped += batch.Count - toProcess.Count;
@@ -122,8 +122,8 @@ public class GenerateThumbnailsJob : IJob
                 try
                 {
                     var fullPath = Path.Combine(post.LibraryPath, post.RelativePath);
-                    var destination = Path.Combine(_thumbnailPath, $"{post.ContentHash}.jpg");
-                    await imageProcessor.GenerateThumbnailAsync(fullPath, destination, 400, 400, ct);
+                    var destination = MediaPaths.GetThumbnailFilePath(_thumbnailPath, post.ContentHash);
+                    await mediaFileProcessor.GenerateThumbnailAsync(fullPath, destination, 400, ct);
                     Interlocked.Increment(ref processed);
                 }
                 catch (Exception ex)

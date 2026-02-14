@@ -88,6 +88,7 @@ export interface BakabooruPostDto {
     height: number;
     contentType: string;
     importDate: string;
+    fileModifiedDate: string;
     thumbnailUrl: string;
     contentUrl: string;
     isFavorite: boolean;

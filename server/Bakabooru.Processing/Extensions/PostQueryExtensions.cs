@@ -5,17 +5,25 @@ namespace Bakabooru.Processing.Extensions;
 
 public static class PostQueryExtensions
 {
-    public static IOrderedQueryable<Post> OrderByNewest(this IQueryable<Post> query)
-    {
-        return query
-            .OrderByDescending(p => p.ImportDate)
+    public static IOrderedQueryable<Post> OrderByNewest(this IQueryable<Post> query) => query
+            .OrderByDescending(p => p.FileModifiedDate)
             .ThenByDescending(p => p.Id);
-    }
+
+    public static IOrderedQueryable<Post> OrderByOldest(this IQueryable<Post> query) => query
+            .OrderBy(p => p.FileModifiedDate)
+            .ThenBy(p => p.Id);
 
     public static IOrderedQueryable<Post> ApplySorting(this IQueryable<Post> query, SearchQuery searchQuery)
     {
         return (searchQuery.SortField, searchQuery.SortDirection) switch
         {
+            (SearchSortField.FileModifiedDate, SearchSortDirection.Asc) => query
+                .OrderBy(p => p.FileModifiedDate)
+                .ThenBy(p => p.Id),
+            (SearchSortField.FileModifiedDate, SearchSortDirection.Desc) => query
+                .OrderByDescending(p => p.FileModifiedDate)
+                .ThenByDescending(p => p.Id),
+
             (SearchSortField.ImportDate, SearchSortDirection.Asc) => query
                 .OrderBy(p => p.ImportDate)
                 .ThenBy(p => p.Id),

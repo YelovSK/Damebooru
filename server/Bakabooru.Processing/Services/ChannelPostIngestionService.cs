@@ -18,6 +18,7 @@ public class ChannelPostIngestionService : IPostIngestionService, IHostedService
     private readonly CancellationTokenSource _shutdownCts = new();
     private Task? _processingTask;
     private int _pendingWorkItems = 0;
+    private int _disposeSignaled = 0;
     private readonly int _batchSize;
 
     public ChannelPostIngestionService(
@@ -77,8 +78,8 @@ public class ChannelPostIngestionService : IPostIngestionService, IHostedService
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _channel.Writer.Complete();
-        await _shutdownCts.CancelAsync();
+        _channel.Writer.TryComplete();
+        TryCancelShutdown();
         
         if (_processingTask != null)
         {
@@ -170,7 +171,25 @@ public class ChannelPostIngestionService : IPostIngestionService, IHostedService
 
     public void Dispose()
     {
-        _shutdownCts.Cancel();
+        if (Interlocked.Exchange(ref _disposeSignaled, 1) == 1)
+        {
+            return;
+        }
+
+        _channel.Writer.TryComplete();
+        TryCancelShutdown();
         _shutdownCts.Dispose();
+    }
+
+    private void TryCancelShutdown()
+    {
+        try
+        {
+            _shutdownCts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Host teardown can race stop/dispose paths; cancellation was already finalized.
+        }
     }
 }

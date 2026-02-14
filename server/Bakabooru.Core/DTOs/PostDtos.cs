@@ -11,6 +11,7 @@ public class PostDto
     public int Height { get; set; }
     public string ContentType { get; set; } = string.Empty;
     public DateTime ImportDate { get; set; }
+    public DateTime FileModifiedDate { get; set; }
     public bool IsFavorite { get; set; }
     public List<string> Sources { get; set; } = [];
     public string ThumbnailUrl { get; set; } = string.Empty;

@@ -2,10 +2,10 @@ using Bakabooru.Core.Entities;
 
 namespace Bakabooru.Core.Interfaces;
 
-public interface IMediaProcessor
+public interface ILibrarySyncProcessor
 {
     /// <summary>
-    /// Processes a single file.
+     /// Processes a single file.
     /// </summary>
     Task ProcessFileAsync(Library library, MediaSourceItem item, CancellationToken cancellationToken);
 

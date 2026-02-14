@@ -42,8 +42,11 @@
                             {{ pd.relativePath | fileName }}
                         </span>
 
-                        <span class="text-text-muted">Created</span>
+                        <span class="text-text-muted">Imported</span>
                         <span class="text-text-primary font-medium">{{ pd.importDate | date:'medium' }}</span>
+
+                        <span class="text-text-muted">File Modified</span>
+                        <span class="text-text-primary font-medium">{{ pd.fileModifiedDate | date:'medium' }}</span>
 
                         <span class="text-text-muted">Size</span>
                         <span class="text-text-primary font-medium">{{ pd.sizeBytes | fileSize }}</span>
@@ -169,16 +172,12 @@
         @switch (getMediaType(pd.contentType)) {
             @case ('image')
             @case ('animation') {
-            <img [src]="environment.mediaBaseUrl + pd.thumbnailUrl"
-                [appProgressiveImage]="environment.mediaBaseUrl + pd.contentUrl"
-                [alt]="pd.id"
-                class="h-full w-auto max-w-none"
-                [style.aspect-ratio]="displayAspectRatio() ?? (pd.width + '/' + pd.height)"
-                decoding="async"
-                [attr.width]="pd.width"
-                [attr.height]="pd.height"
-                (load)="onDisplayedImageLoad()"
-            />
+            <app-progressive-image
+                [thumbnailSrc]="environment.mediaBaseUrl + pd.thumbnailUrl"
+                [fullSrc]="environment.mediaBaseUrl + pd.contentUrl"
+                [alt]="'' + pd.id"
+                [width]="pd.width"
+                [height]="pd.height" />
             }
             @case ('video') {
             <video [src]="environment.mediaBaseUrl + pd.contentUrl" (loadeddata)="imageLoading.set(false)"

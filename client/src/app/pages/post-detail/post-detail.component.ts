@@ -15,8 +15,9 @@ import { BakabooruPostDto, BakabooruPostsAroundDto, BakabooruTagDto, ManagedTagC
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { AutoTaggingResultsComponent } from '@shared/components/auto-tagging-results/auto-tagging-results.component';
+import { ProgressiveImageComponent } from '@shared/components/progressive-image/progressive-image.component';
 import { SimpleTabsComponent, SimpleTabComponent } from '@shared/components/simple-tabs';
-import { ProgressiveImageDirective, TooltipDirective } from '@shared/directives';
+import { TooltipDirective } from '@shared/directives';
 import { HotkeysService } from '@services/hotkeys.service';
 import { AppLinks } from '@app/app.paths';
 import { PostEditService } from './post-edit.service';
@@ -25,7 +26,7 @@ import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 
 @Component({
   selector: 'app-post-detail',
-  imports: [CommonModule, RouterLink, TagPipe, ButtonComponent, AutocompleteComponent, AutoTaggingResultsComponent, SimpleTabsComponent, SimpleTabComponent, TooltipDirective, ProgressiveImageDirective, FileSizePipe, FileNamePipe],
+  imports: [CommonModule, RouterLink, TagPipe, ButtonComponent, AutocompleteComponent, AutoTaggingResultsComponent, ProgressiveImageComponent, SimpleTabsComponent, SimpleTabComponent, TooltipDirective, FileSizePipe, FileNamePipe],
   providers: [PostEditService],
   templateUrl: './post-detail.component.html',
   styleUrl: './post-detail.component.css',
@@ -144,14 +145,12 @@ export class PostDetailComponent {
       }
     });
 
-    // Keep previous ratio while navigating; update to the new ratio on image load.
+    // Always reflect the current post's metadata ratio so thumbnail/full swaps are layout-stable.
     effect(() => {
       const post = this.post();
       if (!post) return;
 
-      if (this.displayAspectRatio() == null) {
-        this.displayAspectRatio.set(this.getAspectRatio(post.width, post.height));
-      }
+      this.displayAspectRatio.set(this.getAspectRatio(post.width, post.height));
     });
 
     this.setupHotkeys();
@@ -375,13 +374,6 @@ export class PostDetailComponent {
     if (contentType.startsWith('video/')) return 'video';
     if (contentType === 'image/gif') return 'animation';
     return 'image';
-  }
-
-  onDisplayedImageLoad() {
-    const post = this.post();
-    if (!post) return;
-
-    this.displayAspectRatio.set(this.getAspectRatio(post.width, post.height));
   }
 
   private getAspectRatio(width: number, height: number): string | null {

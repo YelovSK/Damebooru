@@ -1,5 +1,6 @@
 using Bakabooru.Core.Config;
 using Bakabooru.Core.Interfaces;
+using Bakabooru.Core.Paths;
 using Bakabooru.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,10 +24,9 @@ public class CleanupOrphanedThumbnailsJob : IJob
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _thumbnailPath = StoragePathResolver.ResolvePath(
+        _thumbnailPath = MediaPaths.ResolveThumbnailStoragePath(
             hostEnvironment.ContentRootPath,
-            options.Value.Storage.ThumbnailPath,
-            "../../data/thumbnails");
+            options.Value.Storage.ThumbnailPath);
 
         if (!Directory.Exists(_thumbnailPath))
         {
@@ -56,7 +56,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var thumbnailFiles = Directory
-            .EnumerateFiles(_thumbnailPath, "*.jpg", SearchOption.TopDirectoryOnly)
+            .EnumerateFiles(_thumbnailPath, MediaPaths.ThumbnailGlobPattern, SearchOption.TopDirectoryOnly)
             .ToList();
 
         if (thumbnailFiles.Count == 0)

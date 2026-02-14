@@ -25,10 +25,11 @@ public class Post
     [MaxLength(100)]
     public string ContentType { get; set; } = string.Empty;
     
+    /// <summary>When this post was first imported into Bakabooru.</summary>
     public DateTime ImportDate { get; set; }
 
-    /// <summary>File's last modified time at time of scan, for change detection.</summary>
-    public DateTime? FileModifiedDate { get; set; }
+    /// <summary>File's last modified time at time of scan, for sorting and change detection.</summary>
+    public DateTime FileModifiedDate { get; set; }
 
     public bool IsFavorite { get; set; }
     

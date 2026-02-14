@@ -36,7 +36,7 @@ public class ExtractMetadataJob : IJob
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
-        var imageProcessor = scope.ServiceProvider.GetRequiredService<IImageProcessor>();
+        var mediaFileProcessor = scope.ServiceProvider.GetRequiredService<IMediaFileProcessor>();
 
         // In "missing" mode, find posts that haven't been processed yet (Width == 0)
         var query = db.Posts.AsNoTracking().AsQueryable();
@@ -99,7 +99,7 @@ public class ExtractMetadataJob : IJob
                     try
                     {
                         var fullPath = Path.Combine(post.LibraryPath, post.RelativePath);
-                        var metadata = await imageProcessor.GetMetadataAsync(fullPath, ct);
+                        var metadata = await mediaFileProcessor.GetMetadataAsync(fullPath, ct);
                         if (metadata.Width <= 0 || metadata.Height <= 0)
                         {
                             Interlocked.Increment(ref failed);

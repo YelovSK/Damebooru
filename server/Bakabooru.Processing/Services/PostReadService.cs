@@ -43,6 +43,7 @@ public class PostReadService
                 Height = p.Height,
                 ContentType = p.ContentType,
                 ImportDate = p.ImportDate,
+                FileModifiedDate = p.FileModifiedDate,
                 IsFavorite = p.IsFavorite,
                 Sources = new List<string>(),
                 ThumbnailUrl = MediaPaths.GetThumbnailUrl(p.ContentHash),
@@ -78,7 +79,7 @@ public class PostReadService
         var current = await _context.Posts
             .AsNoTracking()
             .Where(p => p.Id == id)
-            .Select(p => new { p.Id, p.ImportDate })
+            .Select(p => new { p.Id, p.FileModifiedDate })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (current == null)
@@ -86,135 +87,75 @@ public class PostReadService
             return Result<PostsAroundDto>.Failure(OperationError.NotFound, "Post not found");
         }
 
+        var currentSortDate = current.FileModifiedDate;
+
         var query = await ApplySearchFiltersAsync(_context.Posts.AsNoTracking(), parsedQuery, cancellationToken);
 
-        var useOldestOrdering = parsedQuery.SortField == SearchSortField.ImportDate
-            && parsedQuery.SortDirection == SearchSortDirection.Asc;
+        var prevRaw = await query
+            .Where(p => p.Id != current.Id
+                && (
+                    p.FileModifiedDate > currentSortDate
+                    || (p.FileModifiedDate == currentSortDate && p.Id > current.Id)
+                ))
+            .OrderByOldest()
+            .Select(p => new { p.Id })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var prevRaw = useOldestOrdering
-            ? await query
-                .Where(p => p.Id != current.Id
-                            && (p.ImportDate < current.ImportDate
-                                || (p.ImportDate == current.ImportDate && p.Id < current.Id)))
-                .OrderByDescending(p => p.ImportDate)
-                .ThenByDescending(p => p.Id)
-                .Select(p => new { p.Id })
-                .FirstOrDefaultAsync(cancellationToken)
-            : await query
-                .Where(p => p.Id != current.Id
-                            && (p.ImportDate > current.ImportDate
-                                || (p.ImportDate == current.ImportDate && p.Id > current.Id)))
-                .OrderBy(p => p.ImportDate)
-                .ThenBy(p => p.Id)
-                .Select(p => new { p.Id })
-                .FirstOrDefaultAsync(cancellationToken);
+        var nextRaw = await query
+            .Where(p => p.Id != current.Id
+                && (
+                    p.FileModifiedDate < currentSortDate
+                    || (p.FileModifiedDate == currentSortDate && p.Id < current.Id)
+                ))
+            .OrderByNewest()
+            .Select(p => new { p.Id })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var nextRaw = useOldestOrdering
-            ? await query
-                .Where(p => p.Id != current.Id
-                            && (p.ImportDate > current.ImportDate
-                                || (p.ImportDate == current.ImportDate && p.Id > current.Id)))
-                .OrderBy(p => p.ImportDate)
-                .ThenBy(p => p.Id)
-                .Select(p => new { p.Id })
-                .FirstOrDefaultAsync(cancellationToken)
-            : await query
-                .Where(p => p.Id != current.Id
-                            && (p.ImportDate < current.ImportDate
-                                || (p.ImportDate == current.ImportDate && p.Id < current.Id)))
-                .OrderByDescending(p => p.ImportDate)
-                .ThenByDescending(p => p.Id)
-                .Select(p => new { p.Id })
-                .FirstOrDefaultAsync(cancellationToken);
-
-        PostDto? prev = null;
-        PostDto? next = null;
-
-        if (prevRaw != null && nextRaw != null)
-        {
-            var prevTask = LoadPostAsync(prevRaw.Id, cancellationToken);
-            var nextTask = LoadPostAsync(nextRaw.Id, cancellationToken);
-            await Task.WhenAll(prevTask, nextTask);
-            prev = prevTask.Result;
-            next = nextTask.Result;
-        }
-        else if (prevRaw != null)
-        {
-            prev = await LoadPostAsync(prevRaw.Id, cancellationToken);
-        }
-        else if (nextRaw != null)
-        {
-            next = await LoadPostAsync(nextRaw.Id, cancellationToken);
-        }
+        var previous = prevRaw != null ? LoadPostAsync(prevRaw.Id, cancellationToken) : Task.FromResult<PostDto?>(null);
+        var next = nextRaw != null ? LoadPostAsync(nextRaw.Id, cancellationToken) : Task.FromResult<PostDto?>(null);
+        var tasks = await Task.WhenAll(previous, next);
 
         return Result<PostsAroundDto>.Success(new PostsAroundDto
         {
-            Prev = prev,
-            Next = next
+            Prev = tasks[0],
+            Next = tasks[1]
         });
     }
 
-    private async Task<PostDto?> LoadPostAsync(int id, CancellationToken cancellationToken)
-    {
-        var postCore = await _context.Posts
+    private async Task<PostDto?> LoadPostAsync(int id, CancellationToken cancellationToken) => await _context.Posts
             .AsNoTracking()
-            .Where(x => x.Id == id)
-            .Select(post => new
+            .Where(p => p.Id == id)
+            .AsSplitQuery()
+            .Select(postEntity => new PostDto
             {
-                Id = post.Id,
-                LibraryId = post.LibraryId,
-                RelativePath = post.RelativePath,
-                ContentHash = post.ContentHash,
-                SizeBytes = post.SizeBytes,
-                Width = post.Width,
-                Height = post.Height,
-                ContentType = post.ContentType,
-                ImportDate = post.ImportDate,
-                IsFavorite = post.IsFavorite
-            })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (postCore == null) return null;
-
-        var tags = await _context.PostTags
-            .AsNoTracking()
-            .Where(pt => pt.PostId == id)
-            .Select(pt => new TagDto
-            {
-                Id = pt.Tag.Id,
-                Name = pt.Tag.Name,
-                CategoryId = pt.Tag.TagCategoryId,
-                CategoryName = pt.Tag.TagCategory != null ? pt.Tag.TagCategory.Name : null,
-                CategoryColor = pt.Tag.TagCategory != null ? pt.Tag.TagCategory.Color : null,
-                Usages = pt.Tag.PostCount,
-            })
-            .ToListAsync(cancellationToken);
-
-        var sources = await _context.PostSources
-            .AsNoTracking()
-            .Where(ps => ps.PostId == id)
-            .OrderBy(ps => ps.Order)
-            .Select(ps => ps.Url)
-            .ToListAsync(cancellationToken);
-
-        return new PostDto
-        {
-            Id = postCore.Id,
-            LibraryId = postCore.LibraryId,
-            RelativePath = postCore.RelativePath,
-            ContentHash = postCore.ContentHash,
-            SizeBytes = postCore.SizeBytes,
-            Width = postCore.Width,
-            Height = postCore.Height,
-            ContentType = postCore.ContentType,
-            ImportDate = postCore.ImportDate,
-            IsFavorite = postCore.IsFavorite,
-            Sources = sources,
-            ThumbnailUrl = MediaPaths.GetThumbnailUrl(postCore.ContentHash),
-            ContentUrl = MediaPaths.GetPostContentUrl(postCore.Id),
-            Tags = tags
-        };
-    }
+                Id = postEntity.Id,
+                LibraryId = postEntity.LibraryId,
+                RelativePath = postEntity.RelativePath,
+                ContentHash = postEntity.ContentHash,
+                SizeBytes = postEntity.SizeBytes,
+                Width = postEntity.Width,
+                Height = postEntity.Height,
+                ContentType = postEntity.ContentType,
+                ImportDate = postEntity.ImportDate,
+                FileModifiedDate = postEntity.FileModifiedDate,
+                IsFavorite = postEntity.IsFavorite,
+                Sources = postEntity.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
+                ThumbnailUrl = MediaPaths.GetThumbnailUrl(postEntity.ContentHash),
+                ContentUrl = MediaPaths.GetPostContentUrl(postEntity.Id),
+                Tags = postEntity.PostTags
+                    .OrderBy(pt => pt.Tag.TagCategory != null ? pt.Tag.TagCategory.Order : int.MaxValue)
+                    .ThenBy(pt => pt.Tag.Name)
+                    .Select(pt => new TagDto
+                    {
+                        Id = pt.Tag.Id,
+                        Name = pt.Tag.Name,
+                        CategoryId = pt.Tag.TagCategoryId,
+                        CategoryName = pt.Tag.TagCategory != null ? pt.Tag.TagCategory.Name : null,
+                        CategoryColor = pt.Tag.TagCategory != null ? pt.Tag.TagCategory.Color : null,
+                        Usages = pt.Tag.PostCount,
+                    })
+                    .ToList(),
+            }).FirstOrDefaultAsync(cancellationToken);
 
     private async Task<IQueryable<Post>> ApplySearchFiltersAsync(IQueryable<Post> query, SearchQuery parsedQuery, CancellationToken cancellationToken)
     {

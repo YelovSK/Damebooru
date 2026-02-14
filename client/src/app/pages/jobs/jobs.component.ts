@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { interval } from 'rxjs';
+import { catchError, interval } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import dayjs from 'dayjs/esm';
 
@@ -191,7 +191,10 @@ export class JobsPageComponent {
   }
 
   private refreshLiveJobs(refreshHistoryOnFinished: boolean = true): void {
-    this.bakabooru.getJobs().subscribe(data => {
+    this.bakabooru.getJobs().pipe(
+      takeUntilDestroyed(this.destroyRef),
+      catchError(() =>  [])
+    ).subscribe(data => {
       this.jobs.set(data);
       this.patchHistoryWithRunningJobs(data);
 

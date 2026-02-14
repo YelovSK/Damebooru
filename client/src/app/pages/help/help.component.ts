@@ -77,7 +77,7 @@ type SearchSyntaxItem = {
       <section class="glass-card p-6">
         <h2 class="text-xl font-semibold mb-4">Query Example</h2>
         <p class="text-text-dim">
-          <code>artist_name -nsfw type:image,gif tag-count:&gt;3 filename:*wallpaper* sort:import-date:desc</code>
+          <code>artist_name -nsfw type:image,gif tag-count:&gt;3 filename:*wallpaper* sort:modified-date:desc</code>
         </p>
       </section>
     </div>
@@ -104,6 +104,8 @@ export class HelpComponent {
     { syntax: '-filename:TEXT', description: 'Exclude matching file paths', example: '-filename:tmp' },
     { syntax: 'sort:FIELD', description: 'Sort ascending by default', example: 'sort:id' },
     { syntax: 'sort:FIELD:asc|desc', description: 'Explicit sort direction', example: 'sort:tag-count:desc' },
-    { syntax: 'sort:new / sort:old', description: 'Date aliases (newest/oldest)', example: 'sort:new' },
+    { syntax: 'sort:modified-date / sort:file-date', description: 'Sort by file modified timestamp', example: 'sort:modified-date:desc' },
+    { syntax: 'sort:import-date', description: 'Sort by post import timestamp', example: 'sort:import-date:desc' },
+    { syntax: 'sort:new / sort:old', description: 'Aliases for file date (newest/oldest)', example: 'sort:new' },
   ];
 }

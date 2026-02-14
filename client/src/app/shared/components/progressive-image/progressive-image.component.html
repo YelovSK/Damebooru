@@ -1,0 +1,20 @@
+<img
+  class="absolute inset-0 w-full h-full object-contain transition-opacity duration-150"
+  [src]="thumbnailSrc()"
+  [alt]="alt()"
+  decoding="async"
+  [attr.width]="width()"
+  [attr.height]="height()"
+  [attr.aspect-ratio]="aspectRatio()"
+  [hidden]="fullVisible()" />
+
+<img
+  class="absolute inset-0 w-full h-full object-contain transition-opacity duration-150"
+  [src]="fullSrc()"
+  [alt]="alt()"
+  decoding="async"
+  [attr.width]="width()"
+  [attr.height]="height()"
+  [attr.aspect-ratio]="aspectRatio()"
+  [hidden]="!fullVisible()"
+  (load)="onFullLoad($event, loadToken())" />

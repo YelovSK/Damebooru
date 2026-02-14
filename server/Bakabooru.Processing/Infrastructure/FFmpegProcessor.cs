@@ -8,7 +8,7 @@ namespace Bakabooru.Processing.Infrastructure;
 /// <summary>
 /// Unified media processor using FFmpeg for all formats (images, videos, JXL, AVIF, WebP, etc.)
 /// </summary>
-public class FFmpegProcessor : IImageProcessor
+public class FFmpegProcessor : IMediaFileProcessor
 {
     private readonly ILogger<FFmpegProcessor> _logger;
     private static readonly TimeSpan MinVideoCaptureTime = TimeSpan.FromMilliseconds(250);
@@ -19,39 +19,35 @@ public class FFmpegProcessor : IImageProcessor
         _logger = logger;
     }
 
-    public async Task GenerateThumbnailAsync(string sourcePath, string destinationPath, int width, int height, CancellationToken cancellationToken = default)
+    public async Task GenerateThumbnailAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken = default)
     {
         try
         {
+            _logger.LogInformation("Generating thumbnail for {Path}", sourcePath);
+            var destinationDirectory = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrWhiteSpace(destinationDirectory) && !Directory.Exists(destinationDirectory))
+            {
+                Directory.CreateDirectory(destinationDirectory);
+            }
+
             var analysis = await FFProbe.AnalyseAsync(sourcePath, null, cancellationToken);
-            var hasVideo = analysis.PrimaryVideoStream != null;
+            var isVideo = IsVideo(analysis);
             var duration = analysis.Duration;
 
-            if (hasVideo)
-            {
+            var arguments = isVideo
                 // Video — avoid the first frame (often black/fade-in/logo).
-                var captureTime = GetVideoCaptureTime(duration);
-                _logger.LogDebug("Taking video snapshot of {Path} at {Time}", sourcePath, captureTime);
-                await FFMpegArguments
-                    .FromFileInput(sourcePath, true, options => options.Seek(captureTime))
-                    .OutputToFile(destinationPath, true, options => options
-                        .WithCustomArgument($"-vf \"scale={width}:{height}:force_original_aspect_ratio=decrease\"")
-                        .WithCustomArgument("-frames:v 1")
-                    )
-                    .ProcessAsynchronously();
-            }
-            else
-            {
-                // Image (including JXL, AVIF, WebP) — convert first frame.
-                _logger.LogDebug("Converting to thumbnail: {Path}", sourcePath);
-                await FFMpegArguments
-                    .FromFileInput(sourcePath)
-                    .OutputToFile(destinationPath, true, options => options
-                        .WithCustomArgument($"-vf \"scale={width}:{height}:force_original_aspect_ratio=decrease\"")
-                        .WithCustomArgument("-frames:v 1")
-                    )
-                    .ProcessAsynchronously();
-            }
+                ? FFMpegArguments.FromFileInput(sourcePath, true, options => options.Seek(GetVideoCaptureTime(duration)))
+                // Image — convert first frame.
+                : FFMpegArguments.FromFileInput(sourcePath);
+
+            await arguments
+                .OutputToFile(destinationPath, true, options => options
+                    .WithCustomArgument($"-vf \"scale={maxSize}:{maxSize}:force_original_aspect_ratio=decrease\"")
+                    .WithCustomArgument("-frames:v 1")
+                )
+                .ProcessAsynchronously();
+
+             EnsureThumbnailCreated(destinationPath, sourcePath);
         }
         catch (Exception ex)
         {
@@ -64,7 +60,14 @@ public class FFmpegProcessor : IImageProcessor
     {
         if (duration <= TimeSpan.Zero)
         {
-            return MinVideoCaptureTime;
+            return TimeSpan.Zero;
+        }
+
+        // Never seek at/after EOF.
+        var safeUpperBound = duration - TimeSpan.FromMilliseconds(50);
+        if (safeUpperBound <= TimeSpan.Zero)
+        {
+            return TimeSpan.Zero;
         }
 
         // Prefer a frame from ~20% into the video, bounded to avoid seeking too far.
@@ -75,14 +78,26 @@ public class FFmpegProcessor : IImageProcessor
                 ? MaxVideoCaptureTime
                 : preferred;
 
-        // Never seek beyond last frame.
-        var safeUpperBound = duration - TimeSpan.FromMilliseconds(50);
-        return safeUpperBound > MinVideoCaptureTime && clamped > safeUpperBound
-            ? safeUpperBound
-            : clamped;
+        return clamped > safeUpperBound ? safeUpperBound : clamped;
     }
 
-    public async Task<ImageMetadata> GetMetadataAsync(string filePath, CancellationToken cancellationToken = default)
+    private static void EnsureThumbnailCreated(string destinationPath, string sourcePath)
+    {
+        if (!File.Exists(destinationPath))
+        {
+            throw new InvalidOperationException(
+                $"FFmpeg completed but did not create thumbnail. Source: '{sourcePath}', Destination: '{destinationPath}'.");
+        }
+
+        var size = new FileInfo(destinationPath).Length;
+        if (size <= 0)
+        {
+            throw new InvalidOperationException(
+                $"FFmpeg created empty thumbnail file. Source: '{sourcePath}', Destination: '{destinationPath}'.");
+        }
+    }
+
+    public async Task<MediaMetadata> GetMetadataAsync(string filePath, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -91,7 +106,7 @@ public class FFmpegProcessor : IImageProcessor
                 analysis.Format.FormatName,
                 analysis.PrimaryVideoStream?.CodecName);
 
-            return new ImageMetadata
+            return new MediaMetadata
             {
                 Width = analysis.PrimaryVideoStream?.Width ?? 0,
                 Height = analysis.PrimaryVideoStream?.Height ?? 0,
@@ -102,7 +117,7 @@ public class FFmpegProcessor : IImageProcessor
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to read metadata for {Path}", filePath);
-            return new ImageMetadata
+            return new MediaMetadata
             {
                 Width = 0,
                 Height = 0,
@@ -118,12 +133,12 @@ public class FFmpegProcessor : IImageProcessor
         var codec = (codecName ?? string.Empty).ToLowerInvariant();
 
         // FFprobe format names can be comma-separated aliases (e.g. "mov,mp4,m4a,3gp,3g2,mj2").
+        if (format.Contains("jpegxl") || format.Contains("jxl") || codec == "jpegxl") return "image/jxl";
         if (format.Contains("png") || codec == "png") return "image/png";
         if (format.Contains("jpeg") || format.Contains("mjpeg") || codec == "mjpeg") return "image/jpeg";
         if (format.Contains("gif") || codec == "gif") return "image/gif";
         if (format.Contains("webp") || codec == "webp") return "image/webp";
         if (format.Contains("bmp") || codec == "bmp") return "image/bmp";
-        if (format.Contains("jxl") || codec == "jpegxl") return "image/jxl";
 
         if (format.Contains("mov,mp4") || format.Contains("mp4")) return "video/mp4";
         if (format.Contains("matroska") || format.Contains("mkv")) return "video/x-matroska";
@@ -131,6 +146,27 @@ public class FFmpegProcessor : IImageProcessor
         if (format.Contains("avi")) return "video/x-msvideo";
         if (format.Contains("quicktime") || format.Contains("mov")) return "video/quicktime";
 
-        return null;
+        return "application/octet-stream";
+    }
+
+    private static bool IsVideo(IMediaAnalysis analysis)
+    {
+        if (analysis.PrimaryVideoStream == null)
+        {
+            return false;
+        }
+
+        var format = (analysis.Format.FormatName ?? "").ToLowerInvariant();
+        
+        // Exclude image formats that might have video streams
+        if (format.Contains("jpeg") || format.Contains("jxl") || 
+            format.Contains("png") || format.Contains("gif") || 
+            format.Contains("webp") || format.Contains("bmp"))
+        {
+            return false;
+        }
+        
+        // Additional check: duration should be meaningful for actual videos
+        return analysis.Duration > TimeSpan.FromMilliseconds(100);
     }
 }

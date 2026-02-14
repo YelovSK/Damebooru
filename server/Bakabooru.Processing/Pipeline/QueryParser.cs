@@ -9,6 +9,7 @@ public enum PostMediaType
 
 public enum SearchSortField
 {
+    FileModifiedDate,
     ImportDate,
     TagCount,
     Width,
@@ -44,7 +45,7 @@ public class SearchQuery
     public HashSet<PostMediaType> ExcludedMediaTypes { get; set; } = [];
     public NumericFilter? TagCountFilter { get; set; }
     public bool? FavoriteFilter { get; set; }
-    public SearchSortField SortField { get; set; } = SearchSortField.ImportDate;
+    public SearchSortField SortField { get; set; } = SearchSortField.FileModifiedDate;
     public SearchSortDirection SortDirection { get; set; } = SearchSortDirection.Desc;
 }
 
@@ -299,16 +300,23 @@ public static class QueryParser
         {
             case "new":
             case "newest":
-                field = SearchSortField.ImportDate;
+                field = SearchSortField.FileModifiedDate;
                 direction = explicitDirection ?? SearchSortDirection.Desc;
                 return true;
             case "old":
             case "oldest":
-                field = SearchSortField.ImportDate;
+                field = SearchSortField.FileModifiedDate;
                 direction = explicitDirection ?? SearchSortDirection.Asc;
                 return true;
             case "date":
+            case "modified-date":
+            case "file-date":
+            case "file-modified-date":
+                field = SearchSortField.FileModifiedDate;
+                direction = explicitDirection ?? SearchSortDirection.Asc;
+                return true;
             case "import-date":
+            case "imported-date":
                 field = SearchSortField.ImportDate;
                 direction = explicitDirection ?? SearchSortDirection.Asc;
                 return true;

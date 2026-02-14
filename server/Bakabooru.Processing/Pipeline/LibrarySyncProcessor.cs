@@ -12,17 +12,17 @@ using System.Collections.Concurrent;
 
 namespace Bakabooru.Processing.Pipeline;
 
-public class PipelineProcessor : IMediaProcessor
+public class LibrarySyncProcessor : ILibrarySyncProcessor
 {
-    private readonly ILogger<PipelineProcessor> _logger;
+    private readonly ILogger<LibrarySyncProcessor> _logger;
     private readonly IHasherService _hasher;
     private readonly IPostIngestionService _ingestionService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IMediaSource _mediaSource;
     private readonly int _scanParallelism;
 
-    public PipelineProcessor(
-        ILogger<PipelineProcessor> logger,
+    public LibrarySyncProcessor(
+        ILogger<LibrarySyncProcessor> logger,
         IHasherService hasher,
         IPostIngestionService ingestionService,
         IServiceScopeFactory scopeFactory,
@@ -38,7 +38,7 @@ public class PipelineProcessor : IMediaProcessor
     }
 
     /// <summary>Snapshot of an existing post for fast in-memory comparison.</summary>
-    private record ExistingPostInfo(int Id, string RelativePath, string Hash, long SizeBytes, DateTime? FileModifiedDate);
+    private record ExistingPostInfo(int Id, string RelativePath, string Hash, long SizeBytes, DateTime FileModifiedDate);
 
     /// <summary>Potential file move/rename detected during scan (same content hash, new path).</summary>
     private record PotentialMoveCandidate(string RelativePath, string Hash, long SizeBytes, DateTime LastModifiedUtc);
@@ -204,7 +204,6 @@ public class PipelineProcessor : IMediaProcessor
                     post.ContentHash = update.NewHash;
                     post.SizeBytes = update.NewSize;
                     post.FileModifiedDate = update.NewMtime;
-                    post.ImportDate = update.NewMtime;
 
                     if (update.HashChanged)
                     {
@@ -228,7 +227,6 @@ public class PipelineProcessor : IMediaProcessor
                 post.ContentHash = move.Hash;
                 post.SizeBytes = move.NewSize;
                 post.FileModifiedDate = move.NewMtime;
-                post.ImportDate = move.NewMtime;
                 post.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(move.NewRelativePath));
 
                 _logger.LogInformation(
@@ -322,8 +320,7 @@ public class PipelineProcessor : IMediaProcessor
         {
             // Change detection: compare file size and mtime
             var fileChanged = item.SizeBytes != existing.SizeBytes
-                           || existing.FileModifiedDate == null
-                           || Math.Abs((item.LastModifiedUtc - existing.FileModifiedDate.Value).TotalSeconds) > 1;
+                           || Math.Abs((item.LastModifiedUtc - existing.FileModifiedDate).TotalSeconds) > 1;
 
             if (!fileChanged) return; // File unchanged, skip
 
@@ -376,7 +373,7 @@ public class PipelineProcessor : IMediaProcessor
             SizeBytes = item.SizeBytes,
             FileModifiedDate = item.LastModifiedUtc,
             ContentType = contentType,
-            ImportDate = item.LastModifiedUtc
+            ImportDate = DateTime.UtcNow
         };
 
         await _ingestionService.EnqueuePostAsync(post, cancellationToken);

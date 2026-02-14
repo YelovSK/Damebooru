@@ -10,16 +10,16 @@ public class RecursiveScanner : IScannerService
 {
     private readonly ILogger<RecursiveScanner> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IMediaProcessor _mediaProcessor;
+    private readonly ILibrarySyncProcessor _librarySyncProcessor;
 
     public RecursiveScanner(
         ILogger<RecursiveScanner> logger,
         IServiceScopeFactory scopeFactory,
-        IMediaProcessor mediaProcessor)
+        ILibrarySyncProcessor librarySyncProcessor)
     {
         _logger = logger;
         _scopeFactory = scopeFactory;
-        _mediaProcessor = mediaProcessor;
+        _librarySyncProcessor = librarySyncProcessor;
     }
     public async Task ScanAllLibrariesAsync(IProgress<float>? progress = null, IProgress<string>? status = null, CancellationToken cancellationToken = default)
     {
@@ -59,7 +59,7 @@ public class RecursiveScanner : IScannerService
                 }
             });
 
-            await _mediaProcessor.ProcessDirectoryAsync(library, library.Path, subProgress, status, cancellationToken);
+            await _librarySyncProcessor.ProcessDirectoryAsync(library, library.Path, subProgress, status, cancellationToken);
             currentLibraryIndex++;
         }
     }
@@ -79,7 +79,7 @@ public class RecursiveScanner : IScannerService
         var displayName = GetLibraryDisplayName(library.Name, library.Path, library.Id);
         _logger.LogInformation("Scanning library: {Path}", library.Path);
         status?.Report($"Scanning library: {displayName}");
-        await _mediaProcessor.ProcessDirectoryAsync(library, library.Path, progress, status, cancellationToken);
+        await _librarySyncProcessor.ProcessDirectoryAsync(library, library.Path, progress, status, cancellationToken);
         progress?.Report(100);
         status?.Report($"Completed scan for: {displayName}");
         _logger.LogInformation("Finished scanning library: {Path}", library.Path);

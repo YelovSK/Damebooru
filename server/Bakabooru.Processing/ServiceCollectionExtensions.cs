@@ -29,11 +29,11 @@ public static class ServiceCollectionExtensions
 
         // Infrastructure
         services.AddSingleton<IHasherService, ContentHasher>();
-        services.AddSingleton<IImageProcessor, FFmpegProcessor>();
+        services.AddSingleton<IMediaFileProcessor, FFmpegProcessor>();
         services.AddSingleton<ISimilarityService, ImageHashService>();
 
         // Core Pipeline Services
-        services.AddSingleton<IMediaProcessor, PipelineProcessor>();
+        services.AddSingleton<ILibrarySyncProcessor, LibrarySyncProcessor>();
         
         services.AddSingleton<ChannelPostIngestionService>();
         services.AddSingleton<IPostIngestionService>(sp => sp.GetRequiredService<ChannelPostIngestionService>());
@@ -61,4 +61,3 @@ public static class ServiceCollectionExtensions
         return services;
     }
 }
-

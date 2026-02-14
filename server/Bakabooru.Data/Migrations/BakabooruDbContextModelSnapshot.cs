@@ -191,7 +191,7 @@ namespace Bakabooru.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTime?>("FileModifiedDate")
+                    b.Property<DateTime>("FileModifiedDate")
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Height")

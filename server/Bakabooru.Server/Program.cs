@@ -150,10 +150,9 @@ if (authEnabled)
     app.UseAuthentication();
 }
 
-var thumbnailPath = StoragePathResolver.ResolvePath(
+var thumbnailPath = MediaPaths.ResolveThumbnailStoragePath(
     builder.Environment.ContentRootPath,
-    bakabooruConfig.Storage.ThumbnailPath,
-    "../../data/thumbnails");
+    bakabooruConfig.Storage.ThumbnailPath);
 if (!Directory.Exists(thumbnailPath))
 {
     Directory.CreateDirectory(thumbnailPath);
