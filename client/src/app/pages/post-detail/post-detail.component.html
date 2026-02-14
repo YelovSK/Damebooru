@@ -1,8 +1,8 @@
 @if (post(); as pd) {
-<div class="flex gap-3 h-full max-[1100px]:flex-col-reverse max-[1100px]:h-auto max-[1100px]:overflow-y-visible max-[1100px]:gap-2 relative">
+<div class="relative flex gap-3 lg:h-[calc(100dvh-6.5rem-1px)] max-[1100px]:h-auto max-[1100px]:flex-col-reverse max-[1100px]:gap-2">
     <!-- Sidebar -->
     <aside
-        class="w-80 min-w-[350px] h-full flex flex-col gap-3 transition-all duration-200 max-[1100px]:w-full max-[1100px]:h-auto max-[1100px]:mb-8"
+        class="flex h-full w-80 min-w-0 flex-col gap-3 transition-all duration-200 lg:min-w-[350px] max-[1100px]:h-auto max-[1100px]:w-full"
         [class.!w-0]="sidebarCollapsed()"
         [class.!min-w-0]="sidebarCollapsed()"
         [class.overflow-hidden]="sidebarCollapsed()"
@@ -110,7 +110,7 @@
                             <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                                 @for (tag of pd.tags; track tag.name) {
                                     <a class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-glass-bg rounded-sm border-l-3 cursor-pointer transition-all hover:bg-glass-bg-hover" [routerLink]="appLinks.posts()" [queryParams]="{ query: tag.name | tag }"
-                                        [style.border-left-color]="getTagCategory(tag)?.color || 'var(--text-dim)'"
+                                        [style.border-left-color]="getTagCategory(tag)?.color || 'var(--color-text-dim)'"
                                         [appTooltip]="getTagCategory(tag)?.name || 'Uncategorized'"
                                         tooltipPosition="right">
                                         <span class="text-text-link flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{ tag.name }}</span>
@@ -160,7 +160,11 @@
     </aside>
 
     <!-- Main Content Area -->
-    <div class="grow flex justify-center items-center bg-[#0a0f1e] rounded-xl overflow-hidden border border-glass-border max-[1100px]:h-[70vh] max-[1100px]:min-h-[400px] max-[1100px]:shrink-0 max-[750px]:h-[60vh] max-[750px]:min-h-[300px] relative">
+    <div
+        class="relative flex grow items-center justify-center overflow-hidden rounded-xl border border-glass-border bg-[#0a0f1e] min-h-[320px] h-[70vh] sm:min-h-[380px] lg:h-full lg:min-h-0"
+        (pointerdown)="onMediaPointerDown($event)"
+        (pointerup)="onMediaPointerUp($event)"
+        (pointercancel)="onMediaPointerCancel()">
         <!-- Sidebar Toggle Button -->
         <button
             type="button"
@@ -184,6 +188,25 @@
                     class="w-full h-full object-contain"
                     controls [autoplay]="autoPlayVideos()" [muted]="startVideosMuted()" loop></video>
             }
+        }
+
+        @if (around(); as nav) {
+        <div class="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-2 pb-2 lg:hidden" [style.paddingBottom]="'max(env(safe-area-inset-bottom),0.6rem)'">
+            <div class="pointer-events-auto rounded-lg border border-white/10 bg-black/55 p-2 backdrop-blur-sm">
+                <div class="flex items-center gap-2">
+                    <div class="flex-1">
+                        <app-button variant="secondary" size="sm" [fullWidth]="true" [disabled]="!nav.prev" (click)="goToPrevPost()">
+                            Previous
+                        </app-button>
+                    </div>
+                    <div class="flex-1">
+                        <app-button variant="secondary" size="sm" [fullWidth]="true" [disabled]="!nav.next" (click)="goToNextPost()">
+                            Next
+                        </app-button>
+                    </div>
+                </div>
+            </div>
+        </div>
         }
     </div>
 </div>

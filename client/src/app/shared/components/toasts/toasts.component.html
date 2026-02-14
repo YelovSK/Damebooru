@@ -1,4 +1,4 @@
-<div class="fixed top-20 right-4 z-200 flex flex-col gap-3 w-full max-w-[350px]">
+<div class="fixed inset-x-0 top-16 z-200 mx-auto flex w-full max-w-[350px] flex-col gap-3 px-3 sm:inset-x-auto sm:right-4 sm:top-20 sm:mx-0 sm:px-0">
   @for (toast of toastService.toasts(); track toast.id) {
     <div [@toastAnimation] 
       class="p-4 shadow-2xl flex items-start gap-3 border-l-4 relative group bg-bg-secondary border border-glass-border rounded-xl"

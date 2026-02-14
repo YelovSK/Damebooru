@@ -1,0 +1,89 @@
+<header class="sticky top-0 z-100 border-b border-glass-border bg-bg-secondary/95 backdrop-blur-sm">
+  <div class="flex min-h-14 items-center gap-3 px-3 sm:px-4 md:px-6">
+    <a
+      [routerLink]="['/']"
+      class="shrink-0 whitespace-nowrap text-[1.35rem] font-extrabold bg-linear-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent no-underline">
+      Bakabooru
+    </a>
+
+    <nav class="hidden grow items-center gap-1 lg:flex">
+      @for (link of links(); track link.label) {
+        <a
+          [routerLink]="link.route"
+          routerLinkActive="!bg-white/5 !text-text-secondary"
+          class="rounded-md px-3 py-2 text-[0.92rem] font-medium text-text-muted no-underline transition-all hover:bg-white/5 hover:text-text-secondary"
+          (click)="onLinkNavigate()">
+          @if (link.icon) {
+            <i [class]="link.icon"></i>
+          }
+          {{ link.label }}
+        </a>
+      }
+    </nav>
+
+    <div class="ml-auto hidden items-center gap-4 lg:flex">
+      <div class="flex items-center gap-3 border-r border-glass-border pr-4">
+        <span class="block text-[0.85rem] font-semibold text-text-secondary">{{ currentUser() || 'Unknown user' }}</span>
+      </div>
+      <app-button variant="danger" size="sm" (click)="onLogout()">Logout</app-button>
+    </div>
+
+    <button
+      type="button"
+      class="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-text-primary transition-colors hover:bg-white/10 lg:hidden"
+      aria-label="Open navigation menu"
+      [attr.aria-expanded]="drawerOpen()"
+      (click)="toggleDrawer()">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="4" y1="7" x2="20" y2="7"></line>
+        <line x1="4" y1="12" x2="20" y2="12"></line>
+        <line x1="4" y1="17" x2="20" y2="17"></line>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<div
+  class="fixed inset-0 z-[900] bg-black/60 transition-opacity duration-200 lg:hidden"
+  [class.pointer-events-none]="!drawerOpen()"
+  [class.opacity-0]="!drawerOpen()"
+  [class.opacity-100]="drawerOpen()"
+  (click)="closeDrawer()">
+</div>
+
+<aside
+  class="fixed inset-y-0 right-0 z-[950] flex w-[min(84vw,22rem)] flex-col border-l border-glass-border bg-bg-secondary p-4 shadow-glass transition-transform duration-300 ease-out lg:hidden"
+  [class.pointer-events-none]="!drawerOpen()"
+  [class.translate-x-full]="!drawerOpen()"
+  [style.paddingBottom]="'max(env(safe-area-inset-bottom),1rem)'">
+  <div class="mb-4 flex items-center justify-between gap-3">
+    <span class="text-lg font-bold text-text-secondary">Navigation</span>
+    <button
+      type="button"
+      class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-text-muted transition-colors hover:bg-white/5 hover:text-text-secondary"
+      aria-label="Close navigation menu"
+      (click)="closeDrawer()">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+
+  <nav class="flex flex-1 flex-col gap-1 overflow-y-auto">
+    @for (link of links(); track link.label) {
+      <a
+        [routerLink]="link.route"
+        routerLinkActive="!bg-white/10 !text-text-secondary"
+        class="rounded-md px-3 py-2.5 text-[0.95rem] font-medium text-text-muted no-underline transition-colors hover:bg-white/5 hover:text-text-secondary"
+        (click)="onLinkNavigate()">
+        {{ link.label }}
+      </a>
+    }
+  </nav>
+
+  <div class="mt-4 border-t border-glass-border pt-4">
+    <div class="mb-3 text-sm text-text-secondary">Signed in as {{ currentUser() || 'Unknown user' }}</div>
+    <app-button variant="danger" size="md" [fullWidth]="true" (click)="onLogout()">Logout</app-button>
+  </div>
+</aside>

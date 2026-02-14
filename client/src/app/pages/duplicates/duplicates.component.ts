@@ -15,21 +15,21 @@ import { ToastService } from '@services/toast.service';
   imports: [CommonModule, RouterLink, FileNamePipe, FileSizePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="mx-auto max-w-7xl p-4 md:p-6">
-      <h1 class="text-3xl font-bold mb-2 text-terminal-green">Duplicate Detection</h1>
+    <div>
+      <h1 class="text-3xl font-bold mb-2 text-accent-primary">Duplicate Detection</h1>
       <p class="text-gray-400 mb-6">Review and resolve duplicate posts. Run "Find Duplicates" from the Jobs page to detect new groups.</p>
 
       <!-- Summary Bar -->
-      <div class="flex gap-4 mb-6">
-        <div class="bg-gray-900 border border-gray-700 rounded-lg px-6 py-4 flex-1">
+      <div class="mb-6 flex flex-wrap gap-3">
+        <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
           <div class="text-3xl font-bold text-white">{{ groups().length }}</div>
           <div class="text-sm text-gray-400">Unresolved Groups</div>
         </div>
-        <div class="bg-gray-900 border border-gray-700 rounded-lg px-6 py-4 flex-1">
+        <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
           <div class="text-3xl font-bold text-blue-400">{{ exactCount() }}</div>
           <div class="text-sm text-gray-400">Exact (Content Hash)</div>
         </div>
-        <div class="bg-gray-900 border border-gray-700 rounded-lg px-6 py-4 flex-1">
+        <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
           <div class="text-3xl font-bold text-purple-400">{{ perceptualCount() }}</div>
           <div class="text-sm text-gray-400">Perceptual (dHash)</div>
         </div>
@@ -57,7 +57,7 @@ import { ToastService } from '@services/toast.service';
       <!-- Duplicate Groups -->
       <div *ngFor="let group of groups(); trackBy: trackGroup" class="bg-gray-900 border border-gray-700 rounded-lg p-4 md:p-5 mb-6 shadow-lg">
         <!-- Group Header -->
-        <div class="flex justify-between items-center mb-4">
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-3">
             <span [class]="group.type === 'exact'
               ? 'bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold'
@@ -80,7 +80,7 @@ import { ToastService } from '@services/toast.service';
         <!-- Thumbnails Grid -->
         <div class="flex flex-wrap gap-3">
           <div *ngFor="let post of group.posts; trackBy: trackPost"
-               class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-terminal-green transition-colors"
+               class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-accent-primary transition-colors"
           >
             <!-- Thumbnail -->
             <div
@@ -95,7 +95,7 @@ import { ToastService } from '@services/toast.service';
                    (error)="onImageError($event)">
               <!-- Keep this overlay on hover -->
               <div class="absolute inset-0 bg-black/60 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center">
-                <span class="bg-terminal-green text-white font-bold px-4 py-2 rounded text-sm">Keep This</span>
+                <span class="bg-accent-primary text-white font-bold px-4 py-2 rounded text-sm">Keep This</span>
               </div>
             </div>
 

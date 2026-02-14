@@ -2,20 +2,21 @@
   padding: 0.75rem 1.25rem;
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--text-muted);
+  color: var(--color-text-muted);
   text-decoration: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   transition: all 0.2s ease;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .tab:hover {
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   background: rgba(255, 255, 255, 0.03);
 }
 
 .tab.active-tab {
-  color: var(--accent-primary);
-  border-bottom-color: var(--accent-primary);
+  color: var(--color-accent-primary);
+  border-bottom-color: var(--color-accent-primary);
 }

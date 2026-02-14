@@ -1,6 +1,6 @@
 <section>
-    <header class="flex justify-between items-center mb-4 gap-2">
-        <div class="relative w-full max-w-[500px] z-10">
+    <header class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div class="relative z-10 w-full lg:max-w-[500px]">
             <app-autocomplete [value]="currentSearchValue()" [suggestions]="tagSuggestions()" [multi]="true" [focusShortcut]="{ modifier: 'ctrl', key: 'f' }"
                 placeholder="Search posts..." (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
                 (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
@@ -13,8 +13,9 @@
             </app-autocomplete>
         </div>
 
-        <div class="flex items-center gap-6 bg-glass-bg border border-glass-border px-4 py-2 rounded-xl">
-            <div class="pr-4 border-r border-white/10">
+        <div class="w-full rounded-xl border border-glass-border bg-glass-bg px-3 py-2 sm:px-4 lg:w-auto">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
+                <div class="sm:pr-4 sm:border-r sm:border-white/10">
                 <app-form-slider-input
                     [label]="'Thumb Size:'"
                     [value]="thumbnailSize()"
@@ -26,18 +27,19 @@
                     [valueMinWidthClass]="'min-w-[4.5rem]'"
                     (valueChange)="onThumbnailSizeChange($event)">
                 </app-form-slider-input>
-            </div>
+                </div>
 
-            <div class="w-44 shrink-0 inline-flex items-center justify-end gap-2 text-right text-text-muted text-[0.85rem] font-medium whitespace-nowrap">
-                <span>Posts/Page:</span>
-                <span class="inline-block min-w-[4ch] text-text-primary tabular-nums text-right">{{ pageSize() }}</span>
-                <span class="text-text-dim">(auto)</span>
+                <div class="inline-flex w-full items-center justify-between gap-2 whitespace-nowrap text-[0.85rem] font-medium text-text-muted sm:w-44 sm:shrink-0 sm:justify-end sm:text-right">
+                    <span>Posts/Page:</span>
+                    <span class="inline-block min-w-[4ch] text-right tabular-nums text-text-primary">{{ pageSize() }}</span>
+                    <span class="text-text-dim">(auto)</span>
+                </div>
             </div>
         </div>
     </header>
 
     @if (postsState(); as postsState) {
-    <div #gridViewport class="relative pb-32" [class.opacity-40]="postsState.isLoading && postsState.data" [class.blur-[2px]]="postsState.isLoading && postsState.data" [class.pointer-events-none]="postsState.isLoading && postsState.data">
+    <div #gridViewport class="relative pb-2" [class.opacity-40]="postsState.isLoading && postsState.data" [class.blur-[2px]]="postsState.isLoading && postsState.data" [class.pointer-events-none]="postsState.isLoading && postsState.data">
         @if (postsState.isLoading && !postsState.data) {
         <!-- Initial Skeleton Grid -->
         <div class="grid gap-2" [style.grid-template-columns]="gridTemplateColumns()">
@@ -100,7 +102,7 @@
         <!-- Loading Bar -->
         @if (postsState.isLoading) {
         <div class="absolute -top-2.5 left-0 right-0 h-1.5 bg-white/5 overflow-hidden rounded-sm">
-            <div class="h-full w-[40%] bg-accent-primary shadow-[0_0_10px_var(--accent-primary)] animate-loading-move"></div>
+            <div class="h-full w-[40%] bg-accent-primary shadow-[0_0_10px_var(--color-accent-primary)] animate-loading-move"></div>
         </div>
         }
 
@@ -110,10 +112,8 @@
 
     <!-- Pagination Controls -->
     @if (totalPages() > 1) {
-    <div class="fixed bottom-0 left-0 right-0 z-100 flex justify-center pb-8 pt-12 bg-linear-to-t from-bg-primary via-bg-primary/80 to-transparent pointer-events-none">
-        <div class="pointer-events-auto">
-            <app-paginator [currentPage]="currentPage()" [totalPages]="totalPages()" (pageChange)="onPageChange($event)"></app-paginator>
-        </div>
+    <div class="mt-8 flex justify-center pb-2" [style.paddingBottom]="'max(env(safe-area-inset-bottom),0.6rem)'">
+        <app-paginator [currentPage]="currentPage()" [totalPages]="totalPages()" (pageChange)="onPageChange($event)"></app-paginator>
     </div>
     }
     }

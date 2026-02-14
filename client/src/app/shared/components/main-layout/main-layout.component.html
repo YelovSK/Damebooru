@@ -1,42 +1,11 @@
 <app-toasts></app-toasts>
 <app-confirm-dialog></app-confirm-dialog>
-<div class="flex flex-col h-screen">
-    <header
-        class="bg-[#1e293b] flex justify-between items-center px-4 py-2 border-b border-glass-border sticky top-0 z-100">
-        <div class="flex items-center gap-4">
-            <div class="text-[1.5rem] font-extrabold bg-linear-to-r from-accent-primary to-accent-secondary bg-clip-text text-transparent cursor-pointer whitespace-nowrap"
-                [routerLink]="appLinks.home()">Bakabooru</div>
-            <nav class="flex gap-4">
-                @for (link of [
-                { route: appLinks.posts(), icon: 'icon-posts', label: 'Posts' },
-                { route: appLinks.libraries(), icon: 'icon-settings', label: 'Libraries' },
-                { route: appLinks.bulkTagging(), icon: 'icon-settings', label: 'Bulk-Tagging' },
-                { route: appLinks.tags(), icon: 'icon-settings', label: 'Tags' },
-                { route: appLinks.jobs(), icon: 'icon-settings', label: 'Jobs' },
-                { route: appLinks.duplicates(), icon: 'icon-settings', label: 'Duplicates' },
-                { route: appLinks.settings(), icon: 'icon-settings', label: 'Settings' },
-                { route: appLinks.info(), icon: 'icon-info', label: 'Info' },
-                { route: appLinks.help(), icon: 'icon-info', label: 'Help' },
-                ]; track link.label) {
-                <a [routerLink]="link.route" routerLinkActive="!bg-white/5 !text-text-secondary"
-                    class="px-4 py-2 rounded-md cursor-pointer text-text-muted no-underline transition-all font-medium text-[0.95rem] hover:bg-white/5 hover:text-text-secondary">
-                    <i [class]="link.icon"></i> {{ link.label }}
-                </a>
-                }
-            </nav>
+<div class="flex min-h-dvh flex-col bg-bg-primary">
+    <app-navbar [links]="navLinks" [currentUser]="currentUser" (logout)="onLogout()"></app-navbar>
+
+    <main class="flex-1 min-h-0 overflow-y-auto pr-px" [style.scrollbarGutter]="'stable'">
+        <div class="px-3 py-4 sm:px-4 md:px-6 md:py-6" [class]="pageContainerClasses()">
+            <router-outlet></router-outlet>
         </div>
-
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-3 pr-4 border-r border-glass-border">
-                <span class="block font-semibold text-[0.85rem] text-text-secondary">{{ currentUser }}</span>
-            </div>
-            <app-button variant="danger" size="sm" (click)="onLogout()">Logout</app-button>
-        </div>
-    </header>
-
-
-
-    <main class="grow p-4 pr-px overflow-y-auto" [style.scrollbarGutter]="'stable'">
-        <router-outlet></router-outlet>
     </main>
 </div>

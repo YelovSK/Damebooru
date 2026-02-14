@@ -56,6 +56,14 @@ export class PostDetailComponent {
   // Sidebar collapsed state
   sidebarCollapsed = signal(false);
 
+  private swipePointerId: number | null = null;
+  private swipeStartX: number | null = null;
+  private swipeStartY: number | null = null;
+  private swipeStartTime = 0;
+  private readonly swipeMinDistancePx = 60;
+  private readonly swipeMaxDurationMs = 700;
+  private readonly swipeDirectionRatio = 1.3;
+
   // Triggers a local post stream refresh after in-place edits.
   private refreshTrigger = signal(0);
   private readonly postCache = signal(new Map<number, BakabooruPostDto>());
@@ -180,20 +188,14 @@ export class PostDetailComponent {
     this.hotkeys.on('ArrowLeft')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        const nav = this.around();
-        if (nav?.prev) {
-          this.router.navigate(AppLinks.post(nav.prev.id), { queryParams: { query: this.query() }, replaceUrl: true });
-        }
+        this.goToPrevPost();
       });
 
     // Navigate Right
     this.hotkeys.on('ArrowRight')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        const nav = this.around();
-        if (nav?.next) {
-          this.router.navigate(AppLinks.post(nav.next.id), { queryParams: { query: this.query() }, replaceUrl: true });
-        }
+        this.goToNextPost();
       });
 
     // Edit mode toggle
@@ -217,6 +219,56 @@ export class PostDetailComponent {
   // Sidebar toggle
   toggleSidebar() {
     this.sidebarCollapsed.update(v => !v);
+  }
+
+  goToPrevPost() {
+    this.navigateToPost(this.around()?.prev);
+  }
+
+  goToNextPost() {
+    this.navigateToPost(this.around()?.next);
+  }
+
+  onMediaPointerDown(event: PointerEvent) {
+    if (event.pointerType === 'mouse') return;
+    if (!event.isPrimary) return;
+
+    this.swipePointerId = event.pointerId;
+    this.swipeStartX = event.clientX;
+    this.swipeStartY = event.clientY;
+    this.swipeStartTime = performance.now();
+  }
+
+  onMediaPointerUp(event: PointerEvent) {
+    if (this.swipePointerId !== event.pointerId) return;
+    if (this.swipeStartX === null || this.swipeStartY === null) return;
+
+    const deltaX = event.clientX - this.swipeStartX;
+    const deltaY = event.clientY - this.swipeStartY;
+    const elapsedMs = performance.now() - this.swipeStartTime;
+    this.resetSwipeState();
+
+    if (elapsedMs > this.swipeMaxDurationMs) return;
+    if (Math.abs(deltaX) < this.swipeMinDistancePx) return;
+    if (Math.abs(deltaX) < Math.abs(deltaY) * this.swipeDirectionRatio) return;
+
+    if (deltaX < 0) {
+      this.goToNextPost();
+      return;
+    }
+
+    this.goToPrevPost();
+  }
+
+  onMediaPointerCancel() {
+    this.resetSwipeState();
+  }
+
+  private resetSwipeState() {
+    this.swipePointerId = null;
+    this.swipeStartX = null;
+    this.swipeStartY = null;
+    this.swipeStartTime = 0;
   }
 
   // Edit mode methods
@@ -382,6 +434,15 @@ export class PostDetailComponent {
     }
 
     return `${width}/${height}`;
+  }
+
+  private navigateToPost(post: BakabooruPostDto | null | undefined) {
+    if (!post) return;
+
+    this.router.navigate(AppLinks.post(post.id), {
+      queryParams: { query: this.query() },
+      replaceUrl: true
+    });
   }
 
 }

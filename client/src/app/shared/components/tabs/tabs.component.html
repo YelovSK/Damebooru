@@ -1,4 +1,4 @@
-<div class="flex gap-1 border-b border-glass-border mb-4">
+<div class="mb-4 flex gap-1 overflow-x-auto border-b border-glass-border">
   @for (tab of tabs(); track tab.id()) {
     <a
       [routerLink]="[basePath(), tab.id()]"

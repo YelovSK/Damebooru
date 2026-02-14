@@ -1,4 +1,4 @@
-<section class="max-w-[1400px] mx-auto">
+<section>
     <header class="mb-6">
         <h1 class="text-2xl font-bold text-text-primary mb-4">Bulk Auto-Tagging</h1>
 
@@ -16,7 +16,7 @@
     <div class="glass-card p-4 mb-6">
         <div class="flex flex-wrap gap-4 items-center justify-between">
             <!-- Selection Controls -->
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
                 <app-button variant="secondary" size="sm" (click)="selectAll()">Select All</app-button>
                 <app-button variant="secondary" size="sm" (click)="selectNone()">Select None</app-button>
                 <app-button variant="secondary" size="sm" (click)="selectByState('idle')">Select Idle</app-button>
@@ -25,7 +25,7 @@
             </div>
 
             <!-- Action Controls -->
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
                 @if (!isTagging() || isPaused()) {
                 <app-button variant="primary" size="md" (click)="startTagging()"
                     [disabled]="selectedPosts().size === 0">

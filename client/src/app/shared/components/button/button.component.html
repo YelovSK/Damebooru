@@ -3,7 +3,7 @@
     [routerLink]="routerLink()"
     [target]="target() || '_self'"
     [class]="buttonClasses()"
-    class="no-underline w-full h-full"
+    class="no-underline"
   >
     <ng-container *ngTemplateOutlet="content"></ng-container>
   </a>
@@ -12,7 +12,7 @@
     [href]="href()"
     [target]="target() || '_self'"
     [class]="buttonClasses()"
-    class="no-underline w-full h-full"
+    class="no-underline"
   >
     <ng-container *ngTemplateOutlet="content"></ng-container>
   </a>
@@ -21,7 +21,6 @@
     [type]="type()"
     [disabled]="disabled() || loading()"
     [class]="buttonClasses()"
-    class="w-full h-full"
   >
     <ng-container *ngTemplateOutlet="content"></ng-container>
   </button>

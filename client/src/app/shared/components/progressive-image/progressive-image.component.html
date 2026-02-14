@@ -5,8 +5,8 @@
   [src]="thumbnailSrc()" 
   [attr.width]="width()"
   [attr.height]="height()"
+  [draggable]="false"
   [alt]="alt()" />
-
 
 <img 
   class="absolute inset-0 w-full h-full object-contain z-0"
@@ -15,4 +15,5 @@
   [alt]="alt()" 
   [attr.width]="width()"
   [attr.height]="height()"
+  [draggable]="false"
   (load)="onFullLoad($event, loadToken())" />

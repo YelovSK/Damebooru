@@ -24,7 +24,7 @@ type SortFieldItem = {
   imports: [CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="max-w-6xl mx-auto py-8 space-y-8">
+    <div class="space-y-6">
       <section class="glass-card p-6">
         <h1 class="text-3xl font-bold text-accent-primary">Help</h1>
         <p class="text-text-dim mt-2">

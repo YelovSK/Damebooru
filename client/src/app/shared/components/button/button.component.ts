@@ -27,10 +27,10 @@ export class ButtonComponent {
   target = input<string | undefined>(undefined);
 
   buttonClasses = computed(() => {
-    const baseClasses = 'inline-flex items-center text-center justify-center font-semibold cursor-pointer transition-all duration-200 rounded-md border disabled:opacity-30 disabled:cursor-not-allowed disabled:transform-none';
+    const baseClasses = 'inline-flex items-center text-center justify-center font-semibold cursor-pointer transition-all duration-200 rounded-md border disabled:opacity-30 disabled:cursor-not-allowed disabled:transform-none w-full';
     
     const variantClasses: Record<ButtonVariant, string> = {
-      primary: 'bg-accent-primary-glow text-accent-primary border-accent-primary/20 hover:bg-accent-primary hover:text-bg-primary hover:-translate-y-0.5 hover:shadow-[0_5px_15px_var(--accent-primary-glow)]',
+      primary: 'bg-accent-primary-glow text-accent-primary border-accent-primary/20 hover:bg-accent-primary hover:text-bg-primary hover:-translate-y-0.5 hover:shadow-[0_5px_15px_var(--color-accent-primary-glow)]',
       secondary: 'bg-glass-bg text-text-muted border-glass-border hover:bg-glass-bg-hover hover:text-text-primary hover:-translate-y-0.5',
       danger: 'bg-transparent border-status-error/50 text-status-error hover:bg-status-error hover:text-white hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]',
       ghost: 'bg-transparent border-transparent text-text-dim hover:text-status-error',

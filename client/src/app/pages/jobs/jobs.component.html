@@ -1,6 +1,6 @@
-<div class="container mx-auto p-6">
-  <h1 class="text-3xl font-bold mb-2 text-terminal-green">Job Queues</h1>
-  <p class="text-gray-400 mb-8">Run and schedule background processing tasks.</p>
+<div>
+  <h1 class="mb-2 text-3xl font-bold text-accent-primary">Job Queues</h1>
+  <p class="mb-8 text-gray-400">Run and schedule background processing tasks.</p>
 
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-10">
     @for (job of jobs(); track job.name) {
@@ -66,68 +66,70 @@
       </app-collapsible>
     </div>
 
-    <table class="w-full text-left text-gray-300">
-      <thead>
-        <tr class="border-b border-gray-700">
-          <th class="py-2">Job Name</th>
-          <th class="py-2">Cron Expression</th>
-          <th class="py-2">Next Runs</th>
-          <th class="py-2">Last Run</th>
-          <th class="py-2">Enabled</th>
-          <th class="py-2">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (schedule of schedules(); track schedule.id) {
-          <tr class="border-b border-gray-800">
-            <td class="py-2">{{ schedule.jobName }}</td>
-            <td class="py-2">
-              <div class="w-44">
-                <app-form-input
-                  [id]="'cron-' + schedule.id"
-                  [placeholder]="'0 */6 * * *'"
-                  [(ngModel)]="schedule.cronExpression"
-                  (ngModelChange)="onCronExpressionChange(schedule)">
-                </app-form-input>
-              </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-[760px] w-full text-left text-gray-300">
+        <thead>
+          <tr class="border-b border-gray-700">
+            <th class="py-2">Job Name</th>
+            <th class="py-2">Cron Expression</th>
+            <th class="py-2">Next Runs</th>
+            <th class="py-2">Last Run</th>
+            <th class="py-2">Enabled</th>
+            <th class="py-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (schedule of schedules(); track schedule.id) {
+            <tr class="border-b border-gray-800">
+              <td class="py-2">{{ schedule.jobName }}</td>
+              <td class="py-2">
+                <div class="w-44">
+                  <app-form-input
+                    [id]="'cron-' + schedule.id"
+                    [placeholder]="'0 */6 * * *'"
+                    [(ngModel)]="schedule.cronExpression"
+                    (ngModelChange)="onCronExpressionChange(schedule)">
+                  </app-form-input>
+                </div>
 
-              @if (getCronPreview(schedule.id); as preview) {
-                @if (!preview.isValid) {
-                  <p class="mt-1 text-xs text-red-400">{{ preview.error }}</p>
+                @if (getCronPreview(schedule.id); as preview) {
+                  @if (!preview.isValid) {
+                    <p class="mt-1 text-xs text-red-400">{{ preview.error }}</p>
+                  }
                 }
-              }
-            </td>
-            <td class="py-2 text-sm align-top">
-              @if (getCronPreview(schedule.id); as preview) {
-                @if (preview.isValid && preview.nextRuns.length > 0) {
-                  <ul class="list-disc pl-4 text-xs text-gray-300">
-                    @for (nextRun of preview.nextRuns; track nextRun) {
-                      <li [appTooltip]="nextRun | dateTime" [tooltipFollowCursor]="true">{{ nextRun | relativeDuration: now() }}</li>
-                    }
-                  </ul>
+              </td>
+              <td class="py-2 text-sm align-top">
+                @if (getCronPreview(schedule.id); as preview) {
+                  @if (preview.isValid && preview.nextRuns.length > 0) {
+                    <ul class="list-disc pl-4 text-xs text-gray-300">
+                      @for (nextRun of preview.nextRuns; track nextRun) {
+                        <li [appTooltip]="nextRun | dateTime" [tooltipFollowCursor]="true">{{ nextRun | relativeDuration: now() }}</li>
+                      }
+                    </ul>
+                  } @else {
+                    <span class="text-gray-500">-</span>
+                  }
                 } @else {
                   <span class="text-gray-500">-</span>
                 }
-              } @else {
-                <span class="text-gray-500">-</span>
-              }
-            </td>
-            <td class="py-2 text-sm" [appTooltip]="schedule.lastRun | dateTime" [tooltipFollowCursor]="true">{{ schedule.lastRun | relativeDuration: now() }}</td>
-            <td class="py-2">
-              <input type="checkbox" [(ngModel)]="schedule.isEnabled" class="w-4 h-4">
-            </td>
-            <td class="py-2">
-              <app-button variant="secondary" size="xs" (click)="updateSchedule(schedule)">Save</app-button>
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
+              </td>
+              <td class="py-2 text-sm" [appTooltip]="schedule.lastRun | dateTime" [tooltipFollowCursor]="true">{{ schedule.lastRun | relativeDuration: now() }}</td>
+              <td class="py-2">
+                <input type="checkbox" [(ngModel)]="schedule.isEnabled" class="w-4 h-4">
+              </td>
+              <td class="py-2">
+                <app-button variant="secondary" size="xs" (click)="updateSchedule(schedule)">Save</app-button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <h2 class="text-2xl font-bold mb-4 text-white">Execution History</h2>
   <div class="bg-gray-900 border border-gray-700 rounded-lg p-6 shadow-lg overflow-x-auto">
-    <table class="w-full text-left text-gray-300">
+    <table class="min-w-[760px] w-full text-left text-gray-300">
       <thead>
         <tr class="border-b border-gray-700">
           <th class="py-2">Job</th>

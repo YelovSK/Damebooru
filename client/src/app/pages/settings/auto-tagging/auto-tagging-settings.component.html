@@ -1,4 +1,4 @@
-<div class="container mx-auto mt-4 px-4">
+<div>
   <h2 class="text-2xl font-bold text-text-secondary mb-2">Auto-Tagging Settings</h2>
   <p class="text-text-muted mb-4">Configure your automatic tagging providers.</p>
 
@@ -27,7 +27,7 @@
 
   @for (provider of providers(); track provider.id) {
   @let form = getFormGroup(provider.id);
-  <div class="bg-secondary-bg border rounded-lg overflow-hidden mb-4 shadow-glass transition-colors"
+  <div class="bg-bg-secondary border rounded-lg overflow-hidden mb-4 shadow-glass transition-colors"
     [class.border-glass-border]="!form?.dirty" [class.border-accent-primary/50]="form?.dirty">
     <app-collapsible [title]="provider.name" [(expanded)]="expandedProviders[provider.id]">
       <ng-container header>
