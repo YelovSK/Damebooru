@@ -1,120 +1,182 @@
-<section>
-    <header class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div class="relative z-10 w-full lg:max-w-[500px]">
-            <app-autocomplete [value]="currentSearchValue()" [suggestions]="tagSuggestions()" [multi]="true" [focusShortcut]="{ modifier: 'ctrl', key: 'f' }"
-                placeholder="Search posts..." (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
-                (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
-                <ng-template let-tag>
-                    <div class="flex justify-between w-full items-center">
-                        <span class="text-accent-primary ">{{ tag.name }}</span>
-                        <span class="badge">{{ tag.usages | number }}</span>
-                    </div>
-                </ng-template>
-            </app-autocomplete>
-        </div>
+<section class="posts-page">
+    <header class="posts-toolbar sticky top-0 z-30 mb-3 rounded-xl border border-glass-border bg-bg-secondary/88 px-3 py-3 backdrop-blur-md sm:px-4">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div class="relative z-20 w-full lg:max-w-[560px]">
+                <app-autocomplete
+                    [value]="currentSearchValue()"
+                    [suggestions]="tagSuggestions()"
+                    [multi]="true"
+                    [focusShortcut]="{ modifier: 'ctrl', key: 'f' }"
+                    placeholder="Search posts..."
+                    (queryChange)="onQueryChange($event)"
+                    (selection)="onSelection($event)"
+                    (searchTrigger)="onSearch($event)"
+                    (valueChange)="currentSearchValue.set($event)">
+                    <ng-template let-tag>
+                        <div class="flex w-full items-center justify-between gap-3">
+                            <span class="truncate text-accent-primary">{{ tag.name }}</span>
+                            <span class="badge">{{ tag.usages | number }}</span>
+                        </div>
+                    </ng-template>
+                </app-autocomplete>
+            </div>
 
-        <div class="w-full rounded-xl border border-glass-border bg-glass-bg px-3 py-2 sm:px-4 lg:w-auto">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-5">
-                <div class="sm:pr-4 sm:border-r sm:border-white/10">
-                <app-form-slider-input
-                    [label]="'Thumb Size:'"
-                    [value]="thumbnailSize()"
-                    [min]="thumbnailSizeMin"
-                    [max]="thumbnailSizeMax"
-                    [step]="thumbnailSizeStep"
-                    [suffix]="'px'"
-                    [trackWidthClass]="'w-32'"
-                    [valueMinWidthClass]="'min-w-[4.5rem]'"
-                    (valueChange)="onThumbnailSizeChange($event)">
-                </app-form-slider-input>
+            <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+                <div class="inline-flex items-center gap-2 rounded-lg border border-glass-border bg-bg-primary/45 p-1">
+                    @for (densityOption of densityOptions; track densityOption.value) {
+                        <button
+                            type="button"
+                            class="density-btn"
+                            [class.density-btn-active]="isDensitySelected(densityOption.value)"
+                            (click)="onDensitySelect(densityOption.value)">
+                            {{ densityOption.label }}
+                        </button>
+                    }
                 </div>
 
-                <div class="inline-flex w-full items-center justify-between gap-2 whitespace-nowrap text-[0.85rem] font-medium text-text-muted sm:w-44 sm:shrink-0 sm:justify-end sm:text-right">
-                    <span>Posts/Page:</span>
-                    <span class="inline-block min-w-[4ch] text-right tabular-nums text-text-primary">{{ pageSize() }}</span>
-                    <span class="text-text-dim">(auto)</span>
+                <div class="density-summary">
+                    @if (totalCount() !== null) {
+                        <span>{{ totalCount()! | number }} posts</span>
+                        @if (totalPages() > 0) {
+                            <span class="text-text-dim">Page {{ currentPage() }} / {{ totalPages() }}</span>
+                        }
+                    } @else {
+                        <span>Loading...</span>
+                    }
                 </div>
             </div>
         </div>
     </header>
 
-    @if (postsState(); as postsState) {
-    <div #gridViewport class="relative pb-2" [class.opacity-40]="postsState.isLoading && postsState.data" [class.blur-[2px]]="postsState.isLoading && postsState.data" [class.pointer-events-none]="postsState.isLoading && postsState.data">
-        @if (postsState.isLoading && !postsState.data) {
-        <!-- Initial Skeleton Grid -->
-        <div class="grid gap-2" [style.grid-template-columns]="gridTemplateColumns()">
-            @for (i of [1,2,3,4,5,6,7,8,9,10,11,12]; track i) {
-            <div class="relative rounded-lg overflow-hidden aspect-square bg-bg-secondary animate-pulse pointer-events-none">
-                <div class="w-full h-full bg-linear-to-r from-bg-secondary via-[#2d3e5a] to-bg-secondary bg-size-[200%_100%]"></div>
-            </div>
-            }
-        </div>
-        } @else {
-        <!-- Actual Content Grid -->
-        @if (postsState.data; as pagedPosts) {
-        <div class="grid gap-2" [style.grid-template-columns]="gridTemplateColumns()">
-            @for (post of pagedPosts.items; track post.id) {
-            <a class="relative rounded-lg overflow-hidden aspect-square bg-bg-secondary cursor-pointer transition-all duration-300 hover:-translate-y-1.5 hover:scale-110 hover:shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:z-5 group" [routerLink]="appLinks.post(post.id)" [queryParams]="{ query: query() }">
-                <img [src]="environment.mediaBaseUrl + post.thumbnailUrl" [alt]="'Post ' + post.id" class="block w-full h-full object-cover"
-                    decoding="async" [attr.loading]="$index <= 3 ? 'eager' : 'lazy'" />
-
-                @if (post.isFavorite) {
-                <div class="absolute top-2.5 left-2.5 bg-bg-primary/90 w-8 h-8 rounded-md flex justify-center items-center text-status-error z-5 border border-white/10 shadow-lg pointer-events-none">
-                    <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
-                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z"/>
-                    </svg>
-                </div>
-                }
-
-                @switch (getMediaType(post.contentType)) {
-                @case ('video') {
-                <div class="absolute bottom-2.5 right-2.5 bg-bg-primary/90 w-8 h-8 rounded-md flex justify-center items-center text-accent-primary z-5 border border-white/10 shadow-lg pointer-events-none">
-                    <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
-                        <path
-                            d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-                    </svg>
-                </div>
-                }
-                @case ('animation') {
-                <div class="absolute bottom-2.5 right-2.5 bg-bg-primary/90 w-8 h-8 rounded-md flex justify-center items-center text-accent-primary z-5 border border-white/10 shadow-lg pointer-events-none">
-
-                    <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
-                        <path
-                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
-                    </svg>
-                </div>
-                }
-                }
-
-                <div class="absolute bottom-0 left-0 right-0 p-4 pr-14 bg-linear-to-t from-black/80 to-transparent flex justify-between opacity-0 group-hover:opacity-100 transition-opacity z-4">
-                    <span class="font-bold text-[0.8rem] text-white">#{{ post.id }}</span>
-                </div>
-            </a>
-            }
-        </div>
-
-        @if (pagedPosts.items.length === 0) {
-        <div class="col-span-full text-center p-12 text-text-muted bg-glass-bg rounded-lg">
+    @if (hasNoResults()) {
+        <div class="rounded-xl border border-glass-border bg-glass-bg p-10 text-center text-text-muted">
             No posts match your search.
         </div>
-        }
+    } @else {
+        <div
+            #viewportShell
+            class="posts-viewport-shell relative"
+            [class.posts-scrolling]="isScrolling() || fastScrollerDragging()">
 
-        <!-- Loading Bar -->
-        @if (postsState.isLoading) {
-        <div class="absolute -top-2.5 left-0 right-0 h-1.5 bg-white/5 overflow-hidden rounded-sm">
-            <div class="h-full w-[40%] bg-accent-primary shadow-[0_0_10px_var(--color-accent-primary)] animate-loading-move"></div>
+            <cdk-virtual-scroll-viewport
+                #postsViewport
+                appPostsCyclicGridStrategy
+                class="posts-virtual-viewport"
+                [appPostsCyclicGridStrategyPostRowHeightPx]="rowItemHeightPx()"
+                [appPostsCyclicGridStrategySeparatorRowHeightPx]="separatorRowHeightPx()"
+                [appPostsCyclicGridStrategyRowCount]="virtualRowCount()"
+                [appPostsCyclicGridStrategyTotalCount]="totalCount()"
+                [appPostsCyclicGridStrategyColumns]="columns()"
+                [appPostsCyclicGridStrategyPageSize]="pageSize"
+                [appPostsCyclicGridStrategyAnchorPageHint]="anchorPageHint()"
+                [appPostsCyclicGridStrategyMinBufferRows]="virtualMinBufferRows()"
+                [appPostsCyclicGridStrategyMaxBufferRows]="virtualMaxBufferRows()"
+                [style.height.px]="viewportHeightPx()">
+
+                <div
+                    class="virtual-row"
+                    *cdkVirtualFor="let _rowItem of virtualRowDataSource; let rowIndex = index; trackBy: trackVirtualRow"
+                    [style.height.px]="getRowHeightPx(rowIndex)"
+                    [class.virtual-row-separator]="isSeparatorRow(rowIndex)">
+
+                    @if (getVirtualRow(rowIndex); as row) {
+                        @if (row.kind === 'separator') {
+                            <div class="row-separator-content">
+                                <span class="page-divider-line"></span>
+                                <span class="page-divider-label">Page {{ row.page }}</span>
+                                <span class="page-divider-line"></span>
+                            </div>
+                        } @else {
+                            <div
+                                class="row-grid"
+                                [style.gridTemplateColumns]="gridTemplateColumns()"
+                                [style.columnGap.px]="gridGapPx"
+                                [style.paddingTop.px]="gridGapPx / 2"
+                                [style.paddingBottom.px]="gridGapPx / 2">
+                                @for (cell of getRowCells(row); track cell.trackKey) {
+                                    @if (cell.kind === 'post') {
+                                        @if (cell.post; as post) {
+                                            <a
+                                                class="post-tile group"
+                                                [routerLink]="appLinks.post(post.id)"
+                                                [queryParams]="{ query: activeQuery() || null }">
+                                                <img
+                                                    [src]="environment.mediaBaseUrl + post.thumbnailUrl"
+                                                    [alt]="'Post ' + post.id"
+                                                    class="post-tile-image"
+                                                    decoding="async"
+                                                    [attr.loading]="row.page === currentPage() && row.rowInPage === 0 ? 'eager' : 'lazy'" />
+
+                                                @if (post.isFavorite) {
+                                                    <div class="post-badge top-2 left-2 text-status-error">
+                                                        <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                                                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z" />
+                                                        </svg>
+                                                    </div>
+                                                }
+
+                                                @switch (getMediaType(post.contentType)) {
+                                                    @case ('video') {
+                                                        <div class="post-badge bottom-2 right-2 text-accent-primary">
+                                                            <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                                                                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                                                            </svg>
+                                                        </div>
+                                                    }
+                                                    @case ('animation') {
+                                                        <div class="post-badge bottom-2 right-2 text-accent-primary">
+                                                            <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+                                                            </svg>
+                                                        </div>
+                                                    }
+                                                }
+
+                                                <div class="post-overlay">
+                                                    <span>#{{ post.id }}</span>
+                                                </div>
+                                            </a>
+                                        }
+                                    } @else if (cell.kind === 'skeleton') {
+                                        <div class="post-tile-skeleton"></div>
+                                    } @else {
+                                    }
+                                }
+                            </div>
+
+                            @if (row.rowInPage === 0 && getPageStatus(row.page) === 'error') {
+                                <button type="button" class="row-error-chip" (click)="retryPage(row.page)">
+                                    Retry page {{ row.page }}
+                                </button>
+                            }
+                        }
+                    }
+                </div>
+            </cdk-virtual-scroll-viewport>
+
+            <div
+                #fastScrollerRail
+                class="fast-scroller-rail"
+                [class.fast-scroller-visible]="fastScrollerVisible()"
+                [class.fast-scroller-dragging]="fastScrollerDragging()"
+                (pointerdown)="onFastScrollerPointerDown($event)"
+                (pointermove)="onFastScrollerPointerMove($event)"
+                (pointerup)="onFastScrollerPointerUp($event)"
+                (pointercancel)="onFastScrollerPointerCancel($event)">
+                <div
+                    class="fast-scroller-thumb"
+                    [style.height.px]="fastScrollerThumbHeightPx()"
+                    [style.transform]="'translateY(' + fastScrollerThumbTopPx() + 'px)'">
+                </div>
+            </div>
+
+            @if (showFastScrollerBubble()) {
+                <div
+                    class="fast-scroller-bubble"
+                    [style.transform]="'translateY(' + fastScrollerBubbleTopPx() + 'px)'">
+                    Page {{ fastScrollerBubblePage() }}
+                </div>
+            }
         </div>
-        }
-
-        }
-        }
-    </div>
-
-    <!-- Pagination Controls -->
-    @if (totalPages() > 1) {
-    <div class="mt-8 flex justify-center pb-2" [style.paddingBottom]="'max(env(safe-area-inset-bottom),0.6rem)'">
-        <app-paginator [currentPage]="currentPage()" [totalPages]="totalPages()" (pageChange)="onPageChange($event)"></app-paginator>
-    </div>
-    }
     }
 </section>

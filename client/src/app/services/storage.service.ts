@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
     POSTS_PAGE_SIZE: 'posts_pageSize',
     POSTS_THUMBNAIL_SIZE: 'posts_thumbnailSize',
     POSTS_GRID_COLUMNS: 'posts_gridColumns',
+    POSTS_GRID_DENSITY: 'posts_gridDensity',
     // Legacy key kept for migration only.
     POSTS_GRID_SIZE_INDEX: 'posts_gridSizeIndex',
 
