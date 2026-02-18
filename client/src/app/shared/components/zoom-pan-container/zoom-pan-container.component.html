@@ -1,0 +1,8 @@
+<div class="w-full h-full overflow-hidden flex items-center justify-center" (wheel)="onWheel($event)"
+    (mousedown)="onMouseDown($event)" (mousemove)="onMouseMove($event)" (mouseup)="onMouseUp()"
+    (mouseleave)="onMouseUp()" (dblclick)="resetZoom()"
+    [style.cursor]="isZoomed() ? (isDragging ? 'grabbing' : 'grab') : 'default'">
+    <div class="w-full h-full flex items-center justify-center will-change-transform" [style.transform]="transform()">
+        <ng-content />
+    </div>
+</div>

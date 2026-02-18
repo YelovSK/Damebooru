@@ -1,4 +1,4 @@
-import { Component, inject, input, ChangeDetectionStrategy, signal, effect, DestroyRef, computed } from '@angular/core';
+import { Component, inject, input, ChangeDetectionStrategy, signal, effect, DestroyRef, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
@@ -16,6 +16,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { AutoTaggingResultsComponent } from '@shared/components/auto-tagging-results/auto-tagging-results.component';
 import { ProgressiveImageComponent } from '@shared/components/progressive-image/progressive-image.component';
+import { ZoomPanContainerComponent } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
 import { SimpleTabsComponent, SimpleTabComponent } from '@shared/components/simple-tabs';
 import { TooltipDirective } from '@shared/directives';
 import { HotkeysService } from '@services/hotkeys.service';
@@ -26,7 +27,7 @@ import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 
 @Component({
   selector: 'app-post-detail',
-  imports: [CommonModule, RouterLink, TagPipe, ButtonComponent, AutocompleteComponent, AutoTaggingResultsComponent, ProgressiveImageComponent, SimpleTabsComponent, SimpleTabComponent, TooltipDirective, FileSizePipe, FileNamePipe],
+  imports: [CommonModule, RouterLink, TagPipe, ButtonComponent, AutocompleteComponent, AutoTaggingResultsComponent, ProgressiveImageComponent, ZoomPanContainerComponent, SimpleTabsComponent, SimpleTabComponent, TooltipDirective, FileSizePipe, FileNamePipe],
   providers: [PostEditService],
   templateUrl: './post-detail.component.html',
   styleUrl: './post-detail.component.css',
@@ -55,6 +56,8 @@ export class PostDetailComponent {
 
   // Sidebar collapsed state
   sidebarCollapsed = signal(false);
+
+  private readonly zoomPan = viewChild<ZoomPanContainerComponent>('zoomPan');
 
   private swipePointerId: number | null = null;
   private swipeStartX: number | null = null;
@@ -442,6 +445,8 @@ export class PostDetailComponent {
     if (this.editService.isEditing()) {
       this.editService.cancelEditing();
     }
+
+    this.zoomPan()?.resetZoom();
 
     this.router.navigate(AppLinks.post(post.id), {
       queryParams: { query: this.query() },

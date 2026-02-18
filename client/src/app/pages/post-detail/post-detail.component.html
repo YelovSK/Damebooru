@@ -164,19 +164,21 @@
             <span class="text-sm">{{ sidebarCollapsed() ? '→' : '←' }}</span>
         </button>
 
-        @switch (getMediaType(pd.contentType)) {
-        @case ('image')
-        @case ('animation') {
-        <app-progressive-image [thumbnailSrc]="environment.mediaBaseUrl + pd.thumbnailUrl"
-            [fullSrc]="environment.mediaBaseUrl + pd.contentUrl" [alt]="'' + pd.id" [width]="pd.width"
-            [height]="pd.height" />
-        }
-        @case ('video') {
-        <video [src]="environment.mediaBaseUrl + pd.contentUrl" (loadeddata)="imageLoading.set(false)"
-            class="w-full h-full object-contain" controls [autoplay]="autoPlayVideos()" [muted]="startVideosMuted()"
-            loop></video>
-        }
-        }
+        <app-zoom-pan-container #zoomPan>
+            @switch (getMediaType(pd.contentType)) {
+            @case ('image')
+            @case ('animation') {
+            <app-progressive-image [thumbnailSrc]="environment.mediaBaseUrl + pd.thumbnailUrl"
+                [fullSrc]="environment.mediaBaseUrl + pd.contentUrl" [alt]="'' + pd.id" [width]="pd.width"
+                [height]="pd.height" />
+            }
+            @case ('video') {
+            <video [src]="environment.mediaBaseUrl + pd.contentUrl" (loadeddata)="imageLoading.set(false)"
+                class="w-full h-full object-contain" controls [autoplay]="autoPlayVideos()" [muted]="startVideosMuted()"
+                loop></video>
+            }
+            }
+        </app-zoom-pan-container>
 
         @if (around(); as nav) {
         <div class="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-2 pb-2 lg:hidden"

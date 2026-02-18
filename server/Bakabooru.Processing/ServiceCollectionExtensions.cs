@@ -57,6 +57,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IJob, Jobs.ExtractMetadataJob>();
         services.AddTransient<IJob, Jobs.ComputeSimilarityJob>();
         services.AddTransient<IJob, Jobs.ApplyFolderTagsJob>();
+        services.AddTransient<IJob, Jobs.SanitizeTagNamesJob>();
 
         return services;
     }

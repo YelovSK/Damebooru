@@ -64,6 +64,12 @@ public class DuplicateService
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
                     .ThenInclude(p => p.Library)
+            .Include(g => g.Entries)
+                .ThenInclude(e => e.Post)
+                    .ThenInclude(p => p.PostTags)
+            .Include(g => g.Entries)
+                .ThenInclude(e => e.Post)
+                    .ThenInclude(p => p.Sources)
             .FirstOrDefaultAsync(g => g.Id == groupId);
 
         if (group == null)
@@ -88,6 +94,12 @@ public class DuplicateService
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
                     .ThenInclude(p => p.Library)
+            .Include(g => g.Entries)
+                .ThenInclude(e => e.Post)
+                    .ThenInclude(p => p.PostTags)
+            .Include(g => g.Entries)
+                .ThenInclude(e => e.Post)
+                    .ThenInclude(p => p.Sources)
             .ToListAsync();
 
         if (exactGroups.Count == 0)
@@ -112,11 +124,51 @@ public class DuplicateService
 
     private async Task ResolveGroupKeepingPostAsync(DuplicateGroup group, int keepPostId, bool saveChanges = true)
     {
+        var keptEntry = group.Entries.First(e => e.PostId == keepPostId);
+        var keptPost = keptEntry.Post;
         var removedEntries = group.Entries.Where(e => e.PostId != keepPostId).ToList();
+
+        // Collect existing tag IDs and source URLs on the survivor
+        var existingTagIds = new HashSet<int>(keptPost.PostTags.Select(pt => pt.TagId));
+        var existingSourceUrls = new HashSet<string>(
+            keptPost.Sources.Select(s => s.Url),
+            StringComparer.OrdinalIgnoreCase);
+        var maxSourceOrder = keptPost.Sources.Count > 0
+            ? keptPost.Sources.Max(s => s.Order)
+            : -1;
 
         foreach (var entry in removedEntries)
         {
             var post = entry.Post;
+
+            // Merge tags from loser into survivor
+            foreach (var pt in post.PostTags)
+            {
+                if (existingTagIds.Add(pt.TagId))
+                {
+                    _context.PostTags.Add(new PostTag
+                    {
+                        PostId = keepPostId,
+                        TagId = pt.TagId,
+                    });
+                }
+            }
+
+            // Merge sources from loser into survivor
+            foreach (var source in post.Sources)
+            {
+                if (existingSourceUrls.Add(source.Url))
+                {
+                    maxSourceOrder++;
+                    _context.Set<PostSource>().Add(new PostSource
+                    {
+                        PostId = keepPostId,
+                        Url = source.Url,
+                        Order = maxSourceOrder,
+                    });
+                }
+            }
+
             var alreadyExcluded = await _context.ExcludedFiles.AnyAsync(
                 e => e.LibraryId == post.LibraryId && e.RelativePath == post.RelativePath);
 

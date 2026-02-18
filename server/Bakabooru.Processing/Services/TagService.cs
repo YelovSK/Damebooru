@@ -229,7 +229,7 @@ public class TagService
             .Trim();
     }
 
-    private static string SanitizeTagName(string name)
+    internal static string SanitizeTagName(string name)
     {
         var sanitized = name.Trim().ToLowerInvariant();
         sanitized = sanitized.Replace(':', '_');
