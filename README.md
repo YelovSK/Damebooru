@@ -50,13 +50,6 @@ npm start
 ### Database Migrations
 Migrations are auto-applied when `Bakabooru.Server` starts.
 
-Optional manual command:
-
-```bash
-cd server
-dotnet ef database update --project Bakabooru.Data --startup-project Bakabooru.Server
-```
-
 ## Deploy with Docker
 
 ### Option A: Use Published Images from GHCR
@@ -77,20 +70,26 @@ cp docker-compose.example.yml docker-compose.yml
 docker compose up -d
 ```
 
-Open the app at `http://localhost:8080` (or your mapped host port).
-
 ### Option B: Build Images Locally
-From repo root:
+1. Copy the dev compose example:
 
 ```bash
-docker build -t bakabooru-server ./server
-docker build -t bakabooru-client ./client
+cp docker-compose.dev.example.yml docker-compose.yml
 ```
 
-Then reference `bakabooru-server` and `bakabooru-client` in your compose file.
+2. Optionally copy defaults and edit them:
+
+```bash
+cp .env.example .env
+```
+
+3. Build and start:
+
+```bash
+docker compose up -d --build
+```
 
 ## Notes
-- Server internal container port is `6666` (`ASPNETCORE_URLS=http://+:6666`).
 - Client uses `BACKEND_HOST` and `BACKEND_PORT` to point Nginx to the API container.
 - In `docker-compose.example.yml`, server is intentionally not published to host by default; the client talks to it over the compose network.
 

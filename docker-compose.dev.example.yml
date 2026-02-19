@@ -1,0 +1,30 @@
+services:
+  server:
+    build:
+      context: ./server
+    image: bakabooru-server:dev
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_URLS: "http://+:${SERVER_PORT:-6666}"
+      Bakabooru__Storage__DatabasePath: /app/data/bakabooru.db
+      Bakabooru__Storage__ThumbnailPath: /app/data/thumbnails
+      Bakabooru__Storage__TempPath: /app/data/temp
+      Bakabooru__Auth__Enabled: "${AUTH_ENABLED:-true}"
+      Bakabooru__Auth__Username: "${AUTH_USERNAME:-admin}"
+      Bakabooru__Auth__Password: "${AUTH_PASSWORD:-change-me}"
+    volumes:
+      - ./data/server:/app/data
+      - ${MEDIA_PATH:-./media}:/media
+
+  client:
+    build:
+      context: ./client
+    image: bakabooru-client:dev
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      BACKEND_HOST: server
+      BACKEND_PORT: "${SERVER_PORT:-6666}"
+    ports:
+      - "${CLIENT_PORT:-8080}:80"
