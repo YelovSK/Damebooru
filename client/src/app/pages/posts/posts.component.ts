@@ -14,7 +14,7 @@ import {
   NgZone,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { Router, RouterLink } from "@angular/router";
+import { Router } from "@angular/router";
 import {
   CdkVirtualScrollViewport,
   ScrollingModule,
@@ -40,11 +40,12 @@ import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { HotkeysService } from "@services/hotkeys.service";
 import { DamebooruTagDto } from "@models";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
-import { escapeTagName, getMediaType } from "@shared/utils/utils";
+import { escapeTagName } from "@shared/utils/utils";
 import { AppLinks, AppPaths } from "@app/app.paths";
 import { StorageService, STORAGE_KEYS } from "@services/storage.service";
 import { SettingsService } from "@services/settings.service";
 import { PostPreviewOverlayComponent } from "@shared/components/post-preview-overlay/post-preview-overlay.component";
+import { PostTileComponent } from "@shared/components/post-tile/post-tile.component";
 import {
   getFirstVisibleOffsetForRowIndex,
   getPageForRowIndex,
@@ -73,11 +74,11 @@ import {
   selector: "app-posts",
   imports: [
     CommonModule,
-    RouterLink,
     AutocompleteComponent,
     ScrollingModule,
     PostsCyclicGridStrategyDirective,
     PostPreviewOverlayComponent,
+    PostTileComponent,
   ],
   providers: [PostsPageCacheStore, PostsFastScrollerController],
   templateUrl: "./posts.component.html",
@@ -570,10 +571,6 @@ export class PostsComponent implements AfterViewInit {
 
   retryPage(pageNumber: number): void {
     this.pageCacheStore.retry(pageNumber);
-  }
-
-  getMediaType(contentType: string) {
-    return getMediaType(contentType);
   }
 
   getThumbnailUrl(post: import("@models").DamebooruPostDto): string {

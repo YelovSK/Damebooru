@@ -10,6 +10,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
+import { AppPaths } from '@app/app.paths';
 
 @Component({
     selector: 'app-libraries',
@@ -23,6 +24,7 @@ export class LibrariesComponent {
     private readonly damebooru = inject(DamebooruService);
     private readonly toast = inject(ToastService);
     private readonly confirmService = inject(ConfirmService);
+    readonly appPaths = AppPaths;
 
     newLibraryName = signal('');
     newLibraryPath = signal('');

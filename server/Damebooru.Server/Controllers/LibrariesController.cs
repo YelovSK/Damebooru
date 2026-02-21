@@ -10,10 +10,12 @@ namespace Damebooru.Server.Controllers;
 public class LibrariesController : ControllerBase
 {
     private readonly LibraryService _libraryService;
+    private readonly LibraryBrowseService _libraryBrowseService;
 
-    public LibrariesController(LibraryService libraryService)
+    public LibrariesController(LibraryService libraryService, LibraryBrowseService libraryBrowseService)
     {
         _libraryService = libraryService;
+        _libraryBrowseService = libraryBrowseService;
     }
 
     [HttpGet]
@@ -52,6 +54,43 @@ public class LibrariesController : ControllerBase
     public async Task<IActionResult> DeleteIgnoredPath(int id, int ignoredPathId)
     {
         return await _libraryService.DeleteIgnoredPathAsync(id, ignoredPathId).ToHttpResult();
+    }
+
+    [HttpGet("{id}/browse")]
+    public async Task<IActionResult> BrowseLibrary(
+        int id,
+        [FromQuery] string? path,
+        [FromQuery] bool recursive = false,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 80,
+        CancellationToken cancellationToken = default)
+    {
+        return await _libraryBrowseService
+            .BrowseAsync(id, path, recursive, page, pageSize, cancellationToken)
+            .ToHttpResult();
+    }
+
+    [HttpGet("{id}/folders")]
+    public async Task<IActionResult> GetLibraryFolders(
+        int id,
+        [FromQuery] string? path,
+        CancellationToken cancellationToken = default)
+    {
+        return await _libraryBrowseService
+            .GetFoldersAsync(id, path, cancellationToken)
+            .ToHttpResult();
+    }
+
+    [HttpGet("{id}/posts/{postId:int}/around")]
+    public async Task<IActionResult> GetLibraryPostsAround(
+        int id,
+        int postId,
+        [FromQuery] string? path,
+        CancellationToken cancellationToken = default)
+    {
+        return await _libraryBrowseService
+            .GetPostsAroundAsync(id, postId, path, cancellationToken)
+            .ToHttpResult();
     }
 
     [HttpPost("{id}/scan")]

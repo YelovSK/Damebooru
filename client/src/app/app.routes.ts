@@ -25,6 +25,7 @@ export const routes: Routes = [
             { path: `${AppPaths.post}/:id`, component: PostDetailComponent, data: { pageWidth: 'full' } },
             { path: AppPaths.bulkTagging, component: BulkTaggingComponent, data: { pageWidth: 'full' } },
             { path: AppPaths.libraries, component: LibrariesComponent, data: { pageWidth: 'content' } },
+            { path: `${AppPaths.libraries}/:id/${AppPaths.libraryExplorer}`, loadComponent: () => import('./pages/library-explorer/library-explorer.component').then(m => m.LibraryExplorerComponent), data: { pageWidth: 'full' } },
             { path: AppPaths.tags, redirectTo: `${AppPaths.tags}/tags`, pathMatch: 'full' },
             { path: `${AppPaths.tags}/:tab`, loadComponent: () => import('./pages/tags/tag-management-page.component').then(m => m.TagManagementPageComponent), data: { pageWidth: 'wide' } },
             { path: AppPaths.tagCategories, redirectTo: `${AppPaths.tags}/categories`, pathMatch: 'full' },

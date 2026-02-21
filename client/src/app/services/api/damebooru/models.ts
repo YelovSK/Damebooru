@@ -36,6 +36,32 @@ export interface AddLibraryIgnoredPathResult {
   removedPostCount: number;
 }
 
+export interface LibraryBrowseBreadcrumb {
+  name: string;
+  path: string;
+}
+
+export interface LibraryFolderNode {
+  name: string;
+  path: string;
+  recursivePostCount: number;
+  hasChildren: boolean;
+  children: LibraryFolderNode[];
+}
+
+export interface LibraryBrowseResponse {
+  libraryId: number;
+  libraryName: string;
+  currentPath: string;
+  recursive: boolean;
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  breadcrumbs: LibraryBrowseBreadcrumb[];
+  childFolders: LibraryFolderNode[];
+  posts: DamebooruPostDto[];
+}
+
 export interface ManagedTagCategory {
   id: number;
   name: string;

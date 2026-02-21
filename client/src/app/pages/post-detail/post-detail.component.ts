@@ -97,6 +97,20 @@ export class PostDetailComponent {
 
   id = input.required<string>();
   query = input<string | null>("");
+  explorerLibraryId = input<string | null>(null);
+  explorerPath = input<string | null>(null);
+
+  readonly activeExplorerLibraryId = computed(() =>
+    this.parsePositiveInt(this.explorerLibraryId()),
+  );
+  readonly activeExplorerPath = computed(() =>
+    this.normalizeExplorerPath(this.explorerPath()),
+  );
+  readonly detailQueryParams = computed(() => ({
+    query: this.query() || null,
+    explorerLibraryId: this.activeExplorerLibraryId() ?? null,
+    explorerPath: this.activeExplorerPath() || null,
+  }));
 
   // Sidebar collapsed state
   sidebarCollapsed = signal(false);
@@ -159,9 +173,25 @@ export class PostDetailComponent {
 
   // Pre-fetch surrounding posts
   around = toSignal(
-    combineLatest([toObservable(this.id), toObservable(this.query)]).pipe(
-      switchMap(([id, query]) =>
-        this.damebooru.getPostsAround(Number(id), query!).pipe(
+    combineLatest([
+      toObservable(this.id),
+      toObservable(this.query),
+      toObservable(this.explorerLibraryId),
+      toObservable(this.explorerPath),
+    ]).pipe(
+      switchMap(([id, query, explorerLibraryId, explorerPath]) => {
+        const parsedExplorerLibraryId = this.parsePositiveInt(explorerLibraryId);
+        const normalizedExplorerPath = this.normalizeExplorerPath(explorerPath);
+
+        const aroundRequest = parsedExplorerLibraryId !== null
+          ? this.damebooru.getLibraryPostsAround(
+              parsedExplorerLibraryId,
+              Number(id),
+              normalizedExplorerPath,
+            )
+          : this.damebooru.getPostsAround(Number(id), query ?? "");
+
+        return aroundRequest.pipe(
           tap((around) => {
             if (around.prev) this.setCachedPost(around.prev);
             if (around.next) this.setCachedPost(around.next);
@@ -173,8 +203,8 @@ export class PostDetailComponent {
             );
             return of({ prev: null, next: null } as DamebooruPostsAroundDto);
           }),
-        ),
-      ),
+        );
+      }),
     ),
   );
 
@@ -546,9 +576,36 @@ export class PostDetailComponent {
     this.zoomPan()?.resetZoom();
 
     this.router.navigate(AppLinks.post(post.id), {
-      queryParams: { query: this.query() },
+      queryParams: this.detailQueryParams(),
       replaceUrl: true,
     });
+  }
+
+  private parsePositiveInt(value: string | null | undefined): number | null {
+    if (!value) {
+      return null;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      return null;
+    }
+
+    return parsed;
+  }
+
+  private normalizeExplorerPath(value: string | null | undefined): string {
+    if (!value) {
+      return "";
+    }
+
+    const parts = value
+      .replace(/\\/g, "/")
+      .split("/")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0 && part !== "." && part !== "..");
+
+    return parts.join("/");
   }
 
   protected trackByTag(tag: DamebooruTagDto): string {

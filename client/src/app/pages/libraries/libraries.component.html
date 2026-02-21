@@ -82,6 +82,13 @@
                         <app-button
                             variant="secondary"
                             size="sm"
+                            [routerLink]="['/', appPaths.libraries, lib.id, appPaths.libraryExplorer]"
+                            [disabled]="editingLibraryId() === lib.id">
+                            Browse
+                        </app-button>
+                        <app-button
+                            variant="secondary"
+                            size="sm"
                             [disabled]="editingLibraryId() === lib.id"
                             (click)="startRename(lib)">
                             Rename

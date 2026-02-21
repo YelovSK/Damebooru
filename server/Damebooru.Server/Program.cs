@@ -96,6 +96,7 @@ builder.Services.AddScoped<PostReadService>();
 builder.Services.AddScoped<PostWriteService>();
 builder.Services.AddScoped<PostContentService>();
 builder.Services.AddScoped<LibraryService>();
+builder.Services.AddScoped<LibraryBrowseService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<TagCategoryService>();
 builder.Services.AddScoped<DuplicateService>();

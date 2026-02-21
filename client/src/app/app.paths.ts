@@ -13,7 +13,8 @@ export const AppPaths = {
         autoTagging: 'auto-tagging'
     },
     jobs: 'jobs',
-    duplicates: 'duplicates'
+    duplicates: 'duplicates',
+    libraryExplorer: 'explorer'
 } as const;
 
 // Helper to build array commands for Router.navigate or [routerLink]
@@ -31,4 +32,5 @@ export const AppLinks = {
     settingsAutoTagging: () => ['/', AppPaths.settings.root, AppPaths.settings.autoTagging],
     jobs: () => ['/', AppPaths.jobs],
     duplicates: () => ['/', AppPaths.duplicates],
+    libraryExplorer: (libraryId: string | number) => ['/', AppPaths.libraries, libraryId, AppPaths.libraryExplorer],
 };

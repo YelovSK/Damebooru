@@ -8,6 +8,8 @@ import {
   AuthSessionResponse,
   Library,
   LibraryIgnoredPath,
+  LibraryBrowseResponse,
+  LibraryFolderNode,
   PagedSearchResult,
   DamebooruPagedResponse,
   DamebooruPostDto,
@@ -165,6 +167,54 @@ export class DamebooruService {
     );
   }
 
+  getLibraryBrowse(
+    libraryId: number,
+    options?: {
+      path?: string;
+      recursive?: boolean;
+      page?: number;
+      pageSize?: number;
+    },
+  ): Observable<LibraryBrowseResponse> {
+    let params = new HttpParams();
+
+    if (options?.path) {
+      params = params.set("path", options.path);
+    }
+
+    if (options?.recursive) {
+      params = params.set("recursive", "true");
+    }
+
+    if (options?.page) {
+      params = params.set("page", String(options.page));
+    }
+
+    if (options?.pageSize) {
+      params = params.set("pageSize", String(options.pageSize));
+    }
+
+    return this.http.get<LibraryBrowseResponse>(
+      `${this.baseUrl}/libraries/${libraryId}/browse`,
+      { params },
+    );
+  }
+
+  getLibraryFolders(
+    libraryId: number,
+    path = "",
+  ): Observable<LibraryFolderNode[]> {
+    let params = new HttpParams();
+    if (path.trim().length > 0) {
+      params = params.set("path", path.trim());
+    }
+
+    return this.http.get<LibraryFolderNode[]>(
+      `${this.baseUrl}/libraries/${libraryId}/folders`,
+      { params },
+    );
+  }
+
   // --- Posts ---
   getPosts(
     query = "",
@@ -308,6 +358,22 @@ export class DamebooruService {
 
     return this.http.get<DamebooruPostsAroundDto>(
       `${this.baseUrl}/posts/${id}/around`,
+      { params },
+    );
+  }
+
+  getLibraryPostsAround(
+    libraryId: number,
+    postId: number,
+    path = "",
+  ): Observable<DamebooruPostsAroundDto> {
+    let params = new HttpParams();
+    if (path.trim().length > 0) {
+      params = params.set("path", path.trim());
+    }
+
+    return this.http.get<DamebooruPostsAroundDto>(
+      `${this.baseUrl}/libraries/${libraryId}/posts/${postId}/around`,
       { params },
     );
   }

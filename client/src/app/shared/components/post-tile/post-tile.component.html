@@ -1,0 +1,38 @@
+<a class="post-tile group relative block aspect-square overflow-hidden rounded-xl border border-slate-400/12 bg-bg-secondary transition-[transform,box-shadow,border-color] duration-200 hover:z-[2] hover:-translate-y-[1px] hover:scale-[1.012] hover:border-sky-400/50 hover:shadow-[0_10px_22px_rgba(15,23,42,0.36)]"
+  [routerLink]="['/', appPaths.post, post().id]" [queryParams]="queryParams()" [attr.data-post-id]="post().id">
+  <img [src]="getThumbnailUrl()" [alt]="'Post ' + post().id" class="block h-full w-full object-cover" decoding="async" />
+
+  @if (post().isFavorite) {
+  <div
+    class="pointer-events-none absolute top-2 left-2 z-[5] inline-flex h-[1.78rem] w-[1.78rem] items-center justify-center rounded-[0.45rem] border border-white/18 bg-slate-900/90 text-status-error">
+    <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+      <path
+        d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54z" />
+    </svg>
+  </div>
+  }
+
+  @switch (getMediaType(post().contentType)) {
+  @case ('video') {
+  <div
+    class="pointer-events-none absolute bottom-2 right-2 z-[5] inline-flex h-[1.78rem] w-[1.78rem] items-center justify-center rounded-[0.45rem] border border-white/18 bg-slate-900/90 text-accent-primary">
+    <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+      <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+    </svg>
+  </div>
+  }
+  @case ('animation') {
+  <div
+    class="pointer-events-none absolute bottom-2 right-2 z-[5] inline-flex h-[1.78rem] w-[1.78rem] items-center justify-center rounded-[0.45rem] border border-white/18 bg-slate-900/90 text-accent-primary">
+    <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+    </svg>
+  </div>
+  }
+  }
+
+  <div
+    class="post-overlay pointer-events-none absolute inset-x-0 bottom-0 z-[4] flex min-h-[2.35rem] items-end bg-gradient-to-t from-black/82 to-transparent px-[0.58rem] py-2 text-[0.74rem] font-bold text-slate-50 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+    <span>#{{ post().id }}</span>
+  </div>
+</a>
