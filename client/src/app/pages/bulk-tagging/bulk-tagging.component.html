@@ -187,8 +187,8 @@
 
             <!-- Selection Checkbox -->
             <div class="absolute top-2 left-2">
-                <input type="checkbox" [checked]="isSelected(post.id)" class="w-4 h-4 accent-accent-primary"
-                    (click)="$event.stopPropagation()" />
+                <app-form-checkbox [ngModel]="isSelected(post.id)" (ngModelChange)="toggleSelect(post.id)"
+                    id="bulk-select-{{post.id}}" (click)="$event.stopPropagation()"></app-form-checkbox>
             </div>
 
             <!-- Post Info -->

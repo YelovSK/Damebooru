@@ -10,6 +10,9 @@ namespace Bakabooru.Processing.Jobs;
 
 public class ApplyFolderTagsJob : IJob
 {
+    public const string JobKey = "apply-folder-tags";
+    public const string JobName = "Apply Folder Tags";
+
     private sealed record FolderTagCandidate(int Id, string RelativePath);
     private sealed record ExistingFolderTagLink(int PostId, int TagId, string TagName);
 
@@ -23,7 +26,8 @@ public class ApplyFolderTagsJob : IJob
     }
 
     public int DisplayOrder => 70;
-    public string Name => "Apply Folder Tags";
+    public string Key => JobKey;
+    public string Name => JobName;
     public string Description => "Adds tags to posts based on parent folders (spaces become underscores).";
     public bool SupportsAllMode => false;
 

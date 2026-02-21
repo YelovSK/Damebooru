@@ -1,4 +1,4 @@
-import { Component, input, TemplateRef, contentChild, ChangeDetectionStrategy } from '@angular/core';
+import { Component, input, TemplateRef, contentChild, ChangeDetectionStrategy, EventEmitter, Output } from '@angular/core';
 
 @Component({
   selector: 'app-tab',
@@ -18,4 +18,21 @@ export class TabComponent {
 
   /** Template content for this tab */
   content = contentChild(TemplateRef);
+
+  /** Fires every time tab becomes active */
+  @Output() open = new EventEmitter<void>();
+
+  /** Fires only once, first time tab becomes active */
+  @Output() init = new EventEmitter<void>();
+
+  private hasInitialized = false;
+
+  notifyActivated(): void {
+    if (!this.hasInitialized) {
+      this.hasInitialized = true;
+      this.init.emit();
+    }
+
+    this.open.emit();
+  }
 }

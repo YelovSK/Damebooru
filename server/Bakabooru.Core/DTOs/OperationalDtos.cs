@@ -6,6 +6,7 @@ namespace Bakabooru.Core.DTOs;
 
 public class JobViewDto
 {
+    public string Key { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool SupportsAllMode { get; set; }
@@ -89,6 +90,11 @@ public class DuplicateGroupDto
 public class ResolveAllExactResponseDto
 {
     public int Resolved { get; set; }
+}
+
+public class MarkAllUnresolvedResponseDto
+{
+    public int Unresolved { get; set; }
 }
 
 public class SameFolderDuplicatePostDto

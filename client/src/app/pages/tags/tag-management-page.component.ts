@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
@@ -48,7 +48,7 @@ type EditCategoryModel = {
   templateUrl: './tag-management-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TagManagementPageComponent implements OnInit {
+export class TagManagementPageComponent {
   private readonly api = inject(BakabooruService);
   private readonly toast = inject(ToastService);
   private readonly confirmService = inject(ConfirmService);
@@ -117,9 +117,24 @@ export class TagManagementPageComponent implements OnInit {
   // Merge tag autocomplete
   mergeTagSuggestions = signal<ManagedTag[]>([]);
   mergeTargetId = signal<number | null>(null);
+  private tagsTabInitialized = false;
+  private categoriesTabInitialized = false;
 
-  ngOnInit(): void {
+  onTagsTabInit(): void {
+    if (this.tagsTabInitialized) {
+      return;
+    }
+
+    this.tagsTabInitialized = true;
     this.loadTags();
+  }
+
+  onCategoriesTabInit(): void {
+    if (this.categoriesTabInitialized) {
+      return;
+    }
+
+    this.categoriesTabInitialized = true;
     this.loadCategories();
   }
 

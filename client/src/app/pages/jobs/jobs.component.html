@@ -115,7 +115,8 @@
               </td>
               <td class="py-2 text-sm" [appTooltip]="schedule.lastRun | dateTime" [tooltipFollowCursor]="true">{{ schedule.lastRun | relativeDuration: now() }}</td>
               <td class="py-2">
-                <input type="checkbox" [(ngModel)]="schedule.isEnabled" class="w-4 h-4">
+                <app-form-checkbox [ngModel]="schedule.isEnabled" (ngModelChange)="schedule.isEnabled = $event"
+                  id="schedule-enabled-{{schedule.id}}"></app-form-checkbox>
               </td>
               <td class="py-2">
                 <app-button variant="secondary" size="xs" (click)="updateSchedule(schedule)">Save</app-button>

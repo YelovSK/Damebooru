@@ -306,4 +306,3 @@ public class LibraryService
         return removed;
     }
 }
-

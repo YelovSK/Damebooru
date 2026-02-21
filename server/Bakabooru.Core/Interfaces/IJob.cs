@@ -21,6 +21,7 @@ public class JobContext
 public interface IJob
 {
     int DisplayOrder { get; }
+    string Key { get; }
     string Name { get; }
     string Description { get; }
     bool SupportsAllMode { get; }

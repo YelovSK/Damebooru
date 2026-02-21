@@ -3,198 +3,108 @@
     <p class="text-gray-400 mb-6">Review and resolve duplicate posts, or manage excluded files.</p>
 
     <app-tabs>
-        <!-- Duplicate Groups Tab -->
-        <app-tab id="groups" label="Duplicate Groups">
+        <app-tab id="groups" label="Duplicate Groups" (init)="onGroupsTabInit()">
             <ng-template>
-                <!-- Summary Bar -->
+                <div class="mb-4 flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-900 px-4 py-3">
+                    <app-form-checkbox id="same-folder-only" [ngModel]="showSameFolderOnly()"
+                        label="Show same-folder candidates only (enables disk delete actions)"
+                        (ngModelChange)="onSameFolderOnlyChange($event)">
+                    </app-form-checkbox>
+                </div>
+
                 <div class="mb-6 flex flex-wrap gap-3">
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
-                        <div class="text-3xl font-bold text-white">{{ groups().length }}</div>
-                        <div class="text-sm text-gray-400">Unresolved Groups</div>
+                        <div class="text-3xl font-bold text-white">{{ getVisibleGroupCount() }}</div>
+                        <div class="text-sm text-gray-400">Visible Groups</div>
                     </div>
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
-                        <div class="text-3xl font-bold text-blue-400">{{ exactCount() }}</div>
-                        <div class="text-sm text-gray-400">Exact (Content Hash)</div>
+                        <div class="text-3xl font-bold text-blue-400">{{ getVisiblePostCount() }}</div>
+                        <div class="text-sm text-gray-400">Visible Posts</div>
                     </div>
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
-                        <div class="text-3xl font-bold text-purple-400">{{ perceptualCount() }}</div>
-                        <div class="text-sm text-gray-400">Perceptual (dHash)</div>
+                        <div class="text-3xl font-bold text-indigo-400">{{ getVisibleExactCount() }}</div>
+                        <div class="text-sm text-gray-400">Visible Exact</div>
+                    </div>
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-purple-400">{{ getVisiblePerceptualCount() }}</div>
+                        <div class="text-sm text-gray-400">Visible Perceptual</div>
                     </div>
                 </div>
 
-                <!-- Bulk Actions -->
-                @if (exactCount() > 0) {
-                <div class="mb-6">
-                    <button (click)="resolveAllExact()"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors">
-                        Deduplicate All Exact ({{ exactCount() }} groups)
-                    </button>
-                    <span class="text-xs text-gray-500 ml-3">Keeps the oldest post in each group</span>
+                @if (canBulkResolveVisible()) {
+                <div class="mb-6 flex items-center gap-3">
+                    <app-button (click)="resolveAllVisible()" [variant]="showSameFolderOnly() ? 'danger' : 'primary'" size="md">
+                        {{ getBulkResolveButtonLabel() }}
+                    </app-button>
+                    <span class="text-xs text-gray-500">{{ getBulkResolveHint() }}</span>
                 </div>
                 }
 
-                <!-- Empty State -->
-                @if (!loading() && groups().length === 0) {
+                @if (getDuplicatesLoading()) {
+                <div class="text-center py-16 text-gray-400">Loading duplicates...</div>
+                } @else if (getVisibleGroupCount() === 0) {
                 <div class="text-center py-16">
                     <div class="text-6xl mb-4">✓</div>
                     <h2 class="text-xl font-semibold text-white mb-2">No duplicates found</h2>
-                    <p class="text-gray-400">Run "Find Duplicates" from the Jobs page to scan for duplicates.</p>
+                    <p class="text-gray-400">Run "Find Duplicates" from the Jobs page to refresh duplicate groups.</p>
                 </div>
-                }
-
-                <!-- Loading -->
-                @if (loading()) {
-                <div class="text-center py-16 text-gray-400">Loading...</div>
-                }
-
-                <!-- Duplicate Groups -->
-                @for (group of groups(); track group.id) {
+                } @else {
+                @for (group of pagedVisibleGroups(); track trackVisibleGroup($index, group)) {
                 <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 md:p-5 mb-6 shadow-lg">
-                    <!-- Group Header -->
                     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div class="flex items-center gap-3">
+                        <div class="flex flex-wrap items-center gap-3">
                             <span [class]="group.type === 'exact'
                               ? 'bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold'
                               : 'bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold'">
                                 {{ group.type === 'exact' ? 'EXACT' : 'PERCEPTUAL' }}
                             </span>
                             @if (group.similarityPercent) {
-                            <span class="text-sm text-gray-400">
-                                ~{{ group.similarityPercent }}% similar
-                            </span>
-                            }
-                            <span class="text-sm text-gray-500">
-                                {{ group.posts.length }} posts · detected {{ group.detectedDate | date:'short' }}
-                            </span>
-                        </div>
-                        <button (click)="keepAll(group)"
-                            class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm transition-colors">
-                            Keep All
-                        </button>
-                    </div>
-
-                    <!-- Thumbnails Grid -->
-                    <div class="flex flex-wrap gap-3">
-                        @for (post of group.posts; track post.id) {
-                        <div
-                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-accent-primary transition-colors">
-                            <!-- Thumbnail -->
-                            <div class="relative aspect-square overflow-hidden cursor-pointer" role="button"
-                                tabindex="0" (click)="keepOne(group, post)" (keydown.enter)="keepOne(group, post)"
-                                (keydown.space)="keepOne(group, post); $event.preventDefault()">
-                                <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
-                                    class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
-                                <!-- Keep this overlay on hover -->
-                                <div
-                                    class="absolute inset-0 bg-black/60 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center">
-                                    <span class="bg-accent-primary text-white font-bold px-4 py-2 rounded text-sm">Keep
-                                        This</span>
-                                </div>
-                            </div>
-
-                            <!-- Info overlay -->
-                            <a [routerLink]="['/post', post.id]"
-                                class="block p-2 hover:bg-gray-700/50 transition-colors">
-                                <div class="text-xs text-gray-400 truncate mb-1" [title]="post.relativePath">{{
-                                    post.relativePath | fileName }}</div>
-                                <div class="flex justify-between text-xs text-gray-500">
-                                    <span>{{ post.width }}×{{ post.height }}</span>
-                                    <span>{{ post.sizeBytes | fileSize }}</span>
-                                </div>
-                            </a>
-                        </div>
-                        }
-                    </div>
-                </div>
-                }
-            </ng-template>
-        </app-tab>
-
-        <!-- Same Folder Tab -->
-        <app-tab id="same-folder" label="Same Folder">
-            <ng-template>
-                <p class="text-sm text-text-muted mb-4">
-                    Duplicates scoped to the same library folder. Click any post to delete that specific file from
-                    disk. Auto resolve keeps the highest-quality post in each group.
-                </p>
-
-                <div class="mb-6 flex flex-wrap gap-3">
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
-                        <div class="text-3xl font-bold text-white">{{ sameFolderGroups().length }}</div>
-                        <div class="text-sm text-gray-400">Same-Folder Groups</div>
-                    </div>
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
-                        <div class="text-3xl font-bold text-blue-400">{{ getSameFolderPostCount() }}</div>
-                        <div class="text-sm text-gray-400">Posts In Groups</div>
-                    </div>
-                </div>
-
-                @if (!sameFolderLoading() && sameFolderGroups().length > 0) {
-                <div class="mb-6">
-                    <button (click)="resolveAllSameFolder()"
-                        class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition-colors">
-                        Auto Resolve All Same-Folder Groups ({{ sameFolderGroups().length }})
-                    </button>
-                    <span class="text-xs text-gray-500 ml-3">Keeps highest-quality post and deletes others</span>
-                </div>
-                }
-
-                @if (sameFolderLoading()) {
-                <div class="text-center py-16 text-gray-400">Loading same-folder groups...</div>
-                } @else if (sameFolderGroups().length === 0) {
-                <div class="text-center py-16">
-                    <div class="text-6xl mb-4">📁</div>
-                    <h2 class="text-xl font-semibold text-white mb-2">No same-folder duplicates</h2>
-                    <p class="text-gray-400">Run "Find Duplicates" to refresh duplicate groups.</p>
-                </div>
-                } @else {
-                @for (group of sameFolderGroups(); track trackSameFolderGroup($index, group)) {
-                <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 md:p-5 mb-6 shadow-lg">
-                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <span [class]="group.duplicateType === 'exact'
-                              ? 'bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold'
-                              : 'bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold'">
-                                {{ group.duplicateType === 'exact' ? 'EXACT' : 'PERCEPTUAL' }}
-                            </span>
-                            <span class="text-sm text-gray-300">{{ group.libraryName }} / {{ getFolderDisplayPath(group) }}</span>
-                            @if (group.similarityPercent) {
                             <span class="text-sm text-gray-400">~{{ group.similarityPercent }}% similar</span>
                             }
                             <span class="text-sm text-gray-500">{{ group.posts.length }} posts</span>
+                            @if (group.detectedDate) {
+                            <span class="text-sm text-gray-500">detected {{ group.detectedDate | date:'short' }}</span>
+                            }
+                            @if (group.libraryName) {
+                            <span class="text-sm text-gray-300">{{ group.libraryName }} / {{ getFolderDisplayPath(group) }}</span>
+                            }
                         </div>
-                        <button (click)="resolveSameFolderGroup(group)"
-                            class="bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded text-sm transition-colors">
-                            Auto Resolve Group
-                        </button>
-                    </div>
-
-                    <div class="mb-3 text-xs text-gray-400">
-                        Auto keep recommendation:
-                        <span class="text-green-400">
-                            {{ getRecommendedKeepFileName(group) }}
-                        </span>
+                        <div class="flex items-center gap-2">
+                            <app-button (click)="onAutoResolveGroup(group)" variant="primary" size="sm">
+                                Auto Resolve Group
+                            </app-button>
+                            @if (!isSameFolderScope(group)) {
+                            <app-button (click)="onDismissGroup(group)" variant="secondary" size="sm">
+                                Dismiss Group
+                            </app-button>
+                            }
+                        </div>
                     </div>
 
                     <div class="flex flex-wrap gap-3">
-                        @for (post of group.posts; track trackSameFolderPost($index, post)) {
+                        @for (post of group.posts; track trackVisiblePost($index, post)) {
                         <div
-                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-red-500 transition-colors">
-                            <div class="relative aspect-square overflow-hidden cursor-pointer" role="button"
-                                tabindex="0" (click)="deleteSameFolderPost(group, post)"
-                                (keydown.enter)="deleteSameFolderPost(group, post)"
-                                (keydown.space)="deleteSameFolderPost(group, post); $event.preventDefault()">
+                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors"
+                            [class.hover:border-red-500]="isSameFolderScope(group)"
+                            [class.hover:border-accent-primary]="!isSameFolderScope(group)">
+                            <div class="relative aspect-square overflow-hidden">
                                 <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
                                     class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
+
                                 <div
-                                    class="absolute inset-0 bg-black/60 opacity-0 group-hover/card:opacity-100 transition-opacity flex items-center justify-center">
-                                    <span class="bg-red-600 text-white font-bold px-4 py-2 rounded text-sm">Delete
-                                        This</span>
+                                    class="absolute inset-x-0 bottom-0 bg-black/80 flex flex-col opacity-0 group-hover/card:opacity-100 transition-opacity">
+                                    <app-button variant="warning" size="xs" (click)="onExcludePost(group, post)">
+                                        <span class="text-sm leading-none">🚫</span> Exclude
+                                    </app-button>
+                                    @if (isSameFolderScope(group)) {
+                                    <app-button variant="danger" size="xs" (click)="onDeletePost(group, post)">
+                                        <span class="text-sm leading-none">🗑️</span> Delete
+                                    </app-button>
+                                    }
                                 </div>
                             </div>
 
-                            <a [routerLink]="['/post', post.id]"
-                                class="block p-2 hover:bg-gray-700/50 transition-colors">
+                            <a [routerLink]="['/post', post.id]" class="block p-2 hover:bg-gray-700/50 transition-colors">
                                 <div class="text-xs text-gray-400 truncate mb-1" [title]="post.relativePath">{{
                                     post.relativePath | fileName }}</div>
                                 <div class="flex justify-between text-xs text-gray-500">
@@ -203,7 +113,7 @@
                                 </div>
                             </a>
 
-                            @if (isRecommendedKeep(group, post)) {
+                            @if (post.isRecommendedKeep) {
                             <div
                                 class="pointer-events-none absolute left-2 top-2 rounded bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">
                                 KEEP (AUTO)
@@ -214,16 +124,113 @@
                     </div>
                 </div>
                 }
+                @if (visibleTotalPages() > 1) {
+                <div class="mt-4 flex justify-center">
+                    <app-paginator [currentPage]="visibleCurrentPage()" [totalPages]="visibleTotalPages()"
+                        (pageChange)="onVisiblePageChange($event)">
+                    </app-paginator>
+                </div>
+                }
                 }
             </ng-template>
         </app-tab>
 
-        <!-- Excluded Files Tab -->
-        <app-tab id="excluded" label="Excluded Files">
+        <app-tab id="resolved" label="Resolved Groups" (init)="onResolvedTabInit()">
+            <ng-template>
+                <div class="mb-6 flex flex-wrap gap-3">
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-white">{{ getResolvedGroupCount() }}</div>
+                        <div class="text-sm text-gray-400">Resolved Groups</div>
+                    </div>
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-blue-400">{{ getResolvedPostCount() }}</div>
+                        <div class="text-sm text-gray-400">Resolved Posts</div>
+                    </div>
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-indigo-400">{{ getResolvedExactCount() }}</div>
+                        <div class="text-sm text-gray-400">Resolved Exact</div>
+                    </div>
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-purple-400">{{ getResolvedPerceptualCount() }}</div>
+                        <div class="text-sm text-gray-400">Resolved Perceptual</div>
+                    </div>
+                </div>
+
+                @if (getResolvedGroupCount() > 0) {
+                <div class="mb-6">
+                    <app-button variant="primary" size="md" (click)="unresolveAllGroups()">
+                        Unresolve All Groups ({{ getResolvedGroupCount() }})
+                    </app-button>
+                </div>
+                }
+
+                @if (resolvedLoading()) {
+                <div class="text-center py-16 text-gray-400">Loading resolved groups...</div>
+                } @else if (resolvedGroups().length === 0) {
+                <div class="text-center py-16">
+                    <div class="text-6xl mb-4">🧹</div>
+                    <h2 class="text-xl font-semibold text-white mb-2">No resolved groups</h2>
+                    <p class="text-gray-400">Dismissed duplicate groups will appear here.</p>
+                </div>
+                } @else {
+                @for (group of pagedResolvedGroups(); track group.id) {
+                <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 md:p-5 mb-6 shadow-lg">
+                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <span [class]="group.type === 'exact'
+                              ? 'bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold'
+                              : 'bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold'">
+                                {{ group.type === 'exact' ? 'EXACT' : 'PERCEPTUAL' }}
+                            </span>
+                            @if (group.similarityPercent) {
+                            <span class="text-sm text-gray-400">~{{ group.similarityPercent }}% similar</span>
+                            }
+                            <span class="text-sm text-gray-500">{{ group.posts.length }} posts</span>
+                            <span class="text-sm text-gray-500">resolved {{ group.detectedDate | date:'short' }}</span>
+                        </div>
+                        <app-button variant="secondary" size="sm" (click)="unresolveGroup(group)">
+                            Mark Unresolved
+                        </app-button>
+                    </div>
+
+                    <div class="flex flex-wrap gap-3">
+                        @for (post of group.posts; track post.id) {
+                        <div
+                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-amber-500 transition-colors">
+                            <div class="relative aspect-square overflow-hidden">
+                                <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
+                                    class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
+                            </div>
+
+                            <a [routerLink]="['/post', post.id]" class="block p-2 hover:bg-gray-700/50 transition-colors">
+                                <div class="text-xs text-gray-400 truncate mb-1" [title]="post.relativePath">{{
+                                    post.relativePath | fileName }}</div>
+                                <div class="flex justify-between text-xs text-gray-500">
+                                    <span>{{ post.width }}×{{ post.height }}</span>
+                                    <span>{{ post.sizeBytes | fileSize }}</span>
+                                </div>
+                            </a>
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+                @if (resolvedTotalPages() > 1) {
+                <div class="mt-4 flex justify-center">
+                    <app-paginator [currentPage]="resolvedCurrentPage()" [totalPages]="resolvedTotalPages()"
+                        (pageChange)="onResolvedPageChange($event)">
+                    </app-paginator>
+                </div>
+                }
+                }
+            </ng-template>
+        </app-tab>
+
+        <app-tab id="excluded" label="Excluded Files" (init)="onExcludedTabInit()">
             <ng-template>
                 <p class="text-sm text-text-muted mb-4">
                     Files excluded during duplicate resolution. The files still exist on disk but are not imported.
-                    Click "Restore" to remove from the exclusion list — the file will be re-imported on the next scan.
+                    Click "Restore" to remove from the exclusion list - the file will be re-imported on the next scan.
                 </p>
 
                 @if (excludedLoading()) {
@@ -240,14 +247,11 @@
                     @for (file of excludedFiles(); track file.id) {
                     <div
                         class="bg-gray-900 border border-gray-700 rounded-lg overflow-hidden hover:border-gray-500 transition-colors">
-                        <!-- Image preview -->
                         <div class="aspect-square overflow-hidden bg-gray-800">
                             <img [src]="getExcludedFileContentUrl(file)" [alt]="file.relativePath"
-                                class="w-full h-full object-cover" loading="lazy"
-                                (error)="onExcludedImageError($event)">
+                                class="w-full h-full object-cover" loading="lazy" (error)="onExcludedImageError($event)">
                         </div>
 
-                        <!-- File info -->
                         <div class="p-3">
                             <div class="text-xs text-gray-400 truncate mb-1" [title]="file.relativePath">
                                 {{ file.relativePath | fileName }}
@@ -255,10 +259,9 @@
                             <div class="text-xs text-gray-500 mb-2">
                                 {{ file.libraryName }} · {{ file.excludedDate | date:'short' }}
                             </div>
-                            <button (click)="onExcludedRowClick(file)"
-                                class="w-full bg-gray-700 hover:bg-gray-600 text-white text-xs font-medium py-1.5 px-3 rounded transition-colors">
+                            <app-button variant="secondary" size="sm" (click)="onExcludedRowClick(file)" [fullWidth]="true">
                                 Restore
-                            </button>
+                            </app-button>
                         </div>
                     </div>
                     }

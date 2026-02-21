@@ -317,16 +317,40 @@ export class BakabooruService {
         return this.http.get<DuplicateGroup[]>(`${this.baseUrl}/duplicates`);
     }
 
+    getResolvedDuplicateGroups(): Observable<DuplicateGroup[]> {
+        return this.http.get<DuplicateGroup[]>(`${this.baseUrl}/duplicates/resolved`);
+    }
+
     keepAllInGroup(groupId: number): Observable<void> {
         return this.http.post<void>(`${this.baseUrl}/duplicates/${groupId}/keep-all`, {});
     }
 
-    keepOneInGroup(groupId: number, postId: number): Observable<void> {
-        return this.http.post<void>(`${this.baseUrl}/duplicates/${groupId}/keep/${postId}`, {});
+    markDuplicateGroupUnresolved(groupId: number): Observable<void> {
+        return this.http.post<void>(`${this.baseUrl}/duplicates/${groupId}/mark-unresolved`, {});
+    }
+
+    markAllDuplicateGroupsUnresolved(): Observable<{ unresolved: number }> {
+        return this.http.post<{ unresolved: number }>(`${this.baseUrl}/duplicates/resolved/mark-all-unresolved`, {});
+    }
+
+    autoResolveGroup(groupId: number): Observable<void> {
+        return this.http.post<void>(`${this.baseUrl}/duplicates/${groupId}/auto-resolve`, {});
+    }
+
+    excludePostFromGroup(groupId: number, postId: number): Observable<void> {
+        return this.http.post<void>(`${this.baseUrl}/duplicates/${groupId}/exclude/${postId}`, {});
+    }
+
+    deletePostFromGroup(groupId: number, postId: number): Observable<void> {
+        return this.http.post<void>(`${this.baseUrl}/duplicates/${groupId}/delete/${postId}`, {});
     }
 
     resolveAllExactDuplicates(): Observable<{ resolved: number }> {
         return this.http.post<{ resolved: number }>(`${this.baseUrl}/duplicates/resolve-all-exact`, {});
+    }
+
+    resolveAllDuplicateGroups(): Observable<{ resolved: number }> {
+        return this.http.post<{ resolved: number }>(`${this.baseUrl}/duplicates/resolve-all`, {});
     }
 
     getExcludedFiles(): Observable<ExcludedFile[]> {
@@ -345,9 +369,6 @@ export class BakabooruService {
         return this.http.get<SameFolderDuplicateGroup[]>(`${this.baseUrl}/duplicates/same-folder`);
     }
 
-    deleteSameFolderDuplicate(request: DeleteSameFolderDuplicateRequest): Observable<void> {
-        return this.http.post<void>(`${this.baseUrl}/duplicates/same-folder/delete`, request);
-    }
 
     resolveSameFolderGroup(request: ResolveSameFolderGroupRequest): Observable<ResolveSameFolderResponse> {
         return this.http.post<ResolveSameFolderResponse>(`${this.baseUrl}/duplicates/same-folder/resolve-group`, request);

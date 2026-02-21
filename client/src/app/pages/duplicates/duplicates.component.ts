@@ -1,9 +1,9 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
 import {
-  DeleteSameFolderDuplicateRequest,
   DuplicateGroup,
   DuplicatePost,
   ExcludedFile,
@@ -18,200 +18,373 @@ import { ConfirmService } from '@services/confirm.service';
 import { ToastService } from '@services/toast.service';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
+import { ButtonComponent } from '@shared/components/button/button.component';
+import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
+import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 
+type DuplicateScope = 'all' | 'same-folder';
+
+interface VisibleDuplicatePost {
+  id: number;
+  relativePath: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  fileModifiedDate: string;
+  thumbnailLibraryId: number;
+  thumbnailContentHash: string;
+  isRecommendedKeep: boolean;
+}
+
+interface VisibleDuplicateGroup {
+  key: string;
+  scope: DuplicateScope;
+  duplicateGroupId: number;
+  type: 'exact' | 'perceptual';
+  similarityPercent: number | null;
+  detectedDate: string | null;
+  libraryName: string | null;
+  folderPath: string | null;
+  sameFolderLibraryId: number | null;
+  posts: VisibleDuplicatePost[];
+}
 
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent],
+  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, FormCheckboxComponent, PaginatorComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
 })
-export class DuplicatesPageComponent implements OnInit {
+export class DuplicatesPageComponent {
   private readonly bakabooru = inject(BakabooruService);
   private readonly confirmService = inject(ConfirmService);
   private readonly toast = inject(ToastService);
 
-  // Duplicate groups state
   groups = signal<DuplicateGroup[]>([]);
   loading = signal(true);
   exactCount = signal(0);
   perceptualCount = signal(0);
 
-  // Excluded files state
+  resolvedGroups = signal<DuplicateGroup[]>([]);
+  resolvedLoading = signal(true);
+
   excludedFiles = signal<ExcludedFile[]>([]);
   excludedLoading = signal(true);
 
-  // Same-folder duplicate groups state
   sameFolderGroups = signal<SameFolderDuplicateGroup[]>([]);
   sameFolderLoading = signal(true);
 
+  showSameFolderOnly = signal(false);
+  readonly visiblePageSize = 25;
+  visiblePage = signal(1);
+  readonly resolvedPageSize = 25;
+  resolvedPage = signal(1);
+  private groupsTabInitialized = false;
+  private resolvedTabInitialized = false;
+  private excludedTabInitialized = false;
 
-  ngOnInit() {
+  onGroupsTabInit() {
+    if (this.groupsTabInitialized) {
+      return;
+    }
+
+    this.groupsTabInitialized = true;
     this.loadGroups();
-    this.loadExcludedFiles();
     this.loadSameFolderGroups();
   }
 
-  // --- Duplicate Groups ---
+  onResolvedTabInit() {
+    if (this.resolvedTabInitialized) {
+      return;
+    }
 
-  loadGroups() {
-    this.loading.set(true);
-    this.bakabooru.getDuplicateGroups().subscribe({
-      next: (groups) => {
-        this.groups.set(groups);
-        this.recountTypes();
-        this.loading.set(false);
-      },
-      error: () => this.loading.set(false)
+    this.resolvedTabInitialized = true;
+    this.loadResolvedGroups();
+  }
+
+  onExcludedTabInit() {
+    if (this.excludedTabInitialized) {
+      return;
+    }
+
+    this.excludedTabInitialized = true;
+    this.loadExcludedFiles();
+  }
+
+  onSameFolderOnlyChange(checked: boolean) {
+    this.showSameFolderOnly.set(checked);
+    this.visiblePage.set(1);
+  }
+
+  readonly visibleGroups = computed<VisibleDuplicateGroup[]>(() => {
+    if (this.showSameFolderOnly()) {
+      return this.sameFolderGroups().map(group => ({
+        key: `${group.parentDuplicateGroupId}:${group.libraryId}:${group.folderPath}`,
+        scope: 'same-folder',
+        duplicateGroupId: group.parentDuplicateGroupId,
+        type: group.duplicateType,
+        similarityPercent: group.similarityPercent,
+        detectedDate: null,
+        libraryName: group.libraryName,
+        folderPath: group.folderPath,
+        sameFolderLibraryId: group.libraryId,
+        posts: group.posts.map(post => ({
+          id: post.id,
+          relativePath: post.relativePath,
+          width: post.width,
+          height: post.height,
+          sizeBytes: post.sizeBytes,
+          fileModifiedDate: post.fileModifiedDate,
+          thumbnailLibraryId: post.thumbnailLibraryId,
+          thumbnailContentHash: post.thumbnailContentHash,
+          isRecommendedKeep: post.id === group.recommendedKeepPostId,
+        })),
+      }));
+    }
+
+    return this.groups().map(group => {
+      const recommendedKeepPostId = this.selectBestQualityVisiblePostId(group.posts);
+
+      return {
+        key: `${group.id}`,
+        scope: 'all',
+        duplicateGroupId: group.id,
+        type: group.type,
+        similarityPercent: group.similarityPercent,
+        detectedDate: group.detectedDate,
+        libraryName: null,
+        folderPath: null,
+        sameFolderLibraryId: null,
+        posts: group.posts.map(post => ({
+          id: post.id,
+          relativePath: post.relativePath,
+          width: post.width,
+          height: post.height,
+          sizeBytes: post.sizeBytes,
+          fileModifiedDate: post.fileModifiedDate,
+          thumbnailLibraryId: post.thumbnailLibraryId,
+          thumbnailContentHash: post.thumbnailContentHash,
+          isRecommendedKeep: recommendedKeepPostId !== null && post.id === recommendedKeepPostId,
+        })),
+      };
     });
-  }
+  });
 
-  keepAll(group: DuplicateGroup) {
-    this.bakabooru.keepAllInGroup(group.id).subscribe(() => {
-      this.groups.update(groups => groups.filter(g => g.id !== group.id));
-      this.recountTypes();
-    });
-  }
+  readonly visibleStats = computed(() => {
+    const groups = this.visibleGroups();
+    let postCount = 0;
+    let exactCount = 0;
+    let perceptualCount = 0;
 
-  keepOne(group: DuplicateGroup, post: DuplicatePost) {
-    this.confirmService.confirm({
-      title: 'Keep One Post',
-      message: `Keep "${getFileNameFromPath(post.relativePath)}" and remove the other ${group.posts.length - 1} post(s) from the booru?`,
-      confirmText: 'Keep This',
-      variant: 'danger',
-    }).subscribe(confirmed => {
-      if (!confirmed) return;
+    for (const group of groups) {
+      postCount += group.posts.length;
+      if (group.type === 'exact') {
+        exactCount++;
+      } else {
+        perceptualCount++;
+      }
+    }
 
-      this.bakabooru.keepOneInGroup(group.id, post.id).subscribe(() => {
-        this.groups.update(groups => groups.filter(g => g.id !== group.id));
-        this.recountTypes();
-        this.loadExcludedFiles();
-      });
-    });
-  }
-
-  resolveAllExact() {
-    const count = this.exactCount();
-
-    this.confirmService.confirm({
-      title: 'Resolve Exact Duplicates',
-      message: `Resolve all ${count} exact duplicate groups? This keeps the oldest post and removes the others from the booru.`,
-      confirmText: 'Resolve All',
-      variant: 'danger',
-    }).subscribe(confirmed => {
-      if (!confirmed) return;
-
-      this.bakabooru.resolveAllExactDuplicates().subscribe({
-        next: (result) => {
-          this.loadGroups();
-          this.loadExcludedFiles();
-          this.toast.success(`Resolved ${result.resolved} exact duplicate groups.`);
-        },
-        error: (err) => this.toast.error('Failed: ' + (err?.message || 'Unknown error'))
-      });
-    });
-  }
-
-  onImageError(event: Event) {
-    (event.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23374151" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239CA3AF" font-size="12">No image</text></svg>';
-  }
-
-  trackGroup(_: number, group: DuplicateGroup) { return group.id; }
-  trackPost(_: number, post: DuplicatePost) { return post.id; }
-
-  // --- Same-Folder Duplicate Groups ---
-
-  loadSameFolderGroups() {
-    this.sameFolderLoading.set(true);
-    this.bakabooru.getSameFolderDuplicateGroups().subscribe({
-      next: (groups) => {
-        this.sameFolderGroups.set(groups);
-        this.sameFolderLoading.set(false);
-      },
-      error: () => this.sameFolderLoading.set(false)
-    });
-  }
-
-  resolveAllSameFolder() {
-    const groupCount = this.sameFolderGroups().length;
-    this.confirmService.confirm({
-      title: 'Resolve All Same-Folder Groups',
-      message: `Auto-resolve all ${groupCount} same-folder duplicate group(s)? This keeps the highest-quality post and deletes the rest from disk.`,
-      confirmText: 'Resolve All',
-      variant: 'danger',
-    }).subscribe(confirmed => {
-      if (!confirmed) return;
-
-      this.bakabooru.resolveAllSameFolderDuplicates().subscribe({
-        next: (result) => {
-          this.loadSameFolderGroups();
-          this.loadGroups();
-          this.loadExcludedFiles();
-          this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
-        },
-        error: () => this.toast.error('Failed to resolve same-folder duplicates.')
-      });
-    });
-  }
-
-  resolveSameFolderGroup(group: SameFolderDuplicateGroup) {
-    const request: ResolveSameFolderGroupRequest = {
-      parentDuplicateGroupId: group.parentDuplicateGroupId,
-      libraryId: group.libraryId,
-      folderPath: group.folderPath,
+    return {
+      groupCount: groups.length,
+      postCount,
+      exactCount,
+      perceptualCount,
     };
+  });
+
+  readonly visibleTotalPages = computed(() =>
+    Math.max(1, Math.ceil(this.visibleStats().groupCount / this.visiblePageSize)));
+
+  readonly visibleCurrentPage = computed(() =>
+    Math.min(this.visiblePage(), this.visibleTotalPages()));
+
+  readonly pagedVisibleGroups = computed(() => {
+    const start = (this.visibleCurrentPage() - 1) * this.visiblePageSize;
+    return this.visibleGroups().slice(start, start + this.visiblePageSize);
+  });
+
+  readonly resolvedTotalPages = computed(() =>
+    Math.max(1, Math.ceil(this.resolvedGroups().length / this.resolvedPageSize)));
+
+  readonly resolvedCurrentPage = computed(() =>
+    Math.min(this.resolvedPage(), this.resolvedTotalPages()));
+
+  readonly pagedResolvedGroups = computed(() => {
+    const start = (this.resolvedCurrentPage() - 1) * this.resolvedPageSize;
+    return this.resolvedGroups().slice(start, start + this.resolvedPageSize);
+  });
+
+  getVisibleGroups(): VisibleDuplicateGroup[] {
+    return this.visibleGroups();
+  }
+
+  getVisibleGroupCount(): number {
+    return this.visibleStats().groupCount;
+  }
+
+  getVisiblePostCount(): number {
+    return this.visibleStats().postCount;
+  }
+
+  getVisibleExactCount(): number {
+    return this.visibleStats().exactCount;
+  }
+
+  getVisiblePerceptualCount(): number {
+    return this.visibleStats().perceptualCount;
+  }
+
+  getDuplicatesLoading(): boolean {
+    return this.showSameFolderOnly() ? this.sameFolderLoading() : this.loading();
+  }
+
+  canBulkResolveVisible(): boolean {
+    return this.visibleStats().groupCount > 0;
+  }
+
+  getBulkResolveButtonLabel(): string {
+    return `Auto Resolve All Visible (${this.visibleStats().groupCount} groups)`;
+  }
+
+  getBulkResolveButtonClass(): string {
+    return this.showSameFolderOnly()
+      ? 'bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition-colors'
+      : 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors';
+  }
+
+  getBulkResolveHint(): string {
+    return this.showSameFolderOnly()
+      ? 'Keeps highest-quality post and deletes others from disk'
+      : 'Keeps highest-quality post and removes others from booru';
+  }
+
+  isSameFolderScope(group: VisibleDuplicateGroup): boolean {
+    return group.scope === 'same-folder';
+  }
+
+  getFolderDisplayPath(group: VisibleDuplicateGroup): string {
+    if (!group.folderPath) {
+      return '(library root)';
+    }
+
+    return group.folderPath;
+  }
+
+  resolveAllVisible() {
+    if (this.showSameFolderOnly()) {
+      this.resolveAllSameFolder();
+      return;
+    }
+
+    this.resolveAllGroups();
+  }
+
+  onAutoResolveGroup(group: VisibleDuplicateGroup) {
+    if (group.scope === 'same-folder') {
+      const request: ResolveSameFolderGroupRequest = {
+        parentDuplicateGroupId: group.duplicateGroupId,
+        libraryId: group.sameFolderLibraryId!,
+        folderPath: group.folderPath ?? '',
+      };
+
+      this.confirmService.confirm({
+        title: 'Auto Resolve Group',
+        message: `Auto-resolve this same-folder group by keeping the highest-quality post and deleting the rest from disk?`,
+        confirmText: 'Auto Resolve',
+        variant: 'danger',
+      }).subscribe(confirmed => {
+        if (!confirmed) return;
+
+        this.bakabooru.resolveSameFolderGroup(request).subscribe({
+          next: (result) => {
+            this.reloadDuplicatesAndExcluded();
+            this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
+          },
+          error: () => this.toast.error('Failed to auto-resolve same-folder group.')
+        });
+      });
+
+      return;
+    }
 
     this.confirmService.confirm({
-      title: 'Auto Resolve Folder Group',
-      message: `Auto-resolve "${this.getFolderDisplayPath(group)}"? This keeps the highest-quality post and deletes ${Math.max(group.posts.length - 1, 0)} post(s) from disk.`,
+      title: 'Auto Resolve Group',
+      message: `Auto-resolve this group by keeping the highest-quality post and removing the others from the booru?`,
       confirmText: 'Auto Resolve',
       variant: 'danger',
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.resolveSameFolderGroup(request).subscribe({
-        next: (result) => {
-          if (result.resolvedGroups > 0 || result.deletedPosts > 0) {
-            this.sameFolderGroups.update(groups =>
-              groups.filter(g =>
-                !(g.parentDuplicateGroupId === group.parentDuplicateGroupId
-                  && g.libraryId === group.libraryId
-                  && g.folderPath === group.folderPath)));
-          } else {
-            this.loadSameFolderGroups();
-          }
-
-          this.loadGroups();
-          this.loadExcludedFiles();
-          this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
+      this.bakabooru.autoResolveGroup(group.duplicateGroupId).subscribe({
+        next: () => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success('Duplicate group auto-resolved.');
         },
-        error: () => this.toast.error('Failed to auto-resolve same-folder group.')
+        error: () => this.toast.error('Failed to auto-resolve duplicate group.')
       });
     });
   }
 
-  deleteSameFolderPost(group: SameFolderDuplicateGroup, post: SameFolderDuplicatePost) {
-    const request: DeleteSameFolderDuplicateRequest = {
-      parentDuplicateGroupId: group.parentDuplicateGroupId,
-      libraryId: group.libraryId,
-      folderPath: group.folderPath,
-      postId: post.id,
-    };
+  onDismissGroup(group: VisibleDuplicateGroup) {
+    if (group.scope === 'same-folder') {
+      return;
+    }
 
     this.confirmService.confirm({
-      title: 'Delete Duplicate Post',
+      title: 'Dismiss Group',
+      message: `Dismiss this group? All ${group.posts.length} posts will remain in the booru and on disk.`,
+      confirmText: 'Dismiss',
+      variant: 'warning',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.bakabooru.keepAllInGroup(group.duplicateGroupId).subscribe({
+        next: () => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success('Duplicate group dismissed.');
+        },
+        error: () => this.toast.error('Failed to dismiss duplicate group.')
+      });
+    });
+  }
+
+  onExcludePost(group: VisibleDuplicateGroup, post: VisibleDuplicatePost) {
+    this.confirmService.confirm({
+      title: 'Exclude Post',
+      message: `Exclude "${getFileNameFromPath(post.relativePath)}" from the booru? The file will remain on disk and will not be imported again.`,
+      confirmText: 'Exclude',
+      variant: 'warning',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.bakabooru.excludePostFromGroup(group.duplicateGroupId, post.id).subscribe({
+        next: () => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success('Duplicate post excluded.');
+        },
+        error: () => this.toast.error('Failed to exclude duplicate post.')
+      });
+    });
+  }
+
+  onDeletePost(group: VisibleDuplicateGroup, post: VisibleDuplicatePost) {
+    if (group.scope !== 'same-folder') {
+      return;
+    }
+
+    this.confirmService.confirm({
+      title: 'Delete Post',
       message: `Delete "${getFileNameFromPath(post.relativePath)}" from disk and remove it from the booru?`,
-      confirmText: 'Delete This',
+      confirmText: 'Delete',
       variant: 'danger',
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.deleteSameFolderDuplicate(request).subscribe({
+      this.bakabooru.deletePostFromGroup(group.duplicateGroupId, post.id).subscribe({
         next: () => {
-          this.removeSameFolderPostLocally(group, post.id);
-          this.loadGroups();
-          this.loadExcludedFiles();
+          this.reloadDuplicatesAndExcluded();
           this.toast.success('Duplicate post deleted.');
         },
         error: () => this.toast.error('Failed to delete duplicate post.')
@@ -219,32 +392,178 @@ export class DuplicatesPageComponent implements OnInit {
     });
   }
 
-  trackSameFolderGroup(_: number, group: SameFolderDuplicateGroup) {
-    return `${group.parentDuplicateGroupId}:${group.libraryId}:${group.folderPath}`;
+  getResolvedGroupCount(): number {
+    return this.resolvedGroups().length;
   }
 
-  trackSameFolderPost(_: number, post: SameFolderDuplicatePost) {
+  getResolvedPostCount(): number {
+    return this.resolvedGroups().reduce((sum, group) => sum + group.posts.length, 0);
+  }
+
+  getResolvedExactCount(): number {
+    return this.resolvedGroups().filter(group => group.type === 'exact').length;
+  }
+
+  getResolvedPerceptualCount(): number {
+    return this.resolvedGroups().filter(group => group.type === 'perceptual').length;
+  }
+
+  loadResolvedGroups() {
+    this.resolvedLoading.set(true);
+    this.bakabooru.getResolvedDuplicateGroups().subscribe({
+      next: (groups) => {
+        this.resolvedGroups.set(groups);
+        this.resolvedPage.set(1);
+        this.resolvedLoading.set(false);
+      },
+      error: () => this.resolvedLoading.set(false)
+    });
+  }
+
+  unresolveGroup(group: DuplicateGroup) {
+    this.confirmService.confirm({
+      title: 'Mark Group Unresolved',
+      message: `Move this group back to unresolved duplicates for review?`,
+      confirmText: 'Mark Unresolved',
+      variant: 'warning',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.bakabooru.markDuplicateGroupUnresolved(group.id).subscribe({
+        next: () => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success('Group marked as unresolved.');
+        },
+        error: () => this.toast.error('Failed to mark group as unresolved.')
+      });
+    });
+  }
+
+  unresolveAllGroups() {
+    const count = this.getResolvedGroupCount();
+    if (count === 0) {
+      return;
+    }
+
+    this.confirmService.confirm({
+      title: 'Mark All Unresolved',
+      message: `Move all ${count} resolved groups back to unresolved duplicates?`,
+      confirmText: 'Mark All Unresolved',
+      variant: 'warning',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.bakabooru.markAllDuplicateGroupsUnresolved().subscribe({
+        next: (result) => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success(`Marked ${result.unresolved} group(s) as unresolved.`);
+        },
+        error: () => this.toast.error('Failed to mark all groups as unresolved.')
+      });
+    });
+  }
+
+  trackVisibleGroup(_: number, group: VisibleDuplicateGroup) {
+    return group.key;
+  }
+
+  trackVisiblePost(_: number, post: VisibleDuplicatePost) {
     return post.id;
   }
 
-  getFolderDisplayPath(group: SameFolderDuplicateGroup): string {
-    return group.folderPath || '(library root)';
+  onVisiblePageChange(page: number) {
+    this.visiblePage.set(page);
   }
 
-  getSameFolderPostCount(): number {
-    return this.sameFolderGroups().reduce((sum, group) => sum + group.posts.length, 0);
+  onResolvedPageChange(page: number) {
+    this.resolvedPage.set(page);
   }
 
-  getRecommendedKeepFileName(group: SameFolderDuplicateGroup): string {
-    const recommended = group.posts.find(post => post.id === group.recommendedKeepPostId);
-    return recommended ? getFileNameFromPath(recommended.relativePath) : 'Unknown';
+  loadGroups() {
+    this.loading.set(true);
+    this.bakabooru.getDuplicateGroups().subscribe({
+      next: (groups) => {
+        this.groups.set(groups);
+        this.visiblePage.set(1);
+        this.exactCount.set(groups.filter(group => group.type === 'exact').length);
+        this.perceptualCount.set(groups.filter(group => group.type === 'perceptual').length);
+        this.loading.set(false);
+      },
+      error: () => this.loading.set(false)
+    });
   }
 
-  isRecommendedKeep(group: SameFolderDuplicateGroup, post: SameFolderDuplicatePost): boolean {
-    return group.recommendedKeepPostId === post.id;
+  loadSameFolderGroups() {
+    this.sameFolderLoading.set(true);
+    this.bakabooru.getSameFolderDuplicateGroups().subscribe({
+      next: (groups) => {
+        this.sameFolderGroups.set(groups);
+        this.visiblePage.set(1);
+        this.sameFolderLoading.set(false);
+      },
+      error: () => this.sameFolderLoading.set(false)
+    });
   }
 
-  // --- Excluded Files ---
+  resolveAllExact() {
+    const count = this.exactCount();
+    this.confirmService.confirm({
+      title: 'Resolve Exact Duplicates',
+      message: `Auto-resolve all ${count} exact groups? This keeps the highest-quality post and removes the rest from booru.`,
+      confirmText: 'Resolve All',
+      variant: 'danger',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.bakabooru.resolveAllExactDuplicates().subscribe({
+        next: (result) => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success(`Auto-resolved ${result.resolved} exact duplicate groups.`);
+        },
+        error: (err) => this.toast.error('Failed: ' + (err?.message || 'Unknown error'))
+      });
+    });
+  }
+
+  resolveAllGroups() {
+    const count = this.getVisibleGroupCount();
+    this.confirmService.confirm({
+      title: 'Resolve Duplicate Groups',
+      message: `Auto-resolve all ${count} visible duplicate groups? This keeps the highest-quality post and removes the others from booru.`,
+      confirmText: 'Resolve All',
+      variant: 'danger',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.bakabooru.resolveAllDuplicateGroups().subscribe({
+        next: (result) => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success(`Auto-resolved ${result.resolved} duplicate groups.`);
+        },
+        error: (err) => this.toast.error('Failed: ' + (err?.message || 'Unknown error'))
+      });
+    });
+  }
+
+  resolveAllSameFolder() {
+    const count = this.sameFolderGroups().length;
+    this.confirmService.confirm({
+      title: 'Resolve Same-Folder Duplicates',
+      message: `Auto-resolve all ${count} same-folder groups? This keeps the highest-quality post and deletes the rest from disk.`,
+      confirmText: 'Resolve All',
+      variant: 'danger',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.bakabooru.resolveAllSameFolderDuplicates().subscribe({
+        next: (result) => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
+        },
+        error: () => this.toast.error('Failed to resolve same-folder duplicates.')
+      });
+    });
+  }
 
   loadExcludedFiles() {
     this.excludedLoading.set(true);
@@ -268,7 +587,7 @@ export class DuplicatesPageComponent implements OnInit {
 
       this.bakabooru.unexcludeFile(file.id).subscribe({
         next: () => {
-          this.excludedFiles.update(files => files.filter(f => f.id !== file.id));
+          this.excludedFiles.update(files => files.filter(current => current.id !== file.id));
           this.toast.success('File removed from exclusion list.');
         },
         error: () => this.toast.error('Failed to restore file.')
@@ -280,63 +599,78 @@ export class DuplicatesPageComponent implements OnInit {
     return this.bakabooru.getExcludedFileContentUrl(file.id);
   }
 
-  getThumbnailUrl(post: DuplicatePost | SameFolderDuplicatePost): string {
+  getThumbnailUrl(post: Pick<VisibleDuplicatePost, 'thumbnailLibraryId' | 'thumbnailContentHash'>): string {
     return this.bakabooru.getThumbnailUrl(post.thumbnailLibraryId, post.thumbnailContentHash);
+  }
+
+  onImageError(event: Event) {
+    (event.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23374151" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239CA3AF" font-size="12">No image</text></svg>';
   }
 
   onExcludedImageError(event: Event) {
     (event.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23374151" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239CA3AF" font-size="12">No image</text></svg>';
   }
 
-  private removeSameFolderPostLocally(group: SameFolderDuplicateGroup, postId: number) {
-    this.sameFolderGroups.update(groups => {
-      const updated: SameFolderDuplicateGroup[] = [];
+  private selectBestQualityVisiblePostId(posts: ReadonlyArray<DuplicatePost>): number | null {
+    if (posts.length === 0) {
+      return null;
+    }
 
-      for (const current of groups) {
-        const isTargetGroup =
-          current.parentDuplicateGroupId === group.parentDuplicateGroupId
-          && current.libraryId === group.libraryId
-          && current.folderPath === group.folderPath;
+    let best = posts[0];
+    for (let i = 1; i < posts.length; i++) {
+      const candidate = posts[i];
 
-        if (!isTargetGroup) {
-          updated.push(current);
-          continue;
-        }
-
-        const remainingPosts = current.posts.filter(p => p.id !== postId);
-        if (remainingPosts.length < 2) {
-          continue;
-        }
-
-        const recommendedKeepPostId = this.selectBestQualityPostId(remainingPosts);
-        updated.push({
-          ...current,
-          recommendedKeepPostId,
-          posts: remainingPosts,
-        });
+      const bestPixels = best.width * best.height;
+      const candidatePixels = candidate.width * candidate.height;
+      if (candidatePixels > bestPixels) {
+        best = candidate;
+        continue;
       }
 
-      return updated;
-    });
+      if (candidatePixels < bestPixels) {
+        continue;
+      }
+
+      if (candidate.sizeBytes > best.sizeBytes) {
+        best = candidate;
+        continue;
+      }
+
+      if (candidate.sizeBytes < best.sizeBytes) {
+        continue;
+      }
+
+      const candidateModified = Date.parse(candidate.fileModifiedDate);
+      const bestModified = Date.parse(best.fileModifiedDate);
+      if (candidateModified > bestModified) {
+        best = candidate;
+        continue;
+      }
+
+      if (candidateModified < bestModified) {
+        continue;
+      }
+
+      if (candidate.id > best.id) {
+        best = candidate;
+      }
+    }
+
+    return best.id;
   }
 
-  private selectBestQualityPostId(posts: SameFolderDuplicatePost[]): number {
-    return [...posts]
-      .sort((a, b) => {
-        const pixelsA = a.width * a.height;
-        const pixelsB = b.width * b.height;
-        if (pixelsA !== pixelsB) return pixelsB - pixelsA;
-        if (a.sizeBytes !== b.sizeBytes) return b.sizeBytes - a.sizeBytes;
-        const fileModifiedA = Date.parse(a.fileModifiedDate);
-        const fileModifiedB = Date.parse(b.fileModifiedDate);
-        if (fileModifiedA !== fileModifiedB) return fileModifiedB - fileModifiedA;
-        return b.id - a.id;
-      })[0].id;
-  }
+  private reloadDuplicatesAndExcluded() {
+    if (this.groupsTabInitialized) {
+      this.loadGroups();
+      this.loadSameFolderGroups();
+    }
 
-  private recountTypes() {
-    const groups = this.groups();
-    this.exactCount.set(groups.filter(g => g.type === 'exact').length);
-    this.perceptualCount.set(groups.filter(g => g.type === 'perceptual').length);
+    if (this.resolvedTabInitialized) {
+      this.loadResolvedGroups();
+    }
+
+    if (this.excludedTabInitialized) {
+      this.loadExcludedFiles();
+    }
   }
 }

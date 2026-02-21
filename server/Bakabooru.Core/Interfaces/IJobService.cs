@@ -22,6 +22,7 @@ public class JobInfo
 
 public class JobDefinition
 {
+    public string Key { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool SupportsAllMode { get; set; }
@@ -33,7 +34,7 @@ public interface IJobService
     Task<(List<Entities.JobExecution> Items, int Total)> GetJobHistoryAsync(int pageSize = 20, int page = 1, CancellationToken cancellationToken = default);
     IEnumerable<JobDefinition> GetAvailableJobs();
     Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken);
-    Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken, Action<IJob>? configure, JobMode mode = JobMode.Missing);
+    Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken, JobMode mode);
     Task<string> StartJobAsync(string jobName, Func<CancellationToken, Task> action);
     void CancelJob(string jobId);
 }

@@ -3,7 +3,7 @@
   <p class="mb-6 text-text-muted">Manage tags and tag categories in one place.</p>
 
   <app-tabs>
-    <app-tab id="tags" label="Tags">
+    <app-tab id="tags" label="Tags" (init)="onTagsTabInit()">
       <ng-template>
         <section class="glass-card p-4">
           <div class="mb-4 flex flex-wrap items-center gap-3">
@@ -31,7 +31,7 @@
       </ng-template>
     </app-tab>
 
-    <app-tab id="categories" label="Categories">
+    <app-tab id="categories" label="Categories" (init)="onCategoriesTabInit()">
       <ng-template>
         <section class="glass-card p-4">
           <div class="mb-4 flex flex-wrap items-center gap-3">

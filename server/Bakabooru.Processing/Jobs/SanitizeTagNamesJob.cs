@@ -9,6 +9,9 @@ namespace Bakabooru.Processing.Jobs;
 
 public class SanitizeTagNamesJob : IJob
 {
+    public const string JobKey = "sanitize-tag-names";
+    public const string JobName = "Sanitize Tag Names";
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<SanitizeTagNamesJob> _logger;
 
@@ -19,7 +22,8 @@ public class SanitizeTagNamesJob : IJob
     }
 
     public int DisplayOrder => 80;
-    public string Name => "Sanitize Tag Names";
+    public string Key => JobKey;
+    public string Name => JobName;
     public string Description => "Retroactively sanitizes all tag names (lowercase, replace colons with underscores, collapse duplicates).";
     public bool SupportsAllMode => false;
 

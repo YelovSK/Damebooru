@@ -10,7 +10,10 @@ namespace Bakabooru.Processing.Jobs;
 
 public class FindDuplicatesJob : IJob
 {
-    private sealed record HashPost(int Id, ulong? DHash, ulong? PHash);
+    public const string JobKey = "find-duplicates";
+    public const string JobName = "Find Duplicates";
+
+    private sealed record HashPost(int Id, ulong? DHash, ulong? PHash, string ContentType);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<FindDuplicatesJob> _logger;
@@ -33,7 +36,8 @@ public class FindDuplicatesJob : IJob
     }
 
     public int DisplayOrder => 40;
-    public string Name => "Find Duplicates";
+    public string Key => JobKey;
+    public string Name => JobName;
     public string Description => "Scans for exact (content hash) and perceptual (dHash+pHash) duplicate posts.";
     public bool SupportsAllMode => false;
 
@@ -48,7 +52,7 @@ public class FindDuplicatesJob : IJob
         });
         var posts = await db.Posts
             .AsNoTracking()
-            .Select(p => new { p.Id, p.ContentHash, p.PerceptualHash, p.PerceptualHashP })
+            .Select(p => new { p.Id, p.ContentHash, p.PerceptualHash, p.PerceptualHashP, p.ContentType })
             .ToListAsync(context.CancellationToken);
         context.State.Report(new JobState
         {
@@ -80,6 +84,25 @@ public class FindDuplicatesJob : IJob
 
         var newGroups = new List<DuplicateGroup>();
 
+        // Load all existing resolved groups to skip recreating them
+        context.State.Report(new JobState
+        {
+            Phase = "Loading resolved groups..."
+        });
+        
+        var resolvedGroups = await db.DuplicateGroups
+            .Where(g => g.IsResolved)
+            .Include(g => g.Entries)
+            .ToListAsync(context.CancellationToken);
+
+        // Build a HashSet of strings representing sorted post IDs for easy lookup
+        var resolvedGroupSignatures = new HashSet<string>();
+        foreach (var group in resolvedGroups)
+        {
+            var signature = string.Join(",", group.Entries.Select(e => e.PostId).OrderBy(id => id));
+            resolvedGroupSignatures.Add(signature);
+        }
+
         // --- Phase 1: Exact duplicates (same content hash) ---
         context.State.Report(new JobState
         {
@@ -96,11 +119,19 @@ public class FindDuplicatesJob : IJob
 
         foreach (var group in exactGroups)
         {
+            var postIds = group.Select(p => p.Id).OrderBy(id => id).ToList();
+            var signature = string.Join(",", postIds);
+
+            if (resolvedGroupSignatures.Contains(signature))
+            {
+                continue; // Skip this exact match because it was previously resolved
+            }
+
             var dupGroup = new DuplicateGroup
             {
                 Type = "exact",
                 DetectedDate = DateTime.UtcNow,
-                Entries = group.Select(p => new DuplicateGroupEntry { PostId = p.Id }).ToList()
+                Entries = postIds.Select(id => new DuplicateGroupEntry { PostId = id }).ToList()
             };
             newGroups.Add(dupGroup);
         }
@@ -126,7 +157,7 @@ public class FindDuplicatesJob : IJob
             .Where(p =>
                 (p.PerceptualHash.HasValue && p.PerceptualHash.Value != 0) ||
                 (p.PerceptualHashP.HasValue && p.PerceptualHashP.Value != 0))
-            .Select(p => new HashPost(p.Id, p.PerceptualHash, p.PerceptualHashP))
+            .Select(p => new HashPost(p.Id, p.PerceptualHash, p.PerceptualHashP, p.ContentType))
             .ToList();
 
         _logger.LogInformation("Comparing {Count} perceptual hashes", hashPosts.Count);
@@ -201,6 +232,19 @@ public class FindDuplicatesJob : IJob
                 continue;
             }
 
+            var postIds = groupMembers.OrderBy(id => id).ToList();
+            var signature = string.Join(",", postIds);
+
+            if (resolvedGroupSignatures.Contains(signature))
+            {
+                // Skip because we already resolved this exact group of posts
+                foreach (var member in groupMembers)
+                {
+                    remaining.Remove(member);
+                }
+                continue;
+            }
+
             var similarity = CalculateGroupSimilarity(groupMembers, pairSimilarity);
 
             var dupGroup = new DuplicateGroup
@@ -208,7 +252,7 @@ public class FindDuplicatesJob : IJob
                 Type = "perceptual",
                 SimilarityPercent = similarity,
                 DetectedDate = DateTime.UtcNow,
-                Entries = groupMembers.Select(id => new DuplicateGroupEntry { PostId = id }).ToList()
+                Entries = postIds.Select(id => new DuplicateGroupEntry { PostId = id }).ToList()
             };
 
             newGroups.Add(dupGroup);
@@ -268,11 +312,23 @@ public class FindDuplicatesJob : IJob
         var dSimilarity = dDistance.HasValue ? 1.0 - (double)dDistance.Value / 64 : (double?)null;
         var pSimilarity = pDistance.HasValue ? 1.0 - (double)pDistance.Value / 64 : (double?)null;
 
+        var threshold = CombinedSimilarityThresholdPercent / 100.0;
+
+        // Require higher similarity for cross-type comparison or video-video
+        // because video frames at 20% mark might accidentally look similar to other frames/images
+        var isAImage = a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+        var isBImage = b.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+        if (!isAImage || !isBImage)
+        {
+            threshold = Math.Max(threshold, 0.90);
+        }
+
         if (dSimilarity.HasValue && pSimilarity.HasValue)
         {
             // If both signals exist, require blended agreement to avoid one-sided false positives.
             var combinedSimilarity = (dSimilarity.Value * 0.55) + (pSimilarity.Value * 0.45);
-            if (combinedSimilarity < (CombinedSimilarityThresholdPercent / 100.0))
+            if (combinedSimilarity < threshold)
             {
                 similarityPercent = 0;
                 return false;
@@ -283,16 +339,20 @@ public class FindDuplicatesJob : IJob
         }
 
         // Single-signal fallback for partial/missing data.
-        if (dDistance.HasValue && dDistance.Value <= DHashThreshold)
+        // We only allow this if both are the same media type (images)
+        if (isAImage && isBImage)
         {
-            similarityPercent = (int)Math.Round((1.0 - (double)dDistance.Value / 64) * 100);
-            return true;
-        }
+            if (dDistance.HasValue && dDistance.Value <= DHashThreshold)
+            {
+                similarityPercent = (int)Math.Round((1.0 - (double)dDistance.Value / 64) * 100);
+                return true;
+            }
 
-        if (pDistance.HasValue && pDistance.Value <= PHashThreshold)
-        {
-            similarityPercent = (int)Math.Round((1.0 - (double)pDistance.Value / 64) * 100);
-            return true;
+            if (pDistance.HasValue && pDistance.Value <= PHashThreshold)
+            {
+                similarityPercent = (int)Math.Round((1.0 - (double)pDistance.Value / 64) * 100);
+                return true;
+            }
         }
 
         similarityPercent = 0;

@@ -1,6 +1,7 @@
 using Bakabooru.Core.Entities;
 using Bakabooru.Core.Interfaces;
 using Bakabooru.Data;
+using Bakabooru.Processing.Jobs;
 using Cronos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,14 +20,14 @@ public class SchedulerService : BackgroundService
     /// Default scheduled jobs to seed if they don't exist in the database.
     /// All disabled by default — users can enable and configure from the Jobs page.
     /// </summary>
-    private static readonly (string Name, string Cron)[] DefaultJobs =
+    private static readonly (string Key, string Cron)[] DefaultJobs =
     [
-        ("Scan All Libraries", "0 */6 * * *"),    // Every 6 hours
-        ("Generate Thumbnails", "30 */6 * * *"),   // 30 min after scan
-        ("Cleanup Orphaned Thumbnails", "45 */6 * * *"), // 45 min after scan
-        ("Extract Metadata", "35 */6 * * *"),      // 35 min after scan
-        ("Compute Similarity", "40 */6 * * *"),    // 40 min after scan
-        ("Find Duplicates", "0 3 * * 0"),          // Weekly, Sunday 3 AM
+        (ScanAllLibrariesJob.JobKey, "0 */6 * * *"),    // Every 6 hours
+        (GenerateThumbnailsJob.JobKey, "30 */6 * * *"),   // 30 min after scan
+        (CleanupOrphanedThumbnailsJob.JobKey, "45 */6 * * *"), // 45 min after scan
+        (ExtractMetadataJob.JobKey, "35 */6 * * *"),      // 35 min after scan
+        (ComputeSimilarityJob.JobKey, "40 */6 * * *"),    // 40 min after scan
+        (FindDuplicatesJob.JobKey, "0 3 * * 0"),          // Weekly, Sunday 3 AM
     ];
 
     public SchedulerService(IServiceScopeFactory scopeFactory, ILogger<SchedulerService> logger)
@@ -61,30 +62,52 @@ public class SchedulerService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
+        var jobService = scope.ServiceProvider.GetRequiredService<IJobService>();
 
-        var existingNames = await dbContext.ScheduledJobs
-            .Select(j => j.JobName)
-            .ToListAsync(cancellationToken);
+        var availableJobs = jobService.GetAvailableJobs().ToList();
+        var availableKeys = availableJobs
+            .Select(j => j.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nameToKey = availableJobs
+            .GroupBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.OrdinalIgnoreCase);
 
-        var existingSet = new HashSet<string>(existingNames, StringComparer.OrdinalIgnoreCase);
-        bool added = false;
+        var existingSchedules = await dbContext.ScheduledJobs.ToListAsync(cancellationToken);
+        var changed = false;
 
-        foreach (var (name, cron) in DefaultJobs)
+        foreach (var schedule in existingSchedules)
         {
-            if (existingSet.Contains(name)) continue;
+            if (nameToKey.TryGetValue(schedule.JobName, out var resolvedKey)
+                && !string.Equals(schedule.JobName, resolvedKey, StringComparison.OrdinalIgnoreCase))
+            {
+                schedule.JobName = resolvedKey;
+                changed = true;
+            }
+        }
+
+        var existingSet = existingSchedules
+            .Select(j => j.JobName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (jobKey, cron) in DefaultJobs)
+        {
+            if (!availableKeys.Contains(jobKey) || existingSet.Contains(jobKey))
+            {
+                continue;
+            }
 
             dbContext.ScheduledJobs.Add(new ScheduledJob
             {
-                JobName = name,
+                JobName = jobKey,
                 CronExpression = cron,
                 IsEnabled = false,
                 NextRun = CalculateNextRun(cron)
             });
-            added = true;
-            _logger.LogInformation("Seeded scheduled job: {Name} ({Cron})", name, cron);
+            changed = true;
+            _logger.LogInformation("Seeded scheduled job: {Key} ({Cron})", jobKey, cron);
         }
 
-        if (added)
+        if (changed)
             await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -93,6 +116,13 @@ public class SchedulerService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
         var jobService = scope.ServiceProvider.GetRequiredService<IJobService>();
+        var availableJobs = jobService.GetAvailableJobs().ToList();
+        var keySet = availableJobs
+            .Select(j => j.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nameToKey = availableJobs
+            .GroupBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.OrdinalIgnoreCase);
 
         var jobsToRun = await dbContext.ScheduledJobs
             .Where(j => j.IsEnabled && (j.NextRun == null || j.NextRun <= DateTime.UtcNow))
@@ -100,11 +130,29 @@ public class SchedulerService : BackgroundService
 
         foreach (var scheduledJob in jobsToRun)
         {
-            _logger.LogInformation("Triggering scheduled job: {Name}", scheduledJob.JobName);
+            var scheduledKey = scheduledJob.JobName;
+            if (nameToKey.TryGetValue(scheduledJob.JobName, out var resolvedKey))
+            {
+                scheduledKey = resolvedKey;
+                if (!string.Equals(scheduledJob.JobName, scheduledKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    scheduledJob.JobName = scheduledKey;
+                }
+            }
+
+            if (!keySet.Contains(scheduledKey))
+            {
+                _logger.LogWarning("Skipping unknown scheduled job: {StoredJobName}", scheduledJob.JobName);
+                scheduledJob.IsEnabled = false;
+                await dbContext.SaveChangesAsync(cancellationToken);
+                continue;
+            }
+
+            _logger.LogInformation("Triggering scheduled job: {Key}", scheduledKey);
 
             try
             {
-                await jobService.StartJobAsync(scheduledJob.JobName, cancellationToken);
+                await jobService.StartJobAsync(scheduledKey, cancellationToken);
 
                 scheduledJob.LastRun = DateTime.UtcNow;
                 scheduledJob.NextRun = CalculateNextRun(scheduledJob.CronExpression);
@@ -113,7 +161,7 @@ public class SchedulerService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to trigger scheduled job {Name}", scheduledJob.JobName);
+                _logger.LogError(ex, "Failed to trigger scheduled job {Key}", scheduledKey);
             }
         }
     }

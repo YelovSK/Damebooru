@@ -101,6 +101,8 @@ builder.Services.AddScoped<LibraryService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<TagCategoryService>();
 builder.Services.AddScoped<DuplicateService>();
+builder.Services.AddScoped<DuplicateQueryService>();
+builder.Services.AddScoped<DuplicateMutationSupportService>();
 builder.Services.AddScoped<JobScheduleService>();
 builder.Services.AddScoped<SystemReadService>();
 

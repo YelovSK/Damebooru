@@ -1,12 +1,13 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { catchError, interval } from 'rxjs';
+import { catchError, interval, of } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { BakabooruService } from '../../services/api/bakabooru/bakabooru.service';
 import { CronPreview, JobExecution, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob } from '../../services/api/bakabooru/models';
 import { ButtonComponent } from '../../shared/components/button/button.component';
+import { FormCheckboxComponent } from '../../shared/components/form-checkbox/form-checkbox.component';
 import { CollapsibleComponent } from '../../shared/components/collapsible/collapsible.component';
 import { FormInputComponent } from '../../shared/components/form-input/form-input.component';
 import { PaginatorComponent } from '../../shared/components/paginator/paginator.component';
@@ -33,7 +34,7 @@ const JOB_STATUS_LABELS: Record<JobStatus, string> = {
 @Component({
   selector: 'app-jobs-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, TooltipDirective, DateTimePipe, ElapsedDurationPipe, RelativeDurationPipe],
+  imports: [CommonModule, FormsModule, ButtonComponent, FormCheckboxComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, TooltipDirective, DateTimePipe, ElapsedDurationPipe, RelativeDurationPipe],
   templateUrl: './jobs.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -207,7 +208,7 @@ export class JobsPageComponent {
   private refreshLiveJobs(refreshHistoryOnFinished: boolean = true): void {
     this.bakabooru.getJobs().pipe(
       takeUntilDestroyed(this.destroyRef),
-      catchError(() =>  [])
+      catchError(() => of([]))
     ).subscribe(data => {
       this.jobs.set(data);
       this.patchHistoryWithRunningJobs(data);

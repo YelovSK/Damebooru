@@ -12,6 +12,9 @@ namespace Bakabooru.Processing.Jobs;
 
 public class ComputeSimilarityJob : IJob
 {
+    public const string JobKey = "compute-similarity";
+    public const string JobName = "Compute Similarity";
+
     private sealed record SimilarityCandidate(int Id, string RelativePath, string LibraryPath);
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -29,7 +32,8 @@ public class ComputeSimilarityJob : IJob
     }
 
     public int DisplayOrder => 30;
-    public string Name => "Compute Similarity";
+    public string Key => JobKey;
+    public string Name => JobName;
     public string Description => "Computes perceptual hashes (dHash + pHash) for image posts.";
     public bool SupportsAllMode => true;
 

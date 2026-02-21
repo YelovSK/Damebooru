@@ -13,6 +13,9 @@ namespace Bakabooru.Processing.Jobs;
 
 public class GenerateThumbnailsJob : IJob
 {
+    public const string JobKey = "generate-thumbnails";
+    public const string JobName = "Generate Thumbnails";
+
     private sealed record ThumbnailCandidate(int Id, int LibraryId, string ContentHash, string RelativePath, string LibraryPath);
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -38,7 +41,8 @@ public class GenerateThumbnailsJob : IJob
     }
 
     public int DisplayOrder => 50;
-    public string Name => "Generate Thumbnails";
+    public string Key => JobKey;
+    public string Name => JobName;
     public string Description => "Generates missing (or all) thumbnails for posts.";
     public bool SupportsAllMode => true;
 

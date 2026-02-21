@@ -14,9 +14,11 @@ public class JobService : IJobService
 
     private readonly ConcurrentDictionary<string, JobInfo> _activeJobs = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationSources = new();
+    private readonly ConcurrentDictionary<string, byte> _runningJobKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILogger<JobService> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly Dictionary<string, IJob> _registeredJobs;
+    private readonly Dictionary<string, IJob> _registeredJobsByKey;
+    private readonly Dictionary<string, IJob> _registeredJobsByName;
 
     public JobService(
         ILogger<JobService> logger, 
@@ -25,18 +27,24 @@ public class JobService : IJobService
     {
         _logger = logger;
         _scopeFactory = scopeFactory;
-        _registeredJobs = jobs.GroupBy(j => j.Name).ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        _registeredJobsByKey = jobs
+            .GroupBy(j => j.Key)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        _registeredJobsByName = jobs
+            .GroupBy(j => j.Name)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
     }
 
     public IEnumerable<JobInfo> GetActiveJobs() => _activeJobs.Values.ToList();
 
     public IEnumerable<JobDefinition> GetAvailableJobs()
     {
-        return _registeredJobs.Values
+        return _registeredJobsByKey.Values
             .OrderBy(j => j.DisplayOrder)
             .ThenBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
             .Select(j => new JobDefinition
             {
+                Key = j.Key,
                 Name = j.Name,
                 Description = j.Description,
                 SupportsAllMode = j.SupportsAllMode
@@ -58,23 +66,21 @@ public class JobService : IJobService
     }
 
     public Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken)
-        => StartJobAsync(jobName, cancellationToken, configure: null);
+        => StartJobAsync(jobName, cancellationToken, JobMode.Missing);
 
-    public Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken, Action<IJob>? configure, JobMode mode = JobMode.Missing)
+    public Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken, JobMode mode)
     {
-        if (!_registeredJobs.TryGetValue(jobName, out var job))
+        if (!TryResolveJob(jobName, out var job))
         {
             throw new ArgumentException($"Job '{jobName}' not found.", nameof(jobName));
         }
 
         if (mode == JobMode.All && !job.SupportsAllMode)
         {
-            throw new InvalidOperationException($"Job '{jobName}' does not support mode 'all'.");
+            throw new InvalidOperationException($"Job '{job.Name}' does not support mode 'all'.");
         }
 
-        configure?.Invoke(job);
-
-        return StartJobInternalAsync(jobName, ctx =>
+        return StartJobInternalAsync(job.Key, job.Name, ctx =>
         {
             ctx.Mode = mode;
             return job.ExecuteAsync(ctx);
@@ -83,158 +89,184 @@ public class JobService : IJobService
 
     public Task<string> StartJobAsync(string jobName, Func<CancellationToken, Task> action)
     {
-        return StartJobInternalAsync(jobName, ctx => action(ctx.CancellationToken));
+        return StartJobInternalAsync(jobName, jobName, ctx => action(ctx.CancellationToken));
     }
 
-    private async Task<string> StartJobInternalAsync(string jobName, Func<JobContext, Task> execute)
+    private bool TryResolveJob(string keyOrName, out IJob job)
     {
-        var jobId = Guid.NewGuid().ToString();
-        var cts = new CancellationTokenSource();
-        
-        // Create DB entry
-        JobExecution execution;
-        using (var scope = _scopeFactory.CreateScope())
+        if (_registeredJobsByKey.TryGetValue(keyOrName, out job!))
         {
-            var dbContext = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
-            execution = new JobExecution
-            {
-                JobName = jobName,
-                Status = JobStatus.Running,
-                StartTime = DateTime.UtcNow
-            };
-            dbContext.JobExecutions.Add(execution);
-            await dbContext.SaveChangesAsync();
+            return true;
         }
 
-        var jobInfo = new JobInfo
+        return _registeredJobsByName.TryGetValue(keyOrName, out job!);
+    }
+
+    private async Task<string> StartJobInternalAsync(string jobKey, string jobName, Func<JobContext, Task> execute)
+    {
+        if (!_runningJobKeys.TryAdd(jobKey, 0))
         {
-            Id = jobId,
-            ExecutionId = execution.Id,
-            Name = jobName,
-            Status = JobStatus.Running,
-            StartTime = execution.StartTime,
-            State = new JobState
-            {
-                Phase = "Starting..."
-            }
-        };
+            throw new InvalidOperationException($"Job '{jobName}' is already running.");
+        }
 
-        _activeJobs[jobId] = jobInfo;
-        _cancellationSources[jobId] = cts;
+        var jobId = Guid.NewGuid().ToString();
+        var cts = new CancellationTokenSource();
 
-        _logger.LogInformation("Job started: {Name} ({Id}) - DB ID: {DbId}", jobName, jobId, execution.Id);
-
-        _ = Task.Run(async () =>
+        try
         {
-            JobState latestState = CloneState(jobInfo.State);
-            string latestStateData = JobStateSerialization.Serialize(latestState);
-            var stateLock = new object();
-
-            JobState GetLatestState()
+            // Create DB entry
+            JobExecution execution;
+            using (var scope = _scopeFactory.CreateScope())
             {
-                lock (stateLock)
+                var dbContext = scope.ServiceProvider.GetRequiredService<BakabooruDbContext>();
+                execution = new JobExecution
                 {
-                    return CloneState(latestState);
-                }
-            }
-
-            string GetLatestStateData()
-            {
-                lock (stateLock)
-                {
-                    return latestStateData;
-                }
-            }
-
-            void SetLatestState(JobState state)
-            {
-                lock (stateLock)
-                {
-                    latestState = MergeState(latestState, state);
-                    latestStateData = JobStateSerialization.Serialize(latestState);
-                    jobInfo.State = CloneState(latestState);
-                }
-            }
-
-            using var statePersistenceCts = new CancellationTokenSource();
-            var statePersistenceTask = PersistStateLoopAsync(
-                execution.Id,
-                GetLatestStateData,
-                statePersistenceCts.Token);
-
-            try
-            {
-                var context = new JobContext
-                {
-                    JobId = jobId,
-                    CancellationToken = cts.Token,
-                    State = new InlineProgress<JobState>(state =>
-                    {
-                        if (state == null)
-                        {
-                            return;
-                        }
-
-                        SetLatestState(state);
-                    })
+                    JobName = jobName,
+                    Status = JobStatus.Running,
+                    StartTime = DateTime.UtcNow
                 };
+                dbContext.JobExecutions.Add(execution);
+                await dbContext.SaveChangesAsync();
+            }
 
-                await execute(context);
-                
-                jobInfo.Status = JobStatus.Completed;
-                var finalState = GetLatestState();
-                if (string.IsNullOrWhiteSpace(finalState.Phase))
+            var jobInfo = new JobInfo
+            {
+                Id = jobId,
+                ExecutionId = execution.Id,
+                Name = jobName,
+                Status = JobStatus.Running,
+                StartTime = execution.StartTime,
+                State = new JobState
                 {
-                    finalState.Phase = "Completed";
+                    Phase = "Starting..."
                 }
-                finalState.Summary ??= "Completed successfully.";
-                SetLatestState(finalState);
-                
-                await UpdateJobStatusAsync(execution.Id, JobStatus.Completed, stateData: GetLatestStateData());
-            }
-            catch (OperationCanceledException)
+            };
+
+            _activeJobs[jobId] = jobInfo;
+            _cancellationSources[jobId] = cts;
+
+            _logger.LogInformation("Job started: {Name} ({Id}) - DB ID: {DbId}", jobName, jobId, execution.Id);
+
+            _ = Task.Run(async () =>
             {
-                jobInfo.Status = JobStatus.Cancelled;
-                var finalState = GetLatestState();
-                finalState.Phase = "Cancelled";
-                finalState.Summary ??= "Cancelled by user.";
-                SetLatestState(finalState);
-                
-                await UpdateJobStatusAsync(execution.Id, JobStatus.Cancelled, stateData: GetLatestStateData());
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Job failed: {Id}", jobId);
-                jobInfo.Status = JobStatus.Failed;
-                var finalState = GetLatestState();
-                finalState.Phase = "Failed";
-                finalState.Summary = ex.Message;
-                SetLatestState(finalState);
-                
-                await UpdateJobStatusAsync(execution.Id, JobStatus.Failed, ex.Message, GetLatestStateData());
-            }
-            finally
-            {
-                statePersistenceCts.Cancel();
+                JobState latestState = CloneState(jobInfo.State);
+                string latestStateData = JobStateSerialization.Serialize(latestState);
+                var stateLock = new object();
+
+                JobState GetLatestState()
+                {
+                    lock (stateLock)
+                    {
+                        return CloneState(latestState);
+                    }
+                }
+
+                string GetLatestStateData()
+                {
+                    lock (stateLock)
+                    {
+                        return latestStateData;
+                    }
+                }
+
+                void SetLatestState(JobState state)
+                {
+                    lock (stateLock)
+                    {
+                        latestState = MergeState(latestState, state);
+                        latestStateData = JobStateSerialization.Serialize(latestState);
+                        jobInfo.State = CloneState(latestState);
+                    }
+                }
+
+                using var statePersistenceCts = new CancellationTokenSource();
+                var statePersistenceTask = PersistStateLoopAsync(
+                    execution.Id,
+                    GetLatestStateData,
+                    statePersistenceCts.Token);
+
                 try
                 {
-                    await statePersistenceTask;
+                    var context = new JobContext
+                    {
+                        JobId = jobId,
+                        CancellationToken = cts.Token,
+                        State = new InlineProgress<JobState>(state =>
+                        {
+                            if (state == null)
+                            {
+                                return;
+                            }
+
+                            SetLatestState(state);
+                        })
+                    };
+
+                    await execute(context);
+
+                    jobInfo.Status = JobStatus.Completed;
+                    var finalState = GetLatestState();
+                    if (string.IsNullOrWhiteSpace(finalState.Phase))
+                    {
+                        finalState.Phase = "Completed";
+                    }
+                    finalState.Summary ??= "Completed successfully.";
+                    SetLatestState(finalState);
+
+                    await UpdateJobStatusAsync(execution.Id, JobStatus.Completed, stateData: GetLatestStateData());
                 }
                 catch (OperationCanceledException)
                 {
-                    // Expected on shutdown/cancel.
-                }
+                    jobInfo.Status = JobStatus.Cancelled;
+                    var finalState = GetLatestState();
+                    finalState.Phase = "Cancelled";
+                    finalState.Summary ??= "Cancelled by user.";
+                    SetLatestState(finalState);
 
-                jobInfo.EndTime = DateTime.UtcNow;
-                if (_cancellationSources.TryRemove(jobId, out var removedCts))
+                    await UpdateJobStatusAsync(execution.Id, JobStatus.Cancelled, stateData: GetLatestStateData());
+                }
+                catch (Exception ex)
                 {
-                    removedCts.Dispose();
-                }
-                _ = RemoveJobWithDelay(jobId);
-            }
-        });
+                    _logger.LogError(ex, "Job failed: {Id}", jobId);
+                    jobInfo.Status = JobStatus.Failed;
+                    var finalState = GetLatestState();
+                    finalState.Phase = "Failed";
+                    finalState.Summary = ex.Message;
+                    SetLatestState(finalState);
 
-        return jobId;
+                    await UpdateJobStatusAsync(execution.Id, JobStatus.Failed, ex.Message, GetLatestStateData());
+                }
+                finally
+                {
+                    statePersistenceCts.Cancel();
+                    try
+                    {
+                        await statePersistenceTask;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected on shutdown/cancel.
+                    }
+
+                    jobInfo.EndTime = DateTime.UtcNow;
+                    if (_cancellationSources.TryRemove(jobId, out var removedCts))
+                    {
+                        removedCts.Dispose();
+                    }
+
+                    _runningJobKeys.TryRemove(jobKey, out _);
+                    _ = RemoveJobWithDelay(jobId);
+                }
+            });
+
+            return jobId;
+        }
+        catch
+        {
+            _runningJobKeys.TryRemove(jobKey, out _);
+            cts.Dispose();
+            throw;
+        }
     }
 
     private async Task RemoveJobWithDelay(string jobId)

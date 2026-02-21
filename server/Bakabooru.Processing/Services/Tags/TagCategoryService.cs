@@ -18,6 +18,7 @@ public class TagCategoryService
     public Task<List<TagCategoryDto>> GetCategoriesAsync(CancellationToken cancellationToken = default)
     {
         return _context.TagCategories
+            .AsNoTracking()
             .OrderBy(c => c.Order)
             .Select(c => new TagCategoryDto
             {
@@ -30,11 +31,17 @@ public class TagCategoryService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<TagCategoryDto> CreateCategoryAsync(CreateTagCategoryDto dto)
+    public async Task<Result<TagCategoryDto>> CreateCategoryAsync(CreateTagCategoryDto dto)
     {
+        var normalizedName = dto.Name.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            return Result<TagCategoryDto>.Failure(OperationError.InvalidInput, "Category name is required.");
+        }
+
         var category = new TagCategory
         {
-            Name = dto.Name,
+            Name = normalizedName,
             Color = dto.Color,
             Order = dto.Order
         };
@@ -42,14 +49,14 @@ public class TagCategoryService
         _context.TagCategories.Add(category);
         await _context.SaveChangesAsync();
 
-        return new TagCategoryDto
+        return Result<TagCategoryDto>.Success(new TagCategoryDto
         {
             Id = category.Id,
             Name = category.Name,
             Color = category.Color,
             Order = category.Order,
             TagCount = 0
-        };
+        });
     }
 
     public async Task<Result<TagCategoryDto>> UpdateCategoryAsync(int id, UpdateTagCategoryDto dto)
@@ -103,4 +110,3 @@ public class TagCategoryService
         return Result.Success();
     }
 }
-

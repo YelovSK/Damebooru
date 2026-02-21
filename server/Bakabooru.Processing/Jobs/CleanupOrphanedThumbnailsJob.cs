@@ -12,6 +12,9 @@ namespace Bakabooru.Processing.Jobs;
 
 public class CleanupOrphanedThumbnailsJob : IJob
 {
+    public const string JobKey = "cleanup-orphaned-thumbnails";
+    public const string JobName = "Cleanup Orphaned Thumbnails";
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CleanupOrphanedThumbnailsJob> _logger;
     private readonly string _thumbnailPath;
@@ -35,7 +38,8 @@ public class CleanupOrphanedThumbnailsJob : IJob
     }
 
     public int DisplayOrder => 60;
-    public string Name => "Cleanup Orphaned Thumbnails";
+    public string Key => JobKey;
+    public string Name => JobName;
     public string Description => "Removes thumbnail files that are not referenced by any post.";
     public bool SupportsAllMode => false;
 

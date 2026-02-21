@@ -39,6 +39,7 @@ public class JobsController : ControllerBase
 
         var result = available.Select(job => new JobViewDto
         {
+            Key = job.Key,
             Name = job.Name,
             Description = job.Description,
             SupportsAllMode = job.SupportsAllMode,
@@ -62,7 +63,7 @@ public class JobsController : ControllerBase
                 ? JobMode.All 
                 : JobMode.Missing;
 
-            var jobId = await _jobService.StartJobAsync(name, CancellationToken.None, job => { }, jobMode);
+            var jobId = await _jobService.StartJobAsync(name, CancellationToken.None, jobMode);
             return Ok(new StartJobResponseDto { JobId = jobId });
         }
         catch (ArgumentException ex)

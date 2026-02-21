@@ -12,6 +12,9 @@ namespace Bakabooru.Processing.Jobs;
 
 public class ExtractMetadataJob : IJob
 {
+    public const string JobKey = "extract-metadata";
+    public const string JobName = "Extract Metadata";
+
     private sealed record PostMetadataCandidate(int Id, string RelativePath, string LibraryPath);
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -29,7 +32,8 @@ public class ExtractMetadataJob : IJob
     }
 
     public int DisplayOrder => 20;
-    public string Name => "Extract Metadata";
+    public string Key => JobKey;
+    public string Name => JobName;
     public string Description => "Extracts dimensions and content type for posts.";
     public bool SupportsAllMode => true;
 

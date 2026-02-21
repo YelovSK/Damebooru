@@ -10,10 +10,12 @@ namespace Bakabooru.Server.Controllers;
 public class DuplicatesController : ControllerBase
 {
     private readonly DuplicateService _duplicateService;
+    private readonly DuplicateQueryService _duplicateQueryService;
 
-    public DuplicatesController(DuplicateService duplicateService)
+    public DuplicatesController(DuplicateService duplicateService, DuplicateQueryService duplicateQueryService)
     {
         _duplicateService = duplicateService;
+        _duplicateQueryService = duplicateQueryService;
     }
 
     /// <summary>
@@ -22,7 +24,16 @@ public class DuplicatesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<DuplicateGroupDto>>> GetDuplicateGroups(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateService.GetDuplicateGroupsAsync(cancellationToken));
+        return Ok(await _duplicateQueryService.GetDuplicateGroupsAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// Returns all resolved duplicate groups with their post details.
+    /// </summary>
+    [HttpGet("resolved")]
+    public async Task<ActionResult<IEnumerable<DuplicateGroupDto>>> GetResolvedDuplicateGroups(CancellationToken cancellationToken)
+    {
+        return Ok(await _duplicateQueryService.GetResolvedDuplicateGroupsAsync(cancellationToken));
     }
 
     /// <summary>
@@ -31,7 +42,7 @@ public class DuplicatesController : ControllerBase
     [HttpGet("same-folder")]
     public async Task<ActionResult<IEnumerable<SameFolderDuplicateGroupDto>>> GetSameFolderDuplicateGroups(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateService.GetSameFolderDuplicateGroupsAsync(cancellationToken));
+        return Ok(await _duplicateQueryService.GetSameFolderDuplicateGroupsAsync(cancellationToken));
     }
 
     /// <summary>
@@ -44,14 +55,62 @@ public class DuplicatesController : ControllerBase
     }
 
     /// <summary>
-    /// Resolve a group by keeping one post and removing the others from the booru.
+    /// Mark a resolved group as unresolved so it appears in active duplicate review again.
+    /// </summary>
+    [HttpPost("{groupId}/mark-unresolved")]
+    public async Task<IActionResult> MarkUnresolved(int groupId, CancellationToken cancellationToken)
+    {
+        return await _duplicateService.MarkUnresolvedAsync(groupId, cancellationToken).ToHttpResult();
+    }
+
+    /// <summary>
+    /// Mark all eligible resolved groups as unresolved.
+    /// </summary>
+    [HttpPost("resolved/mark-all-unresolved")]
+    public async Task<ActionResult<MarkAllUnresolvedResponseDto>> MarkAllUnresolved(CancellationToken cancellationToken)
+    {
+        return Ok(await _duplicateService.MarkAllUnresolvedAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// Auto-resolve one duplicate group by keeping the highest-quality post.
+    /// Other posts are removed from booru and excluded from future imports.
+    /// </summary>
+    [HttpPost("{groupId}/auto-resolve")]
+    public async Task<IActionResult> AutoResolveGroup(int groupId, CancellationToken cancellationToken)
+    {
+        return await _duplicateService.AutoResolveGroupAsync(groupId, cancellationToken).ToHttpResult();
+    }
+
+    /// <summary>
+    /// Explicitly exclude one post from a duplicate group.
     /// Removed posts are added to the exclusion list so they won't be re-imported.
     /// Files on disk are NOT deleted.
     /// </summary>
-    [HttpPost("{groupId}/keep/{postId}")]
-    public async Task<IActionResult> KeepOne(int groupId, int postId)
+    [HttpPost("{groupId}/exclude/{postId}")]
+    public async Task<IActionResult> ExcludePost(int groupId, int postId, CancellationToken cancellationToken)
     {
-        return await _duplicateService.KeepOneAsync(groupId, postId).ToHttpResult();
+        return await _duplicateService.ExcludeDuplicatePostAsync(groupId, postId, cancellationToken).ToHttpResult();
+    }
+
+    /// <summary>
+    /// Explicitly delete one post from a duplicate group.
+    /// Removed posts are deleted from the booru AND the file is deleted from disk.
+    /// Only allowed when the group contains at least one duplicate in the same folder as the target post.
+    /// </summary>
+    [HttpPost("{groupId}/delete/{postId}")]
+    public async Task<IActionResult> DeletePost(int groupId, int postId, CancellationToken cancellationToken)
+    {
+        return await _duplicateService.DeleteDuplicatePostAsync(groupId, postId, cancellationToken).ToHttpResult();
+    }
+
+    /// <summary>
+    /// Bulk-resolve all unresolved duplicate groups by keeping the highest-quality post in each.
+    /// </summary>
+    [HttpPost("resolve-all")]
+    public async Task<ActionResult<ResolveAllExactResponseDto>> ResolveAll(CancellationToken cancellationToken)
+    {
+        return Ok(await _duplicateService.ResolveAllAsync(cancellationToken));
     }
 
     /// <summary>
@@ -63,16 +122,6 @@ public class DuplicatesController : ControllerBase
         return Ok(await _duplicateService.ResolveAllExactAsync());
     }
 
-    /// <summary>
-    /// Delete one post from a same-folder duplicate partition.
-    /// </summary>
-    [HttpPost("same-folder/delete")]
-    public async Task<IActionResult> DeleteSameFolderDuplicate(
-        [FromBody] DeleteSameFolderDuplicateRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        return await _duplicateService.DeleteSameFolderDuplicateAsync(request, cancellationToken).ToHttpResult();
-    }
 
     /// <summary>
     /// Resolve one same-folder duplicate partition by keeping the best quality post.
@@ -100,7 +149,7 @@ public class DuplicatesController : ControllerBase
     [HttpGet("excluded")]
     public async Task<ActionResult<IEnumerable<ExcludedFileDto>>> GetExcludedFiles(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateService.GetExcludedFilesAsync(cancellationToken));
+        return Ok(await _duplicateQueryService.GetExcludedFilesAsync(cancellationToken));
     }
 
     /// <summary>
@@ -118,7 +167,7 @@ public class DuplicatesController : ControllerBase
     [HttpGet("excluded/{id}/content")]
     public async Task<IActionResult> GetExcludedFileContent(int id, CancellationToken cancellationToken)
     {
-        return await _duplicateService.GetExcludedFileContentPathAsync(id, cancellationToken)
+        return await _duplicateQueryService.GetExcludedFileContentPathAsync(id, cancellationToken)
             .ToHttpResult(fullPath =>
             {
                 var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();

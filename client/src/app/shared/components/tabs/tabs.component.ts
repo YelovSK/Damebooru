@@ -20,6 +20,7 @@ export class TabsComponent {
 
   /** Child tab components */
   tabs = contentChildren(TabComponent);
+  private lastActivatedTabId = '';
 
   /** Current URL path */
   private currentUrl = toSignal(
@@ -80,6 +81,21 @@ export class TabsComponent {
         const firstTab = allTabs[0];
         this.router.navigate([firstTab.id()], { relativeTo: this.route, replaceUrl: true });
       }
+    });
+
+    effect(() => {
+      const tab = this.activeTab();
+      if (!tab) {
+        return;
+      }
+
+      const tabId = tab.id();
+      if (!tabId || this.lastActivatedTabId === tabId) {
+        return;
+      }
+
+      this.lastActivatedTabId = tabId;
+      tab.notifyActivated();
     });
   }
 }

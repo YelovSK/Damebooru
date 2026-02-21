@@ -26,11 +26,17 @@ public class ImageHashService : ISimilarityService
     {
         try
         {
+            var analysis = await FFProbe.AnalyseAsync(filePath, null, cancellationToken);
+            var seekTime = GetVideoCaptureTime(analysis);
+
             // Decode once to a small grayscale surface, then derive multiple perceptual hashes from it.
             using var memoryStream = new MemoryStream();
 
-            await FFMpegArguments
-                .FromFileInput(filePath)
+            var arguments = seekTime.HasValue
+                ? FFMpegArguments.FromFileInput(filePath, true, options => options.Seek(seekTime.Value))
+                : FFMpegArguments.FromFileInput(filePath);
+
+            await arguments
                 .OutputToPipe(new StreamPipeSink(memoryStream), options => options
                     .WithVideoFilters(filter => filter.Scale(DecodeSize, DecodeSize))
                     .ForceFormat("rawvideo")
@@ -62,6 +68,59 @@ public class ImageHashService : ISimilarityService
             _logger.LogWarning(ex, "Failed to compute perceptual hash for {Path}", filePath);
             return null;
         }
+    }
+
+    private static TimeSpan? GetVideoCaptureTime(IMediaAnalysis analysis)
+    {
+        if (!IsVideo(analysis))
+        {
+            return null;
+        }
+
+        var duration = analysis.Duration;
+        if (duration <= TimeSpan.Zero)
+        {
+            return TimeSpan.Zero;
+        }
+
+        // Never seek at/after EOF.
+        var safeUpperBound = duration - TimeSpan.FromMilliseconds(50);
+        if (safeUpperBound <= TimeSpan.Zero)
+        {
+            return TimeSpan.Zero;
+        }
+
+        // Prefer a frame from ~20% into the video, bounded to avoid seeking too far.
+        // Keep it consistent with FFmpegProcessor thumbnail capture.
+        var preferred = TimeSpan.FromTicks((long)(duration.Ticks * 0.2));
+        var clamped = preferred < TimeSpan.FromMilliseconds(250)
+            ? TimeSpan.FromMilliseconds(250)
+            : preferred > TimeSpan.FromSeconds(10)
+                ? TimeSpan.FromSeconds(10)
+                : preferred;
+
+        return clamped > safeUpperBound ? safeUpperBound : clamped;
+    }
+
+    private static bool IsVideo(IMediaAnalysis analysis)
+    {
+        if (analysis.PrimaryVideoStream == null)
+        {
+            return false;
+        }
+
+        var format = (analysis.Format.FormatName ?? "").ToLowerInvariant();
+
+        // Exclude image formats that might have video streams
+        if (format.Contains("jpeg") || format.Contains("jxl") ||
+            format.Contains("png") || format.Contains("gif") ||
+            format.Contains("webp") || format.Contains("bmp"))
+        {
+            return false;
+        }
+
+        // Additional check: duration should be meaningful for actual videos
+        return analysis.Duration > TimeSpan.FromMilliseconds(100);
     }
 
     private static ulong ComputeDHash64(byte[] pixels)

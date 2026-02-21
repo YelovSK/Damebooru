@@ -1,4 +1,5 @@
 using Bakabooru.Core.Interfaces;
+using Bakabooru.Processing.Jobs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Bakabooru.Server.Controllers;
@@ -25,7 +26,7 @@ public class AdminController : ControllerBase
     {
         try
         {
-            var jobId = await _jobService.StartJobAsync("Scan All Libraries", CancellationToken.None);
+            var jobId = await _jobService.StartJobAsync(ScanAllLibrariesJob.JobKey, CancellationToken.None);
             return Accepted(new { JobId = jobId });
         }
         catch (ArgumentException ex)

@@ -23,11 +23,10 @@ public class TagCategoriesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<TagCategoryDto>> CreateCategory(CreateTagCategoryDto dto)
+    public async Task<IActionResult> CreateCategory([FromBody] CreateTagCategoryDto dto)
     {
-        var category = await _tagCategoryService.CreateCategoryAsync(dto);
-
-        return CreatedAtAction(nameof(GetCategories), new { id = category.Id }, category);
+        return await _tagCategoryService.CreateCategoryAsync(dto)
+            .ToHttpResult(created => Created($"/api/tagcategories/{created!.Id}", created));
     }
 
     [HttpPut("{id}")]

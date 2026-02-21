@@ -6,6 +6,9 @@ namespace Bakabooru.Processing.Jobs;
 
 public class ScanAllLibrariesJob : IJob
 {
+    public const string JobKey = "scan-all-libraries";
+    public const string JobName = "Scan All Libraries";
+
     private readonly IServiceScopeFactory _scopeFactory;
 
     public ScanAllLibrariesJob(IServiceScopeFactory scopeFactory)
@@ -14,7 +17,8 @@ public class ScanAllLibrariesJob : IJob
     }
 
     public int DisplayOrder => 10;
-    public string Name => "Scan All Libraries";
+    public string Key => JobKey;
+    public string Name => JobName;
     public string Description => "Triggers a recursive scan for all configured libraries.";
     public bool SupportsAllMode => false;
 

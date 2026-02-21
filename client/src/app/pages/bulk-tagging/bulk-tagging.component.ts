@@ -8,6 +8,7 @@ import {
     input,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { toObservable, takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { Subject, switchMap, of, map, catchError, combineLatest } from 'rxjs';
@@ -18,6 +19,7 @@ import { RateLimiterService } from '@services/rate-limiting/rate-limiter.service
 import { ToastService } from '@services/toast.service';
 import { BakabooruPostDto, BakabooruPostListDto, BakabooruTagDto } from '@models';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { AppLinks } from '@app/app.paths';
@@ -39,7 +41,7 @@ interface PostTaggingStatus {
 @Component({
     selector: 'app-bulk-tagging',
     standalone: true,
-    imports: [CommonModule, ButtonComponent, PaginatorComponent, AutocompleteComponent],
+    imports: [CommonModule, FormsModule, ButtonComponent, FormCheckboxComponent, PaginatorComponent, AutocompleteComponent],
     templateUrl: './bulk-tagging.component.html',
     styleUrl: './bulk-tagging.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
