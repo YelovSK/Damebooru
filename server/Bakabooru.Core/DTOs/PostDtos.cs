@@ -1,3 +1,5 @@
+using Bakabooru.Core.Entities;
+
 namespace Bakabooru.Core.DTOs;
 
 public class PostDto
@@ -17,8 +19,8 @@ public class PostDto
     public List<string> Sources { get; set; } = [];
     public int ThumbnailLibraryId { get; set; }
     public string ThumbnailContentHash { get; set; } = string.Empty;
-    public int ContentPostId { get; set; }
     public List<TagDto> Tags { get; set; } = [];
+    public List<SimilarPostDto> SimilarPosts { get; set; } = [];
 }
 
 public class PostListDto
@@ -37,6 +39,13 @@ public class PostsAroundDto
 
 public class UpdatePostMetadataDto
 {
-    public List<string>? Tags { get; set; }
+    public List<UpdatePostTagDto>? TagsWithSources { get; set; }
     public List<string>? Sources { get; set; }
+}
+
+public class UpdatePostTagDto
+{
+    public int? TagId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public PostTagSource Source { get; set; }
 }

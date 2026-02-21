@@ -63,3 +63,15 @@ export function generateId(): string {
     // Fallback for HTTP contexts
     return 'id-' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 }
+
+export function getMediaType(contentType: string): 'image' | 'animation' | 'video' {
+  if (contentType.startsWith('video/')) {
+      return 'video';
+  }
+
+  if (contentType === 'image/gif') {
+      return 'animation';
+  }
+
+  return 'image';
+}

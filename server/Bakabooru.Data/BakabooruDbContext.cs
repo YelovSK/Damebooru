@@ -118,7 +118,7 @@ public class BakabooruDbContext : DbContext
 
         modelBuilder.Entity<DuplicateGroupEntry>()
             .HasOne(e => e.Post)
-            .WithMany()
+            .WithMany(p => p.DuplicateGroupEntries)
             .HasForeignKey(e => e.PostId)
             .OnDelete(DeleteBehavior.Cascade);
 

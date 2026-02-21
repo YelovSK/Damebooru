@@ -4,13 +4,19 @@ import { Observable, of, forkJoin, catchError, tap, switchMap, map } from 'rxjs'
 import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
 import { AutoTaggingService } from '@services/auto-tagging/auto-tagging.service';
 import { ToastService } from '@services/toast.service';
-import { BakabooruPostDto, UpdatePostMetadata, ManagedTagCategory } from '@models';
+import { BakabooruPostDto, UpdatePostMetadata, ManagedTagCategory, PostTagSource } from '@models';
 import { AutoTaggingResult, TaggingStatus } from '@services/auto-tagging/models';
-import { areArraysEqual, areSetsEqual } from '@shared/utils/utils';
+import { areArraysEqual } from '@shared/utils/utils';
+
+export interface PostEditTag {
+  tagId?: number;
+  name: string;
+  source: PostTagSource;
+}
 
 export interface PostEditState {
   sources: string[];
-  tags: string[];
+  tags: PostEditTag[];
 }
 
 @Injectable()
@@ -35,12 +41,16 @@ export class PostEditService {
     if (!original || !current) return false;
 
     const originalSources = original.sources || [];
-    const originalTags = new Set(original.tags.map(t => t.name));
-    const currentTags = new Set(current.tags);
+    const originalTags = new Set(original.tags.map(t => this.getTagKey({
+      tagId: t.id,
+      name: t.name,
+      source: t.source,
+    })));
+    const currentTags = new Set(current.tags.map(t => this.getTagKey(t)));
 
     return (
       !areArraysEqual(originalSources, current.sources) ||
-      !areSetsEqual(originalTags, currentTags)
+      !this.areSetsEqual(originalTags, currentTags)
     );
   });
 
@@ -48,7 +58,11 @@ export class PostEditService {
     this.originalPost.set(post);
     this.editState.set({
       sources: post.sources || [],
-      tags: post.tags.map(t => t.name),
+      tags: post.tags.map(t => ({
+        tagId: t.id,
+        name: t.name,
+        source: t.source,
+      })),
     });
     this.isEditing.set(true);
     this.autoTags.set([]);
@@ -67,23 +81,58 @@ export class PostEditService {
   }
 
   setTags(tags: string[]) {
-    this.editState.update(state => state ? { ...state, tags } : null);
-  }
-
-  addTag(tag: string) {
-    const normalized = tag.trim().toLowerCase();
-    if (!normalized) return;
-
+    const normalized = this.normalizeManualTags(tags);
     this.editState.update(state => {
-      if (!state || state.tags.includes(normalized)) return state;
-      return { ...state, tags: [...state.tags, normalized] };
+      if (!state) return null;
+
+      const nonManualTags = state.tags.filter(t => t.source !== PostTagSource.Manual);
+      const manualTags = normalized.map(name => ({
+        name,
+        source: PostTagSource.Manual,
+      }));
+
+      return { ...state, tags: [...nonManualTags, ...manualTags] };
     });
   }
 
-  removeTag(tag: string) {
+  addTag(tag: string, tagId?: number) {
+    const normalized = this.normalizeTagName(tag);
+    if (!normalized) return;
+
     this.editState.update(state => {
       if (!state) return state;
-      return { ...state, tags: state.tags.filter(t => t !== tag) };
+
+      const manualTagKey = this.getTagKey({
+        name: normalized,
+        source: PostTagSource.Manual,
+      });
+      const hasManualTag = state.tags.some(t => this.getTagKey(t) === manualTagKey);
+      if (hasManualTag) {
+        return state;
+      }
+
+      return {
+        ...state,
+        tags: [
+          ...state.tags,
+          {
+            tagId,
+            name: normalized,
+            source: PostTagSource.Manual,
+          },
+        ],
+      };
+    });
+  }
+
+  removeTag(tag: PostEditTag) {
+    const targetKey = this.getTagKey(tag);
+    this.editState.update(state => {
+      if (!state) return state;
+      return {
+        ...state,
+        tags: state.tags.filter(t => this.getTagKey(t) !== targetKey),
+      };
     });
   }
 
@@ -93,11 +142,39 @@ export class PostEditService {
 
     this.editState.update(state => {
       if (!state) return state;
-      const newTags = new Set(state.tags);
+      const existingManualKeys = new Set(
+        state.tags
+          .filter(t => t.source === PostTagSource.Manual)
+          .map(t => this.getTagKey(t)),
+      );
+      const tagsToAdd: PostEditTag[] = [];
+
       for (const ct of result.categorizedTags) {
-        newTags.add(ct.name.toLowerCase());
+        const normalized = this.normalizeTagName(ct.name);
+        if (!normalized) {
+          continue;
+        }
+
+        const key = this.getTagKey({
+          name: normalized,
+          source: PostTagSource.Manual,
+        });
+        if (existingManualKeys.has(key)) {
+          continue;
+        }
+
+        existingManualKeys.add(key);
+        tagsToAdd.push({ name: normalized, source: PostTagSource.Manual });
       }
-      return { ...state, tags: Array.from(newTags) };
+
+      if (tagsToAdd.length === 0) {
+        return state;
+      }
+
+      return {
+        ...state,
+        tags: [...state.tags, ...tagsToAdd],
+      };
     });
   }
 
@@ -192,10 +269,18 @@ export class PostEditService {
       payload.sources = state.sources;
     }
 
-    const originalTags = new Set(post.tags.map(t => t.name));
-    const currentTags = new Set(state.tags);
-    if (!areSetsEqual(originalTags, currentTags)) {
-      payload.tags = state.tags;
+    const originalTags = new Set(post.tags.map(t => this.getTagKey({
+      tagId: t.id,
+      name: t.name,
+      source: t.source,
+    })));
+    const currentTags = new Set(state.tags.map(t => this.getTagKey(t)));
+    if (!this.areSetsEqual(originalTags, currentTags)) {
+      payload.tagsWithSources = state.tags.map(t => ({
+        tagId: t.tagId,
+        name: this.normalizeTagName(t.name),
+        source: t.source,
+      })).filter(t => !!t.name);
     }
 
     return this.bakabooru.updatePost(post.id, payload).pipe(
@@ -260,5 +345,43 @@ export class PostEditService {
       }),
       takeUntilDestroyed(destroyRef),
     );
+  }
+
+  private normalizeTagName(tag: string): string {
+    return tag.trim().toLowerCase();
+  }
+
+  private normalizeManualTags(tags: string[]): string[] {
+    const seen = new Set<string>();
+    const normalized: string[] = [];
+    for (const tag of tags) {
+      const normalizedTag = this.normalizeTagName(tag);
+      if (!normalizedTag || seen.has(normalizedTag)) {
+        continue;
+      }
+
+      seen.add(normalizedTag);
+      normalized.push(normalizedTag);
+    }
+
+    return normalized;
+  }
+
+  private getTagKey(tag: PostEditTag): string {
+    return `${tag.source}|${this.normalizeTagName(tag.name)}`;
+  }
+
+  private areSetsEqual(left: Set<string>, right: Set<string>): boolean {
+    if (left.size !== right.size) {
+      return false;
+    }
+
+    for (const item of left) {
+      if (!right.has(item)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

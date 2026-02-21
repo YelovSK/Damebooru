@@ -75,7 +75,6 @@ public class DuplicatePostDto
     public DateTime FileModifiedDate { get; set; }
     public int ThumbnailLibraryId { get; set; }
     public string ThumbnailContentHash { get; set; } = string.Empty;
-    public int ContentPostId { get; set; }
 }
 
 public class DuplicateGroupDto
@@ -110,7 +109,23 @@ public class SameFolderDuplicatePostDto
     public DateTime FileModifiedDate { get; set; }
     public int ThumbnailLibraryId { get; set; }
     public string ThumbnailContentHash { get; set; } = string.Empty;
-    public int ContentPostId { get; set; }
+}
+
+public class SimilarPostDto
+{
+    public int Id { get; set; }
+    public int LibraryId { get; set; }
+    public string LibraryName { get; set; } = string.Empty;
+    public string RelativePath { get; set; } = string.Empty;
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public long SizeBytes { get; set; }
+    public string ContentType { get; set; } = string.Empty;
+    public int ThumbnailLibraryId { get; set; }
+    public string ThumbnailContentHash { get; set; } = string.Empty;
+    public string DuplicateType { get; set; } = string.Empty;
+    public int? SimilarityPercent { get; set; }
+    public bool GroupIsResolved { get; set; }
 }
 
 public class SameFolderDuplicateGroupDto

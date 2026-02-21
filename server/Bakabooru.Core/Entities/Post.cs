@@ -6,29 +6,29 @@ namespace Bakabooru.Core.Entities;
 public class Post
 {
     public int Id { get; set; }
-    
+
     public int LibraryId { get; set; }
     public Library Library { get; set; } = null!;
-    
+
     [MaxLength(500)]
     public string RelativePath { get; set; } = string.Empty;
-    
+
     [MaxLength(64)]
     public string ContentHash { get; set; } = string.Empty;
-    
+
     /// <summary>Perceptual difference hash (dHash).</summary>
     public ulong? PerceptualHash { get; set; }
 
     /// <summary>Perceptual frequency hash (pHash).</summary>
     public ulong? PerceptualHashP { get; set; }
-    
+
     public long SizeBytes { get; set; }
     public int Width { get; set; }
     public int Height { get; set; }
-    
+
     [MaxLength(100)]
     public string ContentType { get; set; } = string.Empty;
-    
+
     /// <summary>When this post was first imported into Bakabooru.</summary>
     public DateTime ImportDate { get; set; }
 
@@ -36,7 +36,8 @@ public class Post
     public DateTime FileModifiedDate { get; set; }
 
     public bool IsFavorite { get; set; }
-    
+
     public ICollection<PostTag> PostTags { get; set; } = new List<PostTag>();
     public ICollection<PostSource> Sources { get; set; } = new List<PostSource>();
+    public ICollection<DuplicateGroupEntry> DuplicateGroupEntries { get; set; } = new List<DuplicateGroupEntry>();
 }

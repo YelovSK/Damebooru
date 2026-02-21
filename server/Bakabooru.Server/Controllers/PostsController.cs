@@ -23,7 +23,7 @@ public class PostsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetPosts(
         [FromQuery] string? tags = null,
-        [FromQuery] int page = 1, 
+        [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
@@ -53,7 +53,7 @@ public class PostsController : ControllerBase
     {
         return await _postWriteService.AddTagAsync(id, tagName).ToHttpResult();
     }
-    
+
     [HttpDelete("{id}/tags/{tagName}")]
     public async Task<IActionResult> RemoveTag(int id, string tagName)
     {

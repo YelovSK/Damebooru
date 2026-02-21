@@ -37,7 +37,7 @@ public class TagDto
     public string? CategoryName { get; set; }
     public string? CategoryColor { get; set; }
     public int Usages { get; set; }
-    public List<PostTagSource>? Sources { get; set; }
+    public PostTagSource Source { get; set; }
 }
 
 public class CreateTagDto

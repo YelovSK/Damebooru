@@ -152,7 +152,7 @@ public class PostWriteService
             return Result.Failure(OperationError.NotFound, "Post not found");
         }
 
-        var updateTags = metadata.Tags != null;
+        var updateTags = metadata.TagsWithSources != null;
         var updateSources = metadata.Sources != null;
         if (!updateTags && !updateSources)
         {
@@ -161,37 +161,58 @@ public class PostWriteService
 
         if (updateTags)
         {
-            var desiredTags = metadata.Tags!
-                .Select(t => t?.Trim())
-                .Where(t => !string.IsNullOrWhiteSpace(t))
-                .Select(t => t!)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var desiredTagLinks = new List<(string Name, PostTagSource Source)>();
+            var desiredTagKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            var desiredTagLookup = desiredTags.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var requestedTag in metadata.TagsWithSources!)
+            {
+                var normalizedTagName = requestedTag.Name?.Trim();
+                if (string.IsNullOrWhiteSpace(normalizedTagName))
+                {
+                    continue;
+                }
+
+                if (!Enum.IsDefined(requestedTag.Source))
+                {
+                    return Result.Failure(OperationError.InvalidInput, $"Invalid post tag source '{requestedTag.Source}'.");
+                }
+
+                var key = BuildTagKey(normalizedTagName, requestedTag.Source);
+                if (!desiredTagKeys.Add(key))
+                {
+                    continue;
+                }
+
+                desiredTagLinks.Add((normalizedTagName, requestedTag.Source));
+            }
 
             var existingPostTags = await _context.PostTags
-                .Where(pt => pt.PostId == postId && pt.Source == PostTagSource.Manual)
+                .Where(pt => pt.PostId == postId)
                 .Include(pt => pt.Tag)
                 .ToListAsync();
 
             var toRemove = existingPostTags
-                .Where(pt => !desiredTagLookup.Contains(pt.Tag.Name))
+                .Where(pt => !desiredTagKeys.Contains(BuildTagKey(pt.Tag.Name, pt.Source)))
                 .ToList();
             if (toRemove.Count > 0)
             {
                 _context.PostTags.RemoveRange(toRemove);
             }
 
-            var existingTagNames = existingPostTags
-                .Select(pt => pt.Tag.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var missingTagNames = desiredTags
-                .Where(tag => !existingTagNames.Contains(tag))
+            var existingTagLinks = existingPostTags
+                .Select(pt => (pt.Tag.Name, pt.Source))
+                .ToHashSet();
+            var missingTagLinks = desiredTagLinks
+                .Where(link => !existingTagLinks.Contains(link))
                 .ToList();
 
-            if (missingTagNames.Count > 0)
+            if (missingTagLinks.Count > 0)
             {
+                var missingTagNames = missingTagLinks
+                    .Select(link => link.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
                 var existingTags = await _context.Tags
                     .Where(t => missingTagNames.Contains(t.Name))
                     .ToListAsync();
@@ -206,12 +227,15 @@ public class PostWriteService
                         _context.Tags.Add(tag);
                         tagsByName[tagName] = tag;
                     }
+                }
 
+                foreach (var missingTagLink in missingTagLinks)
+                {
                     _context.PostTags.Add(new PostTag
                     {
                         PostId = postId,
-                        Tag = tag,
-                        Source = PostTagSource.Manual
+                        Tag = tagsByName[missingTagLink.Name],
+                        Source = missingTagLink.Source
                     });
                 }
             }
@@ -256,5 +280,10 @@ public class PostWriteService
 
         await _context.SaveChangesAsync();
         return Result.Success();
+    }
+
+    private static string BuildTagKey(string tagName, PostTagSource source)
+    {
+        return $"{source}|{tagName}";
     }
 }

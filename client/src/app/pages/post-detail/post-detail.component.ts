@@ -1,36 +1,82 @@
-import { Component, inject, input, ChangeDetectionStrategy, signal, effect, DestroyRef, computed, viewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterLink, Router } from '@angular/router';
-import { HttpClient } from '@angular/common/http';
-import { Subject, switchMap, catchError, of, map, combineLatest, tap } from 'rxjs';
-import { toObservable, toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  Component,
+  inject,
+  input,
+  ChangeDetectionStrategy,
+  signal,
+  effect,
+  DestroyRef,
+  computed,
+  viewChild,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { RouterLink, Router } from "@angular/router";
+import { HttpClient } from "@angular/common/http";
+import {
+  Subject,
+  switchMap,
+  catchError,
+  of,
+  map,
+  combineLatest,
+  tap,
+} from "rxjs";
+import {
+  toObservable,
+  toSignal,
+  takeUntilDestroyed,
+} from "@angular/core/rxjs-interop";
 
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
-import { SettingsService } from '@services/settings.service';
-import { ToastService } from '@services/toast.service';
-import { TagPipe } from '@shared/pipes/escape-tag.pipe';
-import { escapeTagName } from '@shared/utils/utils';
-import { BakabooruPostDto, BakabooruPostsAroundDto, BakabooruTagDto, ManagedTagCategory, PostTagSource } from '@models';
-import { ButtonComponent } from '@shared/components/button/button.component';
-import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
-import { AutoTaggingResultsComponent } from '@shared/components/auto-tagging-results/auto-tagging-results.component';
-import { ProgressiveImageComponent } from '@shared/components/progressive-image/progressive-image.component';
-import { ZoomPanContainerComponent } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
-import { SimpleTabsComponent, SimpleTabComponent } from '@shared/components/simple-tabs';
-import { TooltipDirective } from '@shared/directives';
-import { HotkeysService } from '@services/hotkeys.service';
-import { AppLinks } from '@app/app.paths';
-import { PostEditService } from './post-edit.service';
-import { FileSizePipe } from '@shared/pipes/file-size.pipe';
-import { FileNamePipe } from '@shared/pipes/file-name.pipe';
+import { BakabooruService } from "@services/api/bakabooru/bakabooru.service";
+import { SettingsService } from "@services/settings.service";
+import { ToastService } from "@services/toast.service";
+import { TagPipe } from "@shared/pipes/escape-tag.pipe";
+import { escapeTagName, getMediaType } from "@shared/utils/utils";
+import {
+  BakabooruPostDto,
+  BakabooruPostsAroundDto,
+  BakabooruTagDto,
+  ManagedTagCategory,
+  PostTagSource,
+  SimilarPost,
+} from "@models";
+import { ButtonComponent } from "@shared/components/button/button.component";
+import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
+import { AutoTaggingResultsComponent } from "@shared/components/auto-tagging-results/auto-tagging-results.component";
+import { ProgressiveImageComponent } from "@shared/components/progressive-image/progressive-image.component";
+import { ZoomPanContainerComponent } from "@shared/components/zoom-pan-container/zoom-pan-container.component";
+import {
+  SimpleTabsComponent,
+  SimpleTabComponent,
+} from "@shared/components/simple-tabs";
+import { TooltipDirective } from "@shared/directives";
+import { HotkeysService } from "@services/hotkeys.service";
+import { AppLinks } from "@app/app.paths";
+import { PostEditService, PostEditTag } from "./post-edit.service";
+import { FileSizePipe } from "@shared/pipes/file-size.pipe";
+import { FileNamePipe } from "@shared/pipes/file-name.pipe";
 
 @Component({
-  selector: 'app-post-detail',
-  imports: [CommonModule, RouterLink, TagPipe, ButtonComponent, AutocompleteComponent, AutoTaggingResultsComponent, ProgressiveImageComponent, ZoomPanContainerComponent, SimpleTabsComponent, SimpleTabComponent, TooltipDirective, FileSizePipe, FileNamePipe],
+  selector: "app-post-detail",
+  imports: [
+    CommonModule,
+    RouterLink,
+    TagPipe,
+    ButtonComponent,
+    AutocompleteComponent,
+    AutoTaggingResultsComponent,
+    ProgressiveImageComponent,
+    ZoomPanContainerComponent,
+    SimpleTabsComponent,
+    SimpleTabComponent,
+    TooltipDirective,
+    FileSizePipe,
+    FileNamePipe,
+  ],
   providers: [PostEditService],
-  templateUrl: './post-detail.component.html',
-  styleUrl: './post-detail.component.css',
-  changeDetection: ChangeDetectionStrategy.OnPush
+  templateUrl: "./post-detail.component.html",
+  styleUrl: "./post-detail.component.css",
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PostDetailComponent {
   private readonly bakabooru = inject(BakabooruService);
@@ -50,12 +96,12 @@ export class PostDetailComponent {
   readonly startVideosMuted = this.settingsService.startVideosMuted;
 
   id = input.required<string>();
-  query = input<string | null>('');
+  query = input<string | null>("");
 
   // Sidebar collapsed state
   sidebarCollapsed = signal(false);
 
-  private readonly zoomPan = viewChild<ZoomPanContainerComponent>('zoomPan');
+  private readonly zoomPan = viewChild<ZoomPanContainerComponent>("zoomPan");
 
   private swipePointerId: number | null = null;
   private swipeStartX: number | null = null;
@@ -70,16 +116,18 @@ export class PostDetailComponent {
   private readonly postCache = signal(new Map<number, BakabooruPostDto>());
 
   // Registered auto-tagging providers
-  registeredProviders = computed(() => this.editService.getRegisteredProviders());
+  registeredProviders = computed(() =>
+    this.editService.getRegisteredProviders(),
+  );
 
   // Tag autocomplete for edit mode
   private tagQuery$ = new Subject<string>();
   tagSuggestions = toSignal(
     this.tagQuery$.pipe(
-      switchMap(word => {
+      switchMap((word) => {
         if (word.length < 1) return of([]);
         return this.bakabooru.getTags(`*${word}* sort:usages`, 0, 10).pipe(
-          map(res => res.results),
+          map((res) => res.results),
           catchError(() => of([])),
         );
       }),
@@ -87,54 +135,63 @@ export class PostDetailComponent {
     ),
     { initialValue: [] as BakabooruTagDto[] },
   );
-  tagSearchValue = signal('');
+  tagSearchValue = signal("");
 
   // Sources edit value
-  sourcesValue = signal('');
-
-
+  sourcesValue = signal("");
 
   post = toSignal(
-    combineLatest([toObservable(this.id), toObservable(this.refreshTrigger)]).pipe(
-      switchMap(([id]) => this.getPostWithCache(Number(id)).pipe(
-        // Ensure error doesn't break the component stream
-        catchError((err) => {
-          console.error('Error fetching post detail:', err);
-          return of(null);
-        })
-      ))
-    )
+    combineLatest([
+      toObservable(this.id),
+      toObservable(this.refreshTrigger),
+    ]).pipe(
+      switchMap(([id]) =>
+        this.getPostWithCache(Number(id)).pipe(
+          // Ensure error doesn't break the component stream
+          catchError((err) => {
+            console.error("Error fetching post detail:", err);
+            return of(null);
+          }),
+        ),
+      ),
+    ),
   );
 
   // Pre-fetch surrounding posts
   around = toSignal(
     combineLatest([toObservable(this.id), toObservable(this.query)]).pipe(
-      switchMap(([id, query]) => this.bakabooru.getPostsAround(Number(id), query!).pipe(
-        tap(around => {
-          if (around.prev) this.setCachedPost(around.prev);
-          if (around.next) this.setCachedPost(around.next);
-        }),
-        catchError((err) => {
-          console.error('Around API failed (disabling keyboard nav for this post):', err);
-          return of({ prev: null, next: null } as BakabooruPostsAroundDto);
-        })
-      ))
-    )
+      switchMap(([id, query]) =>
+        this.bakabooru.getPostsAround(Number(id), query!).pipe(
+          tap((around) => {
+            if (around.prev) this.setCachedPost(around.prev);
+            if (around.next) this.setCachedPost(around.next);
+          }),
+          catchError((err) => {
+            console.error(
+              "Around API failed (disabling keyboard nav for this post):",
+              err,
+            );
+            return of({ prev: null, next: null } as BakabooruPostsAroundDto);
+          }),
+        ),
+      ),
+    ),
   );
 
   // Fetch tag categories for proper tag coloring
   tagCategories = toSignal(
     this.bakabooru.getTagCategories().pipe(
       catchError(() => {
-        console.error('Failed to load tag categories');
+        console.error("Failed to load tag categories");
         return of([]);
-      })
+      }),
     ),
-    { initialValue: [] as ManagedTagCategory[] }
+    { initialValue: [] as ManagedTagCategory[] },
   );
 
+  similarPosts = computed<SimilarPost[]>(() => this.post()?.similarPosts ?? []);
+
   imageLoading = signal(true);
-  readonly displayAspectRatio = signal<string | null>(null);
 
   constructor() {
     effect(() => {
@@ -145,21 +202,13 @@ export class PostDetailComponent {
     // Initialize sources value when entering edit mode
     effect(() => {
       const state = this.editService.currentState();
-      if (state && this.sourcesValue() === '') {
-        this.sourcesValue.set(state.sources.join('\n'));
+      if (state && this.sourcesValue() === "") {
+        this.sourcesValue.set(state.sources.join("\n"));
       }
       if (!this.editService.isEditing()) {
-        this.sourcesValue.set('');
-        this.tagSearchValue.set('');
+        this.sourcesValue.set("");
+        this.tagSearchValue.set("");
       }
-    });
-
-    // Always reflect the current post's metadata ratio so thumbnail/full swaps are layout-stable.
-    effect(() => {
-      const post = this.post();
-      if (!post) return;
-
-      this.displayAspectRatio.set(this.getAspectRatio(post.width, post.height));
     });
 
     this.setupHotkeys();
@@ -171,13 +220,13 @@ export class PostDetailComponent {
       return of(cached);
     }
 
-    return this.bakabooru.getPost(id).pipe(
-      tap(post => this.setCachedPost(post)),
-    );
+    return this.bakabooru
+      .getPost(id)
+      .pipe(tap((post) => this.setCachedPost(post)));
   }
 
   private setCachedPost(post: BakabooruPostDto) {
-    this.postCache.update(existing => {
+    this.postCache.update((existing) => {
       const next = new Map(existing);
       next.set(post.id, post);
       return next;
@@ -186,21 +235,24 @@ export class PostDetailComponent {
 
   private setupHotkeys() {
     // Navigate Left
-    this.hotkeys.on('ArrowLeft')
+    this.hotkeys
+      .on("ArrowLeft")
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.goToPrevPost();
       });
 
     // Navigate Right
-    this.hotkeys.on('ArrowRight')
+    this.hotkeys
+      .on("ArrowRight")
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.goToNextPost();
       });
 
     // Edit mode toggle
-    this.hotkeys.on('e')
+    this.hotkeys
+      .on("e")
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         if (this.editService.isEditing()) {
@@ -209,21 +261,20 @@ export class PostDetailComponent {
           this.startEditing();
         }
       });
-
   }
 
   getTagCategory(tag: BakabooruTagDto): ManagedTagCategory | undefined {
     if (!tag.categoryName) return undefined;
-    return this.tagCategories().find(cat => cat.name === tag.categoryName);
+    return this.tagCategories().find((cat) => cat.name === tag.categoryName);
   }
 
   hasTagSource(tag: BakabooruTagDto, source: PostTagSource): boolean {
-    return (tag.sources ?? []).includes(source);
+    return tag.source === source;
   }
 
   // Sidebar toggle
   toggleSidebar() {
-    this.sidebarCollapsed.update(v => !v);
+    this.sidebarCollapsed.update((v) => !v);
   }
 
   goToPrevPost() {
@@ -235,7 +286,7 @@ export class PostDetailComponent {
   }
 
   onMediaPointerDown(event: PointerEvent) {
-    if (event.pointerType === 'mouse') return;
+    if (event.pointerType === "mouse") return;
     if (!event.isPrimary) return;
 
     this.swipePointerId = event.pointerId;
@@ -281,7 +332,7 @@ export class PostDetailComponent {
     const post = this.post();
     if (post) {
       this.editService.startEditing(post);
-      this.sourcesValue.set((post.sources || []).join('\n'));
+      this.sourcesValue.set((post.sources || []).join("\n"));
     }
   }
 
@@ -290,10 +341,10 @@ export class PostDetailComponent {
   }
 
   saveChanges() {
-    this.editService.save(this.destroyRef).subscribe(updatedPost => {
+    this.editService.save(this.destroyRef).subscribe((updatedPost) => {
       if (updatedPost) {
         this.setCachedPost(updatedPost);
-        this.refreshTrigger.update(n => n + 1);
+        this.refreshTrigger.update((n) => n + 1);
       }
     });
   }
@@ -302,7 +353,10 @@ export class PostDetailComponent {
   onSourcesChange(event: Event) {
     const value = (event.target as HTMLTextAreaElement).value;
     this.sourcesValue.set(value);
-    const sources = value.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    const sources = value
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
     this.editService.setSources(sources);
   }
 
@@ -312,9 +366,9 @@ export class PostDetailComponent {
   }
 
   onTagSelection(tag: BakabooruTagDto) {
-    this.editService.addTag(tag.name);
-    this.tagSearchValue.set('');
-    this.tagQuery$.next('');
+    this.editService.addTag(tag.name, tag.id);
+    this.tagSearchValue.set("");
+    this.tagQuery$.next("");
   }
 
   onTagSearch(value: string) {
@@ -322,13 +376,30 @@ export class PostDetailComponent {
     const trimmed = value.trim();
     if (trimmed) {
       this.editService.addTag(trimmed);
-      this.tagSearchValue.set('');
-      this.tagQuery$.next('');
+      this.tagSearchValue.set("");
+      this.tagQuery$.next("");
     }
   }
 
-  removeTag(tag: string) {
+  removeTag(tag: PostEditTag) {
     this.editService.removeTag(tag);
+  }
+
+  getTagSourceLabel(source: PostTagSource): string {
+    switch (source) {
+      case PostTagSource.Manual:
+        return 'manual';
+      case PostTagSource.Folder:
+        return 'folder';
+      case PostTagSource.Ai:
+        return 'ai';
+      default:
+        return 'unknown';
+    }
+  }
+
+  protected trackByEditTag(tag: PostEditTag): string {
+    return `${tag.source}|${tag.name}`;
   }
 
   // Auto-tagging
@@ -337,10 +408,11 @@ export class PostDetailComponent {
     if (!post) return;
 
     // Use HttpClient to fetch through the proxy (avoids CORS)
-    const url = this.bakabooru.getPostContentUrl(post.contentPostId);
-    this.http.get(url, { responseType: 'blob' })
+    const url = this.bakabooru.getPostContentUrl(post.id);
+    this.http
+      .get(url, { responseType: "blob" })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(blob => {
+      .subscribe((blob) => {
         const file = new File([blob], `post-${post.id}`, { type: blob.type });
         this.editService.triggerAutoTagging(file, this.destroyRef);
       });
@@ -350,17 +422,24 @@ export class PostDetailComponent {
     const post = this.post();
     if (!post) return;
 
-    const url = this.bakabooru.getPostContentUrl(post.contentPostId);
-    this.http.get(url, { responseType: 'blob' })
+    const url = this.bakabooru.getPostContentUrl(post.id);
+    this.http
+      .get(url, { responseType: "blob" })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(blob => {
+      .subscribe((blob) => {
         const file = new File([blob], `post-${post.id}`, { type: blob.type });
-        this.editService.triggerProviderAutoTagging(file, providerId, this.destroyRef);
+        this.editService.triggerProviderAutoTagging(
+          file,
+          providerId,
+          this.destroyRef,
+        );
       });
   }
 
   applyAutoTags(providerId: string) {
-    const result = this.editService.autoTags().find(r => r.providerId === providerId);
+    const result = this.editService
+      .autoTags()
+      .find((r) => r.providerId === providerId);
     if (!result) return;
 
     const stateBefore = this.editService.currentState();
@@ -373,14 +452,18 @@ export class PostDetailComponent {
     const added = tagsAfter - tagsBefore;
 
     if (added > 0) {
-      this.toastService.success(`Added ${added} tag${added !== 1 ? 's' : ''} from ${result.provider}`);
+      this.toastService.success(
+        `Added ${added} tag${added !== 1 ? "s" : ""} from ${result.provider}`,
+      );
     } else {
       this.toastService.info(`No new tags added (all already present)`);
     }
   }
 
   applyAutoSources(providerId: string) {
-    const result = this.editService.autoTags().find(r => r.providerId === providerId);
+    const result = this.editService
+      .autoTags()
+      .find((r) => r.providerId === providerId);
     if (!result) return;
 
     const stateBefore = this.editService.currentState();
@@ -391,14 +474,16 @@ export class PostDetailComponent {
     // Update the textarea
     const state = this.editService.currentState();
     if (state) {
-      this.sourcesValue.set(state.sources.join('\n'));
+      this.sourcesValue.set(state.sources.join("\n"));
     }
 
     const sourcesAfter = state?.sources.length || 0;
     const added = sourcesAfter - sourcesBefore;
 
     if (added > 0) {
-      this.toastService.success(`Added ${added} source${added !== 1 ? 's' : ''} from ${result.provider}`);
+      this.toastService.success(
+        `Added ${added} source${added !== 1 ? "s" : ""} from ${result.provider}`,
+      );
     } else {
       this.toastService.info(`No new sources added (all already present)`);
     }
@@ -416,37 +501,39 @@ export class PostDetailComponent {
       .pipe(switchMap(() => this.bakabooru.getPost(post.id)))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: updatedPost => {
+        next: (updatedPost) => {
           this.setCachedPost(updatedPost);
-          this.refreshTrigger.update(n => n + 1);
-          this.toastService.success(updatedPost.isFavorite ? 'Post favorited' : 'Post unfavorited');
+          this.refreshTrigger.update((n) => n + 1);
+          this.toastService.success(
+            updatedPost.isFavorite ? "Post favorited" : "Post unfavorited",
+          );
         },
         error: () => {
-          this.toastService.error('Failed to update favorite');
-        }
+          this.toastService.error("Failed to update favorite");
+        },
       });
   }
 
-  getMediaType(contentType: string): 'image' | 'animation' | 'video' {
-    if (contentType.startsWith('video/')) return 'video';
-    if (contentType === 'image/gif') return 'animation';
-    return 'image';
+  getMediaType(contentType: string) {
+    return getMediaType(contentType);
   }
 
   getThumbnailUrl(post: BakabooruPostDto): string {
-    return this.bakabooru.getThumbnailUrl(post.thumbnailLibraryId, post.thumbnailContentHash);
+    return this.bakabooru.getThumbnailUrl(
+      post.thumbnailLibraryId,
+      post.thumbnailContentHash,
+    );
   }
 
   getPostContentUrl(post: BakabooruPostDto): string {
-    return this.bakabooru.getPostContentUrl(post.contentPostId);
+    return this.bakabooru.getPostContentUrl(post.id);
   }
 
-  private getAspectRatio(width: number, height: number): string | null {
-    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-      return null;
-    }
-
-    return `${width}/${height}`;
+  getSimilarPostThumbnailUrl(post: SimilarPost): string {
+    return this.bakabooru.getThumbnailUrl(
+      post.thumbnailLibraryId,
+      post.thumbnailContentHash,
+    );
   }
 
   private navigateToPost(post: BakabooruPostDto | null | undefined) {
@@ -460,8 +547,11 @@ export class PostDetailComponent {
 
     this.router.navigate(AppLinks.post(post.id), {
       queryParams: { query: this.query() },
-      replaceUrl: true
+      replaceUrl: true,
     });
   }
 
+  protected trackByTag(tag: BakabooruTagDto): string {
+    return tag.id.toString() + '|' + tag.source.toString();
+  }
 }

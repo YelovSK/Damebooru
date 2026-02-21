@@ -40,7 +40,6 @@ public class DuplicateQueryService
                     FileModifiedDate = e.Post.FileModifiedDate,
                     ThumbnailLibraryId = e.Post.LibraryId,
                     ThumbnailContentHash = e.Post.ContentHash,
-                    ContentPostId = e.Post.Id,
                 }).ToList()
             }).ToListAsync(cancellationToken);
     }
@@ -70,7 +69,6 @@ public class DuplicateQueryService
                     FileModifiedDate = e.Post.FileModifiedDate,
                     ThumbnailLibraryId = e.Post.LibraryId,
                     ThumbnailContentHash = e.Post.ContentHash,
-                    ContentPostId = e.Post.Id,
                 }).ToList()
             }).ToListAsync(cancellationToken);
     }
@@ -137,7 +135,6 @@ public class DuplicateQueryService
                             FileModifiedDate = p.FileModifiedDate,
                             ThumbnailLibraryId = p.LibraryId,
                             ThumbnailContentHash = p.ContentHash,
-                            ContentPostId = p.Id,
                         })
                         .ToList()
                 });

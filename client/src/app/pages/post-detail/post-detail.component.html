@@ -90,12 +90,15 @@
 
                         <!-- Editable tag list -->
                         <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
-                            @for (tag of state.tags; track tag) {
+                            @for (tag of state.tags; track trackByEditTag(tag)) {
                             <div
                                 class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-glass-bg rounded-sm border-l-3 border-l-text-dim">
                                 <span
                                     class="text-text-link flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{
-                                    tag }}</span>
+                                    tag.name }}</span>
+                                <span
+                                    class="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-2 py-[0.1rem] text-[0.65rem] uppercase tracking-wide text-text-muted">{{
+                                    getTagSourceLabel(tag.source) }}</span>
                                 <app-button variant="ghost" size="xs" (click)="removeTag(tag)"
                                     class="text-status-error">×</app-button>
                             </div>
@@ -104,7 +107,7 @@
                         } @else if (pd.tags.length > 0) {
                         <!-- View mode tag list -->
                         <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
-                            @for (tag of pd.tags; track tag.name) {
+                            @for (tag of pd.tags; track trackByTag(tag)) {
                             <a class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-glass-bg rounded-sm border-l-3 cursor-pointer transition-all hover:bg-glass-bg-hover"
                                 [routerLink]="appLinks.posts()" [queryParams]="{ query: tag.name | tag }"
                                 [style.border-left-color]="getTagCategory(tag)?.color || 'var(--color-text-dim)'"
@@ -146,6 +149,41 @@
                     </div>
                     } @else {
                     <span class="text-text-muted text-[0.85rem]">No sources</span>
+                    }
+                </app-simple-tab>
+
+                <!-- Similar Tab -->
+                <app-simple-tab id="similar" label="Similar">
+                    @if (similarPosts().length > 0) {
+                    <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
+                        @for (similar of similarPosts(); track similar.id) {
+                        <a class="flex items-center gap-2 rounded-sm border border-white/10 bg-glass-bg p-2 no-underline transition-colors hover:bg-glass-bg-hover"
+                            [routerLink]="appLinks.post(similar.id)" [queryParams]="{ query: query() }">
+                            <img [src]="getSimilarPostThumbnailUrl(similar)" [alt]="similar.relativePath"
+                                class="h-14 w-14 shrink-0 rounded object-cover border border-white/10" />
+                            <div class="min-w-0 flex-1">
+                                <div class="truncate text-[0.82rem] text-text-primary">{{ similar.relativePath | fileName }}</div>
+                                <div class="mt-0.5 text-[0.72rem] text-text-muted">
+                                    {{ similar.libraryName }} · {{ similar.width }}x{{ similar.height }} · {{ similar.sizeBytes | fileSize }}
+                                </div>
+                                <div class="mt-1 flex items-center gap-1.5">
+                                    <span
+                                        [class]="similar.duplicateType === 'exact' ? 'rounded px-1.5 py-0.5 text-[0.65rem] font-semibold bg-blue-600/20 text-blue-300 border border-blue-500/30' : 'rounded px-1.5 py-0.5 text-[0.65rem] font-semibold bg-purple-600/20 text-purple-300 border border-purple-500/30'">
+                                        {{ similar.duplicateType === 'exact' ? 'Exact' : 'Perceptual' }}
+                                    </span>
+                                    @if (similar.similarityPercent !== null) {
+                                    <span class="text-[0.68rem] text-text-muted">~{{ similar.similarityPercent }}%</span>
+                                    }
+                                    @if (similar.groupIsResolved) {
+                                    <span class="text-[0.68rem] text-text-muted">resolved group</span>
+                                    }
+                                </div>
+                            </div>
+                        </a>
+                        }
+                    </div>
+                    } @else {
+                    <span class="text-text-muted text-[0.85rem]">No similar posts found from duplicate groups.</span>
                     }
                 </app-simple-tab>
 
