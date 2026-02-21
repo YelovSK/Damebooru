@@ -15,19 +15,19 @@
                 <div class="mb-6 flex flex-wrap gap-3">
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
                         <div class="text-3xl font-bold text-white">{{ getVisibleGroupCount() }}</div>
-                        <div class="text-sm text-gray-400">Visible Groups</div>
+                        <div class="text-sm text-gray-400">Groups</div>
                     </div>
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
                         <div class="text-3xl font-bold text-blue-400">{{ getVisiblePostCount() }}</div>
-                        <div class="text-sm text-gray-400">Visible Posts</div>
+                        <div class="text-sm text-gray-400">Posts</div>
                     </div>
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
                         <div class="text-3xl font-bold text-indigo-400">{{ getVisibleExactCount() }}</div>
-                        <div class="text-sm text-gray-400">Visible Exact</div>
+                        <div class="text-sm text-gray-400">Exact</div>
                     </div>
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
                         <div class="text-3xl font-bold text-purple-400">{{ getVisiblePerceptualCount() }}</div>
-                        <div class="text-sm text-gray-400">Visible Perceptual</div>
+                        <div class="text-sm text-gray-400">Perceptual</div>
                     </div>
                 </div>
 
@@ -36,6 +36,11 @@
                     <app-button (click)="resolveAllVisible()" [variant]="showSameFolderOnly() ? 'danger' : 'primary'" size="md">
                         {{ getBulkResolveButtonLabel() }}
                     </app-button>
+                    @if (!showSameFolderOnly() && getVisibleExactCount() > 0) {
+                    <app-button (click)="resolveAllExact()" variant="secondary" size="md">
+                        Auto Resolve Exact Only ({{ getVisibleExactCount() }} groups)
+                    </app-button>
+                    }
                     <span class="text-xs text-gray-500">{{ getBulkResolveHint() }}</span>
                 </div>
                 }
@@ -71,11 +76,11 @@
                         </div>
                         <div class="flex items-center gap-2">
                             <app-button (click)="onAutoResolveGroup(group)" variant="primary" size="sm">
-                                Auto Resolve Group
+                                Auto Resolve
                             </app-button>
                             @if (!isSameFolderScope(group)) {
                             <app-button (click)="onDismissGroup(group)" variant="secondary" size="sm">
-                                Dismiss Group
+                                Dismiss
                             </app-button>
                             }
                         </div>

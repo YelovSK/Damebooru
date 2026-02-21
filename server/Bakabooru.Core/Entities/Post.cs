@@ -16,6 +16,12 @@ public class Post
     [MaxLength(64)]
     public string ContentHash { get; set; } = string.Empty;
 
+    [MaxLength(64)]
+    public string? FileIdentityDevice { get; set; }
+
+    [MaxLength(128)]
+    public string? FileIdentityValue { get; set; }
+
     /// <summary>Perceptual difference hash (dHash).</summary>
     public ulong? PerceptualHash { get; set; }
 

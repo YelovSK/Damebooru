@@ -90,7 +90,7 @@ public class BakabooruDbContext : DbContext
             .HasIndex(p => new { p.LibraryId, p.RelativePath });
 
         modelBuilder.Entity<Post>()
-            .HasIndex(p => new { p.LibraryId, p.RelativePath });
+            .HasIndex(p => new { p.LibraryId, p.FileIdentityDevice, p.FileIdentityValue });
 
         modelBuilder.Entity<Post>()
             .HasIndex(p => p.IsFavorite);

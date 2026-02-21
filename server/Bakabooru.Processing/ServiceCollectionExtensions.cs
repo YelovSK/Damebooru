@@ -31,6 +31,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IHasherService, ContentHasher>();
         services.AddSingleton<IMediaFileProcessor, FFmpegProcessor>();
         services.AddSingleton<ISimilarityService, ImageHashService>();
+        services.AddSingleton<IFileIdentityResolver, PlatformFileIdentityResolver>();
 
         // Core Pipeline Services
         services.AddSingleton<ILibrarySyncProcessor, LibrarySyncProcessor>();

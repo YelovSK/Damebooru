@@ -245,7 +245,7 @@ export class DuplicatesPageComponent {
   }
 
   getBulkResolveButtonLabel(): string {
-    return `Auto Resolve All Visible (${this.visibleStats().groupCount} groups)`;
+    return `Auto Resolve All (${this.visibleStats().groupCount} groups)`;
   }
 
   getBulkResolveButtonClass(): string {

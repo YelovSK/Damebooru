@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   inject,
   input,
   output,
@@ -22,7 +23,27 @@ export class PostPreviewOverlayComponent {
   private readonly bakabooru = inject(BakabooruService);
 
   readonly post = input.required<BakabooruPostDto>();
+  readonly size = input(90);
   readonly closed = output<void>();
+
+  readonly viewportLimitVw = computed(() => `${this.clampedSizePercent()}vw`);
+
+  readonly viewportLimitVh = computed(() => `${this.clampedSizePercent()}vh`);
+
+  readonly imageAspectRatio = computed(() => {
+    const post = this.post();
+    return post.width && post.height ? `${post.width}/${post.height}` : "1/1";
+  });
+
+  readonly imageContainerWidth = computed(() => {
+    const post = this.post();
+    const size = this.clampedSizePercent();
+    if (!(post.width && post.height)) {
+      return `${Math.min(size, 60)}vw`;
+    }
+
+    return `min(${size}vw, ${size}vh * ${post.width} / ${post.height})`;
+  });
 
   getThumbnailUrl(post: BakabooruPostDto): string {
     return this.bakabooru.getThumbnailUrl(
@@ -45,5 +66,9 @@ export class PostPreviewOverlayComponent {
 
   onClick(): void {
     this.closed.emit();
+  }
+
+  private clampedSizePercent(): number {
+    return Math.min(100, Math.max(10, this.size()));
   }
 }

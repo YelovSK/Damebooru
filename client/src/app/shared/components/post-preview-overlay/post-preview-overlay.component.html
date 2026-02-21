@@ -4,18 +4,13 @@
 
         @switch (getMediaType(post().contentType)) {
         @case ('video') {
-        <video [src]="getPostContentUrl(post())" class="block max-h-[80vh] max-w-[80vw] object-contain"
-            autoplay muted loop playsinline>
+        <video [src]="getPostContentUrl(post())" class="block object-contain" [style.max-width]="viewportLimitVw()"
+            [style.max-height]="viewportLimitVh()" [muted]="true" autoplay loop playsinline>
         </video>
         }
         @default {
-        <!--
-            Size the container so progressive-image's absolute children fill it correctly.
-            We cap at 80vw × 80vh and apply the post's natural aspect ratio.
-        -->
-        <div class="relative max-h-[80vh] max-w-[80vw]"
-            [style.aspect-ratio]="post().width && post().height ? post().width + '/' + post().height : '1/1'"
-            [style.width]="post().width && post().height ? 'min(80vw, 80vh * ' + post().width + ' / ' + post().height + ')' : '60vw'">
+        <div class="relative" [style.max-width]="viewportLimitVw()" [style.max-height]="viewportLimitVh()"
+            [style.aspect-ratio]="imageAspectRatio()" [style.width]="imageContainerWidth()">
             <app-progressive-image [thumbnailSrc]="getThumbnailUrl(post())"
                 [fullSrc]="getPostContentUrl(post())" [alt]="'Post ' + post().id"
                 [width]="post().width || null" [height]="post().height || null" />

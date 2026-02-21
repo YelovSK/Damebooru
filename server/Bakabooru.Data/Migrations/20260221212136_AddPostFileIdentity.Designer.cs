@@ -3,6 +3,7 @@ using System;
 using Bakabooru.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Bakabooru.Data.Migrations
 {
     [DbContext(typeof(BakabooruDbContext))]
-    partial class BakabooruDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260221212136_AddPostFileIdentity")]
+    partial class AddPostFileIdentity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
