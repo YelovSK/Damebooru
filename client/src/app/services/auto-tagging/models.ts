@@ -1,6 +1,6 @@
 import { ValidatorFn } from "@angular/forms";
 import { Observable } from "rxjs";
-import { Safety } from "../api/bakabooru/models";
+import { Safety } from "../api/damebooru/models";
 
 export interface CategorizedTag {
   name: string;

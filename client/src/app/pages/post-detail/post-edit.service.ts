@@ -1,10 +1,10 @@
 import { Injectable, signal, computed, inject, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, of, forkJoin, catchError, tap, switchMap, map } from 'rxjs';
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { AutoTaggingService } from '@services/auto-tagging/auto-tagging.service';
 import { ToastService } from '@services/toast.service';
-import { BakabooruPostDto, UpdatePostMetadata, ManagedTagCategory, PostTagSource } from '@models';
+import { DamebooruPostDto, UpdatePostMetadata, ManagedTagCategory, PostTagSource } from '@models';
 import { AutoTaggingResult, TaggingStatus } from '@services/auto-tagging/models';
 import { areArraysEqual } from '@shared/utils/utils';
 
@@ -21,11 +21,11 @@ export interface PostEditState {
 
 @Injectable()
 export class PostEditService {
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
   private readonly autoTagging = inject(AutoTaggingService);
   private readonly toast = inject(ToastService);
 
-  private originalPost = signal<BakabooruPostDto | null>(null);
+  private originalPost = signal<DamebooruPostDto | null>(null);
   private editState = signal<PostEditState | null>(null);
 
   isEditing = signal(false);
@@ -54,7 +54,7 @@ export class PostEditService {
     );
   });
 
-  startEditing(post: BakabooruPostDto) {
+  startEditing(post: DamebooruPostDto) {
     this.originalPost.set(post);
     this.editState.set({
       sources: post.sources || [],
@@ -256,7 +256,7 @@ export class PostEditService {
     return this.autoTagging.getEnabledProviders();
   }
 
-  save(destroyRef: DestroyRef): Observable<BakabooruPostDto | null> {
+  save(destroyRef: DestroyRef): Observable<DamebooruPostDto | null> {
     const post = this.originalPost();
     const state = this.editState();
     if (!post || !state) return of(null);
@@ -283,8 +283,8 @@ export class PostEditService {
       })).filter(t => !!t.name);
     }
 
-    return this.bakabooru.updatePost(post.id, payload).pipe(
-      switchMap(() => this.bakabooru.getPost(post.id)),
+    return this.damebooru.updatePost(post.id, payload).pipe(
+      switchMap(() => this.damebooru.getPost(post.id)),
       switchMap(updatedPost => {
         // Update tag categories from auto-tagging results
         const categorizedTags = this.collectCategorizedTags();
@@ -324,10 +324,10 @@ export class PostEditService {
     categorizedTags: { name: string; category: string }[],
     destroyRef: DestroyRef,
   ) {
-    return this.bakabooru.getManagedTagCategories().pipe(
+    return this.damebooru.getManagedTagCategories().pipe(
       switchMap(categories => {
         const updateTasks = categorizedTags.map(ct =>
-          this.bakabooru.getManagedTags(ct.name, 0, 100).pipe(
+          this.damebooru.getManagedTags(ct.name, 0, 100).pipe(
             switchMap(tags => {
               const tag = tags.results.find(t => t.name.toLowerCase() === ct.name.toLowerCase());
               if (!tag) return of(null);
@@ -335,7 +335,7 @@ export class PostEditService {
               const category = categories.find(c => c.name.toLowerCase() === ct.category.toLowerCase()) as ManagedTagCategory | undefined;
               if (!category) return of(null);
 
-              return this.bakabooru.updateManagedTag(tag.id, tag.name, category.id);
+              return this.damebooru.updateManagedTag(tag.id, tag.name, category.id);
             }),
             catchError(() => of(null)),
           ),

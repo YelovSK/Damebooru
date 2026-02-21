@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "bakabooru-angular": {
+    "damebooru-angular": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -13,7 +13,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
-            "outputPath": "dist/bakabooru-angular",
+            "outputPath": "dist/damebooru-angular",
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": [
@@ -77,10 +77,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "bakabooru-angular:build:production"
+              "buildTarget": "damebooru-angular:build:production"
             },
             "development": {
-              "buildTarget": "bakabooru-angular:build:development"
+              "buildTarget": "damebooru-angular:build:development"
             }
           },
           "defaultConfiguration": "development"

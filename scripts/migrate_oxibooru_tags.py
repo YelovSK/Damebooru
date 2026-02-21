@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Migrate tags, tag categories, and sources from Oxibooru to Bakabooru by
-reverse-searching Bakabooru posts against Oxibooru.
+Migrate tags, tag categories, and sources from Oxibooru to Damebooru by
+reverse-searching Damebooru posts against Oxibooru.
 
 Flow:
-1. Iterate Bakabooru posts (paged).
+1. Iterate Damebooru posts (paged).
 2. Process only image/gif posts (skip videos).
-3. Download post content from Bakabooru.
+3. Download post content from Damebooru.
 4. If source is JXL, decode it to JPEG using `djxl`.
 5. Reverse-search file in Oxibooru (`/posts/reverse-search`).
 6. If exact match exists (or a sufficiently close similar match), sync tag
-   categories + tags to Bakabooru.
-7. Add missing sources to the Bakabooru post.
+   categories + tags to Damebooru.
+7. Add missing sources to the Damebooru post.
 
 Requirements:
 - Python 3.10+
@@ -34,7 +34,7 @@ import requests
 
 
 DEFAULT_OXIBOORU_API = "https://oxibooru.example.com/api"
-DEFAULT_BAKABOORU_API = "http://localhost:5119/api"
+DEFAULT_DAMEBOORU_API = "http://localhost:5119/api"
 
 
 def normalize_name(name: str) -> str:
@@ -98,7 +98,7 @@ class ManagedCategory:
     order: int
 
 
-class BakabooruClient:
+class DamebooruClient:
     def __init__(
         self,
         api_base: str,
@@ -137,7 +137,7 @@ class BakabooruClient:
             json={"username": username, "password": password},
             timeout=self.timeout,
         )
-        self._raise_for_status(response, "Bakabooru login")
+        self._raise_for_status(response, "Damebooru login")
 
     def get_posts_page(self, page: int, page_size: int) -> dict[str, Any]:
         response = self.session.get(
@@ -145,10 +145,10 @@ class BakabooruClient:
             params={"page": page, "pageSize": page_size},
             timeout=self.timeout,
         )
-        self._raise_for_status(response, "Bakabooru list posts")
+        self._raise_for_status(response, "Damebooru list posts")
         data = response.json()
         if not isinstance(data, dict):
-            raise RuntimeError("Bakabooru list posts returned unexpected payload.")
+            raise RuntimeError("Damebooru list posts returned unexpected payload.")
         return data
 
     def get_post_content(self, post_id: int) -> bytes:
@@ -156,15 +156,15 @@ class BakabooruClient:
             self._url(f"/posts/{post_id}/content"),
             timeout=self.timeout,
         )
-        self._raise_for_status(response, f"Bakabooru fetch content for post {post_id}")
+        self._raise_for_status(response, f"Damebooru fetch content for post {post_id}")
         return response.content
 
     def get_categories(self) -> list[ManagedCategory]:
         response = self.session.get(self._url("/tagcategories"), timeout=self.timeout)
-        self._raise_for_status(response, "Bakabooru list categories")
+        self._raise_for_status(response, "Damebooru list categories")
         payload = response.json()
         if not isinstance(payload, list):
-            raise RuntimeError("Bakabooru categories payload is not a list.")
+            raise RuntimeError("Damebooru categories payload is not a list.")
 
         result: list[ManagedCategory] = []
         for item in payload:
@@ -184,7 +184,7 @@ class BakabooruClient:
             json={"name": name, "color": color, "order": order},
             timeout=self.timeout,
         )
-        self._raise_for_status(response, f"Bakabooru create category '{name}'")
+        self._raise_for_status(response, f"Damebooru create category '{name}'")
         item = response.json()
         return ManagedCategory(
             id=int(item["id"]),
@@ -204,12 +204,12 @@ class BakabooruClient:
                 params={"page": page, "pageSize": page_size},
                 timeout=self.timeout,
             )
-            self._raise_for_status(response, "Bakabooru list tags")
+            self._raise_for_status(response, "Damebooru list tags")
             payload = response.json()
 
             items = payload.get("items") or payload.get("Items") or []
             if not isinstance(items, list):
-                raise RuntimeError("Bakabooru tags payload has invalid 'items'.")
+                raise RuntimeError("Damebooru tags payload has invalid 'items'.")
 
             for item in items:
                 tags.append(
@@ -232,7 +232,7 @@ class BakabooruClient:
             json={"name": name, "categoryId": category_id},
             timeout=self.timeout,
         )
-        self._raise_for_status(response, f"Bakabooru create tag '{name}'")
+        self._raise_for_status(response, f"Damebooru create tag '{name}'")
         payload = response.json()
         return ManagedTag(
             id=int(payload["id"]),
@@ -246,7 +246,7 @@ class BakabooruClient:
             json={"name": name, "categoryId": category_id},
             timeout=self.timeout,
         )
-        self._raise_for_status(response, f"Bakabooru update tag '{name}'")
+        self._raise_for_status(response, f"Damebooru update tag '{name}'")
         payload = response.json()
         return ManagedTag(
             id=int(payload["id"]),
@@ -266,7 +266,7 @@ class BakabooruClient:
         if response.status_code == 409:
             return False, response.status_code
 
-        self._raise_for_status(response, f"Bakabooru add tag '{tag_name}' to post {post_id}")
+        self._raise_for_status(response, f"Damebooru add tag '{tag_name}' to post {post_id}")
         return False, response.status_code
 
     def get_post_sources(self, post_id: int) -> list[str]:
@@ -274,10 +274,10 @@ class BakabooruClient:
             self._url(f"/posts/{post_id}/sources"),
             timeout=self.timeout,
         )
-        self._raise_for_status(response, f"Bakabooru get sources for post {post_id}")
+        self._raise_for_status(response, f"Damebooru get sources for post {post_id}")
         payload = response.json()
         if not isinstance(payload, list):
-            raise RuntimeError(f"Bakabooru sources payload for post {post_id} is not a list.")
+            raise RuntimeError(f"Damebooru sources payload for post {post_id} is not a list.")
         result: list[str] = []
         for item in payload:
             if isinstance(item, str):
@@ -292,7 +292,7 @@ class BakabooruClient:
             json=sources,
             timeout=self.timeout,
         )
-        self._raise_for_status(response, f"Bakabooru set sources for post {post_id}")
+        self._raise_for_status(response, f"Damebooru set sources for post {post_id}")
 
 
 class OxibooruClient:
@@ -415,7 +415,7 @@ def select_reverse_search_match(
 class Migrator:
     def __init__(
         self,
-        baka: BakabooruClient,
+        baka: DamebooruClient,
         oxi: OxibooruClient,
         dry_run: bool = False,
     ) -> None:
@@ -591,19 +591,19 @@ def extract_oxibooru_sources(oxi_post: dict[str, Any]) -> list[str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Migrate tags/categories from Oxibooru to Bakabooru using reverse image search."
+        description="Migrate tags/categories from Oxibooru to Damebooru using reverse image search."
     )
-    parser.add_argument("--bakabooru-api", default=DEFAULT_BAKABOORU_API, help="Bakabooru API base URL.")
+    parser.add_argument("--damebooru-api", default=DEFAULT_DAMEBOORU_API, help="Damebooru API base URL.")
     parser.add_argument("--oxibooru-api", default=DEFAULT_OXIBOORU_API, help="Oxibooru API base URL.")
-    parser.add_argument("--bakabooru-username", default=None, help="Bakabooru username (optional).")
-    parser.add_argument("--bakabooru-password", default=None, help="Bakabooru password (optional).")
+    parser.add_argument("--damebooru-username", default=None, help="Damebooru username (optional).")
+    parser.add_argument("--damebooru-password", default=None, help="Damebooru password (optional).")
     parser.add_argument(
         "--oxibooru-auth-header",
         default=None,
         help="Optional Oxibooru Authorization header value (e.g. 'Token <base64>' or 'Basic <base64>').",
     )
-    parser.add_argument("--page-size", type=int, default=100, help="Bakabooru posts page size.")
-    parser.add_argument("--start-page", type=int, default=1, help="Bakabooru start page.")
+    parser.add_argument("--page-size", type=int, default=100, help="Damebooru posts page size.")
+    parser.add_argument("--start-page", type=int, default=1, help="Damebooru start page.")
     parser.add_argument("--max-posts", type=int, default=0, help="Stop after processing this many posts (0 = no limit).")
     parser.add_argument(
         "--max-similar-distance",
@@ -611,7 +611,7 @@ def parse_args() -> argparse.Namespace:
         default=0.05,
         help="Accept similar reverse-search match only when distance is <= this value.",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Do not write changes to Bakabooru.")
+    parser.add_argument("--dry-run", action="store_true", help="Do not write changes to Damebooru.")
     parser.add_argument("--fail-fast", action="store_true", help="Abort on first per-post failure.")
     parser.add_argument("--timeout", type=int, default=60, help="HTTP timeout in seconds.")
     return parser.parse_args()
@@ -629,16 +629,16 @@ def main() -> int:
     if args.max_similar_distance < 0 or args.max_similar_distance > 1:
         print("Invalid --max-similar-distance (expected 0..1).", file=sys.stderr)
         return 2
-    if (args.bakabooru_username and not args.bakabooru_password) or (
-        args.bakabooru_password and not args.bakabooru_username
+    if (args.damebooru_username and not args.damebooru_password) or (
+        args.damebooru_password and not args.damebooru_username
     ):
-        print("Both --bakabooru-username and --bakabooru-password are required together.", file=sys.stderr)
+        print("Both --damebooru-username and --damebooru-password are required together.", file=sys.stderr)
         return 2
 
-    baka = BakabooruClient(
-        api_base=args.bakabooru_api,
-        username=args.bakabooru_username,
-        password=args.bakabooru_password,
+    baka = DamebooruClient(
+        api_base=args.damebooru_api,
+        username=args.damebooru_username,
+        password=args.damebooru_password,
         timeout=args.timeout,
     )
     oxi = OxibooruClient(
@@ -668,7 +668,7 @@ def main() -> int:
         page_payload = baka.get_posts_page(page=page, page_size=args.page_size)
         items = page_payload.get("items") or page_payload.get("Items") or []
         if not isinstance(items, list):
-            raise RuntimeError("Bakabooru posts payload has invalid 'items'.")
+            raise RuntimeError("Damebooru posts payload has invalid 'items'.")
         if not items:
             break
 

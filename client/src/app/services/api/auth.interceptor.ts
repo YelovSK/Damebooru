@@ -1,11 +1,11 @@
 import { HttpInterceptorFn } from "@angular/common/http";
 import { inject } from "@angular/core";
-import { BakabooruService } from "./bakabooru/bakabooru.service";
+import { DamebooruService } from "./damebooru/damebooru.service";
 import { environment } from "@env/environment";
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const bakabooru = inject(BakabooruService);
-  const auth = bakabooru.authHeader();
+  const damebooru = inject(DamebooruService);
+  const auth = damebooru.authHeader();
 
   // Only add auth header to internal API requests
   const isInternalApi = req.url.startsWith(environment.apiBaseUrl);

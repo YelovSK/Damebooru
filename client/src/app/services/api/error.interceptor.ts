@@ -3,7 +3,7 @@ import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { ToastService } from '@services/toast.service';
 
-// I think this is the Bakabooru API error response format.
+// I think this is the Damebooru API error response format.
 interface ErrorResponse {
     title: string;
     name: string;

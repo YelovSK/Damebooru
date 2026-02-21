@@ -1,16 +1,16 @@
-# Bakabooru Server Architecture (As Built)
+# Damebooru Server Architecture (As Built)
 
 This document describes the architecture that currently exists in code, including known quirks.
 
 ## Runtime Components
-- **`Bakabooru.Server`**
+- **`Damebooru.Server`**
   - ASP.NET Core API host
   - Registers controllers, CORS, Swagger, static thumbnail serving
-  - Registers `Bakabooru.Processing` services (jobs, scheduler, ingestion pipeline)
+  - Registers `Damebooru.Processing` services (jobs, scheduler, ingestion pipeline)
   - Auto-runs EF migrations at startup
 
 ## Data Layer
-- **DB**: SQLite via EF Core (`BakabooruDbContext`)
+- **DB**: SQLite via EF Core (`DamebooruDbContext`)
 - **Main entities**:
   - `Library`
   - `Post`

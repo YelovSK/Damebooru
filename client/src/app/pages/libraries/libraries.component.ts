@@ -4,8 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { toSignal, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap } from 'rxjs';
 
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
-import { Library } from '@services/api/bakabooru/models';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
+import { Library } from '@services/api/damebooru/models';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
@@ -20,7 +20,7 @@ import { FileSizePipe } from '@shared/pipes/file-size.pipe';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LibrariesComponent {
-    private readonly bakabooru = inject(BakabooruService);
+    private readonly damebooru = inject(DamebooruService);
     private readonly toast = inject(ToastService);
     private readonly confirmService = inject(ConfirmService);
 
@@ -39,7 +39,7 @@ export class LibrariesComponent {
 
     libraries = toSignal(
         toObservable(this.refreshTrigger).pipe(
-            switchMap(() => this.bakabooru.getLibraries()),
+            switchMap(() => this.damebooru.getLibraries()),
             catchError(err => {
                 console.error(err);
                 this.toast.error('Failed to load libraries');
@@ -55,7 +55,7 @@ export class LibrariesComponent {
         if (!name || !path) return;
 
         this.isCreating.set(true);
-        this.bakabooru.createLibrary(name, path).subscribe({
+        this.damebooru.createLibrary(name, path).subscribe({
             next: () => {
                 this.toast.success(`Library "${name}" created`);
                 this.newLibraryName.set('');
@@ -80,7 +80,7 @@ export class LibrariesComponent {
             if (!confirmed) return;
 
             this.isLoading.set(true);
-            this.bakabooru.deleteLibrary(lib.id).subscribe({
+            this.damebooru.deleteLibrary(lib.id).subscribe({
                 next: () => {
                     this.toast.success(`Library "${lib.name}" deleted`);
                     this.refreshTrigger.update(v => v + 1);
@@ -96,7 +96,7 @@ export class LibrariesComponent {
 
     scanLibrary(lib: Library) {
         this.scanningLibraryId.set(lib.id);
-        this.bakabooru.scanLibrary(lib.id).subscribe({
+        this.damebooru.scanLibrary(lib.id).subscribe({
             next: () => {
                 this.toast.success(`Scan queued for "${lib.name}"`);
                 this.scanningLibraryId.set(null);
@@ -123,7 +123,7 @@ export class LibrariesComponent {
         if (!name) return;
 
         this.renamingLibraryId.set(lib.id);
-        this.bakabooru.renameLibrary(lib.id, name).subscribe({
+        this.damebooru.renameLibrary(lib.id, name).subscribe({
             next: () => {
                 this.toast.success(`Renamed to "${name}"`);
                 this.cancelRename();
@@ -150,7 +150,7 @@ export class LibrariesComponent {
         if (!path) return;
 
         this.addingIgnoredPathLibraryId.set(lib.id);
-        this.bakabooru.addLibraryIgnoredPath(lib.id, path).subscribe({
+        this.damebooru.addLibraryIgnoredPath(lib.id, path).subscribe({
             next: (result) => {
                 const removedText = result.removedPostCount > 0
                     ? ` and removed ${result.removedPostCount} post(s)`
@@ -169,7 +169,7 @@ export class LibrariesComponent {
 
     removeIgnoredPath(lib: Library, ignoredPathId: number, path: string) {
         this.removingIgnoredPathId.set(ignoredPathId);
-        this.bakabooru.removeLibraryIgnoredPath(lib.id, ignoredPathId).subscribe({
+        this.damebooru.removeLibraryIgnoredPath(lib.id, ignoredPathId).subscribe({
             next: () => {
                 this.toast.success(`Removed ignored path "${path}"`);
                 this.refreshTrigger.update(v => v + 1);

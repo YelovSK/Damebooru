@@ -11,7 +11,7 @@ import { SaucenaoDb, SaucenaoResult } from "../../api/saucenao/models";
 import { SaucenaoService } from "../../api/saucenao/saucenao.service";
 import { DanbooruService } from "../../api/danbooru/danbooru.service";
 import { GelbooruService } from "../../api/gelbooru/gelbooru.service";
-import { Safety } from "@app/services/api/bakabooru/models";
+import { Safety } from "@app/services/api/damebooru/models";
 import { RateLimiterService } from "../../rate-limiting/rate-limiter.service";
 
 export interface SaucenaoSettings {

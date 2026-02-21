@@ -3,7 +3,7 @@ import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@ang
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { AppLinks } from '@app/app.paths';
 
 @Component({
@@ -14,7 +14,7 @@ import { AppLinks } from '@app/app.paths';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LoginComponent implements OnInit {
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
   private readonly router = inject(Router);
 
   username = '';
@@ -23,7 +23,7 @@ export class LoginComponent implements OnInit {
   error = signal('');
 
   ngOnInit() {
-    this.bakabooru.ensureAuthState().subscribe(isLoggedIn => {
+    this.damebooru.ensureAuthState().subscribe(isLoggedIn => {
       if (isLoggedIn) {
         this.router.navigate(AppLinks.posts());
       }
@@ -36,9 +36,9 @@ export class LoginComponent implements OnInit {
     this.loading.set(true);
     this.error.set('');
 
-    this.bakabooru.login(this.username, this.password).subscribe({
+    this.damebooru.login(this.username, this.password).subscribe({
       next: () => {
-        this.router.navigate(AppLinks.home());
+        this.router.navigate(AppLinks.posts());
       },
       error: (err) => {
         console.error(err);

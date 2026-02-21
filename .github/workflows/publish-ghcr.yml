@@ -79,7 +79,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ steps.vars.outputs.owner }}/bakabooru-server
+          images: ghcr.io/${{ steps.vars.outputs.owner }}/damebooru-server
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -95,8 +95,8 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=bakabooru-server
-          cache-to: type=gha,mode=max,scope=bakabooru-server
+          cache-from: type=gha,scope=damebooru-server
+          cache-to: type=gha,mode=max,scope=damebooru-server
 
   publish_client:
     needs: detect_changes
@@ -124,7 +124,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ steps.vars.outputs.owner }}/bakabooru-client
+          images: ghcr.io/${{ steps.vars.outputs.owner }}/damebooru-client
           tags: |
             type=ref,event=branch
             type=ref,event=tag
@@ -140,5 +140,5 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=bakabooru-client
-          cache-to: type=gha,mode=max,scope=bakabooru-client
+          cache-from: type=gha,scope=damebooru-client
+          cache-to: type=gha,mode=max,scope=damebooru-client

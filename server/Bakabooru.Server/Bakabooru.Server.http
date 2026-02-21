@@ -1,6 +1,0 @@
-@Bakabooru.Server_HostAddress = http://localhost:5119
-
-GET {{Bakabooru.Server_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

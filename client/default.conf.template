@@ -46,7 +46,7 @@ server {
         gzip_proxied expired no-cache no-store private auth;
         gzip_types text/plain application/json;
 
-        # Preserve /api/* routes as-is for Bakabooru server
+        # Preserve /api/* routes as-is for Damebooru server
         proxy_pass http://backend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -85,7 +85,7 @@ server {
     location /saucenao/ {
         proxy_pass https://saucenao.com/;
         proxy_set_header Host saucenao.com;
-        proxy_set_header User-Agent "Bakabooru/1.0";
+        proxy_set_header User-Agent "Damebooru/1.0";
         proxy_ssl_server_name on;
     }
 
@@ -93,7 +93,7 @@ server {
     location /danbooru/ {
         proxy_pass https://danbooru.donmai.us/;
         proxy_set_header Host danbooru.donmai.us;
-        proxy_set_header User-Agent "Bakabooru/1.0";
+        proxy_set_header User-Agent "Damebooru/1.0";
         proxy_ssl_server_name on;
     }
 
@@ -101,7 +101,7 @@ server {
     location /gelbooru/ {
         proxy_pass https://gelbooru.com/;
         proxy_set_header Host gelbooru.com;
-        proxy_set_header User-Agent "Bakabooru/1.0";
+        proxy_set_header User-Agent "Damebooru/1.0";
         proxy_ssl_server_name on;
     }
 
@@ -120,7 +120,7 @@ server {
 
     # Error handler
     location @badproxy {
-        return 502 "Failed to connect to bakabooru REST API";
+        return 502 "Failed to connect to damebooru REST API";
         default_type text/plain;
     }
 }

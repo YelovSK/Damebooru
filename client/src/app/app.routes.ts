@@ -1,5 +1,4 @@
 import { Routes } from '@angular/router';
-import { HomeComponent } from '@pages/home/home.component';
 import { LoginComponent } from '@pages/login/login.component';
 import { PostsComponent } from '@pages/posts/posts.component';
 import { PostDetailComponent } from '@pages/post-detail/post-detail.component';
@@ -12,13 +11,13 @@ import { authGuard } from '@services/auth.guard';
 import { AppPaths } from './app.paths';
 
 export const routes: Routes = [
-    { path: AppPaths.home, component: HomeComponent },
     { path: AppPaths.login, component: LoginComponent },
     {
         path: '',
         component: MainLayoutComponent,
         canActivate: [authGuard],
         children: [
+            { path: '', pathMatch: 'full', redirectTo: AppPaths.posts },
             { path: 'jobs', loadComponent: () => import('./pages/jobs/jobs.component').then(m => m.JobsPageComponent), data: { pageWidth: 'wide' } },
             { path: 'duplicates', redirectTo: 'duplicates/groups', pathMatch: 'full' },
             { path: 'duplicates/:tab', loadComponent: () => import('./pages/duplicates/duplicates.component').then(m => m.DuplicatesPageComponent), data: { pageWidth: 'wide' } },

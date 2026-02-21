@@ -1,0 +1,106 @@
+using System.Security.Claims;
+using Damebooru.Core.Config;
+using Damebooru.Core.DTOs;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+
+namespace Damebooru.Server.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class AuthController : ControllerBase
+{
+    private readonly IOptions<DamebooruConfig> _config;
+
+    public AuthController(IOptions<DamebooruConfig> config)
+    {
+        _config = config;
+    }
+
+    [AllowAnonymous]
+    [HttpPost("login")]
+    public async Task<ActionResult<AuthSessionDto>> Login([FromBody] LoginRequestDto request)
+    {
+        var auth = _config.Value.Auth;
+
+        if (!auth.Enabled)
+        {
+            return BadRequest("Authentication is disabled.");
+        }
+
+        if (!string.Equals(request.Username, auth.Username, StringComparison.Ordinal)
+            || !string.Equals(request.Password, auth.Password, StringComparison.Ordinal))
+        {
+            return Unauthorized();
+        }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, auth.Username),
+            new(ClaimTypes.Name, auth.Username)
+        };
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            new AuthenticationProperties
+            {
+                IsPersistent = true,
+                AllowRefresh = true,
+                ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30)
+            });
+
+        return Ok(new AuthSessionDto
+        {
+            Username = auth.Username,
+            IsAuthenticated = true,
+            AuthEnabled = true
+        });
+    }
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout()
+    {
+        if (!_config.Value.Auth.Enabled)
+        {
+            return NoContent();
+        }
+
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        return NoContent();
+    }
+
+    [AllowAnonymous]
+    [HttpGet("me")]
+    public ActionResult<AuthSessionDto> Me()
+    {
+        var auth = _config.Value.Auth;
+        if (!auth.Enabled)
+        {
+            return Ok(new AuthSessionDto
+            {
+                Username = string.IsNullOrWhiteSpace(auth.Username) ? "local" : auth.Username,
+                IsAuthenticated = true,
+                AuthEnabled = false
+            });
+        }
+
+        var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+        if (!isAuthenticated)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(new AuthSessionDto
+        {
+            Username = User.Identity?.Name ?? "user",
+            IsAuthenticated = true,
+            AuthEnabled = true
+        });
+    }
+}

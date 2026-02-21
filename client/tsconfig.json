@@ -25,7 +25,7 @@
       "@pages/*": ["src/app/pages/*"],
       "@services/*": ["src/app/services/*"],
       "@shared/*": ["src/app/shared/*"],
-      "@models": ["src/app/services/api/bakabooru/models.ts"],
+      "@models": ["src/app/services/api/damebooru/models.ts"],
       "@env/*": ["src/environments/*"]
     }
   },

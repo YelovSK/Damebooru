@@ -2,8 +2,8 @@ import { Injectable } from '@angular/core';
 
 export const STORAGE_KEYS = {
     // Auth
-    USERNAME: 'bakabooru_username',
-    TOKEN: 'bakabooru_token',
+    USERNAME: 'damebooru_username',
+    TOKEN: 'damebooru_token',
 
     // UI Preferences
     POSTS_PAGE_SIZE: 'posts_pageSize',
@@ -14,10 +14,10 @@ export const STORAGE_KEYS = {
     POSTS_GRID_SIZE_INDEX: 'posts_gridSizeIndex',
 
     // Settings
-    POST_SETTINGS: 'bakabooru_post_settings',
+    POST_SETTINGS: 'damebooru_post_settings',
 
     // Prefixes
-    AUTO_TAGGING_SETTINGS: 'bakabooru_at_settings_',
+    AUTO_TAGGING_SETTINGS: 'damebooru_at_settings_',
 } as const;
 
 export type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];

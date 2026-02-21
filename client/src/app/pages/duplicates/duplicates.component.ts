@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import {
   DuplicateGroup,
   DuplicatePost,
@@ -57,7 +57,7 @@ interface VisibleDuplicateGroup {
   templateUrl: './duplicates.component.html',
 })
 export class DuplicatesPageComponent {
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
   private readonly confirmService = inject(ConfirmService);
   private readonly toast = inject(ToastService);
 
@@ -297,7 +297,7 @@ export class DuplicatesPageComponent {
       }).subscribe(confirmed => {
         if (!confirmed) return;
 
-        this.bakabooru.resolveSameFolderGroup(request).subscribe({
+        this.damebooru.resolveSameFolderGroup(request).subscribe({
           next: (result) => {
             this.reloadDuplicatesAndExcluded();
             this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
@@ -317,7 +317,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.autoResolveGroup(group.duplicateGroupId).subscribe({
+      this.damebooru.autoResolveGroup(group.duplicateGroupId).subscribe({
         next: () => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success('Duplicate group auto-resolved.');
@@ -340,7 +340,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.keepAllInGroup(group.duplicateGroupId).subscribe({
+      this.damebooru.keepAllInGroup(group.duplicateGroupId).subscribe({
         next: () => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success('Duplicate group dismissed.');
@@ -359,7 +359,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.excludePostFromGroup(group.duplicateGroupId, post.id).subscribe({
+      this.damebooru.excludePostFromGroup(group.duplicateGroupId, post.id).subscribe({
         next: () => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success('Duplicate post excluded.');
@@ -382,7 +382,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.deletePostFromGroup(group.duplicateGroupId, post.id).subscribe({
+      this.damebooru.deletePostFromGroup(group.duplicateGroupId, post.id).subscribe({
         next: () => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success('Duplicate post deleted.');
@@ -410,7 +410,7 @@ export class DuplicatesPageComponent {
 
   loadResolvedGroups() {
     this.resolvedLoading.set(true);
-    this.bakabooru.getResolvedDuplicateGroups().subscribe({
+    this.damebooru.getResolvedDuplicateGroups().subscribe({
       next: (groups) => {
         this.resolvedGroups.set(groups);
         this.resolvedPage.set(1);
@@ -429,7 +429,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.markDuplicateGroupUnresolved(group.id).subscribe({
+      this.damebooru.markDuplicateGroupUnresolved(group.id).subscribe({
         next: () => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success('Group marked as unresolved.');
@@ -453,7 +453,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.markAllDuplicateGroupsUnresolved().subscribe({
+      this.damebooru.markAllDuplicateGroupsUnresolved().subscribe({
         next: (result) => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success(`Marked ${result.unresolved} group(s) as unresolved.`);
@@ -481,7 +481,7 @@ export class DuplicatesPageComponent {
 
   loadGroups() {
     this.loading.set(true);
-    this.bakabooru.getDuplicateGroups().subscribe({
+    this.damebooru.getDuplicateGroups().subscribe({
       next: (groups) => {
         this.groups.set(groups);
         this.visiblePage.set(1);
@@ -495,7 +495,7 @@ export class DuplicatesPageComponent {
 
   loadSameFolderGroups() {
     this.sameFolderLoading.set(true);
-    this.bakabooru.getSameFolderDuplicateGroups().subscribe({
+    this.damebooru.getSameFolderDuplicateGroups().subscribe({
       next: (groups) => {
         this.sameFolderGroups.set(groups);
         this.visiblePage.set(1);
@@ -515,7 +515,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.resolveAllExactDuplicates().subscribe({
+      this.damebooru.resolveAllExactDuplicates().subscribe({
         next: (result) => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success(`Auto-resolved ${result.resolved} exact duplicate groups.`);
@@ -535,7 +535,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.resolveAllDuplicateGroups().subscribe({
+      this.damebooru.resolveAllDuplicateGroups().subscribe({
         next: (result) => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success(`Auto-resolved ${result.resolved} duplicate groups.`);
@@ -555,7 +555,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.resolveAllSameFolderDuplicates().subscribe({
+      this.damebooru.resolveAllSameFolderDuplicates().subscribe({
         next: (result) => {
           this.reloadDuplicatesAndExcluded();
           this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
@@ -567,7 +567,7 @@ export class DuplicatesPageComponent {
 
   loadExcludedFiles() {
     this.excludedLoading.set(true);
-    this.bakabooru.getExcludedFiles().subscribe({
+    this.damebooru.getExcludedFiles().subscribe({
       next: (files) => {
         this.excludedFiles.set(files);
         this.excludedLoading.set(false);
@@ -585,7 +585,7 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.bakabooru.unexcludeFile(file.id).subscribe({
+      this.damebooru.unexcludeFile(file.id).subscribe({
         next: () => {
           this.excludedFiles.update(files => files.filter(current => current.id !== file.id));
           this.toast.success('File removed from exclusion list.');
@@ -596,11 +596,11 @@ export class DuplicatesPageComponent {
   }
 
   getExcludedFileContentUrl(file: ExcludedFile): string {
-    return this.bakabooru.getExcludedFileContentUrl(file.id);
+    return this.damebooru.getExcludedFileContentUrl(file.id);
   }
 
   getThumbnailUrl(post: Pick<VisibleDuplicatePost, 'thumbnailLibraryId' | 'thumbnailContentHash'>): string {
-    return this.bakabooru.getThumbnailUrl(post.thumbnailLibraryId, post.thumbnailContentHash);
+    return this.damebooru.getThumbnailUrl(post.thumbnailLibraryId, post.thumbnailContentHash);
   }
 
   onImageError(event: Event) {

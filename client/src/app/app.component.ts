@@ -9,5 +9,5 @@ import { RouterOutlet } from '@angular/router';
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AppComponent {
-  title = 'Bakabooru Angular';
+  title = 'Damebooru Angular';
 }

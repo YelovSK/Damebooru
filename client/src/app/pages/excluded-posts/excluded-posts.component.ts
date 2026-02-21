@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ExcludedFile } from '@models';
 import { ButtonComponent } from '@shared/components/button/button.component';
 
@@ -12,7 +12,7 @@ import { ButtonComponent } from '@shared/components/button/button.component';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExcludedPostsPageComponent {
-    private readonly bakabooru = inject(BakabooruService);
+    private readonly damebooru = inject(DamebooruService);
 
     readonly files = signal<ExcludedFile[]>([]);
     readonly loading = signal(true);
@@ -23,7 +23,7 @@ export class ExcludedPostsPageComponent {
 
     private loadFiles(): void {
         this.loading.set(true);
-        this.bakabooru.getExcludedFiles().subscribe({
+        this.damebooru.getExcludedFiles().subscribe({
             next: files => {
                 this.files.set(files);
                 this.loading.set(false);
@@ -33,7 +33,7 @@ export class ExcludedPostsPageComponent {
     }
 
     restore(file: ExcludedFile): void {
-        this.bakabooru.unexcludeFile(file.id).subscribe({
+        this.damebooru.unexcludeFile(file.id).subscribe({
             next: () => this.files.update(list => list.filter(f => f.id !== file.id)),
         });
     }

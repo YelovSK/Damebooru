@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { CachedPage } from './posts.types';
 
 @Injectable()
@@ -10,7 +10,7 @@ export class PostsPageCacheStore {
     private static readonly PREFETCH_PAGE_RADIUS = 1;
     private static readonly MAX_CONCURRENT_PAGE_REQUESTS = 4;
 
-    private readonly bakabooru = inject(BakabooruService);
+    private readonly damebooru = inject(DamebooruService);
     private readonly destroyRef = inject(DestroyRef);
 
     private readonly pageCacheState = signal(new Map<number, CachedPage>());
@@ -89,7 +89,7 @@ export class PostsPageCacheStore {
 
         const requestOffset = (pageNumber - 1) * PostsPageCacheStore.PAGE_SIZE;
 
-        this.bakabooru.getPosts(queryAtRequest, requestOffset, PostsPageCacheStore.PAGE_SIZE)
+        this.damebooru.getPosts(queryAtRequest, requestOffset, PostsPageCacheStore.PAGE_SIZE)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: data => {

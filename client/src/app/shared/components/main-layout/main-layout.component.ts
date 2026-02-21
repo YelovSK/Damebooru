@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ToastsComponent } from '@shared/components/toasts/toasts.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { NavbarComponent, NavbarLink } from '@shared/components/navbar/navbar.component';
@@ -19,7 +19,7 @@ type PageWidth = 'full' | 'wide' | 'content';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class MainLayoutComponent {
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -62,11 +62,11 @@ export class MainLayoutComponent {
   }
 
   get currentUser() {
-    return this.bakabooru.currentUser();
+    return this.damebooru.currentUser();
   }
 
   get authEnabled() {
-    return this.bakabooru.authEnabled();
+    return this.damebooru.authEnabled();
   }
 
   private resolvePageWidth(): PageWidth {
@@ -85,7 +85,7 @@ export class MainLayoutComponent {
   }
 
   onLogout() {
-    this.bakabooru.logout().subscribe({
+    this.damebooru.logout().subscribe({
       next: () => this.router.navigate(AppLinks.login()),
       error: () => this.router.navigate(AppLinks.login())
     });

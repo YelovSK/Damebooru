@@ -8,7 +8,7 @@ import {
     CategorizedTag,
 } from '../models';
 import { WdTaggerService, WdTaggerResponse } from '../../api/wd-tagger/wd-tagger.service';
-import { Safety } from '@app/services/api/bakabooru/models';
+import { Safety } from '@app/services/api/damebooru/models';
 
 interface WdTaggerSettings extends Record<string, SettingValue> {
     minConfidence: number;

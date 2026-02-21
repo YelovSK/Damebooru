@@ -1,6 +1,6 @@
-# Bakabooru
+# Damebooru
 
-Bakabooru is a self-hosted booru board.
+Damebooru is a self-hosted booru board.
 
 Most booru boards manage their own file storage, not allowing users to use an existing file folder structure. This board is designed to use external libraries similar to Immich. Additionally, the job system was inspired by Immich as well. That includes scheduled library scanning, thumbnail generation etc.
 
@@ -20,15 +20,15 @@ At the moment, the project is half-baked, and will very likely stay like that.
 - FFmpeg + FFprobe on `PATH` (required for thumbnails/metadata/similarity jobs)
 
 ## Configuration
-Before first run, verify these settings in `server/Bakabooru.Server/appsettings.json`:
+Before first run, verify these settings in `server/Damebooru.Server/appsettings.json`:
 - `ConnectionStrings:DefaultConnection`
-- `Bakabooru:Storage:DatabasePath`
-- `Bakabooru:Storage:ThumbnailPath`
-- `Bakabooru:Storage:TempPath`
+- `Damebooru:Storage:DatabasePath`
+- `Damebooru:Storage:ThumbnailPath`
+- `Damebooru:Storage:TempPath`
 
 Notes:
-- Relative storage paths are resolved from `server/Bakabooru.Server`.
-- Scheduler behavior is controlled by `Bakabooru:Processing:RunScheduler`.
+- Relative storage paths are resolved from `server/Damebooru.Server`.
+- Scheduler behavior is controlled by `Damebooru:Processing:RunScheduler`.
 
 ## Run Locally
 
@@ -36,7 +36,7 @@ Backend:
 
 ```bash
 cd server
-dotnet run --project Bakabooru.Server
+dotnet run --project Damebooru.Server
 ```
 
 Frontend:
@@ -48,7 +48,7 @@ npm start
 ```
 
 ### Database Migrations
-Migrations are auto-applied when `Bakabooru.Server` starts.
+Migrations are auto-applied when `Damebooru.Server` starts.
 
 ## Deploy with Docker
 
@@ -60,7 +60,7 @@ cp docker-compose.example.yml docker-compose.yml
 ```
 
 2. Edit values as needed:
-- `Bakabooru__Auth__Username` / `Bakabooru__Auth__Password`
+- `Damebooru__Auth__Username` / `Damebooru__Auth__Password`
 - volume mounts (`./data/server`, `./media`)
 - client port mapping (`8080:80`)
 

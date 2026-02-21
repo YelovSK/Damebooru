@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
-import { BakabooruSystemInfoDto } from '@services/api/bakabooru/models';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
+import { DamebooruSystemInfoDto } from '@services/api/damebooru/models';
 import { CommonModule, DecimalPipe, DatePipe } from '@angular/common';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
 
@@ -13,12 +13,12 @@ import { FileSizePipe } from '@shared/pipes/file-size.pipe';
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class InfoComponent implements OnInit {
-    private readonly bakabooru = inject(BakabooruService);
+    private readonly damebooru = inject(DamebooruService);
 
-    info = signal<BakabooruSystemInfoDto | null>(null);
+    info = signal<DamebooruSystemInfoDto | null>(null);
 
     ngOnInit() {
-        this.bakabooru.getGlobalInfo().subscribe(info => {
+        this.damebooru.getGlobalInfo().subscribe(info => {
             this.info.set(info);
         });
     }

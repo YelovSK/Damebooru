@@ -17,7 +17,7 @@ import {
 } from "@angular/core/rxjs-interop";
 import { Subject, switchMap, of, map, catchError, combineLatest } from "rxjs";
 
-import { BakabooruService } from "@services/api/bakabooru/bakabooru.service";
+import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import {
   AutoTaggingService,
   TaggingEntry,
@@ -25,9 +25,9 @@ import {
 import { RateLimiterService } from "@services/rate-limiting/rate-limiter.service";
 import { ToastService } from "@services/toast.service";
 import {
-  BakabooruPostDto,
-  BakabooruPostListDto,
-  BakabooruTagDto,
+  DamebooruPostDto,
+  DamebooruPostListDto,
+  DamebooruTagDto,
   PostTagSource,
   UpdatePostTagInput,
 } from "@models";
@@ -40,13 +40,13 @@ import { escapeTagName } from "@shared/utils/utils";
 import type { TaggingState } from "@services/tagging/models";
 
 interface BulkTaggingState {
-  data: BakabooruPostListDto | null;
+  data: DamebooruPostListDto | null;
   isLoading: boolean;
   error: unknown;
 }
 
 interface PostTaggingStatus {
-  post: BakabooruPostDto;
+  post: DamebooruPostDto;
   state: TaggingState;
   result?: TaggingEntry;
 }
@@ -67,7 +67,7 @@ interface PostTaggingStatus {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BulkTaggingComponent {
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
   private readonly autoTagging = inject(AutoTaggingService);
   private readonly rateLimiter = inject(RateLimiterService);
   private readonly toast = inject(ToastService);
@@ -89,13 +89,13 @@ export class BulkTaggingComponent {
     this.tagQuery$.pipe(
       switchMap((word) => {
         if (word.length < 1) return of([]);
-        return this.bakabooru.getTags(`*${word}* sort:usages`, 0, 15).pipe(
+        return this.damebooru.getTags(`*${word}* sort:usages`, 0, 15).pipe(
           map((res) => res.results),
           catchError(() => of([])),
         );
       }),
     ),
-    { initialValue: [] as BakabooruTagDto[] },
+    { initialValue: [] as DamebooruTagDto[] },
   );
 
   // Pagination
@@ -113,7 +113,7 @@ export class BulkTaggingComponent {
     switchMap(([q, off]) => {
       const query = q || "tag-count:0";
       const offsetNum = Number(off ?? "0") || 0;
-      return this.bakabooru.getPosts(query, offsetNum, this.pageSize()).pipe(
+      return this.damebooru.getPosts(query, offsetNum, this.pageSize()).pipe(
         map(
           (data) =>
             ({ data, isLoading: false, error: null }) as BulkTaggingState,
@@ -208,7 +208,7 @@ export class BulkTaggingComponent {
     this.tagQuery$.next(escapeTagName(word));
   }
 
-  onSelection(tag: BakabooruTagDto) {
+  onSelection(tag: DamebooruTagDto) {
     const value = this.currentSearchValue().trimEnd();
     const parts = value.split(/\s+/);
     parts[parts.length - 1] = escapeTagName(tag.name);
@@ -301,7 +301,7 @@ export class BulkTaggingComponent {
 
       // Download the post's content as a File for tagging
       try {
-        const contentUrl = this.bakabooru.getPostContentUrl(post.id);
+        const contentUrl = this.damebooru.getPostContentUrl(post.id);
         const response = await fetch(contentUrl);
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -406,7 +406,7 @@ export class BulkTaggingComponent {
     }
 
     // Get current post and update
-    this.bakabooru
+    this.damebooru
       .getPost(postId)
       .pipe(
         switchMap((post) => {
@@ -441,7 +441,7 @@ export class BulkTaggingComponent {
             });
           }
 
-          return this.bakabooru.updatePost(postId, { tagsWithSources });
+          return this.damebooru.updatePost(postId, { tagsWithSources });
         }),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -566,8 +566,8 @@ export class BulkTaggingComponent {
     return results.reduce((sum, r) => sum + r.categorizedTags.length, 0);
   }
 
-  getThumbnailUrl(post: BakabooruPostDto): string {
-    return this.bakabooru.getThumbnailUrl(
+  getThumbnailUrl(post: DamebooruPostDto): string {
+    return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );

@@ -36,9 +36,9 @@ import {
   switchMap,
 } from "rxjs";
 
-import { BakabooruService } from "@services/api/bakabooru/bakabooru.service";
+import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { HotkeysService } from "@services/hotkeys.service";
-import { BakabooruTagDto } from "@models";
+import { DamebooruTagDto } from "@models";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
 import { escapeTagName, getMediaType } from "@shared/utils/utils";
 import { AppLinks, AppPaths } from "@app/app.paths";
@@ -129,7 +129,7 @@ export class PostsComponent implements AfterViewInit {
   private hoverPreviewTimer: ReturnType<typeof setTimeout> | null = null;
   private scrollRafId: number | null = null;
 
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
   private readonly router = inject(Router);
   private readonly storage = inject(StorageService);
   private readonly settingsService = inject(SettingsService);
@@ -187,7 +187,7 @@ export class PostsComponent implements AfterViewInit {
   currentOffset = signal(0);
   isScrolling = signal(false);
   toolbarHidden = signal(false);
-  previewPost = signal<import("@models").BakabooruPostDto | null>(null);
+  previewPost = signal<import("@models").DamebooruPostDto | null>(null);
   isMobileViewport = signal(false);
   toolbarHeightPx = signal(0);
 
@@ -260,13 +260,13 @@ export class PostsComponent implements AfterViewInit {
           return of([]);
         }
 
-        return this.bakabooru.getTags(`*${word}* sort:usages`, 0, 15).pipe(
+        return this.damebooru.getTags(`*${word}* sort:usages`, 0, 15).pipe(
           map((res) => res.results),
           catchError(() => of([])),
         );
       }),
     ),
-    { initialValue: [] as BakabooruTagDto[] },
+    { initialValue: [] as DamebooruTagDto[] },
   );
 
   constructor() {
@@ -463,7 +463,7 @@ export class PostsComponent implements AfterViewInit {
     this.tagQuery$.next(escapeTagName(cleanWord));
   }
 
-  onSelection(tag: BakabooruTagDto): void {
+  onSelection(tag: DamebooruTagDto): void {
     const value = this.currentSearchValue();
     const parts = value.split(/\s+/);
     const lastPart = parts[parts.length - 1] || "";
@@ -576,14 +576,14 @@ export class PostsComponent implements AfterViewInit {
     return getMediaType(contentType);
   }
 
-  getThumbnailUrl(post: import("@models").BakabooruPostDto): string {
-    return this.bakabooru.getThumbnailUrl(
+  getThumbnailUrl(post: import("@models").DamebooruPostDto): string {
+    return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );
   }
 
-  private findPostById(id: number): import("@models").BakabooruPostDto | null {
+  private findPostById(id: number): import("@models").DamebooruPostDto | null {
     for (const page of this.pageCache().values()) {
       if (page.status === "ready") {
         const match = page.items.find((p) => p.id === id);

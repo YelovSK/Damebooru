@@ -1,17 +1,17 @@
-import { BakabooruPostDto } from '@models';
+import { DamebooruPostDto } from '@models';
 
 export type GridDensity = 'compact' | 'comfortable' | 'cozy';
 export type PageStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface GridCell {
     kind: 'post' | 'skeleton' | 'placeholder';
-    post: BakabooruPostDto | null;
+    post: DamebooruPostDto | null;
     trackKey: string;
 }
 
 export interface CachedPage {
     status: PageStatus;
-    items: BakabooruPostDto[];
+    items: DamebooruPostDto[];
     error: unknown | null;
 }
 

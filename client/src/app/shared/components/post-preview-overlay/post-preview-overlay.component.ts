@@ -7,9 +7,9 @@ import {
   output,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { BakabooruPostDto } from "@models";
+import { DamebooruPostDto } from "@models";
 import { ProgressiveImageComponent } from "@shared/components/progressive-image/progressive-image.component";
-import { BakabooruService } from "@services/api/bakabooru/bakabooru.service";
+import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { getMediaType } from "@app/shared/utils/utils";
 
 @Component({
@@ -20,9 +20,9 @@ import { getMediaType } from "@app/shared/utils/utils";
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PostPreviewOverlayComponent {
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
 
-  readonly post = input.required<BakabooruPostDto>();
+  readonly post = input.required<DamebooruPostDto>();
   readonly size = input(90);
   readonly closed = output<void>();
 
@@ -45,15 +45,15 @@ export class PostPreviewOverlayComponent {
     return `min(${size}vw, ${size}vh * ${post.width} / ${post.height})`;
   });
 
-  getThumbnailUrl(post: BakabooruPostDto): string {
-    return this.bakabooru.getThumbnailUrl(
+  getThumbnailUrl(post: DamebooruPostDto): string {
+    return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );
   }
 
-  getPostContentUrl(post: BakabooruPostDto): string {
-    return this.bakabooru.getPostContentUrl(post.id);
+  getPostContentUrl(post: DamebooruPostDto): string {
+    return this.damebooru.getPostContentUrl(post.id);
   }
 
   getMediaType(contentType: string) {

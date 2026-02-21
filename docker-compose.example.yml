@@ -1,21 +1,21 @@
 services:
   server:
-    image: ghcr.io/yelovsk/bakabooru-server:latest
+    image: ghcr.io/yelovsk/damebooru-server:latest
     restart: unless-stopped
     environment:
       ASPNETCORE_URLS: "http://+:${SERVER_PORT:-6666}"
-      Bakabooru__Storage__DatabasePath: /app/data/bakabooru.db
-      Bakabooru__Storage__ThumbnailPath: /app/data/thumbnails
-      Bakabooru__Storage__TempPath: /app/data/temp
-      Bakabooru__Auth__Enabled: "${AUTH_ENABLED:-true}"
-      Bakabooru__Auth__Username: "${AUTH_USERNAME:-admin}"
-      Bakabooru__Auth__Password: "${AUTH_PASSWORD:-change-me}"
+      Damebooru__Storage__DatabasePath: /app/data/damebooru.db
+      Damebooru__Storage__ThumbnailPath: /app/data/thumbnails
+      Damebooru__Storage__TempPath: /app/data/temp
+      Damebooru__Auth__Enabled: "${AUTH_ENABLED:-true}"
+      Damebooru__Auth__Username: "${AUTH_USERNAME:-admin}"
+      Damebooru__Auth__Password: "${AUTH_PASSWORD:-change-me}"
     volumes:
       - ./data/server:/app/data
       - ${MEDIA_PATH:-./media}:/media
 
   client:
-    image: ghcr.io/yelovsk/bakabooru-client:latest
+    image: ghcr.io/yelovsk/damebooru-client:latest
     restart: unless-stopped
     depends_on:
       - server

@@ -1,5 +1,4 @@
 export const AppPaths = {
-    home: '',
     login: 'login',
     posts: 'posts',
     post: 'post',
@@ -19,7 +18,6 @@ export const AppPaths = {
 
 // Helper to build array commands for Router.navigate or [routerLink]
 export const AppLinks = {
-    home: () => ['/'],
     login: () => ['/', AppPaths.login],
     posts: () => ['/', AppPaths.posts],
     post: (id: string | number) => ['/', AppPaths.post, id],

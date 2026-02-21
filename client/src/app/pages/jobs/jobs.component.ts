@@ -4,8 +4,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, interval, of } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
-import { BakabooruService } from '../../services/api/bakabooru/bakabooru.service';
-import { CronPreview, JobExecution, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob } from '../../services/api/bakabooru/models';
+import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
+import { CronPreview, JobExecution, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob } from '../../services/api/damebooru/models';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { FormCheckboxComponent } from '../../shared/components/form-checkbox/form-checkbox.component';
 import { CollapsibleComponent } from '../../shared/components/collapsible/collapsible.component';
@@ -42,7 +42,7 @@ export class JobsPageComponent {
   private static readonly CRON_PREVIEW_DEBOUNCE_MS = 350;
   private static readonly CRON_PREVIEW_COUNT = 3;
 
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
   private readonly toast = inject(ToastService);
   private readonly confirmService = inject(ConfirmService);
   private readonly destroyRef = inject(DestroyRef);
@@ -83,7 +83,7 @@ export class JobsPageComponent {
 
   refreshData() {
     this.refreshLiveJobs(false);
-    this.bakabooru.getJobSchedules().subscribe(data => {
+    this.damebooru.getJobSchedules().subscribe(data => {
       this.schedules.set(data);
       this.cronPreviews.set({});
       this.clearCronPreviewTimers();
@@ -96,7 +96,7 @@ export class JobsPageComponent {
   }
 
   loadHistory() {
-    this.bakabooru.getJobHistory(HISTORY_PAGE_SIZE, this.historyPage()).subscribe(data => {
+    this.damebooru.getJobHistory(HISTORY_PAGE_SIZE, this.historyPage()).subscribe(data => {
       this.history.set(data.items);
       this.historyTotal.set(data.total);
     });
@@ -108,7 +108,7 @@ export class JobsPageComponent {
   }
 
   runJob(name: string, mode: JobMode) {
-    this.bakabooru.startJob(name, mode).subscribe({
+    this.damebooru.startJob(name, mode).subscribe({
       next: () => {
         this.refreshLiveJobs();
       },
@@ -124,7 +124,7 @@ export class JobsPageComponent {
       variant: 'danger'
     }).subscribe(confirmed => {
       if (!confirmed) return;
-      this.bakabooru.cancelJob(id).subscribe(() => this.refreshLiveJobs());
+      this.damebooru.cancelJob(id).subscribe(() => this.refreshLiveJobs());
     });
   }
 
@@ -135,7 +135,7 @@ export class JobsPageComponent {
       return;
     }
 
-    this.bakabooru.updateJobSchedule(schedule.id, schedule).subscribe({
+    this.damebooru.updateJobSchedule(schedule.id, schedule).subscribe({
       next: () => {
         this.toast.success('Schedule updated');
         this.refreshData();
@@ -206,7 +206,7 @@ export class JobsPageComponent {
   }
 
   private refreshLiveJobs(refreshHistoryOnFinished: boolean = true): void {
-    this.bakabooru.getJobs().pipe(
+    this.damebooru.getJobs().pipe(
       takeUntilDestroyed(this.destroyRef),
       catchError(() => of([]))
     ).subscribe(data => {
@@ -331,7 +331,7 @@ export class JobsPageComponent {
     }
 
     const timer = setTimeout(() => {
-      this.bakabooru.previewCronExpression(normalized, JobsPageComponent.CRON_PREVIEW_COUNT).subscribe({
+      this.damebooru.previewCronExpression(normalized, JobsPageComponent.CRON_PREVIEW_COUNT).subscribe({
         next: preview => {
           if (this.latestCronExpressions.get(scheduleId) !== normalized) {
             return;

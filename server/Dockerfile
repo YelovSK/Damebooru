@@ -1,15 +1,15 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY Bakabooru.sln ./
-COPY Bakabooru.Core/Bakabooru.Core.csproj Bakabooru.Core/
-COPY Bakabooru.Data/Bakabooru.Data.csproj Bakabooru.Data/
-COPY Bakabooru.Processing/Bakabooru.Processing.csproj Bakabooru.Processing/
-COPY Bakabooru.Server/Bakabooru.Server.csproj Bakabooru.Server/
-RUN dotnet restore Bakabooru.Server/Bakabooru.Server.csproj
+COPY Damebooru.sln ./
+COPY Damebooru.Core/Damebooru.Core.csproj Damebooru.Core/
+COPY Damebooru.Data/Damebooru.Data.csproj Damebooru.Data/
+COPY Damebooru.Processing/Damebooru.Processing.csproj Damebooru.Processing/
+COPY Damebooru.Server/Damebooru.Server.csproj Damebooru.Server/
+RUN dotnet restore Damebooru.Server/Damebooru.Server.csproj
 
 COPY . .
-RUN dotnet publish Bakabooru.Server/Bakabooru.Server.csproj -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish Damebooru.Server/Damebooru.Server.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
@@ -23,10 +23,10 @@ RUN apt-get update \
 RUN mkdir -p /app/data/thumbnails /app/data/temp
 
 ENV ASPNETCORE_URLS=http://+:6666
-ENV Bakabooru__Storage__DatabasePath=/app/data/bakabooru.db
-ENV Bakabooru__Storage__ThumbnailPath=/app/data/thumbnails
-ENV Bakabooru__Storage__TempPath=/app/data/temp
+ENV Damebooru__Storage__DatabasePath=/app/data/damebooru.db
+ENV Damebooru__Storage__ThumbnailPath=/app/data/thumbnails
+ENV Damebooru__Storage__TempPath=/app/data/temp
 
 EXPOSE 6666
 
-ENTRYPOINT ["dotnet", "Bakabooru.Server.dll"]
+ENTRYPOINT ["dotnet", "Damebooru.Server.dll"]

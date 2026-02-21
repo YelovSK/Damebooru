@@ -1,8 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { BakabooruService } from '@services/api/bakabooru/bakabooru.service';
-import { ManagedTag, ManagedTagCategory } from '@services/api/bakabooru/models';
+import { DamebooruService } from '@services/api/damebooru/damebooru.service';
+import { ManagedTag, ManagedTagCategory } from '@services/api/damebooru/models';
 import { ToastService } from '@services/toast.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
@@ -49,7 +49,7 @@ type EditCategoryModel = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TagManagementPageComponent {
-  private readonly api = inject(BakabooruService);
+  private readonly api = inject(DamebooruService);
   private readonly toast = inject(ToastService);
   private readonly confirmService = inject(ConfirmService);
 

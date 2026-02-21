@@ -27,15 +27,15 @@ import {
   takeUntilDestroyed,
 } from "@angular/core/rxjs-interop";
 
-import { BakabooruService } from "@services/api/bakabooru/bakabooru.service";
+import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { SettingsService } from "@services/settings.service";
 import { ToastService } from "@services/toast.service";
 import { TagPipe } from "@shared/pipes/escape-tag.pipe";
 import { escapeTagName, getMediaType } from "@shared/utils/utils";
 import {
-  BakabooruPostDto,
-  BakabooruPostsAroundDto,
-  BakabooruTagDto,
+  DamebooruPostDto,
+  DamebooruPostsAroundDto,
+  DamebooruTagDto,
   ManagedTagCategory,
   PostTagSource,
   SimilarPost,
@@ -79,7 +79,7 @@ import { FileNamePipe } from "@shared/pipes/file-name.pipe";
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PostDetailComponent {
-  private readonly bakabooru = inject(BakabooruService);
+  private readonly damebooru = inject(DamebooruService);
   private readonly router = inject(Router);
   private readonly http = inject(HttpClient);
   private readonly hotkeys = inject(HotkeysService);
@@ -113,7 +113,7 @@ export class PostDetailComponent {
 
   // Triggers a local post stream refresh after in-place edits.
   private refreshTrigger = signal(0);
-  private readonly postCache = signal(new Map<number, BakabooruPostDto>());
+  private readonly postCache = signal(new Map<number, DamebooruPostDto>());
 
   // Registered auto-tagging providers
   registeredProviders = computed(() =>
@@ -126,14 +126,14 @@ export class PostDetailComponent {
     this.tagQuery$.pipe(
       switchMap((word) => {
         if (word.length < 1) return of([]);
-        return this.bakabooru.getTags(`*${word}* sort:usages`, 0, 10).pipe(
+        return this.damebooru.getTags(`*${word}* sort:usages`, 0, 10).pipe(
           map((res) => res.results),
           catchError(() => of([])),
         );
       }),
       takeUntilDestroyed(this.destroyRef),
     ),
-    { initialValue: [] as BakabooruTagDto[] },
+    { initialValue: [] as DamebooruTagDto[] },
   );
   tagSearchValue = signal("");
 
@@ -161,7 +161,7 @@ export class PostDetailComponent {
   around = toSignal(
     combineLatest([toObservable(this.id), toObservable(this.query)]).pipe(
       switchMap(([id, query]) =>
-        this.bakabooru.getPostsAround(Number(id), query!).pipe(
+        this.damebooru.getPostsAround(Number(id), query!).pipe(
           tap((around) => {
             if (around.prev) this.setCachedPost(around.prev);
             if (around.next) this.setCachedPost(around.next);
@@ -171,7 +171,7 @@ export class PostDetailComponent {
               "Around API failed (disabling keyboard nav for this post):",
               err,
             );
-            return of({ prev: null, next: null } as BakabooruPostsAroundDto);
+            return of({ prev: null, next: null } as DamebooruPostsAroundDto);
           }),
         ),
       ),
@@ -180,7 +180,7 @@ export class PostDetailComponent {
 
   // Fetch tag categories for proper tag coloring
   tagCategories = toSignal(
-    this.bakabooru.getTagCategories().pipe(
+    this.damebooru.getTagCategories().pipe(
       catchError(() => {
         console.error("Failed to load tag categories");
         return of([]);
@@ -220,12 +220,12 @@ export class PostDetailComponent {
       return of(cached);
     }
 
-    return this.bakabooru
+    return this.damebooru
       .getPost(id)
       .pipe(tap((post) => this.setCachedPost(post)));
   }
 
-  private setCachedPost(post: BakabooruPostDto) {
+  private setCachedPost(post: DamebooruPostDto) {
     this.postCache.update((existing) => {
       const next = new Map(existing);
       next.set(post.id, post);
@@ -263,12 +263,12 @@ export class PostDetailComponent {
       });
   }
 
-  getTagCategory(tag: BakabooruTagDto): ManagedTagCategory | undefined {
+  getTagCategory(tag: DamebooruTagDto): ManagedTagCategory | undefined {
     if (!tag.categoryName) return undefined;
     return this.tagCategories().find((cat) => cat.name === tag.categoryName);
   }
 
-  hasTagSource(tag: BakabooruTagDto, source: PostTagSource): boolean {
+  hasTagSource(tag: DamebooruTagDto, source: PostTagSource): boolean {
     return tag.source === source;
   }
 
@@ -365,7 +365,7 @@ export class PostDetailComponent {
     this.tagQuery$.next(escapeTagName(word));
   }
 
-  onTagSelection(tag: BakabooruTagDto) {
+  onTagSelection(tag: DamebooruTagDto) {
     this.editService.addTag(tag.name, tag.id);
     this.tagSearchValue.set("");
     this.tagQuery$.next("");
@@ -408,7 +408,7 @@ export class PostDetailComponent {
     if (!post) return;
 
     // Use HttpClient to fetch through the proxy (avoids CORS)
-    const url = this.bakabooru.getPostContentUrl(post.id);
+    const url = this.damebooru.getPostContentUrl(post.id);
     this.http
       .get(url, { responseType: "blob" })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -422,7 +422,7 @@ export class PostDetailComponent {
     const post = this.post();
     if (!post) return;
 
-    const url = this.bakabooru.getPostContentUrl(post.id);
+    const url = this.damebooru.getPostContentUrl(post.id);
     this.http
       .get(url, { responseType: "blob" })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -494,11 +494,11 @@ export class PostDetailComponent {
     if (!post) return;
 
     const operation = post.isFavorite
-      ? this.bakabooru.unfavoritePost(post.id)
-      : this.bakabooru.favoritePost(post.id);
+      ? this.damebooru.unfavoritePost(post.id)
+      : this.damebooru.favoritePost(post.id);
 
     operation
-      .pipe(switchMap(() => this.bakabooru.getPost(post.id)))
+      .pipe(switchMap(() => this.damebooru.getPost(post.id)))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (updatedPost) => {
@@ -518,25 +518,25 @@ export class PostDetailComponent {
     return getMediaType(contentType);
   }
 
-  getThumbnailUrl(post: BakabooruPostDto): string {
-    return this.bakabooru.getThumbnailUrl(
+  getThumbnailUrl(post: DamebooruPostDto): string {
+    return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );
   }
 
-  getPostContentUrl(post: BakabooruPostDto): string {
-    return this.bakabooru.getPostContentUrl(post.id);
+  getPostContentUrl(post: DamebooruPostDto): string {
+    return this.damebooru.getPostContentUrl(post.id);
   }
 
   getSimilarPostThumbnailUrl(post: SimilarPost): string {
-    return this.bakabooru.getThumbnailUrl(
+    return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );
   }
 
-  private navigateToPost(post: BakabooruPostDto | null | undefined) {
+  private navigateToPost(post: DamebooruPostDto | null | undefined) {
     if (!post) return;
 
     if (this.editService.isEditing()) {
@@ -551,7 +551,7 @@ export class PostDetailComponent {
     });
   }
 
-  protected trackByTag(tag: BakabooruTagDto): string {
+  protected trackByTag(tag: DamebooruTagDto): string {
     return tag.id.toString() + '|' + tag.source.toString();
   }
 }
