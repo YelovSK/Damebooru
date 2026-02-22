@@ -400,9 +400,38 @@ public class LibrarySyncProcessor : ILibrarySyncProcessor
             var fileChanged = item.SizeBytes != existing.SizeBytes
                            || Math.Abs((item.LastModifiedUtc - existing.FileModifiedDate).TotalSeconds) > 1;
 
-            if (!fileChanged) return false; // File unchanged, skip
-
             var existingPathIdentity = _fileIdentityResolver.TryResolve(item.FullPath);
+            var resolvedIdentityDevice = existingPathIdentity?.Device ?? existing.FileIdentityDevice;
+            var resolvedIdentityValue = existingPathIdentity?.Value ?? existing.FileIdentityValue;
+            var missingIdentity = string.IsNullOrWhiteSpace(existing.FileIdentityDevice)
+                || string.IsNullOrWhiteSpace(existing.FileIdentityValue);
+
+            if (!fileChanged)
+            {
+                if (!missingIdentity)
+                {
+                    return false;
+                }
+
+                var identityChanged = !string.Equals(existing.FileIdentityDevice, resolvedIdentityDevice, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(existing.FileIdentityValue, resolvedIdentityValue, StringComparison.OrdinalIgnoreCase);
+
+                if (!identityChanged)
+                {
+                    return false;
+                }
+
+                postsToUpdate.Add((
+                    existing.Id,
+                    existing.Hash,
+                    existing.SizeBytes,
+                    existing.FileModifiedDate,
+                    false,
+                    resolvedIdentityDevice,
+                    resolvedIdentityValue));
+
+                return false;
+            }
 
             // File has changed — re-hash and queue for update
             var newHash = await ComputeHashAsync(item.FullPath, cancellationToken);
@@ -416,8 +445,8 @@ public class LibrarySyncProcessor : ILibrarySyncProcessor
                 item.SizeBytes,
                 item.LastModifiedUtc,
                 hashChanged,
-                existingPathIdentity?.Device ?? existing.FileIdentityDevice,
-                existingPathIdentity?.Value ?? existing.FileIdentityValue));
+                resolvedIdentityDevice,
+                resolvedIdentityValue));
 
             if (hashChanged)
             {
