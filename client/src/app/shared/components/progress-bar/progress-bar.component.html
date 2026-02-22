@@ -1,3 +1,7 @@
 <div [class]="trackClasses()">
+  @if (indeterminate()) {
+  <div [class]="indeterminateFillClasses()"></div>
+  } @else {
   <div [class]="fillClasses()" [style.width.%]="percent()"></div>
+  }
 </div>

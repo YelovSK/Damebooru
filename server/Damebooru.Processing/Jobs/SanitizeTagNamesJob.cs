@@ -4,12 +4,13 @@ using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
 public class SanitizeTagNamesJob : IJob
 {
-    public const string JobKey = "sanitize-tag-names";
+    public static readonly JobKey JobKey = JobKeys.SanitizeTagNames;
     public const string JobName = "Sanitize Tag Names";
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -22,7 +23,7 @@ public class SanitizeTagNamesJob : IJob
     }
 
     public int DisplayOrder => 80;
-    public string Key => JobKey;
+    public JobKey Key => JobKey;
     public string Name => JobName;
     public string Description => "Retroactively sanitizes all tag names (lowercase, replace colons with underscores, collapse duplicates).";
     public bool SupportsAllMode => false;
@@ -35,12 +36,12 @@ public class SanitizeTagNamesJob : IJob
         var allTags = await db.Tags.ToListAsync(context.CancellationToken);
         if (allTags.Count == 0)
         {
-            context.State.Report(new JobState
+            context.Reporter.Update(new JobState
             {
-                Phase = "Completed",
-                Processed = 0,
-                Total = 0,
-                Summary = "No tags to process."
+                ActivityText = "Completed",
+                ProgressCurrent = 0,
+                ProgressTotal = 0,
+                FinalText = "No tags to process."
             });
             return;
         }
@@ -141,28 +142,32 @@ public class SanitizeTagNamesJob : IJob
 
             if (processed % 100 == 0)
             {
-                context.State.Report(new JobState
+                context.Reporter.Update(new JobState
                 {
-                    Phase = "Sanitizing tags...",
-                    Processed = processed,
-                    Total = allTags.Count,
-                    Succeeded = renamed,
-                    Failed = failed,
-                    Summary = $"Renamed {renamed}, merged {merged} duplicates"
+                    ActivityText = "Sanitizing tags...",
+                    ProgressCurrent = processed,
+                    ProgressTotal = allTags.Count
                 });
             }
         }
 
         await db.SaveChangesAsync(context.CancellationToken);
 
-        context.State.Report(new JobState
+        context.Reporter.Update(new JobState
         {
-            Phase = "Completed",
-            Processed = processed,
-            Total = allTags.Count,
-            Succeeded = renamed,
-            Failed = failed,
-            Summary = $"Renamed {renamed} tags, merged {merged} duplicates."
+            ActivityText = "Completed",
+            ProgressCurrent = processed,
+            ProgressTotal = allTags.Count,
+            FinalText = $"Renamed {renamed} tags, merged {merged} duplicates, failed {failed}.",
+            ResultSchemaVersion = 1,
+            ResultJson = JsonSerializer.Serialize(new
+            {
+                totalTags = allTags.Count,
+                processed,
+                renamed,
+                merged,
+                failed,
+            })
         });
     }
 }

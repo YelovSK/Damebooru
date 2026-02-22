@@ -1,5 +1,4 @@
 using Damebooru.Core.Interfaces;
-using Damebooru.Processing.Jobs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Damebooru.Server.Controllers;
@@ -26,7 +25,7 @@ public class AdminController : ControllerBase
     {
         try
         {
-            var jobId = await _jobService.StartJobAsync(ScanAllLibrariesJob.JobKey, CancellationToken.None);
+            var jobId = await _jobService.StartJobAsync(JobKeys.ScanAllLibraries, CancellationToken.None);
             return Accepted(new { JobId = jobId });
         }
         catch (ArgumentException ex)

@@ -1,12 +1,13 @@
 using Damebooru.Core.Interfaces;
 using Damebooru.Processing.Scanning;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
 public class ScanAllLibrariesJob : IJob
 {
-    public const string JobKey = "scan-all-libraries";
+    public static readonly JobKey JobKey = JobKeys.ScanAllLibraries;
     public const string JobName = "Scan All Libraries";
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -17,7 +18,7 @@ public class ScanAllLibrariesJob : IJob
     }
 
     public int DisplayOrder => 10;
-    public string Key => JobKey;
+    public JobKey Key => JobKey;
     public string Name => JobName;
     public string Description => "Triggers a recursive scan for all configured libraries.";
     public bool SupportsAllMode => false;
@@ -35,40 +36,49 @@ public class ScanAllLibrariesJob : IJob
             var normalized = percent <= 1f ? percent * 100f : percent;
             var processed = (int)Math.Clamp(Math.Round(normalized), 0, 100);
             currentProcessed = processed;
-            context.State.Report(new JobState
+            context.Reporter.Update(new JobState
             {
-                Phase = phase,
-                Processed = processed,
-                Total = 100
+                ActivityText = phase,
+                ProgressCurrent = processed,
+                ProgressTotal = 100
             });
         });
 
         var status = new Progress<string>(message =>
         {
             phase = string.IsNullOrWhiteSpace(message) ? "Scanning libraries..." : message.Trim();
-            context.State.Report(new JobState
+            context.Reporter.Update(new JobState
             {
-                Phase = phase,
-                Processed = currentProcessed,
-                Total = 100
+                ActivityText = phase,
+                ProgressCurrent = currentProcessed,
+                ProgressTotal = 100
             });
         });
 
-        context.State.Report(new JobState
+        context.Reporter.Update(new JobState
         {
-            Phase = phase,
-            Processed = 0,
-            Total = 100
+            ActivityText = phase,
+            ProgressCurrent = 0,
+            ProgressTotal = 100
         });
 
         var result = await scannerService.ScanAllLibrariesAsync(progress, status, context.CancellationToken);
 
-        context.State.Report(new JobState
+        context.Reporter.Update(new JobState
         {
-            Phase = "Completed",
-            Processed = 100,
-            Total = 100,
-            Summary = $"Scanned {result.Scanned} files: {result.Added} added, {result.Updated} updated, {result.Moved} moved, {result.Removed} removed"
+            ActivityText = "Completed",
+            ProgressCurrent = 100,
+            ProgressTotal = 100,
+            FinalText = $"Scanned {result.Scanned} files: {result.Added} added, {result.Updated} updated, {result.Moved} moved, {result.Removed} removed",
+            ResultSchemaVersion = 1,
+            ResultJson = JsonSerializer.Serialize(new
+            {
+                scanned = result.Scanned,
+                added = result.Added,
+                updated = result.Updated,
+                moved = result.Moved,
+                removed = result.Removed,
+            })
         });
     }
 }

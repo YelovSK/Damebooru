@@ -14,6 +14,7 @@ export class ProgressBarComponent {
   fillClass = input<string>('bg-accent-primary');
   roundedClass = input<string>('rounded-full');
   animated = input<boolean>(true);
+  indeterminate = input<boolean>(false);
 
   percent = computed(() => {
     const raw = this.progress();
@@ -28,5 +29,9 @@ export class ProgressBarComponent {
 
   fillClasses = computed(
     () => `${this.fillClass()} h-full ${this.roundedClass()} ${this.animated() ? 'transition-all duration-300' : ''}`
+  );
+
+  indeterminateFillClasses = computed(
+    () => `${this.fillClass()} h-full w-1/3 ${this.roundedClass()} animate-pulse`
   );
 }

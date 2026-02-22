@@ -28,31 +28,30 @@ public class JobsController : ControllerBase
 
         // Prefer currently running entries if there are multiple active records with same name.
         var active = activeJobs
-            .GroupBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(j => j.Key)
             .ToDictionary(
                 g => g.Key,
                 g => g
                     .OrderByDescending(j => j.Status == JobStatus.Running)
                     .ThenByDescending(j => j.StartTime)
-                    .First(),
-                StringComparer.OrdinalIgnoreCase);
+                    .First());
 
         var result = available.Select(job => new JobViewDto
         {
-            Key = job.Key,
+            Key = job.Key.Value,
             Name = job.Name,
             Description = job.Description,
             SupportsAllMode = job.SupportsAllMode,
-            IsRunning = active.TryGetValue(job.Name, out var info) && info.Status == JobStatus.Running,
-            ActiveJobInfo = active.TryGetValue(job.Name, out var activeInfo) ? activeInfo : null
+            IsRunning = active.TryGetValue(job.Key, out var info) && info.Status == JobStatus.Running,
+            ActiveJobInfo = active.TryGetValue(job.Key, out var activeInfo) ? activeInfo : null
         });
 
         return Ok(result);
     }
 
-    [HttpPost("{name}/start")]
+    [HttpPost("{key}/start")]
     public async Task<ActionResult<StartJobResponseDto>> StartJob(
-        string name,
+        string key,
         [FromQuery]
         [RegularExpression("^(missing|all)$", ErrorMessage = "Mode must be either 'missing' or 'all'.")]
         string mode = "missing")
@@ -63,7 +62,12 @@ public class JobsController : ControllerBase
                 ? JobMode.All 
                 : JobMode.Missing;
 
-            var jobId = await _jobService.StartJobAsync(name, CancellationToken.None, jobMode);
+            if (!JobKey.TryParse(key, out var parsedKey))
+            {
+                return BadRequest("Invalid job key format.");
+            }
+
+            var jobId = await _jobService.StartJobAsync(parsedKey, CancellationToken.None, jobMode);
             return Ok(new StartJobResponseDto { JobId = jobId });
         }
         catch (ArgumentException ex)
@@ -103,6 +107,7 @@ public class JobsController : ControllerBase
             Items = items.Select(i => new JobExecutionDto
             {
                 Id = i.Id,
+                JobKey = i.JobKey,
                 JobName = i.JobName,
                 Status = i.Status,
                 StartTime = i.StartTime,
@@ -110,9 +115,41 @@ public class JobsController : ControllerBase
                 ErrorMessage = i.ErrorMessage,
                 State = activeByExecutionId.TryGetValue(i.Id, out var activeState)
                     ? activeState
-                    : JobStateSerialization.Deserialize(i.ResultData)
+                    : new JobState
+                    {
+                        ActivityText = i.ActivityText,
+                        FinalText = i.FinalText,
+                        ProgressCurrent = i.ProgressCurrent,
+                        ProgressTotal = i.ProgressTotal,
+                        ResultSchemaVersion = i.ResultSchemaVersion,
+                        ResultJson = i.ResultJson,
+                    }
             }).ToList(),
             Total = total
+        });
+    }
+
+    [HttpGet("history/{executionId:int}/result")]
+    public async Task<ActionResult<JobResultDto>> GetResult(int executionId, CancellationToken cancellationToken)
+    {
+        var execution = await _jobService.GetJobExecutionAsync(executionId, cancellationToken);
+
+        if (execution == null)
+        {
+            return NotFound();
+        }
+
+        if (string.IsNullOrWhiteSpace(execution.ResultJson))
+        {
+            return NotFound();
+        }
+
+        return Ok(new JobResultDto
+        {
+            ExecutionId = execution.Id,
+            JobKey = execution.JobKey,
+            SchemaVersion = execution.ResultSchemaVersion,
+            ResultJson = execution.ResultJson,
         });
     }
 

@@ -399,10 +399,6 @@ public class LibrarySyncProcessor : ILibrarySyncProcessor
             // Change detection: compare file size and mtime
             var fileChanged = item.SizeBytes != existing.SizeBytes
                            || Math.Abs((item.LastModifiedUtc - existing.FileModifiedDate).TotalSeconds) > 1;
-
-            var existingPathIdentity = _fileIdentityResolver.TryResolve(item.FullPath);
-            var resolvedIdentityDevice = existingPathIdentity?.Device ?? existing.FileIdentityDevice;
-            var resolvedIdentityValue = existingPathIdentity?.Value ?? existing.FileIdentityValue;
             var missingIdentity = string.IsNullOrWhiteSpace(existing.FileIdentityDevice)
                 || string.IsNullOrWhiteSpace(existing.FileIdentityValue);
 
@@ -412,6 +408,10 @@ public class LibrarySyncProcessor : ILibrarySyncProcessor
                 {
                     return false;
                 }
+
+                var existingPathIdentity = _fileIdentityResolver.TryResolve(item.FullPath);
+                var resolvedIdentityDevice = existingPathIdentity?.Device ?? existing.FileIdentityDevice;
+                var resolvedIdentityValue = existingPathIdentity?.Value ?? existing.FileIdentityValue;
 
                 var identityChanged = !string.Equals(existing.FileIdentityDevice, resolvedIdentityDevice, StringComparison.OrdinalIgnoreCase)
                     || !string.Equals(existing.FileIdentityValue, resolvedIdentityValue, StringComparison.OrdinalIgnoreCase);
@@ -433,6 +433,10 @@ public class LibrarySyncProcessor : ILibrarySyncProcessor
                 return false;
             }
 
+            var changedPathIdentity = _fileIdentityResolver.TryResolve(item.FullPath);
+            var resolvedChangedIdentityDevice = changedPathIdentity?.Device ?? existing.FileIdentityDevice;
+            var resolvedChangedIdentityValue = changedPathIdentity?.Value ?? existing.FileIdentityValue;
+
             // File has changed — re-hash and queue for update
             var newHash = await ComputeHashAsync(item.FullPath, cancellationToken);
             if (string.IsNullOrEmpty(newHash)) return false;
@@ -445,8 +449,8 @@ public class LibrarySyncProcessor : ILibrarySyncProcessor
                 item.SizeBytes,
                 item.LastModifiedUtc,
                 hashChanged,
-                resolvedIdentityDevice,
-                resolvedIdentityValue));
+                resolvedChangedIdentityDevice,
+                resolvedChangedIdentityValue));
 
             if (hashChanged)
             {

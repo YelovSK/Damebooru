@@ -10,29 +10,30 @@ namespace Damebooru.Processing.Services;
 public class JobScheduleService
 {
     private readonly DamebooruDbContext _context;
-    private readonly Dictionary<string, int> _jobOrderByKey;
-    private readonly Dictionary<string, string> _jobDisplayNameByKey;
-    private readonly Dictionary<string, string> _jobKeyByName;
+    private readonly Dictionary<JobKey, int> _jobOrderByKey;
+    private readonly Dictionary<JobKey, string> _jobDisplayNameByKey;
+    private readonly Dictionary<string, JobKey> _jobKeyByName;
 
     public JobScheduleService(DamebooruDbContext context, IEnumerable<IJob> jobs)
     {
         _context = context;
         _jobOrderByKey = jobs
-            .GroupBy(j => j.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().DisplayOrder, StringComparer.OrdinalIgnoreCase);
+            .GroupBy(j => j.Key)
+            .ToDictionary(g => g.Key, g => g.First().DisplayOrder);
         _jobDisplayNameByKey = jobs
-            .GroupBy(j => j.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().Name, StringComparer.OrdinalIgnoreCase);
+            .GroupBy(j => j.Key)
+            .ToDictionary(g => g.Key, g => g.First().Name);
         _jobKeyByName = jobs
             .GroupBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.OrdinalIgnoreCase);
     }
 
-    private string ResolveKey(string storedJobName)
+    private JobKey? ResolveKey(string storedJobName)
     {
-        if (_jobOrderByKey.ContainsKey(storedJobName))
+        if (JobKey.TryParse(storedJobName, out var parsedKey)
+            && _jobOrderByKey.ContainsKey(parsedKey))
         {
-            return storedJobName;
+            return parsedKey;
         }
 
         if (_jobKeyByName.TryGetValue(storedJobName, out var key))
@@ -40,13 +41,13 @@ public class JobScheduleService
             return key;
         }
 
-        return storedJobName;
+        return null;
     }
 
     private string ResolveDisplayName(string storedJobName)
     {
         var key = ResolveKey(storedJobName);
-        return _jobDisplayNameByKey.TryGetValue(key, out var displayName)
+        return key.HasValue && _jobDisplayNameByKey.TryGetValue(key.Value, out var displayName)
             ? displayName
             : storedJobName;
     }
@@ -55,7 +56,13 @@ public class JobScheduleService
     {
         var schedules = await _context.ScheduledJobs.ToListAsync(cancellationToken);
         return schedules
-            .OrderBy(s => _jobOrderByKey.TryGetValue(ResolveKey(s.JobName), out var order) ? order : int.MaxValue)
+            .OrderBy(s =>
+            {
+                var key = ResolveKey(s.JobName);
+                return key.HasValue && _jobOrderByKey.TryGetValue(key.Value, out var order)
+                    ? order
+                    : int.MaxValue;
+            })
             .ThenBy(s => s.JobName, StringComparer.OrdinalIgnoreCase)
             .Select(s => new ScheduledJobDto
         {

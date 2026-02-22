@@ -1,6 +1,6 @@
 using Damebooru.Core.Interfaces;
 using Microsoft.Extensions.Logging;
-using System.Buffers.Binary;
+using Microsoft.Win32.SafeHandles;
 using System.Runtime.InteropServices;
 
 namespace Damebooru.Processing.Scanning;
@@ -39,8 +39,19 @@ public class PlatformFileIdentityResolver : IFileIdentityResolver
     private static FileIdentity? TryGetWindowsIdentity(string filePath)
     {
         using var handle = File.OpenHandle(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        Win32ByHandleFileInformation info;
-        if (!PlatformNativeMethods.GetFileInformationByHandle(handle.DangerousGetHandle(), out info))
+
+        if (PlatformNativeMethods.GetFileInformationByHandleEx(
+                handle,
+                Win32FileInfoByHandleClass.FileIdInfo,
+                out var fileIdInfo,
+                (uint)Marshal.SizeOf<Win32FileIdInfo>()))
+        {
+            return new FileIdentity(
+                fileIdInfo.VolumeSerialNumber.ToString("X16"),
+                $"{fileIdInfo.FileId.Part1:X16}{fileIdInfo.FileId.Part0:X16}");
+        }
+
+        if (!PlatformNativeMethods.GetFileInformationByHandle(handle, out var info))
         {
             return null;
         }
@@ -63,19 +74,26 @@ public class PlatformFileIdentityResolver : IFileIdentityResolver
             return null;
         }
 
-        Span<byte> statBuffer = stackalloc byte[LinuxStatBufferSizeBytes];
-        var result = PlatformNativeMethods.stat(filePath, ref MemoryMarshal.GetReference(statBuffer));
-        if (result != 0)
+        using var handle = File.OpenHandle(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var fd = handle.DangerousGetHandle().ToInt32();
+
+        if (PlatformNativeMethods.fstat(fd, out var stat) != 0)
+        {
+            if (PlatformNativeMethods.stat(filePath, out stat) != 0)
+            {
+                return null;
+            }
+        }
+
+        if (stat.StDev == 0 || stat.StIno == 0)
         {
             return null;
         }
 
-        var device = BinaryPrimitives.ReadUInt64LittleEndian(statBuffer[..8]);
-        var inode = BinaryPrimitives.ReadUInt64LittleEndian(statBuffer.Slice(8, 8));
-        return new FileIdentity(device.ToString(), inode.ToString());
+        return new FileIdentity(
+            stat.StDev.ToString(),
+            stat.StIno.ToString());
     }
-
-    private const int LinuxStatBufferSizeBytes = 256;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -104,8 +122,67 @@ internal static partial class PlatformNativeMethods
 {
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    internal static partial bool GetFileInformationByHandle(nint hFile, out Win32ByHandleFileInformation lpFileInformation);
+    internal static partial bool GetFileInformationByHandleEx(
+        SafeFileHandle hFile,
+        Win32FileInfoByHandleClass fileInformationClass,
+        out Win32FileIdInfo lpFileInformation,
+        uint dwBufferSize);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetFileInformationByHandle(SafeFileHandle hFile, out Win32ByHandleFileInformation lpFileInformation);
+
+    [LibraryImport("libc", EntryPoint = "fstat", SetLastError = true)]
+    internal static partial int fstat(int fd, out LinuxStat statBuffer);
 
     [LibraryImport("libc", EntryPoint = "stat", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
-    internal static partial int stat(string path, ref byte statBuffer);
+    internal static partial int stat(string path, out LinuxStat statBuffer);
+}
+
+internal enum Win32FileInfoByHandleClass
+{
+    FileIdInfo = 18,
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct Win32FileId128
+{
+    public ulong Part0;
+    public ulong Part1;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct Win32FileIdInfo
+{
+    public ulong VolumeSerialNumber;
+    public Win32FileId128 FileId;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct LinuxTimespec
+{
+    public long TvSec;
+    public long TvNsec;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct LinuxStat
+{
+    public ulong StDev;
+    public ulong StIno;
+    public ulong StNlink;
+    public uint StMode;
+    public uint StUid;
+    public uint StGid;
+    public uint Padding0;
+    public ulong StRdev;
+    public long StSize;
+    public long StBlksize;
+    public long StBlocks;
+    public LinuxTimespec StAtim;
+    public LinuxTimespec StMtim;
+    public LinuxTimespec StCtim;
+    public long Reserved0;
+    public long Reserved1;
+    public long Reserved2;
 }

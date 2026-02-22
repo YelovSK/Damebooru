@@ -2,12 +2,10 @@ namespace Damebooru.Core.Interfaces;
 
 public class JobState
 {
-    public string Phase { get; set; } = string.Empty;
-    public int? Processed { get; set; }
-    public int? Total { get; set; }
-    public int? Succeeded { get; set; }
-    public int? Failed { get; set; }
-    public int? Skipped { get; set; }
-    public string? Summary { get; set; }
+    public string? ActivityText { get; set; }
+    public string? FinalText { get; set; }
+    public int? ProgressCurrent { get; set; }
+    public int? ProgressTotal { get; set; }
+    public int? ResultSchemaVersion { get; set; }
+    public string? ResultJson { get; set; }
 }
-

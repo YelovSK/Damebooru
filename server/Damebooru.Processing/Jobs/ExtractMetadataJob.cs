@@ -7,12 +7,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
+using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
 public class ExtractMetadataJob : IJob
 {
-    public const string JobKey = "extract-metadata";
+    public static readonly JobKey JobKey = JobKeys.ExtractMetadata;
     public const string JobName = "Extract Metadata";
 
     private sealed record PostMetadataCandidate(int Id, string RelativePath, string LibraryPath);
@@ -32,7 +33,7 @@ public class ExtractMetadataJob : IJob
     }
 
     public int DisplayOrder => 20;
-    public string Key => JobKey;
+    public JobKey Key => JobKey;
     public string Name => JobName;
     public string Description => "Extracts dimensions and content type for posts.";
     public bool SupportsAllMode => true;
@@ -56,14 +57,12 @@ public class ExtractMetadataJob : IJob
 
         if (totalPosts == 0)
         {
-            context.State.Report(new JobState
+            context.Reporter.Update(new JobState
             {
-                Phase = "Completed",
-                Processed = 0,
-                Total = 0,
-                Succeeded = 0,
-                Failed = 0,
-                Summary = "All metadata is up to date."
+                ActivityText = "Completed",
+                ProgressCurrent = 0,
+                ProgressTotal = 0,
+                FinalText = "All metadata is up to date."
             });
             return;
         }
@@ -73,12 +72,9 @@ public class ExtractMetadataJob : IJob
 
         JobState BuildLiveState() => new()
         {
-            Phase = "Extracting metadata...",
-            Processed = Math.Min(totalPosts, processed + failed),
-            Total = totalPosts,
-            Succeeded = processed,
-            Failed = failed,
-            Summary = $"Processed {processed + failed}/{totalPosts}"
+            ActivityText = "Extracting metadata...",
+            ProgressCurrent = Math.Min(totalPosts, processed + failed),
+            ProgressTotal = totalPosts
         };
 
         var lastId = 0;
@@ -131,13 +127,13 @@ public class ExtractMetadataJob : IJob
 
                         results.Add((post.Id, metadata.Width, metadata.Height, contentType));
                         Interlocked.Increment(ref processed);
-                        context.State.Report(BuildLiveState());
+                        context.Reporter.Update(BuildLiveState());
                     }
                     catch (Exception ex)
                     {
                         Interlocked.Increment(ref failed);
                         _logger.LogWarning(ex, "Failed to extract metadata for post {Id}: {Path}", post.Id, post.RelativePath);
-                        context.State.Report(BuildLiveState());
+                        context.Reporter.Update(BuildLiveState());
                     }
                 });
 
@@ -158,17 +154,22 @@ public class ExtractMetadataJob : IJob
 
             await db.SaveChangesAsync(context.CancellationToken);
 
-            context.State.Report(BuildLiveState());
+            context.Reporter.Update(BuildLiveState());
         }
 
-        context.State.Report(new JobState
+        context.Reporter.Update(new JobState
         {
-            Phase = "Completed",
-            Processed = processed + failed,
-            Total = totalPosts,
-            Succeeded = processed,
-            Failed = failed,
-            Summary = $"Extracted metadata for {processed} posts ({failed} failed)."
+            ActivityText = "Completed",
+            ProgressCurrent = processed + failed,
+            ProgressTotal = totalPosts,
+            FinalText = $"Extracted metadata for {processed} posts ({failed} failed).",
+            ResultSchemaVersion = 1,
+            ResultJson = JsonSerializer.Serialize(new
+            {
+                totalPosts,
+                processed,
+                failed,
+            })
         });
         _logger.LogInformation("Metadata extraction complete: {Processed} processed, {Failed} failed", processed, failed);
     }

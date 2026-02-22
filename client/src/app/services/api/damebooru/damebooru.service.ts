@@ -23,9 +23,13 @@ import {
   Comment as DamebooruComment,
   JobViewModel,
   JobHistoryResponse,
+  JobResult,
+  KnownJobResult,
+  parseKnownJobResult,
   ScheduledJob,
   CronPreview,
   JobMode,
+  JobKey,
   DuplicateGroup,
   ExcludedFile,
   SameFolderDuplicateGroup,
@@ -274,13 +278,28 @@ export class DamebooruService {
     });
   }
 
-  startJob(
-    name: string,
-    mode: JobMode = "missing",
-  ): Observable<{ jobId: string }> {
+  startJob(key: JobKey, mode: JobMode = "missing"): Observable<{ jobId: string }> {
     return this.http.post<{ jobId: string }>(
-      `${this.baseUrl}/jobs/${name}/start?mode=${mode}`,
+      `${this.baseUrl}/jobs/${key}/start?mode=${mode}`,
       {},
+    );
+  }
+
+  getJobResult(executionId: number): Observable<JobResult> {
+    return this.http.get<JobResult>(
+      `${this.baseUrl}/jobs/history/${executionId}/result`,
+    );
+  }
+
+  getKnownJobResult(executionId: number): Observable<KnownJobResult | null> {
+    return this.getJobResult(executionId).pipe(
+      map((result) =>
+        parseKnownJobResult(
+          result.jobKey,
+          result.schemaVersion,
+          result.resultJson,
+        ),
+      ),
     );
   }
 

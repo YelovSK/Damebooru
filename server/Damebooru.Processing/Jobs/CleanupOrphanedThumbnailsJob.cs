@@ -7,12 +7,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
 public class CleanupOrphanedThumbnailsJob : IJob
 {
-    public const string JobKey = "cleanup-orphaned-thumbnails";
+    public static readonly JobKey JobKey = JobKeys.CleanupOrphanedThumbnails;
     public const string JobName = "Cleanup Orphaned Thumbnails";
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -38,7 +39,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
     }
 
     public int DisplayOrder => 60;
-    public string Key => JobKey;
+    public JobKey Key => JobKey;
     public string Name => JobName;
     public string Description => "Removes thumbnail files that are not referenced by any post.";
     public bool SupportsAllMode => false;
@@ -48,9 +49,9 @@ public class CleanupOrphanedThumbnailsJob : IJob
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
 
-        context.State.Report(new JobState
+        context.Reporter.Update(new JobState
         {
-            Phase = "Loading known content hashes..."
+            ActivityText = "Loading known content hashes..."
         });
         var knownThumbnailRelativePaths = (await db.Posts
                 .AsNoTracking()
@@ -66,14 +67,12 @@ public class CleanupOrphanedThumbnailsJob : IJob
 
         if (thumbnailFiles.Count == 0)
         {
-            context.State.Report(new JobState
+            context.Reporter.Update(new JobState
             {
-                Phase = "Completed",
-                Processed = 0,
-                Total = 0,
-                Succeeded = 0,
-                Failed = 0,
-                Summary = "No thumbnails found."
+                ActivityText = "Completed",
+                ProgressCurrent = 0,
+                ProgressTotal = 0,
+                FinalText = "No thumbnails found."
             });
             return;
         }
@@ -111,26 +110,28 @@ public class CleanupOrphanedThumbnailsJob : IJob
             var processed = index + 1;
             if (processed % 50 == 0 || processed == thumbnailFiles.Count)
             {
-                context.State.Report(new JobState
+                context.Reporter.Update(new JobState
                 {
-                    Phase = "Cleaning orphaned thumbnails...",
-                    Processed = processed,
-                    Total = thumbnailFiles.Count,
-                    Succeeded = deleted,
-                    Failed = failed,
-                    Summary = $"Deleted {deleted} orphaned thumbnails ({failed} failed)"
+                    ActivityText = "Cleaning orphaned thumbnails...",
+                    ProgressCurrent = processed,
+                    ProgressTotal = thumbnailFiles.Count
                 });
             }
         }
 
-        context.State.Report(new JobState
+        context.Reporter.Update(new JobState
         {
-            Phase = "Completed",
-            Processed = thumbnailFiles.Count,
-            Total = thumbnailFiles.Count,
-            Succeeded = deleted,
-            Failed = failed,
-            Summary = $"Removed {deleted} orphaned thumbnails ({failed} failed)."
+            ActivityText = "Completed",
+            ProgressCurrent = thumbnailFiles.Count,
+            ProgressTotal = thumbnailFiles.Count,
+            FinalText = $"Removed {deleted} orphaned thumbnails ({failed} failed).",
+            ResultSchemaVersion = 1,
+            ResultJson = JsonSerializer.Serialize(new
+            {
+                scanned = thumbnailFiles.Count,
+                deleted,
+                failed,
+            })
         });
         _logger.LogInformation(
             "Orphaned thumbnail cleanup complete: {Deleted} deleted, {Failed} failed, {Total} scanned",

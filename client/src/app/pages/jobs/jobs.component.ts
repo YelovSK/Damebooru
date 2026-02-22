@@ -5,7 +5,7 @@ import { catchError, interval, of } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
-import { CronPreview, JobExecution, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob } from '../../services/api/damebooru/models';
+import { CronPreview, JobExecution, JobKey, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob, KnownJobResult, parseKnownJobResult } from '../../services/api/damebooru/models';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { FormCheckboxComponent } from '../../shared/components/form-checkbox/form-checkbox.component';
 import { CollapsibleComponent } from '../../shared/components/collapsible/collapsible.component';
@@ -56,6 +56,7 @@ export class JobsPageComponent {
   readonly historyPage = signal(1);
   readonly historyTotal = signal(0);
   readonly historyTotalPages = computed(() => Math.max(1, Math.ceil(this.historyTotal() / HISTORY_PAGE_SIZE)));
+  readonly expandedResultExecutionId = signal<number | null>(null);
   cronHelpExpanded = false;
   readonly cronExamples = [
     'Every 6 hours: 0 */6 * * *',
@@ -104,11 +105,96 @@ export class JobsPageComponent {
 
   onHistoryPageChange(page: number) {
     this.historyPage.set(page);
+    this.expandedResultExecutionId.set(null);
     this.loadHistory();
   }
 
-  runJob(name: string, mode: JobMode) {
-    this.damebooru.startJob(name, mode).subscribe({
+  toggleResultDetails(executionId: number): void {
+    this.expandedResultExecutionId.update(current => current === executionId ? null : executionId);
+  }
+
+  hasResultDetails(run: JobExecution): boolean {
+    return this.getKnownResult(run) !== null;
+  }
+
+  isResultExpanded(executionId: number): boolean {
+    return this.expandedResultExecutionId() === executionId;
+  }
+
+  getResultDetailLines(run: JobExecution): string[] {
+    const parsed = this.getKnownResult(run);
+    if (!parsed) {
+      return [];
+    }
+
+    switch (parsed.type) {
+      case 'scan-all-libraries.v1':
+        return [
+          `Scanned: ${parsed.data.scanned}`,
+          `Added: ${parsed.data.added}`,
+          `Updated: ${parsed.data.updated}`,
+          `Moved: ${parsed.data.moved}`,
+          `Removed: ${parsed.data.removed}`,
+        ];
+      case 'generate-thumbnails.v1':
+        return [
+          `Candidates: ${parsed.data.totalCandidates}`,
+          `Scanned: ${parsed.data.scanned}`,
+          `Generated: ${parsed.data.generated}`,
+          `Failed: ${parsed.data.failed}`,
+          `Skipped: ${parsed.data.skipped}`,
+        ];
+      case 'extract-metadata.v1':
+        return [
+          `Posts: ${parsed.data.totalPosts}`,
+          `Processed: ${parsed.data.processed}`,
+          `Failed: ${parsed.data.failed}`,
+        ];
+      case 'compute-similarity.v1':
+        return [
+          `Candidates: ${parsed.data.totalCandidates}`,
+          `Scanned: ${parsed.data.scanned}`,
+          `Processed: ${parsed.data.processed}`,
+          `Failed: ${parsed.data.failed}`,
+        ];
+      case 'cleanup-orphaned-thumbnails.v1':
+        return [
+          `Scanned: ${parsed.data.scanned}`,
+          `Deleted: ${parsed.data.deleted}`,
+          `Failed: ${parsed.data.failed}`,
+        ];
+      case 'apply-folder-tags.v1':
+        return [
+          `Total posts: ${parsed.data.totalPosts}`,
+          `Updated posts: ${parsed.data.updatedPosts}`,
+          `Added tags: ${parsed.data.addedTags}`,
+          `Removed tags: ${parsed.data.removedTags}`,
+          `Skipped: ${parsed.data.skipped}`,
+          `Failed: ${parsed.data.failed}`,
+        ];
+      case 'sanitize-tag-names.v1':
+        return [
+          `Total tags: ${parsed.data.totalTags}`,
+          `Processed: ${parsed.data.processed}`,
+          `Renamed: ${parsed.data.renamed}`,
+          `Merged: ${parsed.data.merged}`,
+          `Failed: ${parsed.data.failed}`,
+        ];
+      case 'find-duplicates.v1':
+        return [
+          `Groups: ${parsed.data.groups}`,
+          `Exact groups: ${parsed.data.exactGroups}`,
+          `Perceptual groups: ${parsed.data.perceptualGroups}`,
+          `Matched pairs: ${parsed.data.matchedPairs}`,
+          `Total entries: ${parsed.data.totalEntries}`,
+        ];
+      default:
+        return [];
+    }
+  }
+
+  runJob(key: JobKey, mode: JobMode) {
+    this.damebooru.startJob(key, mode).subscribe({
       next: () => {
         this.refreshLiveJobs();
       },
@@ -157,25 +243,27 @@ export class JobsPageComponent {
   }
 
   getProgressPercent(state?: JobState): number {
-    if (!state || typeof state.processed !== 'number' || typeof state.total !== 'number' || state.total <= 0) {
+    if (!state || typeof state.progressCurrent !== 'number' || typeof state.progressTotal !== 'number' || state.progressTotal <= 0) {
       return 0;
     }
 
-    return Math.max(0, Math.min(100, (state.processed / state.total) * 100));
+    return Math.max(0, Math.min(100, (state.progressCurrent / state.progressTotal) * 100));
+  }
+
+  isDeterminateProgress(state?: JobState): boolean {
+    return !!state
+      && typeof state.progressCurrent === 'number'
+      && typeof state.progressTotal === 'number'
+      && state.progressTotal > 0;
   }
 
   getStateDetail(state?: JobState): string | null {
     if (!state) return null;
 
-    const summary = state.summary?.trim();
-    if (summary) return summary;
+    const finalText = state.finalText?.trim();
+    if (finalText) return finalText;
 
-    const parts: string[] = [];
-    if (typeof state.succeeded === 'number') parts.push(`ok ${state.succeeded}`);
-    if (typeof state.failed === 'number') parts.push(`failed ${state.failed}`);
-    if (typeof state.skipped === 'number') parts.push(`skipped ${state.skipped}`);
-
-    return parts.length > 0 ? parts.join(', ') : null;
+    return null;
   }
 
   formatHistoryState(run: JobExecution): string {
@@ -184,25 +272,36 @@ export class JobsPageComponent {
 
     // While running, prioritize live phase text so it's obvious what the job is doing.
     if (run.status === JobStatus.Running) {
-      const phase = state.phase?.trim();
-      if (phase) return phase;
+      const activityText = state.activityText?.trim();
+      if (activityText) return activityText;
     }
 
-    const summary = state.summary?.trim();
-    if (summary) return summary;
+    const finalText = state.finalText?.trim();
+    if (finalText) return finalText;
 
-    const phase = state.phase?.trim();
-    if (phase) return phase;
+    const parsedResult = this.getKnownResult(run);
+    if (parsedResult?.type === 'scan-all-libraries.v1') {
+      const result = parsedResult.data;
+      return `Scanned ${result.scanned} files: ${result.added} added, ${result.updated} updated, ${result.moved} moved, ${result.removed} removed`;
+    }
+
+    const activityText = state.activityText?.trim();
+    if (activityText) return activityText;
 
     const parts: string[] = [];
-    if (typeof state.succeeded === 'number') parts.push(`ok ${state.succeeded}`);
-    if (typeof state.failed === 'number') parts.push(`failed ${state.failed}`);
-    if (typeof state.skipped === 'number') parts.push(`skipped ${state.skipped}`);
-    if (typeof state.processed === 'number' && typeof state.total === 'number') {
-      parts.push(`processed ${state.processed} of ${state.total}`);
+    if (typeof state.progressCurrent === 'number' && typeof state.progressTotal === 'number') {
+      parts.push(`processed ${state.progressCurrent} of ${state.progressTotal}`);
     }
 
     return parts.length > 0 ? parts.join(', ') : '-';
+  }
+
+  private getKnownResult(run: JobExecution): KnownJobResult | null {
+    return parseKnownJobResult(
+      run.jobKey,
+      run.state?.resultSchemaVersion,
+      run.state?.resultJson,
+    );
   }
 
   private refreshLiveJobs(refreshHistoryOnFinished: boolean = true): void {
@@ -268,6 +367,7 @@ export class JobsPageComponent {
 
         missingRunningRows.push({
           id: executionId,
+          jobKey: live.key,
           jobName: live.name,
           status: JobStatus.Running,
           startTime: live.startTime ?? new Date().toISOString(),

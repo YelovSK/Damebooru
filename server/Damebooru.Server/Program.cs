@@ -90,8 +90,10 @@ var resolvedConnectionString = StoragePathResolver.ResolveSqliteConnectionString
     builder.Configuration.GetConnectionString("DefaultConnection"),
     damebooruConfig.Storage.DatabasePath);
 
-builder.Services.AddDbContext<DamebooruDbContext>(options =>
+builder.Services.AddDbContextFactory<DamebooruDbContext>(options =>
     options.UseSqlite(resolvedConnectionString));
+builder.Services.AddScoped(sp =>
+    sp.GetRequiredService<IDbContextFactory<DamebooruDbContext>>().CreateDbContext());
 builder.Services.AddScoped<PostReadService>();
 builder.Services.AddScoped<PostWriteService>();
 builder.Services.AddScoped<PostContentService>();

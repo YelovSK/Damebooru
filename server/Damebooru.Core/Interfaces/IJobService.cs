@@ -6,13 +6,14 @@ public enum JobStatus
     Running,
     Completed,
     Failed,
-    Cancelled
+    Cancelled,
 }
 
 public class JobInfo
 {
     public string Id { get; set; } = string.Empty;
     public int ExecutionId { get; set; }
+    public JobKey Key { get; set; }
     public string Name { get; set; } = string.Empty;
     public JobStatus Status { get; set; }
     public JobState State { get; set; } = new();
@@ -22,7 +23,7 @@ public class JobInfo
 
 public class JobDefinition
 {
-    public string Key { get; set; } = string.Empty;
+    public JobKey Key { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool SupportsAllMode { get; set; }
@@ -32,9 +33,10 @@ public interface IJobService
 {
     IEnumerable<JobInfo> GetActiveJobs();
     Task<(List<Entities.JobExecution> Items, int Total)> GetJobHistoryAsync(int pageSize = 20, int page = 1, CancellationToken cancellationToken = default);
+    Task<Entities.JobExecution?> GetJobExecutionAsync(int executionId, CancellationToken cancellationToken = default);
     IEnumerable<JobDefinition> GetAvailableJobs();
-    Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken);
-    Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken, JobMode mode);
-    Task<string> StartJobAsync(string jobName, Func<CancellationToken, Task> action);
+    Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken);
+    Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken, JobMode mode);
+    Task<string> StartJobAsync(JobKey jobKey, Func<CancellationToken, Task> action);
     void CancelJob(string jobId);
 }

@@ -20,11 +20,12 @@
             <app-progress-bar
               class="mb-1.5"
               [progress]="getProgressPercent(job.activeJobInfo.state)"
+              [indeterminate]="!isDeterminateProgress(job.activeJobInfo.state)"
               [trackClass]="'bg-gray-700'"
               [fillClass]="'bg-accent-primary'">
             </app-progress-bar>
             <p class="text-xs text-gray-400">
-              {{ job.activeJobInfo.state.phase || 'Running...' }}
+              {{ job.activeJobInfo.state.activityText || 'Running...' }}
             </p>
             @if (getStateDetail(job.activeJobInfo.state); as detail) {
               <p class="text-xs text-gray-500 mt-1">{{ detail }}</p>
@@ -35,10 +36,10 @@
         <div class="flex gap-2 mt-auto">
           @if (!job.isRunning) {
             @if (job.supportsAllMode) {
-              <app-button variant="primary" size="sm" [fullWidth]="true" (click)="runJob(job.name, 'missing')">Missing</app-button>
-              <app-button variant="secondary" size="sm" [fullWidth]="true" (click)="runJob(job.name, 'all')">All</app-button>
+              <app-button variant="primary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'missing')">Missing</app-button>
+              <app-button variant="secondary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'all')">All</app-button>
             } @else {
-              <app-button variant="primary" size="sm" [fullWidth]="true" (click)="runJob(job.name, 'missing')">Run</app-button>
+              <app-button variant="primary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'missing')">Run</app-button>
             }
           }
 
@@ -158,7 +159,22 @@
             <td class="py-2">
               {{ run.startTime | elapsedDuration:(run.endTime ?? (run.status === jobStatus.Running ? now() : null)) }}
             </td>
-            <td class="py-2 text-sm text-gray-400">{{ formatHistoryState(run) }}</td>
+            <td class="py-2 text-sm text-gray-400">
+              <div>{{ formatHistoryState(run) }}</div>
+              @if (hasResultDetails(run)) {
+                <button type="button" class="mt-1 text-xs text-accent-primary hover:underline"
+                  (click)="toggleResultDetails(run.id)">
+                  {{ isResultExpanded(run.id) ? 'Hide details' : 'Show details' }}
+                </button>
+                @if (isResultExpanded(run.id)) {
+                  <div class="mt-2 rounded border border-gray-700 bg-gray-800/40 p-2 text-xs text-gray-300">
+                    @for (line of getResultDetailLines(run); track line) {
+                      <div>{{ line }}</div>
+                    }
+                  </div>
+                }
+              }
+            </td>
             <td class="py-2 text-red-400 text-sm">{{ run.errorMessage }}</td>
           </tr>
         }

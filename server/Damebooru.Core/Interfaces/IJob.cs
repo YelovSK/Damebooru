@@ -1,27 +1,49 @@
-using Damebooru.Core.Interfaces;
-
 namespace Damebooru.Core.Interfaces;
 
 public enum JobMode
 {
-    /// <summary>Only process items that haven't been processed yet.</summary>
     Missing,
-    /// <summary>Reprocess all items, regenerating existing data.</summary>
-    All
+    All,
+}
+
+public interface IJobReporter
+{
+    void Update(JobState state);
+    void SetActivity(string? activityText);
+    void SetProgress(int? current, int? total);
+    void ClearProgress();
+    void SetFinalText(string? finalText);
+    void SetResult(int? schemaVersion, string? resultJson);
+    void Flush();
+}
+
+public sealed class NullJobReporter : IJobReporter
+{
+    public static readonly NullJobReporter Instance = new();
+
+    private NullJobReporter() { }
+
+    public void Update(JobState state) { }
+    public void SetActivity(string? activityText) { }
+    public void SetProgress(int? current, int? total) { }
+    public void ClearProgress() { }
+    public void SetFinalText(string? finalText) { }
+    public void SetResult(int? schemaVersion, string? resultJson) { }
+    public void Flush() { }
 }
 
 public class JobContext
 {
     public string JobId { get; set; } = string.Empty;
     public CancellationToken CancellationToken { get; set; }
-    public IProgress<JobState> State { get; set; } = new Progress<JobState>();
+    public IJobReporter Reporter { get; set; } = NullJobReporter.Instance;
     public JobMode Mode { get; set; } = JobMode.Missing;
 }
 
 public interface IJob
 {
     int DisplayOrder { get; }
-    string Key { get; }
+    JobKey Key { get; }
     string Name { get; }
     string Description { get; }
     bool SupportsAllMode { get; }

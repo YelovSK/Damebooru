@@ -5,12 +5,13 @@ using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
 public class ApplyFolderTagsJob : IJob
 {
-    public const string JobKey = "apply-folder-tags";
+    public static readonly JobKey JobKey = JobKeys.ApplyFolderTags;
     public const string JobName = "Apply Folder Tags";
 
     private sealed record FolderTagCandidate(int Id, string RelativePath);
@@ -26,7 +27,7 @@ public class ApplyFolderTagsJob : IJob
     }
 
     public int DisplayOrder => 70;
-    public string Key => JobKey;
+    public JobKey Key => JobKey;
     public string Name => JobName;
     public string Description => "Adds tags to posts based on parent folders (spaces become underscores).";
     public bool SupportsAllMode => false;
@@ -40,15 +41,12 @@ public class ApplyFolderTagsJob : IJob
         var totalPosts = await db.Posts.AsNoTracking().CountAsync(context.CancellationToken);
         if (totalPosts == 0)
         {
-            context.State.Report(new JobState
+            context.Reporter.Update(new JobState
             {
-                Phase = "Completed",
-                Processed = 0,
-                Total = 0,
-                Succeeded = 0,
-                Failed = 0,
-                Skipped = 0,
-                Summary = "No posts to process."
+                ActivityText = "Completed",
+                ProgressCurrent = 0,
+                ProgressTotal = 0,
+                FinalText = "No posts to process."
             });
             return;
         }
@@ -207,27 +205,30 @@ public class ApplyFolderTagsJob : IJob
                 _logger.LogWarning(ex, "Failed processing folder tags for batch ending at post id {LastId}", lastId);
             }
 
-            context.State.Report(new JobState
+            context.Reporter.Update(new JobState
             {
-                Phase = "Applying folder tags...",
-                Processed = processed,
-                Total = totalPosts,
-                Succeeded = updatedPosts,
-                Failed = failed,
-                Skipped = skipped,
-                Summary = $"Updated {updatedPosts} posts, added {addedTags} tags, removed {removedTags} stale folder tags"
+                ActivityText = "Applying folder tags...",
+                ProgressCurrent = processed,
+                ProgressTotal = totalPosts
             });
         }
 
-        context.State.Report(new JobState
+        context.Reporter.Update(new JobState
         {
-            Phase = "Completed",
-            Processed = processed,
-            Total = totalPosts,
-            Succeeded = updatedPosts,
-            Failed = failed,
-            Skipped = skipped,
-            Summary = $"Updated {updatedPosts} posts, added {addedTags} folder tags, removed {removedTags} stale folder tags."
+            ActivityText = "Completed",
+            ProgressCurrent = processed,
+            ProgressTotal = totalPosts,
+            FinalText = $"Updated {updatedPosts} posts, added {addedTags} folder tags, removed {removedTags} stale folder tags, skipped {skipped}, failed {failed}.",
+            ResultSchemaVersion = 1,
+            ResultJson = JsonSerializer.Serialize(new
+            {
+                totalPosts,
+                updatedPosts,
+                addedTags,
+                removedTags,
+                skipped,
+                failed,
+            })
         });
     }
 }

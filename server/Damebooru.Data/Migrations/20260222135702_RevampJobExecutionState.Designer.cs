@@ -3,6 +3,7 @@ using System;
 using Damebooru.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Damebooru.Data.Migrations
 {
     [DbContext(typeof(DamebooruDbContext))]
-    partial class DamebooruDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260222135702_RevampJobExecutionState")]
+    partial class RevampJobExecutionState
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.2");

@@ -1,7 +1,6 @@
 using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
-using Damebooru.Processing.Jobs;
 using Cronos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,14 +19,14 @@ public class SchedulerService : BackgroundService
     /// Default scheduled jobs to seed if they don't exist in the database.
     /// All disabled by default — users can enable and configure from the Jobs page.
     /// </summary>
-    private static readonly (string Key, string Cron)[] DefaultJobs =
+    private static readonly (JobKey Key, string Cron)[] DefaultJobs =
     [
-        (ScanAllLibrariesJob.JobKey, "0 */6 * * *"),    // Every 6 hours
-        (GenerateThumbnailsJob.JobKey, "30 */6 * * *"),   // 30 min after scan
-        (CleanupOrphanedThumbnailsJob.JobKey, "45 */6 * * *"), // 45 min after scan
-        (ExtractMetadataJob.JobKey, "35 */6 * * *"),      // 35 min after scan
-        (ComputeSimilarityJob.JobKey, "40 */6 * * *"),    // 40 min after scan
-        (FindDuplicatesJob.JobKey, "0 3 * * 0"),          // Weekly, Sunday 3 AM
+        (JobKeys.ScanAllLibraries, "0 */6 * * *"),    // Every 6 hours
+        (JobKeys.GenerateThumbnails, "30 */6 * * *"),   // 30 min after scan
+        (JobKeys.CleanupOrphanedThumbnails, "45 */6 * * *"), // 45 min after scan
+        (JobKeys.ExtractMetadata, "35 */6 * * *"),      // 35 min after scan
+        (JobKeys.ComputeSimilarity, "40 */6 * * *"),    // 40 min after scan
+        (JobKeys.FindDuplicates, "0 3 * * 0"),          // Weekly, Sunday 3 AM
     ];
 
     public SchedulerService(IServiceScopeFactory scopeFactory, ILogger<SchedulerService> logger)
@@ -67,7 +66,7 @@ public class SchedulerService : BackgroundService
         var availableJobs = jobService.GetAvailableJobs().ToList();
         var availableKeys = availableJobs
             .Select(j => j.Key)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet();
         var nameToKey = availableJobs
             .GroupBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.OrdinalIgnoreCase);
@@ -78,9 +77,9 @@ public class SchedulerService : BackgroundService
         foreach (var schedule in existingSchedules)
         {
             if (nameToKey.TryGetValue(schedule.JobName, out var resolvedKey)
-                && !string.Equals(schedule.JobName, resolvedKey, StringComparison.OrdinalIgnoreCase))
+                && !string.Equals(schedule.JobName, resolvedKey.Value, StringComparison.OrdinalIgnoreCase))
             {
-                schedule.JobName = resolvedKey;
+                schedule.JobName = resolvedKey.Value;
                 changed = true;
             }
         }
@@ -91,20 +90,20 @@ public class SchedulerService : BackgroundService
 
         foreach (var (jobKey, cron) in DefaultJobs)
         {
-            if (!availableKeys.Contains(jobKey) || existingSet.Contains(jobKey))
+            if (!availableKeys.Contains(jobKey) || existingSet.Contains(jobKey.Value))
             {
                 continue;
             }
 
             dbContext.ScheduledJobs.Add(new ScheduledJob
             {
-                JobName = jobKey,
+                JobName = jobKey.Value,
                 CronExpression = cron,
                 IsEnabled = false,
                 NextRun = CalculateNextRun(cron)
             });
             changed = true;
-            _logger.LogInformation("Seeded scheduled job: {Key} ({Cron})", jobKey, cron);
+            _logger.LogInformation("Seeded scheduled job: {Key} ({Cron})", jobKey.Value, cron);
         }
 
         if (changed)
@@ -119,7 +118,7 @@ public class SchedulerService : BackgroundService
         var availableJobs = jobService.GetAvailableJobs().ToList();
         var keySet = availableJobs
             .Select(j => j.Key)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet();
         var nameToKey = availableJobs
             .GroupBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.OrdinalIgnoreCase);
@@ -130,17 +129,20 @@ public class SchedulerService : BackgroundService
 
         foreach (var scheduledJob in jobsToRun)
         {
-            var scheduledKey = scheduledJob.JobName;
+            var scheduledKey = JobKey.TryParse(scheduledJob.JobName, out var parsedStoredKey)
+                ? parsedStoredKey
+                : default;
+
             if (nameToKey.TryGetValue(scheduledJob.JobName, out var resolvedKey))
             {
                 scheduledKey = resolvedKey;
-                if (!string.Equals(scheduledJob.JobName, scheduledKey, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(scheduledJob.JobName, scheduledKey.Value, StringComparison.OrdinalIgnoreCase))
                 {
-                    scheduledJob.JobName = scheduledKey;
+                    scheduledJob.JobName = scheduledKey.Value;
                 }
             }
 
-            if (!keySet.Contains(scheduledKey))
+            if (string.IsNullOrEmpty(scheduledKey.Value) || !keySet.Contains(scheduledKey))
             {
                 _logger.LogWarning("Skipping unknown scheduled job: {StoredJobName}", scheduledJob.JobName);
                 scheduledJob.IsEnabled = false;
@@ -148,7 +150,7 @@ public class SchedulerService : BackgroundService
                 continue;
             }
 
-            _logger.LogInformation("Triggering scheduled job: {Key}", scheduledKey);
+            _logger.LogInformation("Triggering scheduled job: {Key}", scheduledKey.Value);
 
             try
             {

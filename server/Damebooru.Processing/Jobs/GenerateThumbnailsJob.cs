@@ -8,12 +8,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
 public class GenerateThumbnailsJob : IJob
 {
-    public const string JobKey = "generate-thumbnails";
+    public static readonly JobKey JobKey = JobKeys.GenerateThumbnails;
     public const string JobName = "Generate Thumbnails";
 
     private sealed record ThumbnailCandidate(int Id, int LibraryId, string ContentHash, string RelativePath, string LibraryPath);
@@ -41,7 +42,7 @@ public class GenerateThumbnailsJob : IJob
     }
 
     public int DisplayOrder => 50;
-    public string Key => JobKey;
+    public JobKey Key => JobKey;
     public string Name => JobName;
     public string Description => "Generates missing (or all) thumbnails for posts.";
     public bool SupportsAllMode => true;
@@ -65,15 +66,12 @@ public class GenerateThumbnailsJob : IJob
 
         if (totalCandidates == 0)
         {
-            context.State.Report(new JobState
+            context.Reporter.Update(new JobState
             {
-                Phase = "Completed",
-                Processed = 0,
-                Total = 0,
-                Succeeded = 0,
-                Failed = 0,
-                Skipped = 0,
-                Summary = "All thumbnails are up to date."
+                ActivityText = "Completed",
+                ProgressCurrent = 0,
+                ProgressTotal = 0,
+                FinalText = "All thumbnails are up to date."
             });
             return;
         }
@@ -92,13 +90,9 @@ public class GenerateThumbnailsJob : IJob
 
         JobState BuildLiveState() => new()
         {
-            Phase = "Generating thumbnails...",
-            Processed = Math.Min(totalCandidates, processed + failed + skipped),
-            Total = totalCandidates,
-            Succeeded = processed,
-            Failed = failed,
-            Skipped = skipped,
-            Summary = $"Generated {processed}, skipped {skipped}, failed {failed}"
+            ActivityText = "Generating thumbnails...",
+            ProgressCurrent = Math.Min(totalCandidates, processed + failed + skipped),
+            ProgressTotal = totalCandidates
         };
 
         const int batchSize = 20;
@@ -146,28 +140,34 @@ public class GenerateThumbnailsJob : IJob
                     }
                     await mediaFileProcessor.GenerateThumbnailAsync(fullPath, destination, 400, ct);
                     Interlocked.Increment(ref processed);
-                    context.State.Report(BuildLiveState());
+                    context.Reporter.Update(BuildLiveState());
                 }
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref failed);
                     _logger.LogWarning(ex, "Failed to generate thumbnail for post {Id}: {Path}", post.Id, post.RelativePath);
-                    context.State.Report(BuildLiveState());
+                    context.Reporter.Update(BuildLiveState());
                 }
             });
 
-            context.State.Report(BuildLiveState());
+            context.Reporter.Update(BuildLiveState());
         }
 
-        context.State.Report(new JobState
+        context.Reporter.Update(new JobState
         {
-            Phase = "Completed",
-            Processed = scanned,
-            Total = totalCandidates,
-            Succeeded = processed,
-            Failed = failed,
-            Skipped = skipped,
-            Summary = $"Generated {processed} thumbnails ({failed} failed, {skipped} skipped)."
+            ActivityText = "Completed",
+            ProgressCurrent = scanned,
+            ProgressTotal = totalCandidates,
+            FinalText = $"Generated {processed} thumbnails ({failed} failed, {skipped} skipped).",
+            ResultSchemaVersion = 1,
+            ResultJson = JsonSerializer.Serialize(new
+            {
+                scanned,
+                totalCandidates,
+                generated = processed,
+                failed,
+                skipped,
+            })
         });
         _logger.LogInformation(
             "Thumbnail generation complete: {Processed} generated, {Failed} failed, {Skipped} skipped",

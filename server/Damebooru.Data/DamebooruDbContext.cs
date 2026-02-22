@@ -72,6 +72,9 @@ public class DamebooruDbContext : DbContext
 
         modelBuilder.Entity<JobExecution>()
             .HasIndex(j => j.JobName);
+
+        modelBuilder.Entity<JobExecution>()
+            .HasIndex(j => j.JobKey);
             
         modelBuilder.Entity<JobExecution>()
             .HasIndex(j => j.StartTime);

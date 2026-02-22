@@ -16,28 +16,24 @@ public class JobService : IJobService
 
     private readonly ConcurrentDictionary<string, JobInfo> _activeJobs = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _cancellationSources = new();
-    private readonly ConcurrentDictionary<string, byte> _runningJobKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<JobKey, byte> _runningJobKeys = new();
     private readonly ILogger<JobService> _logger;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly Dictionary<string, IJob> _registeredJobsByKey;
-    private readonly Dictionary<string, IJob> _registeredJobsByName;
+    private readonly IDbContextFactory<DamebooruDbContext> _dbContextFactory;
+    private readonly Dictionary<JobKey, IJob> _registeredJobsByKey;
     private readonly TimeSpan _jobProgressReportInterval;
 
     public JobService(
         ILogger<JobService> logger, 
-        IServiceScopeFactory scopeFactory,
+        IDbContextFactory<DamebooruDbContext> dbContextFactory,
         IEnumerable<IJob> jobs,
         IOptions<DamebooruConfig> config)
     {
         _logger = logger;
-        _scopeFactory = scopeFactory;
+        _dbContextFactory = dbContextFactory;
         _jobProgressReportInterval = TimeSpan.FromMilliseconds(Math.Max(0, config.Value.Processing.JobProgressReportIntervalMs));
         _registeredJobsByKey = jobs
             .GroupBy(j => j.Key)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-        _registeredJobsByName = jobs
-            .GroupBy(j => j.Name)
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key, g => g.First());
     }
 
     public IEnumerable<JobInfo> GetActiveJobs() => _activeJobs.Values.ToList();
@@ -58,8 +54,7 @@ public class JobService : IJobService
 
     public async Task<(List<JobExecution> Items, int Total)> GetJobHistoryAsync(int pageSize = 20, int page = 1, CancellationToken cancellationToken = default)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
         
         var query = dbContext.JobExecutions.AsNoTracking().OrderByDescending(j => j.StartTime);
         var total = await query.CountAsync(cancellationToken);
@@ -70,14 +65,22 @@ public class JobService : IJobService
         return (items, total);
     }
 
-    public Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken)
-        => StartJobAsync(jobName, cancellationToken, JobMode.Missing);
-
-    public Task<string> StartJobAsync(string jobName, CancellationToken cancellationToken, JobMode mode)
+    public async Task<JobExecution?> GetJobExecutionAsync(int executionId, CancellationToken cancellationToken = default)
     {
-        if (!TryResolveJob(jobName, out var job))
+        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await dbContext.JobExecutions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(j => j.Id == executionId, cancellationToken);
+    }
+
+    public Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken)
+        => StartJobAsync(jobKey, cancellationToken, JobMode.Missing);
+
+    public Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken, JobMode mode)
+    {
+        if (!_registeredJobsByKey.TryGetValue(jobKey, out var job))
         {
-            throw new ArgumentException($"Job '{jobName}' not found.", nameof(jobName));
+            throw new ArgumentException($"Job '{jobKey.Value}' not found.", nameof(jobKey));
         }
 
         if (mode == JobMode.All && !job.SupportsAllMode)
@@ -92,22 +95,12 @@ public class JobService : IJobService
         });
     }
 
-    public Task<string> StartJobAsync(string jobName, Func<CancellationToken, Task> action)
+    public Task<string> StartJobAsync(JobKey jobKey, Func<CancellationToken, Task> action)
     {
-        return StartJobInternalAsync(jobName, jobName, ctx => action(ctx.CancellationToken));
+        return StartJobInternalAsync(jobKey, jobKey.Value, ctx => action(ctx.CancellationToken));
     }
 
-    private bool TryResolveJob(string keyOrName, out IJob job)
-    {
-        if (_registeredJobsByKey.TryGetValue(keyOrName, out job!))
-        {
-            return true;
-        }
-
-        return _registeredJobsByName.TryGetValue(keyOrName, out job!);
-    }
-
-    private async Task<string> StartJobInternalAsync(string jobKey, string jobName, Func<JobContext, Task> execute)
+    private async Task<string> StartJobInternalAsync(JobKey jobKey, string jobName, Func<JobContext, Task> execute)
     {
         if (!_runningJobKeys.TryAdd(jobKey, 0))
         {
@@ -121,29 +114,31 @@ public class JobService : IJobService
         {
             // Create DB entry
             JobExecution execution;
-            using (var scope = _scopeFactory.CreateScope())
+            await using (var dbContext = await _dbContextFactory.CreateDbContextAsync(CancellationToken.None))
             {
-                var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
                 execution = new JobExecution
                 {
+                    JobKey = jobKey.Value,
                     JobName = jobName,
                     Status = JobStatus.Running,
-                    StartTime = DateTime.UtcNow
+                    StartTime = DateTime.UtcNow,
+                    ActivityText = "Starting..."
                 };
                 dbContext.JobExecutions.Add(execution);
-                await dbContext.SaveChangesAsync();
+                await dbContext.SaveChangesAsync(CancellationToken.None);
             }
 
             var jobInfo = new JobInfo
             {
                 Id = jobId,
                 ExecutionId = execution.Id,
+                Key = jobKey,
                 Name = jobName,
                 Status = JobStatus.Running,
                 StartTime = execution.StartTime,
                 State = new JobState
                 {
-                    Phase = "Starting..."
+                    ActivityText = "Starting..."
                 }
             };
 
@@ -154,40 +149,15 @@ public class JobService : IJobService
 
             _ = Task.Run(async () =>
             {
-                JobState latestState = CloneState(jobInfo.State);
-                string latestStateData = JobStateSerialization.Serialize(latestState);
-                var stateLock = new object();
-
-                JobState GetLatestState()
-                {
-                    lock (stateLock)
-                    {
-                        return CloneState(latestState);
-                    }
-                }
-
-                string GetLatestStateData()
-                {
-                    lock (stateLock)
-                    {
-                        return latestStateData;
-                    }
-                }
-
-                void SetLatestState(JobState state)
-                {
-                    lock (stateLock)
-                    {
-                        latestState = MergeState(latestState, state);
-                        latestStateData = JobStateSerialization.Serialize(latestState);
-                        jobInfo.State = CloneState(latestState);
-                    }
-                }
+                var reporter = new JobReporter(
+                    initialState: jobInfo.State,
+                    minInterval: _jobProgressReportInterval,
+                    onPublish: state => jobInfo.State = CloneState(state));
 
                 using var statePersistenceCts = new CancellationTokenSource();
                 var statePersistenceTask = PersistStateLoopAsync(
                     execution.Id,
-                    GetLatestStateData,
+                    reporter.GetSnapshot,
                     statePersistenceCts.Token);
 
                 try
@@ -196,50 +166,45 @@ public class JobService : IJobService
                     {
                         JobId = jobId,
                         CancellationToken = cts.Token,
-                        State = new InlineProgress<JobState>(state =>
-                        {
-                            if (state == null)
-                            {
-                                return;
-                            }
-
-                            SetLatestState(state);
-                        }, _jobProgressReportInterval)
+                        Reporter = reporter,
                     };
 
                     await execute(context);
 
                     jobInfo.Status = JobStatus.Completed;
-                    var finalState = GetLatestState();
-                    if (string.IsNullOrWhiteSpace(finalState.Phase))
+                    var finalState = reporter.GetSnapshot();
+                    finalState.ActivityText ??= "Completed";
+                    if (string.IsNullOrWhiteSpace(finalState.FinalText))
                     {
-                        finalState.Phase = "Completed";
+                        finalState.FinalText = "Completed successfully.";
                     }
-                    finalState.Summary ??= "Completed successfully.";
-                    SetLatestState(finalState);
+                    reporter.Update(finalState);
+                    reporter.Flush();
 
-                    await UpdateJobStatusAsync(execution.Id, JobStatus.Completed, stateData: GetLatestStateData());
+                    await UpdateJobStatusAsync(execution.Id, JobStatus.Completed, state: reporter.GetSnapshot());
                 }
                 catch (OperationCanceledException)
                 {
                     jobInfo.Status = JobStatus.Cancelled;
-                    var finalState = GetLatestState();
-                    finalState.Phase = "Cancelled";
-                    finalState.Summary ??= "Cancelled by user.";
-                    SetLatestState(finalState);
+                    var finalState = reporter.GetSnapshot();
+                    finalState.ActivityText ??= "Cancelled";
+                    finalState.FinalText ??= "Cancelled by user.";
+                    reporter.Update(finalState);
+                    reporter.Flush();
 
-                    await UpdateJobStatusAsync(execution.Id, JobStatus.Cancelled, stateData: GetLatestStateData());
+                    await UpdateJobStatusAsync(execution.Id, JobStatus.Cancelled, state: reporter.GetSnapshot());
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Job failed: {Id}", jobId);
                     jobInfo.Status = JobStatus.Failed;
-                    var finalState = GetLatestState();
-                    finalState.Phase = "Failed";
-                    finalState.Summary = ex.Message;
-                    SetLatestState(finalState);
+                    var finalState = reporter.GetSnapshot();
+                    finalState.ActivityText ??= "Failed";
+                    finalState.FinalText = ex.Message;
+                    reporter.Update(finalState);
+                    reporter.Flush();
 
-                    await UpdateJobStatusAsync(execution.Id, JobStatus.Failed, ex.Message, GetLatestStateData());
+                    await UpdateJobStatusAsync(execution.Id, JobStatus.Failed, ex.Message, reporter.GetSnapshot());
                 }
                 finally
                 {
@@ -280,89 +245,55 @@ public class JobService : IJobService
         _activeJobs.TryRemove(jobId, out _);
     }
 
-    private static JobState MergeState(JobState current, JobState update)
-    {
-        var phase = string.IsNullOrWhiteSpace(update.Phase)
-            ? current.Phase
-            : update.Phase.Trim();
-
-        if (string.IsNullOrWhiteSpace(phase))
-        {
-            phase = "Running...";
-        }
-
-        string? summary;
-        if (update.Summary is null)
-        {
-            summary = current.Summary;
-        }
-        else
-        {
-            summary = string.IsNullOrWhiteSpace(update.Summary) ? null : update.Summary.Trim();
-        }
-
-        return new JobState
-        {
-            Phase = phase,
-            Processed = update.Processed ?? current.Processed,
-            Total = update.Total ?? current.Total,
-            Succeeded = update.Succeeded ?? current.Succeeded,
-            Failed = update.Failed ?? current.Failed,
-            Skipped = update.Skipped ?? current.Skipped,
-            Summary = summary
-        };
-    }
-
     private static JobState CloneState(JobState state)
     {
         return new JobState
         {
-            Phase = state.Phase,
-            Processed = state.Processed,
-            Total = state.Total,
-            Succeeded = state.Succeeded,
-            Failed = state.Failed,
-            Skipped = state.Skipped,
-            Summary = state.Summary
+            ActivityText = state.ActivityText,
+            FinalText = state.FinalText,
+            ProgressCurrent = state.ProgressCurrent,
+            ProgressTotal = state.ProgressTotal,
+            ResultSchemaVersion = state.ResultSchemaVersion,
+            ResultJson = state.ResultJson,
         };
     }
 
     private async Task PersistStateLoopAsync(
         int executionId,
-        Func<string> getLatestStateData,
+        Func<JobState> getLatestState,
         CancellationToken cancellationToken)
     {
-        string? lastPersistedStateData = null;
+        JobState? lastPersistedState = null;
 
         while (!cancellationToken.IsCancellationRequested)
         {
             await Task.Delay(StatePersistenceInterval, cancellationToken);
 
-            var stateData = getLatestStateData();
+            var state = getLatestState();
 
-            if (string.Equals(lastPersistedStateData, stateData, StringComparison.Ordinal))
+            if (JobStateEquals(lastPersistedState, state))
             {
                 continue;
             }
 
-            await UpdateJobStateDataAsync(executionId, stateData, cancellationToken);
-            lastPersistedStateData = stateData;
+            await UpdateJobStateDataAsync(executionId, state, cancellationToken);
+            lastPersistedState = CloneState(state);
         }
     }
 
-    private async Task UpdateJobStateDataAsync(int executionId, string stateData, CancellationToken cancellationToken = default)
+    private async Task UpdateJobStateDataAsync(int executionId, JobState state, CancellationToken cancellationToken = default)
     {
         try
         {
-            using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+            await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
             var execution = await dbContext.JobExecutions.FindAsync(new object[] { executionId }, cancellationToken);
             if (execution == null)
             {
                 return;
             }
 
-            execution.ResultData = stateData;
+            ApplyStateToExecution(execution, state);
+
             await dbContext.SaveChangesAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -375,12 +306,11 @@ public class JobService : IJobService
         }
     }
 
-    private async Task UpdateJobStatusAsync(int executionId, JobStatus status, string? error = null, string? stateData = null)
+    private async Task UpdateJobStatusAsync(int executionId, JobStatus status, string? error = null, JobState? state = null)
     {
         try 
         {
-            using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+            await using var dbContext = await _dbContextFactory.CreateDbContextAsync();
             
             var execution = await dbContext.JobExecutions.FindAsync(executionId);
             if (execution != null)
@@ -388,7 +318,10 @@ public class JobService : IJobService
                 execution.Status = status;
                 execution.EndTime = DateTime.UtcNow;
                 if (error != null) execution.ErrorMessage = error;
-                if (!string.IsNullOrWhiteSpace(stateData)) execution.ResultData = stateData;
+                if (state != null)
+                {
+                    ApplyStateToExecution(execution, state);
+                }
                 
                 await dbContext.SaveChangesAsync();
             }
@@ -407,38 +340,44 @@ public class JobService : IJobService
         }
     }
 
-    private sealed class InlineProgress<T> : IProgress<T>
+    private static void ApplyStateToExecution(JobExecution execution, JobState state)
     {
-        private readonly Action<T> _onReport;
-        private readonly TimeSpan _minInterval;
-        private long _lastReportTicks;
-
-        public InlineProgress(Action<T> onReport, TimeSpan minInterval)
-        {
-            _onReport = onReport;
-            _minInterval = minInterval;
-            _lastReportTicks = 0;
-        }
-
-        public void Report(T value)
-        {
-            if (_minInterval > TimeSpan.Zero)
-            {
-                var nowTicks = DateTime.UtcNow.Ticks;
-                var lastTicks = Interlocked.Read(ref _lastReportTicks);
-
-                if (lastTicks != 0 && nowTicks - lastTicks < _minInterval.Ticks)
-                {
-                    return;
-                }
-
-                if (Interlocked.CompareExchange(ref _lastReportTicks, nowTicks, lastTicks) != lastTicks)
-                {
-                    return;
-                }
-            }
-
-            _onReport(value);
-        }
+        execution.ActivityText = NormalizeText(state.ActivityText);
+        execution.FinalText = NormalizeText(state.FinalText);
+        execution.ProgressCurrent = state.ProgressCurrent;
+        execution.ProgressTotal = state.ProgressTotal;
+        execution.ResultSchemaVersion = state.ResultSchemaVersion;
+        execution.ResultJson = NormalizeText(state.ResultJson);
     }
+
+    private static string? NormalizeText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Trim();
+    }
+
+    private static bool JobStateEquals(JobState? left, JobState? right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left == null || right == null)
+        {
+            return false;
+        }
+
+        return string.Equals(left.ActivityText, right.ActivityText, StringComparison.Ordinal)
+            && string.Equals(left.FinalText, right.FinalText, StringComparison.Ordinal)
+            && left.ProgressCurrent == right.ProgressCurrent
+            && left.ProgressTotal == right.ProgressTotal
+            && left.ResultSchemaVersion == right.ResultSchemaVersion
+            && string.Equals(left.ResultJson, right.ResultJson, StringComparison.Ordinal);
+    }
+
 }

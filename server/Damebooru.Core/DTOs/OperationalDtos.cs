@@ -22,12 +22,21 @@ public class StartJobResponseDto
 public class JobExecutionDto
 {
     public int Id { get; set; }
+    public string JobKey { get; set; } = string.Empty;
     public string JobName { get; set; } = string.Empty;
     public JobStatus Status { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
     public string? ErrorMessage { get; set; }
     public JobState? State { get; set; }
+}
+
+public class JobResultDto
+{
+    public int ExecutionId { get; set; }
+    public string JobKey { get; set; } = string.Empty;
+    public int? SchemaVersion { get; set; }
+    public string ResultJson { get; set; } = string.Empty;
 }
 
 public class JobHistoryResponseDto
