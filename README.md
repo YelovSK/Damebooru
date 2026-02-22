@@ -19,6 +19,17 @@ At the moment, the project is half-baked, and will very likely stay like that.
 - Node.js 22+ and npm
 - FFmpeg + FFprobe on `PATH` (required for thumbnails/metadata/similarity jobs)
 
+## Features
+- External library scanning (posts are created for images and videos in the given folder)
+- Cron jobs - library scanning, thumbnail generation, metadata extraction, and so on
+- Grid with all posts using virtual scroll
+- Similar and duplicate post detection
+- Tags and tag categories
+- Single-user optional authentication
+- Search syntax (include/exclude tags, types, tag count, sorting, filename, ..)
+- Move/zoom post with mouse
+- Auto-tag via SauceNAO + Gelbooru/Danbooru (this is kind of.. not sure if it still works, will change later)
+
 ## Configuration
 Before first run, verify these settings in `server/Damebooru.Server/appsettings.json`:
 - `ConnectionStrings:DefaultConnection`
