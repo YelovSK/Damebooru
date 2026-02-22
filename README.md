@@ -108,5 +108,20 @@ docker compose up -d --build
 - Architecture: `docs/architecture.md`
 
 ## Images
-<img width="1745" height="1245" alt="image" src="https://github.com/user-attachments/assets/4cac6826-a8d5-4f29-a4ba-5096013ddc4c" />
-<img width="1748" height="1243" alt="image" src="https://github.com/user-attachments/assets/9598ef89-07bd-4923-996f-fbe305f0031d" />
+<img width="1382" height="608" alt="Screenshot 2026-02-22 165425" src="https://github.com/user-attachments/assets/9b742e92-2c1b-4620-881f-3eef7b2848c2" />
+
+<img width="1726" height="1244" alt="Screenshot 2026-02-22 165550" src="https://github.com/user-attachments/assets/0c7bc68d-de11-47f2-be73-e229ddc2bdb6" />
+
+<img width="1220" height="1012" alt="Screenshot 2026-02-22 170032" src="https://github.com/user-attachments/assets/fa5c0f49-0666-4634-b13c-72f1dc08777e" />
+
+<img width="1153" height="1239" alt="Screenshot 2026-02-22 165924" src="https://github.com/user-attachments/assets/d881c69d-1fb8-4454-9b7b-497865c26b9a" />
+
+<img width="1916" height="1218" alt="Screenshot 2026-02-22 165850" src="https://github.com/user-attachments/assets/d13ff374-3c04-4bd3-b405-a45ad55910ce" />
+
+<img width="1599" height="667" alt="Screenshot 2026-02-22 165726" src="https://github.com/user-attachments/assets/36f09f7c-ad74-47db-9d2f-4292f423dd84" />
+
+<img width="1724" height="832" alt="Screenshot 2026-02-22 165656" src="https://github.com/user-attachments/assets/8dc878e0-3153-430a-8369-1d0994e38805" />
+
+<img width="2531" height="501" alt="Screenshot 2026-02-22 165246" src="https://github.com/user-attachments/assets/6fdc24b1-b47e-4aff-afcc-1c0794a0a66e" />
+
+<img width="1206" height="1235" alt="Screenshot 2026-02-22 170015" src="https://github.com/user-attachments/assets/593dfcdb-8f40-4459-b803-137d8a843544" />
