@@ -10,7 +10,7 @@ import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
 import { SearchInputComponent } from '@shared/components/search-input/search-input.component';
 import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
-import { DataTableColumn, DataTableComponent } from '@shared/components/data-table/data-table.component';
+import { DataTableColumn, DataTableComponent, DataTableSort, DataTableSortDirection } from '@shared/components/data-table/data-table.component';
 import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ConfirmService } from '@services/confirm.service';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
@@ -28,6 +28,9 @@ type EditCategoryModel = {
   color: string;
   order: number;
 };
+
+type TagSortKey = 'name' | 'category' | 'usages';
+type CategorySortKey = 'name' | 'color' | 'order' | 'tagCount';
 
 @Component({
   selector: 'app-tag-management-page',
@@ -56,44 +59,58 @@ export class TagManagementPageComponent {
   tags = signal<ManagedTag[]>([]);
   categories = signal<ManagedTagCategory[]>([]);
 
-  tagsLoading = signal(false);
-  categoriesLoading = signal(false);
-
   // Tags tab state
   tagsQuery = signal('');
   tagsPage = signal(1);
   readonly tagsPageSize = signal(50);
   tagsTotal = signal(0);
+  readonly tagsSort = signal<DataTableSort<TagSortKey>>({ key: 'usages', direction: 'desc' });
   tagsTotalPages = computed(() => Math.max(1, Math.ceil(this.tagsTotal() / this.tagsPageSize())));
 
   // Categories tab state
   categoriesQuery = signal('');
   categoriesPage = signal(1);
   readonly categoriesPageSize = signal(30);
+  readonly categoriesSort = signal<DataTableSort<CategorySortKey>>({ key: 'name', direction: 'asc' });
   filteredCategories = computed(() => {
     const query = this.categoriesQuery().toLowerCase();
     if (!query) return this.categories();
     return this.categories().filter(category => category.name.toLowerCase().includes(query));
   });
+  sortedFilteredCategories = computed(() => {
+    const sort = this.categoriesSort();
+    const rows = [...this.filteredCategories()];
+
+    return rows.sort((a, b) => {
+      const direction = sort.direction === 'asc' ? 1 : -1;
+
+      const aValue = this.getCategorySortValue(a, sort.key);
+      const bValue = this.getCategorySortValue(b, sort.key);
+
+      if (aValue < bValue) return -1 * direction;
+      if (aValue > bValue) return 1 * direction;
+      return 0;
+    });
+  });
   pagedCategories = computed(() => {
     const start = (this.categoriesPage() - 1) * this.categoriesPageSize();
-    return this.filteredCategories().slice(start, start + this.categoriesPageSize());
+    return this.sortedFilteredCategories().slice(start, start + this.categoriesPageSize());
   });
   categoriesTotalPages = computed(() =>
-    Math.max(1, Math.ceil(this.filteredCategories().length / this.categoriesPageSize())),
+    Math.max(1, Math.ceil(this.sortedFilteredCategories().length / this.categoriesPageSize())),
   );
 
   categorySelectOptions = computed<FormDropdownOption<number | null>[]>(() =>
     this.categories().map(category => ({ label: category.name, value: category.id })),
   );
 
-  tagColumns: DataTableColumn<ManagedTag>[] = [
+  tagColumns: DataTableColumn<ManagedTag, TagSortKey>[] = [
     { key: 'name', label: 'Name', sortable: true, value: row => row.name },
     { key: 'category', label: 'Category', sortable: true, value: row => row.categoryName || 'Uncategorized' },
     { key: 'usages', label: 'Usages', sortable: true, align: 'right', value: row => row.usages },
   ];
 
-  categoryColumns: DataTableColumn<ManagedTagCategory>[] = [
+  categoryColumns: DataTableColumn<ManagedTagCategory, CategorySortKey>[] = [
     { key: 'name', label: 'Name', sortable: true, value: row => row.name },
     { key: 'color', label: 'Color', sortable: true, value: row => row.color },
     { key: 'order', label: 'Order', sortable: true, align: 'right', value: row => row.order },
@@ -156,6 +173,17 @@ export class TagManagementPageComponent {
 
   onCategoriesPageChange(page: number): void {
     this.categoriesPage.set(page);
+  }
+
+  onTagsSortChange(sort: DataTableSort<TagSortKey>): void {
+    this.tagsSort.set(sort);
+    this.tagsPage.set(1);
+    this.loadTags();
+  }
+
+  onCategoriesSortChange(sort: DataTableSort<CategorySortKey>): void {
+    this.categoriesSort.set(sort);
+    this.categoriesPage.set(1);
   }
 
   trackTagRow = (row: ManagedTag): number => row.id;
@@ -391,32 +419,40 @@ export class TagManagementPageComponent {
   }
 
   private loadTags(): void {
-    this.tagsLoading.set(true);
     const offset = (this.tagsPage() - 1) * this.tagsPageSize();
-    this.api.getManagedTags(this.tagsQuery(), offset, this.tagsPageSize()).subscribe({
+    const sort = this.tagsSort();
+    this.api.getManagedTags(this.tagsQuery(), offset, this.tagsPageSize(), sort.key, sort.direction).subscribe({
       next: result => {
         this.tags.set(result.results);
         this.tagsTotal.set(result.total);
-        this.tagsLoading.set(false);
       },
       error: () => {
         this.toast.error('Failed to load tags');
-        this.tagsLoading.set(false);
       },
     });
   }
 
   private loadCategories(): void {
-    this.categoriesLoading.set(true);
     this.api.getManagedTagCategories().subscribe({
       next: categories => {
         this.categories.set(categories);
-        this.categoriesLoading.set(false);
       },
       error: () => {
         this.toast.error('Failed to load categories');
-        this.categoriesLoading.set(false);
       },
     });
+  }
+
+  private getCategorySortValue(category: ManagedTagCategory, key: CategorySortKey): string | number {
+    switch (key) {
+      case 'name':
+        return category.name.toLowerCase();
+      case 'color':
+        return category.color.toLowerCase();
+      case 'order':
+        return category.order;
+      case 'tagCount':
+        return category.tagCount;
+    }
   }
 }

@@ -23,20 +23,19 @@ import {
   Comment as DamebooruComment,
   JobViewModel,
   JobHistoryResponse,
-  JobResult,
-  KnownJobResult,
-  parseKnownJobResult,
   ScheduledJob,
   CronPreview,
   JobMode,
   JobKey,
   DuplicateGroup,
   ExcludedFile,
+  ClearExcludedFilesResponse,
   SameFolderDuplicateGroup,
   DeleteSameFolderDuplicateRequest,
   ResolveSameFolderGroupRequest,
   ResolveSameFolderResponse,
   SimilarPost,
+  AppLogList,
 } from "./models";
 
 @Injectable({
@@ -285,24 +284,6 @@ export class DamebooruService {
     );
   }
 
-  getJobResult(executionId: number): Observable<JobResult> {
-    return this.http.get<JobResult>(
-      `${this.baseUrl}/jobs/history/${executionId}/result`,
-    );
-  }
-
-  getKnownJobResult(executionId: number): Observable<KnownJobResult | null> {
-    return this.getJobResult(executionId).pipe(
-      map((result) =>
-        parseKnownJobResult(
-          result.jobKey,
-          result.schemaVersion,
-          result.resultJson,
-        ),
-      ),
-    );
-  }
-
   cancelJob(jobId: string): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/jobs/${jobId}/cancel`, {});
   }
@@ -447,12 +428,22 @@ export class DamebooruService {
     query = "",
     offset = 0,
     limit = 200,
+    sortBy?: string,
+    sortDirection?: "asc" | "desc",
   ): Observable<PagedSearchResult<ManagedTag>> {
     const page = Math.floor(offset / limit) + 1;
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set("query", query)
       .set("page", page.toString())
       .set("pageSize", limit.toString());
+
+    if (sortBy) {
+      params = params.set("sortBy", sortBy);
+    }
+
+    if (sortDirection) {
+      params = params.set("sortDirection", sortDirection);
+    }
 
     return this.http
       .get<
@@ -575,6 +566,12 @@ export class DamebooruService {
     return this.http.delete<void>(`${this.baseUrl}/duplicates/excluded/${id}`);
   }
 
+  clearExcludedFiles(): Observable<ClearExcludedFilesResponse> {
+    return this.http.delete<ClearExcludedFilesResponse>(
+      `${this.baseUrl}/duplicates/excluded`,
+    );
+  }
+
   getExcludedFileContentUrl(id: number): string {
     return this.joinMediaUrl(
       `${this.baseUrl}/duplicates/excluded/${id}/content`,
@@ -596,10 +593,42 @@ export class DamebooruService {
     );
   }
 
-  resolveAllSameFolderDuplicates(): Observable<ResolveSameFolderResponse> {
+  resolveAllSameFolderDuplicates(exactOnly = false): Observable<ResolveSameFolderResponse> {
     return this.http.post<ResolveSameFolderResponse>(
-      `${this.baseUrl}/duplicates/same-folder/resolve-all`,
+      `${this.baseUrl}/duplicates/same-folder/resolve-all?exactOnly=${exactOnly}`,
       {},
     );
+  }
+
+  getLogs(options?: {
+    level?: string;
+    category?: string;
+    contains?: string;
+    beforeId?: number;
+    take?: number;
+  }): Observable<AppLogList> {
+    let params = new HttpParams();
+
+    if (options?.level) {
+      params = params.set("level", options.level);
+    }
+
+    if (options?.category) {
+      params = params.set("category", options.category);
+    }
+
+    if (options?.contains) {
+      params = params.set("contains", options.contains);
+    }
+
+    if (typeof options?.beforeId === "number") {
+      params = params.set("beforeId", String(options.beforeId));
+    }
+
+    if (typeof options?.take === "number") {
+      params = params.set("take", String(options.take));
+    }
+
+    return this.http.get<AppLogList>(`${this.baseUrl}/logs`, { params });
   }
 }

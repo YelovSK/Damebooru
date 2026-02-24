@@ -131,55 +131,13 @@
 
   <h2 class="text-2xl font-bold mb-4 text-white">Execution History</h2>
   <div class="bg-gray-900 border border-gray-700 rounded-lg p-6 shadow-lg overflow-x-auto">
-    <table class="min-w-[760px] w-full text-left text-gray-300">
-      <thead>
-        <tr class="border-b border-gray-700">
-          <th class="py-2">Job</th>
-          <th class="py-2">Status</th>
-          <th class="py-2">Start Time</th>
-          <th class="py-2">Duration</th>
-          <th class="py-2">Result</th>
-          <th class="py-2">Error</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (run of history(); track run.id) {
-          <tr class="border-b border-gray-800 hover:bg-gray-800">
-            <td class="py-2">{{ run.jobName }}</td>
-            <td class="py-2">
-              <span
-                [class.text-green-400]="run.status === jobStatus.Completed"
-                [class.text-red-400]="run.status === jobStatus.Failed"
-                [class.text-yellow-400]="run.status === jobStatus.Running"
-                [class.text-gray-400]="run.status === jobStatus.Cancelled">
-                {{ getStatusText(run.status) }}
-              </span>
-            </td>
-            <td class="py-2">{{ run.startTime | dateTime }}</td>
-            <td class="py-2">
-              {{ run.startTime | elapsedDuration:(run.endTime ?? (run.status === jobStatus.Running ? now() : null)) }}
-            </td>
-            <td class="py-2 text-sm text-gray-400">
-              <div>{{ formatHistoryState(run) }}</div>
-              @if (hasResultDetails(run)) {
-                <button type="button" class="mt-1 text-xs text-accent-primary hover:underline"
-                  (click)="toggleResultDetails(run.id)">
-                  {{ isResultExpanded(run.id) ? 'Hide details' : 'Show details' }}
-                </button>
-                @if (isResultExpanded(run.id)) {
-                  <div class="mt-2 rounded border border-gray-700 bg-gray-800/40 p-2 text-xs text-gray-300">
-                    @for (line of getResultDetailLines(run); track line) {
-                      <div>{{ line }}</div>
-                    }
-                  </div>
-                }
-              }
-            </td>
-            <td class="py-2 text-red-400 text-sm">{{ run.errorMessage }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
+    <app-data-table
+      [columns]="historyColumns"
+      [rows]="history()"
+      [trackBy]="trackHistoryRow"
+      [rowClickable]="false"
+      emptyText="No execution history yet.">
+    </app-data-table>
 
     @if (historyTotalPages() > 1) {
       <div class="flex justify-center mt-4 pt-4 border-t border-gray-700">
@@ -191,4 +149,5 @@
       </div>
     }
   </div>
+
 </div>

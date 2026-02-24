@@ -22,11 +22,8 @@ public class Post
     [MaxLength(128)]
     public string? FileIdentityValue { get; set; }
 
-    /// <summary>Perceptual difference hash (dHash).</summary>
-    public ulong? PerceptualHash { get; set; }
-
-    /// <summary>Perceptual frequency hash (pHash).</summary>
-    public ulong? PerceptualHashP { get; set; }
+    [MaxLength(64)]
+    public string? PdqHash256 { get; set; }
 
     public long SizeBytes { get; set; }
     public int Width { get; set; }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Damebooru.Core.Interfaces;
 
 public class JobState
@@ -6,6 +8,10 @@ public class JobState
     public string? FinalText { get; set; }
     public int? ProgressCurrent { get; set; }
     public int? ProgressTotal { get; set; }
-    public int? ResultSchemaVersion { get; set; }
-    public string? ResultJson { get; set; }
+
+    [JsonIgnore]
+    public bool ClearProgressCurrent { get; set; }
+
+    [JsonIgnore]
+    public bool ClearProgressTotal { get; set; }
 }

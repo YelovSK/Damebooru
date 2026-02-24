@@ -121,35 +121,9 @@ public class JobsController : ControllerBase
                         FinalText = i.FinalText,
                         ProgressCurrent = i.ProgressCurrent,
                         ProgressTotal = i.ProgressTotal,
-                        ResultSchemaVersion = i.ResultSchemaVersion,
-                        ResultJson = i.ResultJson,
                     }
             }).ToList(),
             Total = total
-        });
-    }
-
-    [HttpGet("history/{executionId:int}/result")]
-    public async Task<ActionResult<JobResultDto>> GetResult(int executionId, CancellationToken cancellationToken)
-    {
-        var execution = await _jobService.GetJobExecutionAsync(executionId, cancellationToken);
-
-        if (execution == null)
-        {
-            return NotFound();
-        }
-
-        if (string.IsNullOrWhiteSpace(execution.ResultJson))
-        {
-            return NotFound();
-        }
-
-        return Ok(new JobResultDto
-        {
-            ExecutionId = execution.Id,
-            JobKey = execution.JobKey,
-            SchemaVersion = execution.ResultSchemaVersion,
-            ResultJson = execution.ResultJson,
         });
     }
 

@@ -11,6 +11,7 @@ import { debounceTime, distinctUntilChanged, skip } from 'rxjs';
 export class SearchInputComponent {
   private readonly destroyRef = inject(DestroyRef);
 
+  label = input('');
   placeholder = input('Search...');
   debounceMs = input(250);
   value = input('');

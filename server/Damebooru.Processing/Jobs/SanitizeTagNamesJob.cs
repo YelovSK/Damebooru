@@ -4,7 +4,6 @@ using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
@@ -144,7 +143,7 @@ public class SanitizeTagNamesJob : IJob
             {
                 context.Reporter.Update(new JobState
                 {
-                    ActivityText = "Sanitizing tags...",
+                    ActivityText = $"Sanitizing tags... ({processed}/{allTags.Count})",
                     ProgressCurrent = processed,
                     ProgressTotal = allTags.Count
                 });
@@ -158,16 +157,7 @@ public class SanitizeTagNamesJob : IJob
             ActivityText = "Completed",
             ProgressCurrent = processed,
             ProgressTotal = allTags.Count,
-            FinalText = $"Renamed {renamed} tags, merged {merged} duplicates, failed {failed}.",
-            ResultSchemaVersion = 1,
-            ResultJson = JsonSerializer.Serialize(new
-            {
-                totalTags = allTags.Count,
-                processed,
-                renamed,
-                merged,
-                failed,
-            })
+            FinalText = $"Renamed {renamed} tags, merged {merged} duplicates, failed {failed}."
         });
     }
 }

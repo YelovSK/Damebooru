@@ -5,6 +5,7 @@ using Damebooru.Core.Paths;
 using Damebooru.Core.Results;
 using Damebooru.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Damebooru.Processing.Services;
 
@@ -12,13 +13,13 @@ public class LibraryService
 {
     private readonly DamebooruDbContext _context;
     private readonly IJobService _jobService;
-    private readonly IScannerService _scannerService;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public LibraryService(DamebooruDbContext context, IJobService jobService, IScannerService scannerService)
+    public LibraryService(DamebooruDbContext context, IJobService jobService, IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _jobService = jobService;
-        _scannerService = scannerService;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task<List<LibraryDto>> GetLibrariesAsync(CancellationToken cancellationToken = default)
@@ -214,10 +215,22 @@ public class LibraryService
         }
 
         var jobKey = JobKey.Parse($"scan-library-{libraryId}");
-        var jobName = $"Scan Library #{libraryId}";
         var jobId = await _jobService.StartJobAsync(
             jobKey,
-            ct => _scannerService.ScanLibraryAsync(libraryId, cancellationToken: ct));
+            async ct =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+                var syncService = scope.ServiceProvider.GetRequiredService<ILibrarySyncProcessor>();
+
+                var library = await dbContext.Libraries.FindAsync(new object[] { libraryId }, ct);
+                if (library == null)
+                {
+                    return;
+                }
+
+                await syncService.ProcessDirectoryAsync(library, library.Path, cancellationToken: ct);
+            });
 
         return Result<string>.Success(jobId);
     }

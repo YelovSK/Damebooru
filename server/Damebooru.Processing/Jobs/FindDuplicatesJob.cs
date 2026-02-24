@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Numerics;
-using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
@@ -14,21 +13,18 @@ public class FindDuplicatesJob : IJob
     public static readonly JobKey JobKey = JobKeys.FindDuplicates;
     public const string JobName = "Find Duplicates";
 
-    private sealed record HashPost(int Id, ulong? DHash, ulong? PHash, string ContentType);
+    private readonly record struct HashPost(
+        int Id,
+        ulong W0, ulong W1, ulong W2, ulong W3,
+        string ContentType);
+
+    private sealed record DuplicatePostCandidate(int Id, string ContentHash, string? PdqHash256, string ContentType);
+    private sealed record PerceptualResult(List<DuplicateGroup> Groups, int PerceptualGroupCount, int MatchedPairs, int TotalComparisons);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<FindDuplicatesJob> _logger;
 
-    /// <summary>
-    /// Independent perceptual thresholds (out of 64 bits) for single-signal fallback.
-    /// </summary>
-    public int DHashThreshold { get; set; } = 8;
-    public int PHashThreshold { get; set; } = 10;
-
-    /// <summary>
-    /// When both dHash and pHash are present, require at least this blended similarity.
-    /// </summary>
-    public int CombinedSimilarityThresholdPercent { get; set; } = 80;
+    public int CombinedSimilarityThresholdPercent { get; set; } = 68;
 
     public FindDuplicatesJob(IServiceScopeFactory scopeFactory, ILogger<FindDuplicatesJob> logger)
     {
@@ -39,7 +35,7 @@ public class FindDuplicatesJob : IJob
     public int DisplayOrder => 40;
     public JobKey Key => JobKey;
     public string Name => JobName;
-    public string Description => "Scans for exact (content hash) and perceptual (dHash+pHash) duplicate posts.";
+    public string Description => "Scans for exact (content hash) and PDQ-based perceptual duplicate posts.";
     public bool SupportsAllMode => false;
 
     public async Task ExecuteAsync(JobContext context)
@@ -49,25 +45,32 @@ public class FindDuplicatesJob : IJob
 
         context.Reporter.Update(new JobState
         {
-            ActivityText = "Loading posts..."
+            ActivityText = "Loading posts...",
+            ProgressCurrent = null,
+            ProgressTotal = null,
+            ClearProgressCurrent = true,
+            ClearProgressTotal = true,
         });
         var posts = await db.Posts
             .AsNoTracking()
-            .Select(p => new { p.Id, p.ContentHash, p.PerceptualHash, p.PerceptualHashP, p.ContentType })
+            .Select(p => new DuplicatePostCandidate(p.Id, p.ContentHash, p.PdqHash256, p.ContentType))
             .ToListAsync(context.CancellationToken);
         context.Reporter.Update(new JobState
         {
-            ActivityText = "Loading posts...",
+            ActivityText = $"Loading posts... ({posts.Count}/{posts.Count})",
             ProgressCurrent = posts.Count,
             ProgressTotal = posts.Count
         });
 
         _logger.LogInformation("Loaded {Count} posts for duplicate analysis", posts.Count);
 
-        // Clear old unresolved groups (they'll be regenerated)
         context.Reporter.Update(new JobState
         {
-            ActivityText = "Clearing old unresolved groups..."
+            ActivityText = "Clearing old unresolved groups...",
+            ProgressCurrent = null,
+            ProgressTotal = null,
+            ClearProgressCurrent = true,
+            ClearProgressTotal = true,
         });
         var oldGroups = await db.DuplicateGroups
             .Where(g => !g.IsResolved)
@@ -76,39 +79,115 @@ public class FindDuplicatesJob : IJob
         await db.SaveChangesAsync(context.CancellationToken);
         context.Reporter.Update(new JobState
         {
-            ActivityText = "Clearing old unresolved groups...",
+            ActivityText = $"Clearing old unresolved groups... ({oldGroups.Count}/{oldGroups.Count})",
             ProgressCurrent = oldGroups.Count,
             ProgressTotal = oldGroups.Count
         });
 
-        var newGroups = new List<DuplicateGroup>();
-
-        // Load all existing resolved groups to skip recreating them
         context.Reporter.Update(new JobState
         {
-            ActivityText = "Loading resolved groups..."
+            ActivityText = "Loading resolved groups...",
+            ProgressCurrent = null,
+            ProgressTotal = null,
+            ClearProgressCurrent = true,
+            ClearProgressTotal = true,
         });
-        
         var resolvedGroups = await db.DuplicateGroups
             .Where(g => g.IsResolved)
             .Include(g => g.Entries)
             .ToListAsync(context.CancellationToken);
+        var resolvedGroupSignatures = resolvedGroups
+            .Select(group => string.Join(",", group.Entries.Select(e => e.PostId).OrderBy(id => id)))
+            .ToHashSet();
 
-        // Build a HashSet of strings representing sorted post IDs for easy lookup
-        var resolvedGroupSignatures = new HashSet<string>();
-        foreach (var group in resolvedGroups)
-        {
-            var signature = string.Join(",", group.Entries.Select(e => e.PostId).OrderBy(id => id));
-            resolvedGroupSignatures.Add(signature);
-        }
-
-        // --- Phase 1: Exact duplicates (same content hash) ---
         context.Reporter.Update(new JobState
         {
-            ActivityText = "Finding exact duplicates...",
+            ActivityText = $"Finding exact duplicates... (0/{posts.Count})",
             ProgressCurrent = 0,
             ProgressTotal = posts.Count
         });
+
+        var detectedAtUtc = DateTime.UtcNow;
+        var (exactGroups, exactPostIds) = BuildExactGroups(posts, resolvedGroupSignatures, detectedAtUtc);
+
+        _logger.LogInformation("Found {Count} exact duplicate groups", exactGroups.Count);
+        context.Reporter.Update(new JobState
+        {
+            ActivityText = $"Finding exact duplicates... ({posts.Count}/{posts.Count})",
+            ProgressCurrent = posts.Count,
+            ProgressTotal = posts.Count
+        });
+
+        context.Reporter.Update(new JobState
+        {
+            ActivityText = "Finding perceptual duplicates... (0 processed)",
+            ProgressCurrent = null,
+            ProgressTotal = null,
+            ClearProgressCurrent = true,
+            ClearProgressTotal = true,
+        });
+
+        var perceptual = BuildPerceptualGroups(
+            posts,
+            resolvedGroupSignatures,
+            exactPostIds,
+            CombinedSimilarityThresholdPercent,
+            detectedAtUtc,
+            (current, total) =>
+            {
+                context.Reporter.Update(new JobState
+                {
+                    ActivityText = $"Comparing PDQ hashes... ({current}/{total} comparisons)",
+                    ProgressCurrent = current,
+                    ProgressTotal = total
+                });
+            });
+
+        _logger.LogInformation("Found {Count} perceptual duplicate groups", perceptual.PerceptualGroupCount);
+        context.Reporter.Update(new JobState
+        {
+            ActivityText = $"Finding perceptual duplicates... ({perceptual.TotalComparisons}/{perceptual.TotalComparisons})",
+            ProgressCurrent = perceptual.TotalComparisons,
+            ProgressTotal = perceptual.TotalComparisons
+        });
+
+        context.Reporter.Update(new JobState
+        {
+            ActivityText = "Saving duplicate groups...",
+            ProgressCurrent = null,
+            ProgressTotal = null,
+            ClearProgressCurrent = true,
+            ClearProgressTotal = true,
+        });
+
+        var newGroups = new List<DuplicateGroup>(exactGroups.Count + perceptual.Groups.Count);
+        newGroups.AddRange(exactGroups);
+        newGroups.AddRange(perceptual.Groups);
+
+        if (newGroups.Count > 0)
+        {
+            db.DuplicateGroups.AddRange(newGroups);
+            await db.SaveChangesAsync(context.CancellationToken);
+        }
+
+        var totalEntries = newGroups.Sum(g => g.Entries.Count);
+        context.Reporter.Update(new JobState
+        {
+            ActivityText = "Completed",
+            ProgressCurrent = totalEntries,
+            ProgressTotal = totalEntries,
+            FinalText = $"Found {newGroups.Count} duplicate groups ({totalEntries} posts)."
+        });
+
+        _logger.LogInformation("Duplicate scan complete: {Groups} groups, {Entries} total posts", newGroups.Count, totalEntries);
+    }
+
+    private static (List<DuplicateGroup> Groups, HashSet<int> ExactPostIds) BuildExactGroups(
+        IReadOnlyCollection<DuplicatePostCandidate> posts,
+        ISet<string> resolvedGroupSignatures,
+        DateTime detectedAtUtc)
+    {
+        var groups = new List<DuplicateGroup>();
 
         var exactGroups = posts
             .Where(p => !string.IsNullOrEmpty(p.ContentHash))
@@ -122,46 +201,42 @@ public class FindDuplicatesJob : IJob
 
             if (resolvedGroupSignatures.Contains(signature))
             {
-                continue; // Skip this exact match because it was previously resolved
+                continue;
             }
 
-            var dupGroup = new DuplicateGroup
+            groups.Add(new DuplicateGroup
             {
-                Type = "exact",
-                DetectedDate = DateTime.UtcNow,
+                Type = DuplicateType.Exact,
+                DetectedDate = detectedAtUtc,
                 Entries = postIds.Select(id => new DuplicateGroupEntry { PostId = id }).ToList()
-            };
-            newGroups.Add(dupGroup);
+            });
         }
 
-        _logger.LogInformation("Found {Count} exact duplicate groups", newGroups.Count);
-        context.Reporter.Update(new JobState
+        var exactPostIds = groups
+            .SelectMany(g => g.Entries)
+            .Select(e => e.PostId)
+            .ToHashSet();
+
+        return (groups, exactPostIds);
+    }
+
+    private static PerceptualResult BuildPerceptualGroups(
+        IReadOnlyCollection<DuplicatePostCandidate> posts,
+        ISet<string> resolvedGroupSignatures,
+        ISet<int> exactPostIds,
+        int combinedSimilarityThresholdPercent,
+        DateTime detectedAtUtc,
+        Action<int, int>? progress)
+    {
+        var hashPosts = new List<HashPost>();
+        foreach (var p in posts)
         {
-            ActivityText = "Finding exact duplicates...",
-            ProgressCurrent = posts.Count,
-            ProgressTotal = posts.Count
-        });
+            if (!string.IsNullOrWhiteSpace(p.PdqHash256) && TryParseHex256(p.PdqHash256, out var words))
+            {
+                hashPosts.Add(new HashPost(p.Id, words[0], words[1], words[2], words[3], p.ContentType));
+            }
+        }
 
-        // --- Phase 2: Perceptual duplicates (independent dHash + pHash signals) ---
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Finding perceptual duplicates...",
-            ProgressCurrent = 0,
-            ProgressTotal = null
-        });
-
-        var hashPosts = posts
-            .Where(p =>
-                (p.PerceptualHash.HasValue && p.PerceptualHash.Value != 0) ||
-                (p.PerceptualHashP.HasValue && p.PerceptualHashP.Value != 0))
-            .Select(p => new HashPost(p.Id, p.PerceptualHash, p.PerceptualHashP, p.ContentType))
-            .ToList();
-
-        _logger.LogInformation("Comparing {Count} perceptual hashes", hashPosts.Count);
-
-        // Collect pairwise matches in an adjacency graph.
-        // We later form strict groups where every member matches every other member (clique-like),
-        // which avoids chain-link false positives (A~B, B~C, but A !~ C).
         var neighbors = new Dictionary<int, HashSet<int>>();
         var pairSimilarity = new Dictionary<long, int>();
 
@@ -170,49 +245,41 @@ public class FindDuplicatesJob : IJob
         int lastReportedPercent = 30;
         int matchedPairs = 0;
 
-        // Exclude post IDs that are already in exact duplicate groups
-        var exactPostIds = new HashSet<int>(newGroups.SelectMany(g => g.Entries.Select(e => e.PostId)));
-
         for (int i = 0; i < hashPosts.Count; i++)
         {
             for (int j = i + 1; j < hashPosts.Count; j++)
             {
                 comparedSoFar++;
 
-                if (TryComputeSimilarity(hashPosts[i], hashPosts[j], out var similarity))
+                if (TryComputeSimilarity(hashPosts[i], hashPosts[j], combinedSimilarityThresholdPercent, out var similarity))
                 {
                     var idA = hashPosts[i].Id;
                     var idB = hashPosts[j].Id;
 
-                    // Skip if both are already grouped as exact duplicates
-                    if (exactPostIds.Contains(idA) && exactPostIds.Contains(idB))
-                        continue;
-
-                    AddEdge(neighbors, idA, idB);
-                    pairSimilarity[GetPairKey(idA, idB)] = similarity;
-                    matchedPairs++;
+                    if (!(exactPostIds.Contains(idA) && exactPostIds.Contains(idB)))
+                    {
+                        AddEdge(neighbors, idA, idB);
+                        pairSimilarity[GetPairKey(idA, idB)] = similarity;
+                        matchedPairs++;
+                    }
                 }
 
-                // Progress reporting (30% -> 90%)
                 if (totalComparisons > 0)
                 {
                     int percent = 30 + (int)((double)comparedSoFar / totalComparisons * 60);
-                    if (percent > lastReportedPercent + 2) // avoid too-frequent updates
+                    if (percent > lastReportedPercent + 2)
                     {
                         lastReportedPercent = percent;
-                        context.Reporter.Update(new JobState
-                        {
-                            ActivityText = "Comparing perceptual hashes...",
-                            ProgressCurrent = comparedSoFar,
-                            ProgressTotal = totalComparisons
-                        });
+                        progress?.Invoke(comparedSoFar, totalComparisons);
                     }
                 }
             }
         }
 
-        int perceptualCount = 0;
+        var groups = new List<DuplicateGroup>();
+        var perceptualCount = 0;
         var remaining = new HashSet<int>(neighbors.Keys);
+
         while (remaining.Count > 0)
         {
             var seed = remaining
@@ -221,7 +288,6 @@ public class FindDuplicatesJob : IJob
                 .First();
 
             var groupMembers = BuildCliqueGroup(seed, remaining, neighbors, pairSimilarity);
-
             if (groupMembers.Count < 2)
             {
                 remaining.Remove(seed);
@@ -230,10 +296,8 @@ public class FindDuplicatesJob : IJob
 
             var postIds = groupMembers.OrderBy(id => id).ToList();
             var signature = string.Join(",", postIds);
-
             if (resolvedGroupSignatures.Contains(signature))
             {
-                // Skip because we already resolved this exact group of posts
                 foreach (var member in groupMembers)
                 {
                     remaining.Remove(member);
@@ -241,17 +305,13 @@ public class FindDuplicatesJob : IJob
                 continue;
             }
 
-            var similarity = CalculateGroupSimilarity(groupMembers, pairSimilarity);
-
-            var dupGroup = new DuplicateGroup
+            groups.Add(new DuplicateGroup
             {
-                Type = "perceptual",
-                SimilarityPercent = similarity,
-                DetectedDate = DateTime.UtcNow,
+                Type = DuplicateType.Perceptual,
+                SimilarityPercent = CalculateGroupSimilarity(groupMembers, pairSimilarity),
+                DetectedDate = detectedAtUtc,
                 Entries = postIds.Select(id => new DuplicateGroupEntry { PostId = id }).ToList()
-            };
-
-            newGroups.Add(dupGroup);
+            });
             perceptualCount++;
 
             foreach (var member in groupMembers)
@@ -260,135 +320,71 @@ public class FindDuplicatesJob : IJob
             }
         }
 
-        _logger.LogInformation("Found {Count} perceptual duplicate groups", perceptualCount);
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Finding perceptual duplicates...",
-            ProgressCurrent = totalComparisons,
-            ProgressTotal = totalComparisons
-        });
-
-        // --- Phase 3: Save results ---
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Saving duplicate groups..."
-        });
-
-        if (newGroups.Count > 0)
-        {
-            db.DuplicateGroups.AddRange(newGroups);
-            await db.SaveChangesAsync(context.CancellationToken);
-        }
-
-        var totalEntries = newGroups.Sum(g => g.Entries.Count);
-        var exactCount = newGroups.Count - perceptualCount;
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = totalEntries,
-            ProgressTotal = totalEntries,
-            FinalText = $"Found {newGroups.Count} duplicate groups ({totalEntries} posts).",
-            ResultSchemaVersion = 1,
-            ResultJson = JsonSerializer.Serialize(new
-            {
-                groups = newGroups.Count,
-                exactGroups = exactCount,
-                perceptualGroups = perceptualCount,
-                matchedPairs,
-                totalEntries,
-            })
-        });
-        _logger.LogInformation("Duplicate scan complete: {Groups} groups, {Entries} total posts",
-            newGroups.Count, totalEntries);
+        return new PerceptualResult(groups, perceptualCount, matchedPairs, totalComparisons);
     }
 
-    private bool TryComputeSimilarity(HashPost a, HashPost b, out int similarityPercent)
+    private static bool TryComputeSimilarity(HashPost a, HashPost b, int combinedSimilarityThresholdPercent, out int similarityPercent)
     {
-        var dDistance = HammingDistanceNullable(a.DHash, b.DHash);
-        var pDistance = HammingDistanceNullable(a.PHash, b.PHash);
+        var distance = BitOperations.PopCount(a.W0 ^ b.W0)
+                     + BitOperations.PopCount(a.W1 ^ b.W1)
+                     + BitOperations.PopCount(a.W2 ^ b.W2)
+                     + BitOperations.PopCount(a.W3 ^ b.W3);
 
-        if (!dDistance.HasValue && !pDistance.HasValue)
-        {
-            similarityPercent = 0;
-            return false;
-        }
+        var similarity = 1.0 - (double)distance / 256;
+        var threshold = combinedSimilarityThresholdPercent / 100.0;
 
-        var dSimilarity = dDistance.HasValue ? 1.0 - (double)dDistance.Value / 64 : (double?)null;
-        var pSimilarity = pDistance.HasValue ? 1.0 - (double)pDistance.Value / 64 : (double?)null;
-
-        var threshold = CombinedSimilarityThresholdPercent / 100.0;
-
-        // Require higher similarity for cross-type comparison or video-video
-        // because video frames at 20% mark might accidentally look similar to other frames/images
         var isAImage = a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
         var isBImage = b.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-
         if (!isAImage || !isBImage)
         {
             threshold = Math.Max(threshold, 0.90);
         }
 
-        if (dSimilarity.HasValue && pSimilarity.HasValue)
+        if (similarity < threshold)
         {
-            // If both signals exist, require blended agreement to avoid one-sided false positives.
-            var combinedSimilarity = (dSimilarity.Value * 0.55) + (pSimilarity.Value * 0.45);
-            if (combinedSimilarity < threshold)
+            similarityPercent = 0;
+            return false;
+        }
+
+        similarityPercent = (int)Math.Round(similarity * 100);
+        return true;
+    }
+
+    private static bool TryParseHex256(string hex, out ulong[] words)
+    {
+        words = [0UL, 0UL, 0UL, 0UL];
+
+        var trimmed = hex.Trim();
+        if (trimmed.Length != 64)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < 4; i++)
+        {
+            var segment = trimmed.Substring(i * 16, 16);
+            if (!ulong.TryParse(segment, System.Globalization.NumberStyles.HexNumber, null, out var parsed))
             {
-                similarityPercent = 0;
                 return false;
             }
 
-            similarityPercent = (int)Math.Round(combinedSimilarity * 100);
-            return true;
+            words[i] = parsed;
         }
 
-        // Single-signal fallback for partial/missing data.
-        // We only allow this if both are the same media type (images)
-        if (isAImage && isBImage)
-        {
-            if (dDistance.HasValue && dDistance.Value <= DHashThreshold)
-            {
-                similarityPercent = (int)Math.Round((1.0 - (double)dDistance.Value / 64) * 100);
-                return true;
-            }
-
-            if (pDistance.HasValue && pDistance.Value <= PHashThreshold)
-            {
-                similarityPercent = (int)Math.Round((1.0 - (double)pDistance.Value / 64) * 100);
-                return true;
-            }
-        }
-
-        similarityPercent = 0;
-        return false;
-    }
-
-    private static int? HammingDistanceNullable(ulong? a, ulong? b)
-    {
-        if (!a.HasValue || !b.HasValue || a.Value == 0 || b.Value == 0)
-        {
-            return null;
-        }
-
-        return HammingDistance(a.Value, b.Value);
-    }
-
-    private static int HammingDistance(ulong a, ulong b)
-    {
-        return BitOperations.PopCount(a ^ b);
+        return true;
     }
 
     private static void AddEdge(Dictionary<int, HashSet<int>> neighbors, int a, int b)
     {
         if (!neighbors.TryGetValue(a, out var setA))
         {
-            setA = new HashSet<int>();
+            setA = [];
             neighbors[a] = setA;
         }
 
         if (!neighbors.TryGetValue(b, out var setB))
         {
-            setB = new HashSet<int>();
+            setB = [];
             neighbors[b] = setB;
         }
 
@@ -410,7 +406,7 @@ public class FindDuplicatesJob : IJob
             return 0;
         }
 
-        int degree = 0;
+        var degree = 0;
         foreach (var neighbor in set)
         {
             if (remaining.Contains(neighbor))
@@ -443,21 +439,9 @@ public class FindDuplicatesJob : IJob
 
         foreach (var candidate in candidates)
         {
-            bool connectedToAll = true;
-            foreach (var member in group)
-            {
-                if (member == candidate)
-                {
-                    continue;
-                }
-
-                var key = GetPairKey(member, candidate);
-                if (!pairSimilarity.ContainsKey(key))
-                {
-                    connectedToAll = false;
-                    break;
-                }
-            }
+            var connectedToAll = group
+                .Where(member => member != candidate)
+                .All(member => pairSimilarity.ContainsKey(GetPairKey(member, candidate)));
 
             if (connectedToAll)
             {

@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
@@ -90,7 +89,7 @@ public class GenerateThumbnailsJob : IJob
 
         JobState BuildLiveState() => new()
         {
-            ActivityText = "Generating thumbnails...",
+            ActivityText = $"Generating thumbnails... ({Math.Min(totalCandidates, processed + failed + skipped)}/{totalCandidates})",
             ProgressCurrent = Math.Min(totalCandidates, processed + failed + skipped),
             ProgressTotal = totalCandidates
         };
@@ -158,16 +157,7 @@ public class GenerateThumbnailsJob : IJob
             ActivityText = "Completed",
             ProgressCurrent = scanned,
             ProgressTotal = totalCandidates,
-            FinalText = $"Generated {processed} thumbnails ({failed} failed, {skipped} skipped).",
-            ResultSchemaVersion = 1,
-            ResultJson = JsonSerializer.Serialize(new
-            {
-                scanned,
-                totalCandidates,
-                generated = processed,
-                failed,
-                skipped,
-            })
+            FinalText = $"Generated {processed} thumbnails ({failed} failed, {skipped} skipped)."
         });
         _logger.LogInformation(
             "Thumbnail generation complete: {Processed} generated, {Failed} failed, {Skipped} skipped",

@@ -31,14 +31,6 @@ public class JobExecutionDto
     public JobState? State { get; set; }
 }
 
-public class JobResultDto
-{
-    public int ExecutionId { get; set; }
-    public string JobKey { get; set; } = string.Empty;
-    public int? SchemaVersion { get; set; }
-    public string ResultJson { get; set; } = string.Empty;
-}
-
 public class JobHistoryResponseDto
 {
     public List<JobExecutionDto> Items { get; set; } = [];
@@ -89,7 +81,7 @@ public class DuplicatePostDto
 public class DuplicateGroupDto
 {
     public int Id { get; set; }
-    public string Type { get; set; } = string.Empty;
+    public DuplicateType Type { get; set; }
     public int? SimilarityPercent { get; set; }
     public DateTime DetectedDate { get; set; }
     public List<DuplicatePostDto> Posts { get; set; } = [];
@@ -132,7 +124,7 @@ public class SimilarPostDto
     public string ContentType { get; set; } = string.Empty;
     public int ThumbnailLibraryId { get; set; }
     public string ThumbnailContentHash { get; set; } = string.Empty;
-    public string DuplicateType { get; set; } = string.Empty;
+    public DuplicateType DuplicateType { get; set; }
     public int? SimilarityPercent { get; set; }
     public bool GroupIsResolved { get; set; }
 }
@@ -140,7 +132,7 @@ public class SimilarPostDto
 public class SameFolderDuplicateGroupDto
 {
     public int ParentDuplicateGroupId { get; set; }
-    public string DuplicateType { get; set; } = string.Empty;
+    public DuplicateType DuplicateType { get; set; }
     public int? SimilarityPercent { get; set; }
     public int LibraryId { get; set; }
     public string LibraryName { get; set; } = string.Empty;

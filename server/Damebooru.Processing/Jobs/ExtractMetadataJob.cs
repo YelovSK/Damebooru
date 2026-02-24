@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
-using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
@@ -72,7 +71,7 @@ public class ExtractMetadataJob : IJob
 
         JobState BuildLiveState() => new()
         {
-            ActivityText = "Extracting metadata...",
+            ActivityText = $"Extracting metadata... ({Math.Min(totalPosts, processed + failed)}/{totalPosts})",
             ProgressCurrent = Math.Min(totalPosts, processed + failed),
             ProgressTotal = totalPosts
         };
@@ -162,14 +161,7 @@ public class ExtractMetadataJob : IJob
             ActivityText = "Completed",
             ProgressCurrent = processed + failed,
             ProgressTotal = totalPosts,
-            FinalText = $"Extracted metadata for {processed} posts ({failed} failed).",
-            ResultSchemaVersion = 1,
-            ResultJson = JsonSerializer.Serialize(new
-            {
-                totalPosts,
-                processed,
-                failed,
-            })
+            FinalText = $"Extracted metadata for {processed} posts ({failed} failed)."
         });
         _logger.LogInformation("Metadata extraction complete: {Processed} processed, {Failed} failed", processed, failed);
     }

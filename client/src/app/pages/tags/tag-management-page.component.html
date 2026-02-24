@@ -15,10 +15,8 @@
           </div>
 
           <div class="mb-3 text-sm text-text-muted">Showing {{ tags().length }} of {{ tagsTotal() }} tags</div>
-          @if (tagsLoading()) {
-          <div class="mb-3 text-sm text-text-muted">Loading tags...</div>
-          }
           <app-data-table [columns]="tagColumns" [rows]="tags()" [trackBy]="trackTagRow"
+            sortMode="external" [initialSort]="tagsSort()" (sortChange)="onTagsSortChange($event)"
             (rowClick)="openEditTagModal($event)">
           </app-data-table>
 
@@ -43,13 +41,11 @@
             <app-button (click)="openCreateCategoryModal()">New Category</app-button>
           </div>
 
-          @if (categoriesLoading()) {
-          <div class="py-6 text-sm text-text-muted">Loading categories...</div>
-          } @else {
           <div class="mb-3 text-sm text-text-muted">
-            Showing {{ pagedCategories().length }} of {{ filteredCategories().length }} categories
+            Showing {{ pagedCategories().length }} of {{ sortedFilteredCategories().length }} categories
           </div>
           <app-data-table [columns]="categoryColumns" [rows]="pagedCategories()" [trackBy]="trackCategoryRow"
+            sortMode="external" [initialSort]="categoriesSort()" (sortChange)="onCategoriesSortChange($event)"
             (rowClick)="openEditCategoryModal($event)">
           </app-data-table>
 
@@ -58,7 +54,6 @@
               (pageChange)="onCategoriesPageChange($event)">
             </app-paginator>
           </div>
-          }
         </section>
       </ng-template>
     </app-tab>

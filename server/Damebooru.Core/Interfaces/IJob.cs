@@ -13,7 +13,6 @@ public interface IJobReporter
     void SetProgress(int? current, int? total);
     void ClearProgress();
     void SetFinalText(string? finalText);
-    void SetResult(int? schemaVersion, string? resultJson);
     void Flush();
 }
 
@@ -28,7 +27,6 @@ public sealed class NullJobReporter : IJobReporter
     public void SetProgress(int? current, int? total) { }
     public void ClearProgress() { }
     public void SetFinalText(string? finalText) { }
-    public void SetResult(int? schemaVersion, string? resultJson) { }
     public void Flush() { }
 }
 

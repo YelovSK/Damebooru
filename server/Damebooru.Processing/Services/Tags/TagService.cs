@@ -30,9 +30,53 @@ public class TagService
         }
 
         var totalCount = await q.CountAsync(cancellationToken);
-        var items = await q
-            .OrderByDescending(t => t.PostCount)
-            .ThenBy(t => t.Name)
+        var sorted = ApplySorting(q, sortBy: null, sortDirection: null);
+        var items = await sorted
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => new TagDto
+            {
+                Id = t.Id,
+                Name = t.Name,
+                CategoryId = t.TagCategoryId,
+                CategoryName = t.TagCategory != null ? t.TagCategory.Name : null,
+                CategoryColor = t.TagCategory != null ? t.TagCategory.Color : null,
+                Usages = t.PostCount
+            })
+            .ToListAsync(cancellationToken);
+
+        return new TagListDto
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<TagListDto> GetTagsAsync(
+        string? query,
+        int page,
+        int pageSize,
+        string? sortBy,
+        string? sortDirection,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 100;
+        if (pageSize > 500) pageSize = 500;
+
+        var q = _context.Tags.AsQueryable();
+
+        var search = NormalizeSearchTerm(query);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            q = q.Where(t => t.Name.Contains(search));
+        }
+
+        var totalCount = await q.CountAsync(cancellationToken);
+        var sorted = ApplySorting(q, sortBy, sortDirection);
+        var items = await sorted
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(t => new TagDto
@@ -229,6 +273,36 @@ public class TagService
             .Replace("sort:usages", string.Empty, StringComparison.OrdinalIgnoreCase)
             .Replace('*', ' ')
             .Trim();
+    }
+
+    private static IOrderedQueryable<Tag> ApplySorting(
+        IQueryable<Tag> query,
+        string? sortBy,
+        string? sortDirection)
+    {
+        var by = (sortBy ?? string.Empty).Trim().ToLowerInvariant();
+        var direction = (sortDirection ?? string.Empty).Trim().ToLowerInvariant();
+        var desc = direction != "asc";
+
+        return (by, desc) switch
+        {
+            ("name", false) => query.OrderBy(t => t.Name).ThenBy(t => t.Id),
+            ("name", true) => query.OrderByDescending(t => t.Name).ThenByDescending(t => t.Id),
+
+            ("category", false) => query
+                .OrderBy(t => t.TagCategory != null ? t.TagCategory.Name : string.Empty)
+                .ThenBy(t => t.Name)
+                .ThenBy(t => t.Id),
+            ("category", true) => query
+                .OrderByDescending(t => t.TagCategory != null ? t.TagCategory.Name : string.Empty)
+                .ThenByDescending(t => t.Name)
+                .ThenByDescending(t => t.Id),
+
+            ("usages", false) => query.OrderBy(t => t.PostCount).ThenBy(t => t.Name).ThenBy(t => t.Id),
+            ("usages", true) => query.OrderByDescending(t => t.PostCount).ThenBy(t => t.Name).ThenBy(t => t.Id),
+
+            _ => query.OrderByDescending(t => t.PostCount).ThenBy(t => t.Name).ThenBy(t => t.Id),
+        };
     }
 
     internal static string SanitizeTagName(string name)

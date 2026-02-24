@@ -3,7 +3,10 @@ using Damebooru.Core.Paths;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
 using Damebooru.Processing;
+using Damebooru.Processing.Logging;
 using Damebooru.Processing.Services;
+using Damebooru.Processing.Services.Duplicates;
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -101,11 +104,18 @@ builder.Services.AddScoped<LibraryService>();
 builder.Services.AddScoped<LibraryBrowseService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<TagCategoryService>();
-builder.Services.AddScoped<DuplicateService>();
-builder.Services.AddScoped<DuplicateQueryService>();
-builder.Services.AddScoped<DuplicateMutationSupportService>();
+builder.Services.AddScoped<DuplicateWriteService>();
+builder.Services.AddScoped<DuplicateReadService>();
 builder.Services.AddScoped<JobScheduleService>();
 builder.Services.AddScoped<SystemReadService>();
+
+if (damebooruConfig.Logging.Db.Enabled)
+{
+    builder.Services.AddSingleton(new AppLogChannel(damebooruConfig.Logging.Db.ChannelCapacity));
+    builder.Services.AddSingleton<ILoggerProvider, DbLoggerProvider>();
+    builder.Services.AddHostedService<AppLogWriterService>();
+    builder.Services.AddHostedService<AppLogRetentionService>();
+}
 
 
 // Modular Processing Pipeline

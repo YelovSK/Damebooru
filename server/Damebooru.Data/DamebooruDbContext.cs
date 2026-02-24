@@ -23,6 +23,7 @@ public class DamebooruDbContext : DbContext
     public DbSet<LibraryIgnoredPath> LibraryIgnoredPaths { get; set; } = null!;
     public DbSet<DuplicateGroup> DuplicateGroups { get; set; } = null!;
     public DbSet<DuplicateGroupEntry> DuplicateGroupEntries { get; set; } = null!;
+    public DbSet<AppLogEntry> AppLogEntries { get; set; } = null!;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -148,5 +149,14 @@ public class DamebooruDbContext : DbContext
         modelBuilder.Entity<LibraryIgnoredPath>()
             .HasIndex(p => new { p.LibraryId, p.RelativePathPrefix })
             .IsUnique();
+
+        modelBuilder.Entity<AppLogEntry>()
+            .HasIndex(e => e.TimestampUtc);
+
+        modelBuilder.Entity<AppLogEntry>()
+            .HasIndex(e => new { e.Level, e.TimestampUtc });
+
+        modelBuilder.Entity<AppLogEntry>()
+            .HasIndex(e => new { e.Category, e.TimestampUtc });
     }
 }

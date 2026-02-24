@@ -13,6 +13,7 @@ export const AppPaths = {
         autoTagging: 'auto-tagging'
     },
     jobs: 'jobs',
+    logs: 'logs',
     duplicates: 'duplicates',
     libraryExplorer: 'explorer'
 } as const;
@@ -31,6 +32,7 @@ export const AppLinks = {
     settings: () => ['/', AppPaths.settings.root],
     settingsAutoTagging: () => ['/', AppPaths.settings.root, AppPaths.settings.autoTagging],
     jobs: () => ['/', AppPaths.jobs],
+    logs: () => ['/', AppPaths.logs],
     duplicates: () => ['/', AppPaths.duplicates],
     libraryExplorer: (libraryId: string | number) => ['/', AppPaths.libraries, libraryId, AppPaths.libraryExplorer],
 };

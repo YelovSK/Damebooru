@@ -5,16 +5,16 @@ import { catchError, interval, of } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
-import { CronPreview, JobExecution, JobKey, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob, KnownJobResult, parseKnownJobResult } from '../../services/api/damebooru/models';
+import { CronPreview, JobExecution, JobKey, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob } from '../../services/api/damebooru/models';
 import { ButtonComponent } from '../../shared/components/button/button.component';
 import { FormCheckboxComponent } from '../../shared/components/form-checkbox/form-checkbox.component';
 import { CollapsibleComponent } from '../../shared/components/collapsible/collapsible.component';
 import { FormInputComponent } from '../../shared/components/form-input/form-input.component';
 import { PaginatorComponent } from '../../shared/components/paginator/paginator.component';
 import { ProgressBarComponent } from '../../shared/components/progress-bar/progress-bar.component';
+import { DataTableColumn, DataTableComponent } from '../../shared/components/data-table/data-table.component';
 import { TooltipDirective } from '../../shared/directives';
 import { DateTimePipe } from '../../shared/pipes/date-time.pipe';
-import { ElapsedDurationPipe } from '../../shared/pipes/elapsed-duration.pipe';
 import { RelativeDurationPipe } from '../../shared/pipes/relative-duration.pipe';
 import { ToastService } from '../../services/toast.service';
 import { ConfirmService } from '../../services/confirm.service';
@@ -34,7 +34,7 @@ const JOB_STATUS_LABELS: Record<JobStatus, string> = {
 @Component({
   selector: 'app-jobs-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonComponent, FormCheckboxComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, TooltipDirective, DateTimePipe, ElapsedDurationPipe, RelativeDurationPipe],
+  imports: [CommonModule, FormsModule, ButtonComponent, FormCheckboxComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, DataTableComponent, TooltipDirective, DateTimePipe, RelativeDurationPipe],
   templateUrl: './jobs.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -46,8 +46,8 @@ export class JobsPageComponent {
   private readonly toast = inject(ToastService);
   private readonly confirmService = inject(ConfirmService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dateTimePipe = new DateTimePipe();
 
-  readonly jobStatus = JobStatus;
   readonly jobs = signal<JobViewModel[]>([]);
   readonly schedules = signal<ScheduledJob[]>([]);
   readonly cronPreviews = signal<Record<number, CronPreview>>({});
@@ -56,7 +56,38 @@ export class JobsPageComponent {
   readonly historyPage = signal(1);
   readonly historyTotal = signal(0);
   readonly historyTotalPages = computed(() => Math.max(1, Math.ceil(this.historyTotal() / HISTORY_PAGE_SIZE)));
-  readonly expandedResultExecutionId = signal<number | null>(null);
+  readonly historyColumns: DataTableColumn<JobExecution>[] = [
+    {
+      key: 'jobName',
+      label: 'Job',
+      value: run => run.jobName,
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      value: run => this.getStatusText(run.status),
+    },
+    {
+      key: 'startTime',
+      label: 'Start Time',
+      value: run => this.dateTimePipe.transform(run.startTime),
+    },
+    {
+      key: 'duration',
+      label: 'Duration',
+      value: run => this.getHistoryDuration(run),
+    },
+    {
+      key: 'result',
+      label: 'Result',
+      value: run => this.formatHistoryState(run),
+    },
+    {
+      key: 'error',
+      label: 'Error',
+      value: run => run.errorMessage?.trim() || '-',
+    },
+  ];
   cronHelpExpanded = false;
   readonly cronExamples = [
     'Every 6 hours: 0 */6 * * *',
@@ -105,92 +136,7 @@ export class JobsPageComponent {
 
   onHistoryPageChange(page: number) {
     this.historyPage.set(page);
-    this.expandedResultExecutionId.set(null);
     this.loadHistory();
-  }
-
-  toggleResultDetails(executionId: number): void {
-    this.expandedResultExecutionId.update(current => current === executionId ? null : executionId);
-  }
-
-  hasResultDetails(run: JobExecution): boolean {
-    return this.getKnownResult(run) !== null;
-  }
-
-  isResultExpanded(executionId: number): boolean {
-    return this.expandedResultExecutionId() === executionId;
-  }
-
-  getResultDetailLines(run: JobExecution): string[] {
-    const parsed = this.getKnownResult(run);
-    if (!parsed) {
-      return [];
-    }
-
-    switch (parsed.type) {
-      case 'scan-all-libraries.v1':
-        return [
-          `Scanned: ${parsed.data.scanned}`,
-          `Added: ${parsed.data.added}`,
-          `Updated: ${parsed.data.updated}`,
-          `Moved: ${parsed.data.moved}`,
-          `Removed: ${parsed.data.removed}`,
-        ];
-      case 'generate-thumbnails.v1':
-        return [
-          `Candidates: ${parsed.data.totalCandidates}`,
-          `Scanned: ${parsed.data.scanned}`,
-          `Generated: ${parsed.data.generated}`,
-          `Failed: ${parsed.data.failed}`,
-          `Skipped: ${parsed.data.skipped}`,
-        ];
-      case 'extract-metadata.v1':
-        return [
-          `Posts: ${parsed.data.totalPosts}`,
-          `Processed: ${parsed.data.processed}`,
-          `Failed: ${parsed.data.failed}`,
-        ];
-      case 'compute-similarity.v1':
-        return [
-          `Candidates: ${parsed.data.totalCandidates}`,
-          `Scanned: ${parsed.data.scanned}`,
-          `Processed: ${parsed.data.processed}`,
-          `Failed: ${parsed.data.failed}`,
-        ];
-      case 'cleanup-orphaned-thumbnails.v1':
-        return [
-          `Scanned: ${parsed.data.scanned}`,
-          `Deleted: ${parsed.data.deleted}`,
-          `Failed: ${parsed.data.failed}`,
-        ];
-      case 'apply-folder-tags.v1':
-        return [
-          `Total posts: ${parsed.data.totalPosts}`,
-          `Updated posts: ${parsed.data.updatedPosts}`,
-          `Added tags: ${parsed.data.addedTags}`,
-          `Removed tags: ${parsed.data.removedTags}`,
-          `Skipped: ${parsed.data.skipped}`,
-          `Failed: ${parsed.data.failed}`,
-        ];
-      case 'sanitize-tag-names.v1':
-        return [
-          `Total tags: ${parsed.data.totalTags}`,
-          `Processed: ${parsed.data.processed}`,
-          `Renamed: ${parsed.data.renamed}`,
-          `Merged: ${parsed.data.merged}`,
-          `Failed: ${parsed.data.failed}`,
-        ];
-      case 'find-duplicates.v1':
-        return [
-          `Groups: ${parsed.data.groups}`,
-          `Exact groups: ${parsed.data.exactGroups}`,
-          `Perceptual groups: ${parsed.data.perceptualGroups}`,
-          `Matched pairs: ${parsed.data.matchedPairs}`,
-          `Total entries: ${parsed.data.totalEntries}`,
-        ];
-      default:
-        return [];
-    }
   }
 
   runJob(key: JobKey, mode: JobMode) {
@@ -279,12 +225,6 @@ export class JobsPageComponent {
     const finalText = state.finalText?.trim();
     if (finalText) return finalText;
 
-    const parsedResult = this.getKnownResult(run);
-    if (parsedResult?.type === 'scan-all-libraries.v1') {
-      const result = parsedResult.data;
-      return `Scanned ${result.scanned} files: ${result.added} added, ${result.updated} updated, ${result.moved} moved, ${result.removed} removed`;
-    }
-
     const activityText = state.activityText?.trim();
     if (activityText) return activityText;
 
@@ -296,12 +236,25 @@ export class JobsPageComponent {
     return parts.length > 0 ? parts.join(', ') : '-';
   }
 
-  private getKnownResult(run: JobExecution): KnownJobResult | null {
-    return parseKnownJobResult(
-      run.jobKey,
-      run.state?.resultSchemaVersion,
-      run.state?.resultJson,
-    );
+  trackHistoryRow = (row: JobExecution): number => row.id;
+
+  private getHistoryDuration(run: JobExecution): string {
+    const startMs = Date.parse(run.startTime);
+    const endSource = run.endTime ?? (run.status === JobStatus.Running ? new Date(this.now()).toISOString() : null);
+    const endMs = endSource ? Date.parse(endSource) : NaN;
+
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      return '-';
+    }
+
+    const diffSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
+    if (diffSeconds < 60) {
+      return `${diffSeconds}s`;
+    }
+
+    const mins = Math.floor(diffSeconds / 60);
+    const secs = diffSeconds % 60;
+    return `${mins}m ${secs}s`;
   }
 
   private refreshLiveJobs(refreshHistoryOnFinished: boolean = true): void {

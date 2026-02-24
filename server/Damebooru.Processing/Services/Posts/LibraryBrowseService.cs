@@ -218,6 +218,8 @@ public class LibraryBrowseService
                 ThumbnailContentHash = p.ContentHash,
                 Sources = p.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
                 Tags = p.PostTags
+                    .OrderBy(pt => pt.Tag.TagCategory!.Order)
+                    .ThenBy(pt => pt.Tag.Name)
                     .Select(pt => new TagDto
                     {
                         Id = pt.Tag.Id,

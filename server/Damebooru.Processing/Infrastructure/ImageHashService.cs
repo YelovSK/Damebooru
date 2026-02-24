@@ -1,20 +1,30 @@
+// Portions of this file are derived from PdqHash:
+// https://github.com/crispthinking/PdqHash/blob/main/src/PdqHash/PdqHasher.cs
+// See THIRD_PARTY_NOTICES.md for license details.using Damebooru.Core.Interfaces;
+
 using Damebooru.Core.Interfaces;
-using FFMpegCore;
-using FFMpegCore.Pipes;
 using Microsoft.Extensions.Logging;
+using PhotoSauce.MagicScaler;
+using PhotoSauce.MagicScaler.Transforms;
+using System.Drawing;
+using System.Text;
 
 namespace Damebooru.Processing.Infrastructure;
 
 /// <summary>
-/// Computes perceptual hashes (dHash + pHash) using FFmpeg for image decoding.
-/// Supports all formats FFmpeg can decode (including JXL, AVIF, WebP, etc.)
+/// Computes a 256-bit PDQ hash from MagicScaler-decoded grayscale pixels.
 /// </summary>
 public class ImageHashService : ISimilarityService
 {
-    private const int DecodeSize = 32;
-    private const int PHashLowFrequencySize = 8;
-    private static readonly double[] PHashAlpha = BuildAlphaFactors(PHashLowFrequencySize);
-    private static readonly double[,] PHashCos = BuildCosTable(PHashLowFrequencySize, DecodeSize);
+    private const int MaxDecodeDimension = 1024;
+    private const int PdqReducedSize = 64;
+    private const int PdqDctSize = 16;
+    private const int PdqNumJaroszXyPasses = 2;
+    private const int PdqJaroszWindowSizeDivisor = 128;
+
+    private static readonly float DctMatrixScaleFactor = (float)Math.Sqrt(2.0 / PdqReducedSize);
+    private static readonly float[,] DctMatrix = BuildDctMatrix();
+
     private readonly ILogger<ImageHashService> _logger;
 
     public ImageHashService(ILogger<ImageHashService> logger)
@@ -26,28 +36,14 @@ public class ImageHashService : ISimilarityService
     {
         try
         {
-            var analysis = await FFProbe.AnalyseAsync(filePath, null, cancellationToken);
-            var seekTime = GetVideoCaptureTime(analysis);
+            var (pixels, scaledWidth, scaledHeight) = await DecodeGrayscalePixelsAsync(filePath, cancellationToken);
+            if (scaledWidth <= 0 || scaledHeight <= 0 || pixels.Length == 0)
+            {
+                _logger.LogWarning("Failed to resolve dimensions for {Path}", filePath);
+                return null;
+            }
 
-            // Decode once to a small grayscale surface, then derive multiple perceptual hashes from it.
-            using var memoryStream = new MemoryStream();
-
-            var arguments = seekTime.HasValue
-                ? FFMpegArguments.FromFileInput(filePath, true, options => options.Seek(seekTime.Value))
-                : FFMpegArguments.FromFileInput(filePath);
-
-            await arguments
-                .OutputToPipe(new StreamPipeSink(memoryStream), options => options
-                    .WithVideoFilters(filter => filter.Scale(DecodeSize, DecodeSize))
-                    .ForceFormat("rawvideo")
-                    .WithCustomArgument("-pix_fmt gray")
-                    .WithCustomArgument("-frames:v 1")
-                )
-                .ProcessAsynchronously();
-
-            var pixels = memoryStream.ToArray();
-
-            var expectedPixelCount = DecodeSize * DecodeSize;
+            var expectedPixelCount = scaledWidth * scaledHeight;
             if (pixels.Length < expectedPixelCount)
             {
                 _logger.LogWarning(
@@ -58,195 +54,331 @@ public class ImageHashService : ISimilarityService
                 return null;
             }
 
-            var dHash = ComputeDHash64(pixels);
-            var pHash = ComputePHash64(pixels);
-
-            return new SimilarityHashes(dHash, pHash);
+            var pdqHash = ComputePdqHash256Hex(pixels, scaledHeight, scaledWidth);
+            return new SimilarityHashes(pdqHash);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to compute perceptual hash for {Path}", filePath);
+            _logger.LogWarning(ex, "Failed to compute PDQ hash for {Path}", filePath);
             return null;
         }
     }
 
-    private static TimeSpan? GetVideoCaptureTime(IMediaAnalysis analysis)
+    private static Task<(byte[] Pixels, int Width, int Height)> DecodeGrayscalePixelsAsync(string filePath, CancellationToken cancellationToken)
     {
-        if (!IsVideo(analysis))
+        return Task.Run(() =>
         {
-            return null;
-        }
+            cancellationToken.ThrowIfCancellationRequested();
 
-        var duration = analysis.Duration;
-        if (duration <= TimeSpan.Zero)
-        {
-            return TimeSpan.Zero;
-        }
-
-        // Never seek at/after EOF.
-        var safeUpperBound = duration - TimeSpan.FromMilliseconds(50);
-        if (safeUpperBound <= TimeSpan.Zero)
-        {
-            return TimeSpan.Zero;
-        }
-
-        // Prefer a frame from ~20% into the video, bounded to avoid seeking too far.
-        // Keep it consistent with FFmpegProcessor thumbnail capture.
-        var preferred = TimeSpan.FromTicks((long)(duration.Ticks * 0.2));
-        var clamped = preferred < TimeSpan.FromMilliseconds(250)
-            ? TimeSpan.FromMilliseconds(250)
-            : preferred > TimeSpan.FromSeconds(10)
-                ? TimeSpan.FromSeconds(10)
-                : preferred;
-
-        return clamped > safeUpperBound ? safeUpperBound : clamped;
-    }
-
-    private static bool IsVideo(IMediaAnalysis analysis)
-    {
-        if (analysis.PrimaryVideoStream == null)
-        {
-            return false;
-        }
-
-        var format = (analysis.Format.FormatName ?? "").ToLowerInvariant();
-
-        // Exclude image formats that might have video streams
-        if (format.Contains("jpeg") || format.Contains("jxl") ||
-            format.Contains("png") || format.Contains("gif") ||
-            format.Contains("webp") || format.Contains("bmp"))
-        {
-            return false;
-        }
-
-        // Additional check: duration should be meaningful for actual videos
-        return analysis.Duration > TimeSpan.FromMilliseconds(100);
-    }
-
-    private static ulong ComputeDHash64(byte[] pixels)
-    {
-        // Average downsample to 9x8 to preserve global structure from the full 32x32 surface.
-        var reduced = DownsampleAverage(pixels, DecodeSize, DecodeSize, 9, 8);
-
-        ulong hash = 0;
-        for (int y = 0; y < 8; y++)
-        {
-            for (int x = 0; x < 8; x++)
+            var imageInfo = ImageFileInfo.Load(filePath);
+            if (imageInfo.Frames.Count == 0)
             {
-                int idx = y * 9 + x;
-                if (reduced[idx] > reduced[idx + 1])
-                {
-                    hash |= 1UL << ((y * 8) + x);
-                }
+                return ([], 0, 0);
             }
-        }
 
-        return hash;
+            var frame = imageInfo.Frames[0];
+            if (frame.Width <= 0 || frame.Height <= 0)
+            {
+                return ([], 0, 0);
+            }
+
+            var scale = Math.Min(1.0, Math.Min((double)MaxDecodeDimension / frame.Width, (double)MaxDecodeDimension / frame.Height));
+            var requestedWidth = Math.Max(1, (int)Math.Round(frame.Width * scale));
+            var requestedHeight = Math.Max(1, (int)Math.Round(frame.Height * scale));
+
+            var settings = new ProcessImageSettings
+            {
+                Width = requestedWidth,
+                Height = requestedHeight,
+                ResizeMode = CropScaleMode.Max,
+            };
+
+            using var pipeline = MagicImageProcessor.BuildPipeline(filePath, settings);
+            pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
+
+            var pixelSource = pipeline.PixelSource;
+            var scaledWidth = pixelSource.Width;
+            var scaledHeight = pixelSource.Height;
+            var pixelCount = scaledWidth * scaledHeight;
+            if (scaledWidth <= 0 || scaledHeight <= 0 || pixelCount <= 0)
+            {
+                return ([], 0, 0);
+            }
+
+            var pixels = new byte[pixelCount];
+            pixelSource.CopyPixels(new Rectangle(0, 0, scaledWidth, scaledHeight), scaledWidth, pixels);
+
+            return (pixels, scaledWidth, scaledHeight);
+        }, cancellationToken);
     }
 
-    private static ulong ComputePHash64(byte[] pixels)
+    private static string ComputePdqHash256Hex(byte[] pixels, int numRows, int numCols)
     {
-        const int n = DecodeSize;
-        var low = new double[PHashLowFrequencySize * PHashLowFrequencySize];
+        var pool = System.Buffers.ArrayPool<float>.Shared;
+        var pixelCount = numRows * numCols;
+        var reducedCount = PdqReducedSize * PdqReducedSize;
+        var dctCount = PdqDctSize * PdqDctSize;
 
-        for (int u = 0; u < PHashLowFrequencySize; u++)
+        float[] buffer1 = pool.Rent(pixelCount);
+        float[] buffer2 = pool.Rent(pixelCount);
+        float[] reduced64 = pool.Rent(reducedCount);
+        float[] dct16 = pool.Rent(dctCount);
+
+        try
         {
-            for (int v = 0; v < PHashLowFrequencySize; v++)
-            {
-                double sum = 0;
+            FillFloatLumaFromGrayBuffer(pixels, buffer1, pixelCount);
+            PdqHash256FromFloatLuma(buffer1, buffer2, numRows, numCols, reduced64, dct16);
 
-                for (int x = 0; x < n; x++)
+            var median = Median(dct16, dctCount);
+            var words = new ulong[4];
+
+            for (int i = 0; i < dctCount; i++)
+            {
+                if (dct16[i] <= median) continue;
+                SetBit(words, i);
+            }
+
+            var builder = new StringBuilder(64);
+            for (int i = 0; i < words.Length; i++)
+            {
+                builder.Append(words[i].ToString("x16"));
+            }
+
+            return builder.ToString();
+        }
+        finally
+        {
+            pool.Return(buffer1);
+            pool.Return(buffer2);
+            pool.Return(reduced64);
+            pool.Return(dct16);
+        }
+    }
+    private static void FillFloatLumaFromGrayBuffer(byte[] gray, float[] luma, int length)
+    {
+        for (int i = 0; i < length; i++)
+        {
+            luma[i] = gray[i];
+        }
+    }
+
+    private static void PdqHash256FromFloatLuma(
+        float[] buffer1,
+        float[] buffer2,
+        int numRows,
+        int numCols,
+        float[] reduced64,
+        float[] dct16)
+    {
+        var windowSizeAlongRows = ComputeJaroszFilterWindowSize(numCols);
+        var windowSizeAlongCols = ComputeJaroszFilterWindowSize(numRows);
+
+        JaroszFilterFloat(
+            buffer1,
+            buffer2,
+            numRows,
+            numCols,
+            windowSizeAlongRows,
+            windowSizeAlongCols,
+            PdqNumJaroszXyPasses);
+
+        DecimateFloat(buffer1, numRows, numCols, reduced64);
+        Dct64To16(reduced64, dct16);
+    }
+
+    private static void Dct64To16(float[] input64, float[] output16)
+    {
+        var pool = System.Buffers.ArrayPool<float>.Shared;
+        float[] temp = pool.Rent(PdqDctSize * PdqReducedSize);
+
+        try
+        {
+            for (int i = 0; i < PdqDctSize; i++)
+            {
+                for (int j = 0; j < PdqReducedSize; j++)
                 {
-                    var basisX = PHashCos[u, x];
-                    for (int y = 0; y < n; y++)
+                    var sum = 0.0f;
+                    for (int k = 0; k < PdqReducedSize; k++)
                     {
-                        var value = pixels[(y * n) + x];
-                        sum += value * basisX * PHashCos[v, y];
+                        sum += DctMatrix[i, k] * input64[(k * PdqReducedSize) + j];
                     }
+                    temp[(i * PdqReducedSize) + j] = sum;
                 }
-
-                low[(u * PHashLowFrequencySize) + v] = 0.25 * PHashAlpha[u] * PHashAlpha[v] * sum;
             }
-        }
 
-        // Ignore DC coefficient for threshold calculation.
-        var thresholdValues = new double[low.Length - 1];
-        Array.Copy(low, 1, thresholdValues, 0, thresholdValues.Length);
-        Array.Sort(thresholdValues);
-        var median = thresholdValues[thresholdValues.Length / 2];
-
-        ulong hash = 0;
-        for (int i = 0; i < low.Length; i++)
-        {
-            if (low[i] > median)
+            for (int i = 0; i < PdqDctSize; i++)
             {
-                hash |= 1UL << i;
-            }
-        }
-
-        return hash;
-    }
-
-    private static byte[] DownsampleAverage(byte[] src, int srcWidth, int srcHeight, int dstWidth, int dstHeight)
-    {
-        var dst = new byte[dstWidth * dstHeight];
-
-        for (int dy = 0; dy < dstHeight; dy++)
-        {
-            int y0 = (dy * srcHeight) / dstHeight;
-            int y1 = ((dy + 1) * srcHeight) / dstHeight;
-            if (y1 <= y0) y1 = y0 + 1;
-
-            for (int dx = 0; dx < dstWidth; dx++)
-            {
-                int x0 = (dx * srcWidth) / dstWidth;
-                int x1 = ((dx + 1) * srcWidth) / dstWidth;
-                if (x1 <= x0) x1 = x0 + 1;
-
-                int sum = 0;
-                int count = 0;
-
-                for (int y = y0; y < y1; y++)
+                for (int j = 0; j < PdqDctSize; j++)
                 {
-                    for (int x = x0; x < x1; x++)
+                    var sum = 0.0f;
+                    for (int k = 0; k < PdqReducedSize; k++)
                     {
-                        sum += src[(y * srcWidth) + x];
-                        count++;
+                        sum += temp[(i * PdqReducedSize) + k] * DctMatrix[j, k];
                     }
+                    output16[(i * PdqDctSize) + j] = sum;
+                }
+            }
+        }
+        finally
+        {
+            pool.Return(temp);
+        }
+    }
+
+    private static void DecimateFloat(float[] input, int inNumRows, int inNumCols, float[] output)
+    {
+        for (int i = 0; i < PdqReducedSize; i++)
+        {
+            var ini = (int)((i + 0.5) * inNumRows / PdqReducedSize);
+            if (ini >= inNumRows)
+            {
+                ini = inNumRows - 1;
+            }
+
+            for (int j = 0; j < PdqReducedSize; j++)
+            {
+                var inj = (int)((j + 0.5) * inNumCols / PdqReducedSize);
+                if (inj >= inNumCols)
+                {
+                    inj = inNumCols - 1;
                 }
 
-                dst[(dy * dstWidth) + dx] = (byte)(sum / Math.Max(1, count));
+                output[(i * PdqReducedSize) + j] = input[(ini * inNumCols) + inj];
             }
         }
-
-        return dst;
     }
 
-    private static double[] BuildAlphaFactors(int size)
+    private static void JaroszFilterFloat(
+        float[] buffer1,
+        float[] buffer2,
+        int numRows,
+        int numCols,
+        int windowSizeAlongRows,
+        int windowSizeAlongCols,
+        int nreps)
     {
-        var alpha = new double[size];
-        alpha[0] = 1.0 / Math.Sqrt(2.0);
-
-        for (int i = 1; i < size; i++)
+        for (int i = 0; i < nreps; i++)
         {
-            alpha[i] = 1.0;
+            BoxAlongRowsFloat(buffer1, buffer2, numRows, numCols, windowSizeAlongRows);
+            BoxAlongColsFloat(buffer2, buffer1, numRows, numCols, windowSizeAlongCols);
+        }
+    }
+
+    private static void BoxAlongColsFloat(float[] input, float[] output, int numRows, int numCols, int windowSize)
+    {
+        for (int j = 0; j < numCols; j++)
+        {
+            Box1DFloat(input, j, output, j, numRows, numCols, windowSize);
+        }
+    }
+
+    private static void BoxAlongRowsFloat(float[] input, float[] output, int numRows, int numCols, int windowSize)
+    {
+        for (int i = 0; i < numRows; i++)
+        {
+            Box1DFloat(input, i * numCols, output, i * numCols, numCols, 1, windowSize);
+        }
+    }
+
+    private static void Box1DFloat(
+        float[] input,
+        int inStartOffset,
+        float[] output,
+        int outStartOffset,
+        int vectorLength,
+        int stride,
+        int fullWindowSize)
+    {
+        var halfWindowSize = (fullWindowSize + 2) / 2;
+        var phase1Repeats = halfWindowSize - 1;
+        var phase2Repeats = fullWindowSize - halfWindowSize + 1;
+        var phase3Repeats = vectorLength - fullWindowSize;
+        var phase4Repeats = halfWindowSize - 1;
+
+        var leftIndex = 0;
+        var rightIndex = 0;
+        var outIndex = 0;
+        var sum = 0.0f;
+        var currentWindowSize = 0;
+
+        for (int i = 0; i < phase1Repeats; i++)
+        {
+            sum += input[inStartOffset + rightIndex];
+            currentWindowSize++;
+            rightIndex += stride;
         }
 
-        return alpha;
+        for (int i = 0; i < phase2Repeats; i++)
+        {
+            sum += input[inStartOffset + rightIndex];
+            currentWindowSize++;
+            output[outStartOffset + outIndex] = sum / currentWindowSize;
+            rightIndex += stride;
+            outIndex += stride;
+        }
+
+        for (int i = 0; i < phase3Repeats; i++)
+        {
+            sum += input[inStartOffset + rightIndex];
+            sum -= input[inStartOffset + leftIndex];
+            output[outStartOffset + outIndex] = sum / currentWindowSize;
+            leftIndex += stride;
+            rightIndex += stride;
+            outIndex += stride;
+        }
+
+        for (int i = 0; i < phase4Repeats; i++)
+        {
+            sum -= input[inStartOffset + leftIndex];
+            currentWindowSize--;
+            output[outStartOffset + outIndex] = sum / currentWindowSize;
+            leftIndex += stride;
+            outIndex += stride;
+        }
     }
 
-    private static double[,] BuildCosTable(int frequencyCount, int sampleCount)
+    private static int ComputeJaroszFilterWindowSize(int dimensionSize)
     {
-        var table = new double[frequencyCount, sampleCount];
+        return (dimensionSize + PdqJaroszWindowSizeDivisor - 1) / PdqJaroszWindowSizeDivisor;
+    }
 
-        for (int frequency = 0; frequency < frequencyCount; frequency++)
+    private static float Median(float[] values, int length)
+    {
+        var pool = System.Buffers.ArrayPool<float>.Shared;
+        float[] copy = pool.Rent(length);
+
+        try
         {
-            for (int sample = 0; sample < sampleCount; sample++)
+            Array.Copy(values, copy, length);
+            Array.Sort(copy, 0, length);
+            return copy[length / 2];
+        }
+        finally
+        {
+            pool.Return(copy);
+        }
+    }
+
+    private static void SetBit(ulong[] words, int bitIndex)
+    {
+        var wordIndex = bitIndex / 64;
+        var bitInWord = 63 - (bitIndex % 64);
+        words[wordIndex] |= 1UL << bitInWord;
+    }
+
+    private static float[,] BuildDctMatrix()
+    {
+        var matrix = new float[PdqDctSize, PdqReducedSize];
+
+        for (int i = 0; i < PdqDctSize; i++)
+        {
+            for (int j = 0; j < PdqReducedSize; j++)
             {
-                table[frequency, sample] = Math.Cos(((2 * sample + 1) * frequency * Math.PI) / (2 * sampleCount));
+                matrix[i, j] =
+                    (float)(DctMatrixScaleFactor * Math.Cos((Math.PI / 2 / PdqReducedSize) * (i + 1) * (2 * j + 1)));
             }
         }
 
-        return table;
+        return matrix;
     }
 }

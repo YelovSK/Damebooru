@@ -9,6 +9,7 @@ public class DamebooruConfig
     public ProcessingConfig Processing { get; set; } = new();
     public IngestionConfig Ingestion { get; set; } = new();
     public AuthConfig Auth { get; set; } = new();
+    public LoggingConfig Logging { get; set; } = new();
 }
 
 public class StorageConfig
@@ -58,4 +59,21 @@ public class AuthConfig
     public bool Enabled { get; set; } = true;
     public string Username { get; set; } = "admin";
     public string Password { get; set; } = "change-me";
+}
+
+public class LoggingConfig
+{
+    public DbLoggingConfig Db { get; set; } = new();
+}
+
+public class DbLoggingConfig
+{
+    public bool Enabled { get; set; } = true;
+    public string MinimumLevel { get; set; } = "Warning";
+    public int BatchSize { get; set; } = 100;
+    public int FlushIntervalMs { get; set; } = 1000;
+    public int ChannelCapacity { get; set; } = 10000;
+    public int RetentionDays { get; set; } = 7;
+    public int MaxRows { get; set; } = 10000;
+    public int RetentionCheckIntervalMinutes { get; set; } = 15;
 }

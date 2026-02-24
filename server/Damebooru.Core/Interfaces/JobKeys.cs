@@ -8,6 +8,7 @@ public static class JobKeys
     public static readonly JobKey FindDuplicates = JobKey.Parse("find-duplicates");
     public static readonly JobKey GenerateThumbnails = JobKey.Parse("generate-thumbnails");
     public static readonly JobKey CleanupOrphanedThumbnails = JobKey.Parse("cleanup-orphaned-thumbnails");
+    public static readonly JobKey CleanupInvalidExclusions = JobKey.Parse("cleanup-invalid-exclusions");
     public static readonly JobKey ApplyFolderTags = JobKey.Parse("apply-folder-tags");
     public static readonly JobKey SanitizeTagNames = JobKey.Parse("sanitize-tag-names");
 }

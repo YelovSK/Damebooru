@@ -1,5 +1,5 @@
 using Damebooru.Core.DTOs;
-using Damebooru.Processing.Services;
+using Damebooru.Processing.Services.Duplicates;
 using Damebooru.Server.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,13 +9,13 @@ namespace Damebooru.Server.Controllers;
 [Route("api/[controller]")]
 public class DuplicatesController : ControllerBase
 {
-    private readonly DuplicateService _duplicateService;
-    private readonly DuplicateQueryService _duplicateQueryService;
+    private readonly DuplicateWriteService _duplicateWriteService;
+    private readonly DuplicateReadService _duplicateReadService;
 
-    public DuplicatesController(DuplicateService duplicateService, DuplicateQueryService duplicateQueryService)
+    public DuplicatesController(DuplicateWriteService duplicateWriteService, DuplicateReadService duplicateReadService)
     {
-        _duplicateService = duplicateService;
-        _duplicateQueryService = duplicateQueryService;
+        _duplicateWriteService = duplicateWriteService;
+        _duplicateReadService = duplicateReadService;
     }
 
     /// <summary>
@@ -24,7 +24,7 @@ public class DuplicatesController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<DuplicateGroupDto>>> GetDuplicateGroups(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateQueryService.GetDuplicateGroupsAsync(cancellationToken));
+        return Ok(await _duplicateReadService.GetDuplicateGroupsAsync(cancellationToken));
     }
 
     /// <summary>
@@ -33,7 +33,7 @@ public class DuplicatesController : ControllerBase
     [HttpGet("resolved")]
     public async Task<ActionResult<IEnumerable<DuplicateGroupDto>>> GetResolvedDuplicateGroups(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateQueryService.GetResolvedDuplicateGroupsAsync(cancellationToken));
+        return Ok(await _duplicateReadService.GetResolvedDuplicateGroupsAsync(cancellationToken));
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public class DuplicatesController : ControllerBase
     [HttpGet("same-folder")]
     public async Task<ActionResult<IEnumerable<SameFolderDuplicateGroupDto>>> GetSameFolderDuplicateGroups(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateQueryService.GetSameFolderDuplicateGroupsAsync(cancellationToken));
+        return Ok(await _duplicateReadService.GetSameFolderDuplicateGroupsAsync(cancellationToken));
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ public class DuplicatesController : ControllerBase
     [HttpPost("{groupId}/keep-all")]
     public async Task<IActionResult> KeepAll(int groupId)
     {
-        return await _duplicateService.KeepAllAsync(groupId).ToHttpResult();
+        return await _duplicateWriteService.KeepAllAsync(groupId).ToHttpResult();
     }
 
     /// <summary>
@@ -60,7 +60,7 @@ public class DuplicatesController : ControllerBase
     [HttpPost("{groupId}/mark-unresolved")]
     public async Task<IActionResult> MarkUnresolved(int groupId, CancellationToken cancellationToken)
     {
-        return await _duplicateService.MarkUnresolvedAsync(groupId, cancellationToken).ToHttpResult();
+        return await _duplicateWriteService.MarkUnresolvedAsync(groupId, cancellationToken).ToHttpResult();
     }
 
     /// <summary>
@@ -69,7 +69,7 @@ public class DuplicatesController : ControllerBase
     [HttpPost("resolved/mark-all-unresolved")]
     public async Task<ActionResult<MarkAllUnresolvedResponseDto>> MarkAllUnresolved(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateService.MarkAllUnresolvedAsync(cancellationToken));
+        return Ok(await _duplicateWriteService.MarkAllUnresolvedAsync(cancellationToken));
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public class DuplicatesController : ControllerBase
     [HttpPost("{groupId}/auto-resolve")]
     public async Task<IActionResult> AutoResolveGroup(int groupId, CancellationToken cancellationToken)
     {
-        return await _duplicateService.AutoResolveGroupAsync(groupId, cancellationToken).ToHttpResult();
+        return await _duplicateWriteService.AutoResolveGroupAsync(groupId, cancellationToken).ToHttpResult();
     }
 
     /// <summary>
@@ -90,7 +90,7 @@ public class DuplicatesController : ControllerBase
     [HttpPost("{groupId}/exclude/{postId}")]
     public async Task<IActionResult> ExcludePost(int groupId, int postId, CancellationToken cancellationToken)
     {
-        return await _duplicateService.ExcludeDuplicatePostAsync(groupId, postId, cancellationToken).ToHttpResult();
+        return await _duplicateWriteService.ExcludeDuplicatePostAsync(groupId, postId, cancellationToken).ToHttpResult();
     }
 
     /// <summary>
@@ -101,7 +101,7 @@ public class DuplicatesController : ControllerBase
     [HttpPost("{groupId}/delete/{postId}")]
     public async Task<IActionResult> DeletePost(int groupId, int postId, CancellationToken cancellationToken)
     {
-        return await _duplicateService.DeleteDuplicatePostAsync(groupId, postId, cancellationToken).ToHttpResult();
+        return await _duplicateWriteService.DeleteDuplicatePostAsync(groupId, postId, cancellationToken).ToHttpResult();
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public class DuplicatesController : ControllerBase
     [HttpPost("resolve-all")]
     public async Task<ActionResult<ResolveAllExactResponseDto>> ResolveAll(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateService.ResolveAllAsync(cancellationToken));
+        return Ok(await _duplicateWriteService.ResolveAllAsync(cancellationToken));
     }
 
     /// <summary>
@@ -119,7 +119,7 @@ public class DuplicatesController : ControllerBase
     [HttpPost("resolve-all-exact")]
     public async Task<ActionResult<ResolveAllExactResponseDto>> ResolveAllExact()
     {
-        return Ok(await _duplicateService.ResolveAllExactAsync());
+        return Ok(await _duplicateWriteService.ResolveAllExactAsync());
     }
 
 
@@ -131,16 +131,16 @@ public class DuplicatesController : ControllerBase
         [FromBody] ResolveSameFolderGroupRequestDto request,
         CancellationToken cancellationToken)
     {
-        return await _duplicateService.ResolveSameFolderGroupAsync(request, cancellationToken).ToHttpResult();
+        return await _duplicateWriteService.ResolveSameFolderGroupAsync(request, cancellationToken).ToHttpResult();
     }
 
     /// <summary>
     /// Resolve all same-folder duplicate partitions by keeping the best quality post in each.
     /// </summary>
     [HttpPost("same-folder/resolve-all")]
-    public async Task<IActionResult> ResolveAllSameFolder(CancellationToken cancellationToken)
+    public async Task<IActionResult> ResolveAllSameFolder([FromQuery] bool exactOnly = false, CancellationToken cancellationToken = default)
     {
-        return await _duplicateService.ResolveAllSameFolderAsync(cancellationToken).ToHttpResult();
+        return await _duplicateWriteService.ResolveAllSameFolderAsync(exactOnly, cancellationToken).ToHttpResult();
     }
 
     /// <summary>
@@ -149,7 +149,7 @@ public class DuplicatesController : ControllerBase
     [HttpGet("excluded")]
     public async Task<ActionResult<IEnumerable<ExcludedFileDto>>> GetExcludedFiles(CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateQueryService.GetExcludedFilesAsync(cancellationToken));
+        return Ok(await _duplicateReadService.GetExcludedFilesAsync(cancellationToken));
     }
 
     /// <summary>
@@ -158,7 +158,17 @@ public class DuplicatesController : ControllerBase
     [HttpDelete("excluded/{id}")]
     public async Task<IActionResult> UnexcludeFile(int id)
     {
-        return await _duplicateService.UnexcludeFileAsync(id).ToHttpResult();
+        return await _duplicateWriteService.UnexcludeFileAsync(id).ToHttpResult();
+    }
+
+    /// <summary>
+    /// Remove all files from the exclusion list.
+    /// </summary>
+    [HttpDelete("excluded")]
+    public async Task<ActionResult<ClearExcludedFilesResponseDto>> UnexcludeAllFiles(CancellationToken cancellationToken)
+    {
+        var removed = await _duplicateWriteService.UnexcludeAllFilesAsync(cancellationToken);
+        return Ok(new ClearExcludedFilesResponseDto { Removed = removed });
     }
 
     /// <summary>
@@ -167,7 +177,7 @@ public class DuplicatesController : ControllerBase
     [HttpGet("excluded/{id}/content")]
     public async Task<IActionResult> GetExcludedFileContent(int id, CancellationToken cancellationToken)
     {
-        return await _duplicateQueryService.GetExcludedFileContentPathAsync(id, cancellationToken)
+        return await _duplicateReadService.GetExcludedFileContentPathAsync(id, cancellationToken)
             .ToHttpResult(fullPath =>
             {
                 var provider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();

@@ -1,15 +1,17 @@
 using Damebooru.Core.DTOs;
+using Damebooru.Core.Entities;
+using Damebooru.Core.Paths;
 using Damebooru.Core.Results;
 using Damebooru.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Damebooru.Processing.Services;
+namespace Damebooru.Processing.Services.Duplicates;
 
-public class DuplicateQueryService
+public class DuplicateReadService
 {
     private readonly DamebooruDbContext _context;
 
-    public DuplicateQueryService(DamebooruDbContext context)
+    public DuplicateReadService(DamebooruDbContext context)
     {
         _context = context;
     }
@@ -90,7 +92,7 @@ public class DuplicateQueryService
             var sameFolderPartitions = group.Entries
                 .Select(e => e.Post)
                 .GroupBy(
-                    p => new { p.LibraryId, FolderPath = GetParentFolderPath(p.RelativePath) },
+                    p => new { p.LibraryId, FolderPath = DuplicatePathHelper.GetParentFolderPath(p.RelativePath) },
                     p => p);
 
             foreach (var partition in sameFolderPartitions)
@@ -142,7 +144,7 @@ public class DuplicateQueryService
         }
 
         return result
-            .OrderBy(r => r.DuplicateType == "exact" ? 0 : 1)
+            .OrderBy(r => r.DuplicateType == DuplicateType.Exact ? 0 : 1)
             .ThenByDescending(r => r.SimilarityPercent ?? 0)
             .ThenBy(r => r.LibraryName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(r => r.FolderPath, StringComparer.OrdinalIgnoreCase)
@@ -186,10 +188,7 @@ public class DuplicateQueryService
             return Result<string>.Failure(OperationError.NotFound, "Excluded file not found.");
         }
 
-        var fullPath = Path.GetFullPath(Path.Combine(entry.LibraryPath, entry.RelativePath));
-        var libraryRoot = Path.GetFullPath(entry.LibraryPath + Path.DirectorySeparatorChar);
-
-        if (!fullPath.StartsWith(libraryRoot, StringComparison.OrdinalIgnoreCase))
+        if (!SafeSubpathResolver.TryResolve(entry.LibraryPath, entry.RelativePath, out var fullPath))
         {
             return Result<string>.Failure(OperationError.InvalidInput, "Invalid file path.");
         }
@@ -202,17 +201,4 @@ public class DuplicateQueryService
         return Result<string>.Success(fullPath);
     }
 
-    private static string GetParentFolderPath(string relativePath)
-    {
-        var normalizedPath = NormalizePath(relativePath);
-        var slashIndex = normalizedPath.LastIndexOf('/');
-        return slashIndex < 0 ? string.Empty : normalizedPath[..slashIndex];
-    }
-
-    private static string NormalizePath(string path)
-    {
-        var normalized = path.Replace('\\', '/').Trim();
-        normalized = normalized.Trim('/');
-        return normalized == "." ? string.Empty : normalized;
-    }
 }

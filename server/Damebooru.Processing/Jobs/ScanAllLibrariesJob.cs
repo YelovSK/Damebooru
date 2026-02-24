@@ -1,7 +1,8 @@
 using Damebooru.Core.Interfaces;
-using Damebooru.Processing.Scanning;
+using Damebooru.Core.Results;
+using Damebooru.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
@@ -26,30 +27,47 @@ public class ScanAllLibrariesJob : IJob
     public async Task ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
-        var scannerService = scope.ServiceProvider.GetRequiredService<IScannerService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var syncService = scope.ServiceProvider.GetRequiredService<ILibrarySyncProcessor>();
+
+        var libraries = await dbContext.Libraries.ToListAsync(context.CancellationToken);
+        if (libraries.Count == 0)
+        {
+            context.Reporter.Update(new JobState
+            {
+                ActivityText = "Completed",
+                ProgressCurrent = 100,
+                ProgressTotal = 100,
+                FinalText = "No libraries configured."
+            });
+            return;
+        }
 
         var phase = "Scanning libraries...";
         var currentProcessed = 0;
 
-        var progress = new Progress<float>(percent =>
+        static string WithProgress(string phaseText, int processed)
+            => $"{phaseText} ({processed}/100)";
+
+        IProgress<float> progress = new Progress<float>(percent =>
         {
             var normalized = percent <= 1f ? percent * 100f : percent;
             var processed = (int)Math.Clamp(Math.Round(normalized), 0, 100);
             currentProcessed = processed;
             context.Reporter.Update(new JobState
             {
-                ActivityText = phase,
+                ActivityText = WithProgress(phase, processed),
                 ProgressCurrent = processed,
                 ProgressTotal = 100
             });
         });
 
-        var status = new Progress<string>(message =>
+        IProgress<string> status = new Progress<string>(message =>
         {
             phase = string.IsNullOrWhiteSpace(message) ? "Scanning libraries..." : message.Trim();
             context.Reporter.Update(new JobState
             {
-                ActivityText = phase,
+                ActivityText = WithProgress(phase, currentProcessed),
                 ProgressCurrent = currentProcessed,
                 ProgressTotal = 100
             });
@@ -57,28 +75,51 @@ public class ScanAllLibrariesJob : IJob
 
         context.Reporter.Update(new JobState
         {
-            ActivityText = phase,
+            ActivityText = WithProgress(phase, 0),
             ProgressCurrent = 0,
             ProgressTotal = 100
         });
 
-        var result = await scannerService.ScanAllLibrariesAsync(progress, status, context.CancellationToken);
+        var totalLibraries = libraries.Count;
+        var libraryIndex = 0;
+        var result = ScanResult.Empty;
+
+        foreach (var library in libraries)
+        {
+            if (context.CancellationToken.IsCancellationRequested)
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+            }
+
+            var displayName = string.IsNullOrWhiteSpace(library.Name)
+                ? Path.GetFileName(Path.TrimEndingDirectorySeparator(library.Path))
+                : library.Name;
+            phase = $"Scanning library: {displayName}";
+            status.Report(phase);
+
+            var subProgress = new Progress<float>(percent =>
+            {
+                var baseProgress = (float)libraryIndex / totalLibraries * 100;
+                var slice = 100f / totalLibraries;
+                progress.Report(baseProgress + (percent / 100f * slice));
+            });
+
+            result += await syncService.ProcessDirectoryAsync(
+                library,
+                library.Path,
+                subProgress,
+                status,
+                context.CancellationToken);
+
+            libraryIndex++;
+        }
 
         context.Reporter.Update(new JobState
         {
             ActivityText = "Completed",
             ProgressCurrent = 100,
             ProgressTotal = 100,
-            FinalText = $"Scanned {result.Scanned} files: {result.Added} added, {result.Updated} updated, {result.Moved} moved, {result.Removed} removed",
-            ResultSchemaVersion = 1,
-            ResultJson = JsonSerializer.Serialize(new
-            {
-                scanned = result.Scanned,
-                added = result.Added,
-                updated = result.Updated,
-                moved = result.Moved,
-                removed = result.Removed,
-            })
+            FinalText = $"Scanned {result.Scanned} files: {result.Added} added, {result.Updated} updated, {result.Moved} moved, {result.Removed} removed"
         });
     }
 }

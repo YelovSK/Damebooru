@@ -1,9 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import {
+  DuplicateType,
+  DamebooruPostDto,
   DuplicateGroup,
   DuplicatePost,
   ExcludedFile,
@@ -21,6 +23,8 @@ import { TabComponent } from '@shared/components/tabs/tab.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
+import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
+import { SettingsService } from '@services/settings.service';
 
 type DuplicateScope = 'all' | 'same-folder';
 
@@ -40,7 +44,7 @@ interface VisibleDuplicateGroup {
   key: string;
   scope: DuplicateScope;
   duplicateGroupId: number;
-  type: 'exact' | 'perceptual';
+  type: DuplicateType;
   similarityPercent: number | null;
   detectedDate: string | null;
   libraryName: string | null;
@@ -52,7 +56,7 @@ interface VisibleDuplicateGroup {
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, FormCheckboxComponent, PaginatorComponent],
+  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, FormCheckboxComponent, PaginatorComponent, PostPreviewOverlayComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
 })
@@ -60,22 +64,30 @@ export class DuplicatesPageComponent {
   private readonly damebooru = inject(DamebooruService);
   private readonly confirmService = inject(ConfirmService);
   private readonly toast = inject(ToastService);
+  private readonly settingsService = inject(SettingsService);
+  readonly duplicateType = DuplicateType;
+  readonly hoverPreviewEnabled = this.settingsService.enablePostPreviewOnHover;
+  readonly hoverPreviewDelayMs = computed(() => {
+    const raw = this.settingsService.postPreviewDelayMs();
+    if (!Number.isFinite(raw)) {
+      return 700;
+    }
+
+    return Math.max(0, Math.min(5000, Math.round(raw)));
+  });
 
   groups = signal<DuplicateGroup[]>([]);
-  loading = signal(true);
   exactCount = signal(0);
   perceptualCount = signal(0);
 
   resolvedGroups = signal<DuplicateGroup[]>([]);
-  resolvedLoading = signal(true);
 
   excludedFiles = signal<ExcludedFile[]>([]);
-  excludedLoading = signal(true);
 
   sameFolderGroups = signal<SameFolderDuplicateGroup[]>([]);
-  sameFolderLoading = signal(true);
 
   showSameFolderOnly = signal(false);
+  previewPost = signal<DamebooruPostDto | null>(null);
   readonly visiblePageSize = 25;
   visiblePage = signal(1);
   readonly resolvedPageSize = 25;
@@ -83,6 +95,9 @@ export class DuplicatesPageComponent {
   private groupsTabInitialized = false;
   private resolvedTabInitialized = false;
   private excludedTabInitialized = false;
+  private hoverPreviewTimer: ReturnType<typeof setTimeout> | null = null;
+  private hoveredPostId: number | null = null;
+  private readonly previewPostCache = new Map<number, DamebooruPostDto>();
 
   onGroupsTabInit() {
     if (this.groupsTabInitialized) {
@@ -179,7 +194,7 @@ export class DuplicatesPageComponent {
 
     for (const group of groups) {
       postCount += group.posts.length;
-      if (group.type === 'exact') {
+      if (group.type === DuplicateType.Exact) {
         exactCount++;
       } else {
         perceptualCount++;
@@ -234,10 +249,6 @@ export class DuplicatesPageComponent {
 
   getVisiblePerceptualCount(): number {
     return this.visibleStats().perceptualCount;
-  }
-
-  getDuplicatesLoading(): boolean {
-    return this.showSameFolderOnly() ? this.sameFolderLoading() : this.loading();
   }
 
   canBulkResolveVisible(): boolean {
@@ -401,22 +412,20 @@ export class DuplicatesPageComponent {
   }
 
   getResolvedExactCount(): number {
-    return this.resolvedGroups().filter(group => group.type === 'exact').length;
+    return this.resolvedGroups().filter(group => group.type === DuplicateType.Exact).length;
   }
 
   getResolvedPerceptualCount(): number {
-    return this.resolvedGroups().filter(group => group.type === 'perceptual').length;
+    return this.resolvedGroups().filter(group => group.type === DuplicateType.Perceptual).length;
   }
 
   loadResolvedGroups() {
-    this.resolvedLoading.set(true);
     this.damebooru.getResolvedDuplicateGroups().subscribe({
       next: (groups) => {
         this.resolvedGroups.set(groups);
-        this.resolvedPage.set(1);
-        this.resolvedLoading.set(false);
+        this.resolvedPage.set(Math.min(this.resolvedPage(), this.resolvedTotalPages()));
       },
-      error: () => this.resolvedLoading.set(false)
+      error: () => {}
     });
   }
 
@@ -480,32 +489,33 @@ export class DuplicatesPageComponent {
   }
 
   loadGroups() {
-    this.loading.set(true);
     this.damebooru.getDuplicateGroups().subscribe({
       next: (groups) => {
         this.groups.set(groups);
-        this.visiblePage.set(1);
-        this.exactCount.set(groups.filter(group => group.type === 'exact').length);
-        this.perceptualCount.set(groups.filter(group => group.type === 'perceptual').length);
-        this.loading.set(false);
+        this.visiblePage.set(Math.min(this.visiblePage(), this.visibleTotalPages()));
+        this.exactCount.set(groups.filter(group => group.type === DuplicateType.Exact).length);
+        this.perceptualCount.set(groups.filter(group => group.type === DuplicateType.Perceptual).length);
       },
-      error: () => this.loading.set(false)
+      error: () => {}
     });
   }
 
   loadSameFolderGroups() {
-    this.sameFolderLoading.set(true);
     this.damebooru.getSameFolderDuplicateGroups().subscribe({
       next: (groups) => {
         this.sameFolderGroups.set(groups);
-        this.visiblePage.set(1);
-        this.sameFolderLoading.set(false);
+        this.visiblePage.set(Math.min(this.visiblePage(), this.visibleTotalPages()));
       },
-      error: () => this.sameFolderLoading.set(false)
+      error: () => {}
     });
   }
 
   resolveAllExact() {
+    if (this.showSameFolderOnly()) {
+      this.resolveAllSameFolderExact();
+      return;
+    }
+
     const count = this.exactCount();
     this.confirmService.confirm({
       title: 'Resolve Exact Duplicates',
@@ -555,24 +565,66 @@ export class DuplicatesPageComponent {
     }).subscribe(confirmed => {
       if (!confirmed) return;
 
-      this.damebooru.resolveAllSameFolderDuplicates().subscribe({
-        next: (result) => {
-          this.reloadDuplicatesAndExcluded();
-          this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
-        },
-        error: () => this.toast.error('Failed to resolve same-folder duplicates.')
+      this.confirmService.confirm({
+        title: 'Confirm File Deletion',
+        message: 'This will DELETE files from disk. Do you REALLY want to delete all files in the selected duplicate groups?',
+        confirmText: 'Yes, Delete Files',
+        variant: 'danger',
+        requireTypedText: 'DELETE',
+      }).subscribe(doubleConfirmed => {
+        if (!doubleConfirmed) return;
+
+        this.damebooru.resolveAllSameFolderDuplicates().subscribe({
+          next: (result) => {
+            this.reloadDuplicatesAndExcluded();
+            this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
+          },
+          error: () => this.toast.error('Failed to resolve same-folder duplicates.')
+        });
+      });
+    });
+  }
+
+  resolveAllSameFolderExact() {
+    const count = this.sameFolderGroups().filter(group => group.duplicateType === DuplicateType.Exact).length;
+    if (count === 0) {
+      return;
+    }
+
+    this.confirmService.confirm({
+      title: 'Resolve Same-Folder Exact Duplicates',
+      message: `Auto-resolve all ${count} same-folder exact groups? This keeps the highest-quality post and deletes the rest from disk.`,
+      confirmText: 'Resolve All',
+      variant: 'danger',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.confirmService.confirm({
+        title: 'Confirm File Deletion',
+        message: 'This will DELETE files from disk. Do you REALLY want to delete all files in the selected exact duplicate groups?',
+        confirmText: 'Yes, Delete Files',
+        variant: 'danger',
+        requireTypedText: 'DELETE',
+      }).subscribe(doubleConfirmed => {
+        if (!doubleConfirmed) return;
+
+        this.damebooru.resolveAllSameFolderDuplicates(true).subscribe({
+          next: (result) => {
+            this.reloadDuplicatesAndExcluded();
+            this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
+          },
+          error: () => this.toast.error('Failed to resolve same-folder exact duplicates.')
+        });
       });
     });
   }
 
   loadExcludedFiles() {
-    this.excludedLoading.set(true);
     this.damebooru.getExcludedFiles().subscribe({
       next: (files) => {
         this.excludedFiles.set(files);
-        this.excludedLoading.set(false);
       },
-      error: () => this.excludedLoading.set(false)
+      error: () => {}
     });
   }
 
@@ -595,6 +647,30 @@ export class DuplicatesPageComponent {
     });
   }
 
+  clearAllExcludedFiles() {
+    const count = this.excludedFiles().length;
+    if (count === 0) {
+      return;
+    }
+
+    this.confirmService.confirm({
+      title: 'Remove All Exclusions',
+      message: `Remove all ${count} exclusions? Files will be re-imported on the next scan.`,
+      confirmText: 'Remove All',
+      variant: 'danger',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.damebooru.clearExcludedFiles().subscribe({
+        next: (result) => {
+          this.excludedFiles.set([]);
+          this.toast.success(`Removed ${result.removed} exclusion(s).`);
+        },
+        error: () => this.toast.error('Failed to remove exclusions.')
+      });
+    });
+  }
+
   getExcludedFileContentUrl(file: ExcludedFile): string {
     return this.damebooru.getExcludedFileContentUrl(file.id);
   }
@@ -609,6 +685,75 @@ export class DuplicatesPageComponent {
 
   onExcludedImageError(event: Event) {
     (event.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23374151" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239CA3AF" font-size="12">No image</text></svg>';
+  }
+
+  onPostCardMouseEnter(postId: number) {
+    if (!this.hoverPreviewEnabled()) {
+      return;
+    }
+
+    this.hoveredPostId = postId;
+    this.clearHoverPreviewTimer();
+    this.hoverPreviewTimer = setTimeout(() => {
+      this.hoverPreviewTimer = null;
+      this.showPostPreview(postId);
+    }, this.hoverPreviewDelayMs());
+  }
+
+  onPostCardMouseLeave(event: MouseEvent) {
+    this.hoveredPostId = null;
+    this.clearHoverPreviewTimer();
+
+    const related = event.relatedTarget as Element | null;
+    if (related?.closest('[data-preview-card]')) {
+      return;
+    }
+
+    this.previewPost.set(null);
+  }
+
+  closePreview() {
+    this.hoveredPostId = null;
+    this.clearHoverPreviewTimer();
+    this.previewPost.set(null);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey() {
+    this.closePreview();
+  }
+
+  private showPostPreview(postId: number) {
+    if (this.hoveredPostId !== postId) {
+      return;
+    }
+
+    const cached = this.previewPostCache.get(postId);
+    if (cached) {
+      this.previewPost.set(cached);
+      return;
+    }
+
+    this.damebooru.getPost(postId).subscribe({
+      next: (post) => {
+        this.previewPostCache.set(postId, post);
+        if (this.hoveredPostId === postId) {
+          this.previewPost.set(post);
+        }
+      },
+      error: () => {
+        if (this.hoveredPostId === postId) {
+          this.previewPost.set(null);
+        }
+      }
+    });
+  }
+
+  private clearHoverPreviewTimer() {
+    if (this.hoverPreviewTimer !== null) {
+      clearTimeout(this.hoverPreviewTimer);
+      this.hoverPreviewTimer = null;
+    }
   }
 
   private selectBestQualityVisiblePostId(posts: ReadonlyArray<DuplicatePost>): number | null {

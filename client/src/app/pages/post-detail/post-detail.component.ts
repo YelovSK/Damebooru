@@ -36,6 +36,7 @@ import {
   DamebooruPostDto,
   DamebooruPostsAroundDto,
   DamebooruTagDto,
+  DuplicateType,
   ManagedTagCategory,
   PostTagSource,
   SimilarPost,
@@ -90,6 +91,7 @@ export class PostDetailComponent {
 
   readonly appLinks = AppLinks;
   readonly postTagSource = PostTagSource;
+  readonly duplicateType = DuplicateType;
 
   // Video settings from user preferences
   readonly autoPlayVideos = this.settingsService.autoPlayVideos;

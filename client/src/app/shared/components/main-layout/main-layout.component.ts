@@ -32,6 +32,7 @@ export class MainLayoutComponent {
     { route: AppLinks.bulkTagging(), icon: 'icon-settings', label: 'Bulk-Tagging' },
     { route: AppLinks.tags(), icon: 'icon-settings', label: 'Tags' },
     { route: AppLinks.jobs(), icon: 'icon-settings', label: 'Jobs' },
+    { route: AppLinks.logs(), icon: 'icon-settings', label: 'Logs' },
     { route: AppLinks.duplicates(), icon: 'icon-settings', label: 'Duplicates' },
     { route: AppLinks.settings(), icon: 'icon-settings', label: 'Settings' },
     { route: AppLinks.info(), icon: 'icon-info', label: 'Info' },

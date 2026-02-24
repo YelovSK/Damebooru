@@ -21,9 +21,11 @@ public class TagsController : ControllerBase
         [FromQuery] string? query = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 100,
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? sortDirection = null,
         CancellationToken cancellationToken = default)
     {
-        return Ok(await _tagService.GetTagsAsync(query, page, pageSize, cancellationToken));
+        return Ok(await _tagService.GetTagsAsync(query, page, pageSize, sortBy, sortDirection, cancellationToken));
     }
 
     [HttpPost]

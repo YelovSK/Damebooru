@@ -5,7 +5,6 @@ using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
@@ -207,7 +206,7 @@ public class ApplyFolderTagsJob : IJob
 
             context.Reporter.Update(new JobState
             {
-                ActivityText = "Applying folder tags...",
+                ActivityText = $"Applying folder tags... ({processed}/{totalPosts})",
                 ProgressCurrent = processed,
                 ProgressTotal = totalPosts
             });
@@ -218,17 +217,7 @@ public class ApplyFolderTagsJob : IJob
             ActivityText = "Completed",
             ProgressCurrent = processed,
             ProgressTotal = totalPosts,
-            FinalText = $"Updated {updatedPosts} posts, added {addedTags} folder tags, removed {removedTags} stale folder tags, skipped {skipped}, failed {failed}.",
-            ResultSchemaVersion = 1,
-            ResultJson = JsonSerializer.Serialize(new
-            {
-                totalPosts,
-                updatedPosts,
-                addedTags,
-                removedTags,
-                skipped,
-                failed,
-            })
+            FinalText = $"Updated {updatedPosts} posts, added {addedTags} folder tags, removed {removedTags} stale folder tags, skipped {skipped}, failed {failed}."
         });
     }
 }

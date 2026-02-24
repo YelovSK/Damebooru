@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
@@ -51,7 +50,11 @@ public class CleanupOrphanedThumbnailsJob : IJob
 
         context.Reporter.Update(new JobState
         {
-            ActivityText = "Loading known content hashes..."
+            ActivityText = "Loading known content hashes...",
+            ProgressCurrent = null,
+            ProgressTotal = null,
+            ClearProgressCurrent = true,
+            ClearProgressTotal = true,
         });
         var knownThumbnailRelativePaths = (await db.Posts
                 .AsNoTracking()
@@ -112,7 +115,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
             {
                 context.Reporter.Update(new JobState
                 {
-                    ActivityText = "Cleaning orphaned thumbnails...",
+                    ActivityText = $"Cleaning orphaned thumbnails... ({processed}/{thumbnailFiles.Count})",
                     ProgressCurrent = processed,
                     ProgressTotal = thumbnailFiles.Count
                 });
@@ -124,14 +127,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
             ActivityText = "Completed",
             ProgressCurrent = thumbnailFiles.Count,
             ProgressTotal = thumbnailFiles.Count,
-            FinalText = $"Removed {deleted} orphaned thumbnails ({failed} failed).",
-            ResultSchemaVersion = 1,
-            ResultJson = JsonSerializer.Serialize(new
-            {
-                scanned = thumbnailFiles.Count,
-                deleted,
-                failed,
-            })
+            FinalText = $"Removed {deleted} orphaned thumbnails ({failed} failed)."
         });
         _logger.LogInformation(
             "Orphaned thumbnail cleanup complete: {Deleted} deleted, {Failed} failed, {Total} scanned",

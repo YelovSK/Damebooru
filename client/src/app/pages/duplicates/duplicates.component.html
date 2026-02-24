@@ -36,7 +36,7 @@
                     <app-button (click)="resolveAllVisible()" [variant]="showSameFolderOnly() ? 'danger' : 'primary'" size="md">
                         {{ getBulkResolveButtonLabel() }}
                     </app-button>
-                    @if (!showSameFolderOnly() && getVisibleExactCount() > 0) {
+                    @if (getVisibleExactCount() > 0) {
                     <app-button (click)="resolveAllExact()" variant="secondary" size="md">
                         Auto Resolve Exact Only ({{ getVisibleExactCount() }} groups)
                     </app-button>
@@ -45,9 +45,7 @@
                 </div>
                 }
 
-                @if (getDuplicatesLoading()) {
-                <div class="text-center py-16 text-gray-400">Loading duplicates...</div>
-                } @else if (getVisibleGroupCount() === 0) {
+                @if (getVisibleGroupCount() === 0) {
                 <div class="text-center py-16">
                     <div class="text-6xl mb-4">✓</div>
                     <h2 class="text-xl font-semibold text-white mb-2">No duplicates found</h2>
@@ -58,10 +56,10 @@
                 <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 md:p-5 mb-6 shadow-lg">
                     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <div class="flex flex-wrap items-center gap-3">
-                            <span [class]="group.type === 'exact'
+                            <span [class]="group.type === duplicateType.Exact
                               ? 'bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold'
                               : 'bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold'">
-                                {{ group.type === 'exact' ? 'EXACT' : 'PERCEPTUAL' }}
+                                {{ group.type === duplicateType.Exact ? 'EXACT' : 'PERCEPTUAL' }}
                             </span>
                             @if (group.similarityPercent) {
                             <span class="text-sm text-gray-400">~{{ group.similarityPercent }}% similar</span>
@@ -91,7 +89,9 @@
                         <div
                             class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors"
                             [class.hover:border-red-500]="isSameFolderScope(group)"
-                            [class.hover:border-accent-primary]="!isSameFolderScope(group)">
+                            [class.hover:border-accent-primary]="!isSameFolderScope(group)"
+                            (mouseenter)="onPostCardMouseEnter(post.id)"
+                            (mouseleave)="onPostCardMouseLeave($event)">
                             <div class="relative aspect-square overflow-hidden">
                                 <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
                                     class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
@@ -169,9 +169,7 @@
                 </div>
                 }
 
-                @if (resolvedLoading()) {
-                <div class="text-center py-16 text-gray-400">Loading resolved groups...</div>
-                } @else if (resolvedGroups().length === 0) {
+                @if (resolvedGroups().length === 0) {
                 <div class="text-center py-16">
                     <div class="text-6xl mb-4">🧹</div>
                     <h2 class="text-xl font-semibold text-white mb-2">No resolved groups</h2>
@@ -182,10 +180,10 @@
                 <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 md:p-5 mb-6 shadow-lg">
                     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <div class="flex flex-wrap items-center gap-3">
-                            <span [class]="group.type === 'exact'
+                            <span [class]="group.type === duplicateType.Exact
                               ? 'bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold'
                               : 'bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold'">
-                                {{ group.type === 'exact' ? 'EXACT' : 'PERCEPTUAL' }}
+                                {{ group.type === duplicateType.Exact ? 'EXACT' : 'PERCEPTUAL' }}
                             </span>
                             @if (group.similarityPercent) {
                             <span class="text-sm text-gray-400">~{{ group.similarityPercent }}% similar</span>
@@ -201,7 +199,9 @@
                     <div class="flex flex-wrap gap-3">
                         @for (post of group.posts; track post.id) {
                         <div
-                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-amber-500 transition-colors">
+                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-amber-500 transition-colors"
+                            (mouseenter)="onPostCardMouseEnter(post.id)"
+                            (mouseleave)="onPostCardMouseLeave($event)">
                             <div class="relative aspect-square overflow-hidden">
                                 <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
                                     class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
@@ -238,16 +238,19 @@
                     Click "Restore" to remove from the exclusion list - the file will be re-imported on the next scan.
                 </p>
 
-                @if (excludedLoading()) {
-                <div class="py-6 text-sm text-text-muted">Loading excluded files...</div>
-                } @else if (excludedFiles().length === 0) {
+                @if (excludedFiles().length === 0) {
                 <div class="text-center py-16">
                     <div class="text-6xl mb-4">📂</div>
                     <h2 class="text-xl font-semibold text-white mb-2">No excluded files</h2>
                     <p class="text-gray-400">Files removed during duplicate resolution will appear here.</p>
                 </div>
                 } @else {
-                <div class="mb-3 text-sm text-text-muted">{{ excludedFiles().length }} excluded file(s)</div>
+                <div class="mb-3 flex items-center justify-between gap-3">
+                    <div class="text-sm text-text-muted">{{ excludedFiles().length }} excluded file(s)</div>
+                    <app-button variant="danger" size="sm" (click)="clearAllExcludedFiles()">
+                        Remove All Exclusions
+                    </app-button>
+                </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     @for (file of excludedFiles(); track file.id) {
                     <div
@@ -275,4 +278,8 @@
             </ng-template>
         </app-tab>
     </app-tabs>
+
+    @if (previewPost(); as preview) {
+    <app-post-preview-overlay [post]="preview" (closed)="closePreview()" />
+    }
 </div>

@@ -2,15 +2,24 @@ using Damebooru.Core.Config;
 using Damebooru.Core.Interfaces;
 using Damebooru.Processing.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using PhotoSauce.MagicScaler;
+using PhotoSauce.NativeCodecs.Giflib;
+using PhotoSauce.NativeCodecs.Libjpeg;
+using PhotoSauce.NativeCodecs.Libjxl;
+using PhotoSauce.NativeCodecs.Libpng;
+using PhotoSauce.NativeCodecs.Libwebp;
 
 using Damebooru.Processing.Scanning;
 using Damebooru.Processing.Services;
-using Damebooru.Processing.Pipeline;
+using Damebooru.Processing.Services.Scanning;
 
 namespace Damebooru.Processing;
 
 public static class ServiceCollectionExtensions
 {
+    private static readonly object CodecRegistrationLock = new();
+    private static bool _codecsRegistered;
+
     public sealed class ProcessingOptions
     {
         public bool EnableScheduler { get; set; } = true;
@@ -27,6 +36,8 @@ public static class ServiceCollectionExtensions
         };
         configure?.Invoke(options);
 
+        RegisterImageCodecs();
+
         // Infrastructure
         services.AddSingleton<IHasherService, ContentHasher>();
         services.AddSingleton<IMediaFileProcessor, FFmpegProcessor>();
@@ -34,7 +45,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFileIdentityResolver, PlatformFileIdentityResolver>();
 
         // Core Pipeline Services
-        services.AddSingleton<ILibrarySyncProcessor, LibrarySyncProcessor>();
+        services.AddSingleton<ILibrarySyncProcessor, LibrarySyncService>();
         
         services.AddSingleton<ChannelPostIngestionService>();
         services.AddSingleton<IPostIngestionService>(sp => sp.GetRequiredService<ChannelPostIngestionService>());
@@ -47,7 +58,6 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddSingleton<IMediaSource, FileSystemMediaSource>();
-        services.AddTransient<IScannerService, RecursiveScanner>();
         services.AddTransient<FolderTaggingService>();
 
         // Jobs
@@ -55,11 +65,34 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IJob, Jobs.FindDuplicatesJob>();
         services.AddTransient<IJob, Jobs.GenerateThumbnailsJob>();
         services.AddTransient<IJob, Jobs.CleanupOrphanedThumbnailsJob>();
+        services.AddTransient<IJob, Jobs.CleanupInvalidExclusionsJob>();
         services.AddTransient<IJob, Jobs.ExtractMetadataJob>();
         services.AddTransient<IJob, Jobs.ComputeSimilarityJob>();
         services.AddTransient<IJob, Jobs.ApplyFolderTagsJob>();
         services.AddTransient<IJob, Jobs.SanitizeTagNamesJob>();
 
         return services;
+    }
+
+    private static void RegisterImageCodecs()
+    {
+        lock (CodecRegistrationLock)
+        {
+            if (_codecsRegistered)
+            {
+                return;
+            }
+
+            CodecManager.Configure(codecs =>
+            {
+                codecs.UseLibjpeg();
+                codecs.UseLibpng();
+                codecs.UseGiflib();
+                codecs.UseLibwebp();
+                codecs.UseLibjxl();
+            });
+
+            _codecsRegistered = true;
+        }
     }
 }

@@ -17,7 +17,7 @@ At the moment, the project is half-baked, and will very likely stay like that.
 ## Prerequisites (Local Development)
 - .NET 10 SDK
 - Node.js 22+ and npm
-- FFmpeg + FFprobe on `PATH` (required for thumbnails/metadata/similarity jobs)
+- FFmpeg + FFprobe on `PATH` (required for video thumbnails/metadata)
 
 ## Features
 - External library scanning (posts are created for images and videos in the given folder)
@@ -103,9 +103,6 @@ docker compose up -d --build
 ## Notes
 - Client uses `BACKEND_HOST` and `BACKEND_PORT` to point Nginx to the API container.
 - In `docker-compose.example.yml`, server is intentionally not published to host by default; the client talks to it over the compose network.
-
-## Documentation
-- Architecture: `docs/architecture.md`
 
 ## Images
 <img width="1745" height="1245" alt="image" src="https://github.com/user-attachments/assets/4cac6826-a8d5-4f29-a4ba-5096013ddc4c" />

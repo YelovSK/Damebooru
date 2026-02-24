@@ -50,16 +50,25 @@ internal sealed class JobReporter : IJobReporter
         => Update(new JobState { ActivityText = activityText });
 
     public void SetProgress(int? current, int? total)
-        => Update(new JobState { ProgressCurrent = current, ProgressTotal = total });
+        => Update(new JobState
+        {
+            ProgressCurrent = current,
+            ProgressTotal = total,
+            ClearProgressCurrent = false,
+            ClearProgressTotal = false,
+        });
 
     public void ClearProgress()
-        => Update(new JobState { ProgressCurrent = null, ProgressTotal = null });
+        => Update(new JobState
+        {
+            ProgressCurrent = null,
+            ProgressTotal = null,
+            ClearProgressCurrent = true,
+            ClearProgressTotal = true,
+        });
 
     public void SetFinalText(string? finalText)
         => Update(new JobState { FinalText = finalText });
-
-    public void SetResult(int? schemaVersion, string? resultJson)
-        => Update(new JobState { ResultSchemaVersion = schemaVersion, ResultJson = resultJson });
 
     public void Flush()
         => TryPublish(GetSnapshot(), force: true);
@@ -94,14 +103,19 @@ internal sealed class JobReporter : IJobReporter
 
     private static JobState MergeState(JobState current, JobState update)
     {
+        var progressCurrent = update.ClearProgressCurrent
+            ? null
+            : update.ProgressCurrent ?? current.ProgressCurrent;
+        var progressTotal = update.ClearProgressTotal
+            ? null
+            : update.ProgressTotal ?? current.ProgressTotal;
+
         return new JobState
         {
             ActivityText = NormalizeText(update.ActivityText) ?? current.ActivityText,
             FinalText = NormalizeText(update.FinalText) ?? current.FinalText,
-            ProgressCurrent = update.ProgressCurrent ?? current.ProgressCurrent,
-            ProgressTotal = update.ProgressTotal ?? current.ProgressTotal,
-            ResultSchemaVersion = update.ResultSchemaVersion ?? current.ResultSchemaVersion,
-            ResultJson = NormalizeText(update.ResultJson) ?? current.ResultJson,
+            ProgressCurrent = progressCurrent,
+            ProgressTotal = progressTotal,
         };
     }
 
@@ -113,8 +127,6 @@ internal sealed class JobReporter : IJobReporter
             FinalText = state.FinalText,
             ProgressCurrent = state.ProgressCurrent,
             ProgressTotal = state.ProgressTotal,
-            ResultSchemaVersion = state.ResultSchemaVersion,
-            ResultJson = state.ResultJson,
         };
     }
 

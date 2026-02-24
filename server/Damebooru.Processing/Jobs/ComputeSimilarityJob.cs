@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
-using System.Text.Json;
 
 namespace Damebooru.Processing.Jobs;
 
@@ -35,7 +34,7 @@ public class ComputeSimilarityJob : IJob
     public int DisplayOrder => 30;
     public JobKey Key => JobKey;
     public string Name => JobName;
-    public string Description => "Computes perceptual hashes (dHash + pHash) for image posts.";
+    public string Description => "Computes 256-bit PDQ hashes for image posts.";
     public bool SupportsAllMode => true;
 
     public async Task ExecuteAsync(JobContext context)
@@ -44,13 +43,11 @@ public class ComputeSimilarityJob : IJob
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
         var similarityService = scope.ServiceProvider.GetRequiredService<ISimilarityService>();
 
-        // Only images have perceptual hashes
+        // Only images have PDQ hashes
         var query = db.Posts.AsNoTracking().AsQueryable();
         if (context.Mode == JobMode.Missing)
         {
-            query = query.Where(p =>
-                p.PerceptualHash == null || p.PerceptualHash == 0 ||
-                p.PerceptualHashP == null || p.PerceptualHashP == 0);
+            query = query.Where(p => string.IsNullOrEmpty(p.PdqHash256));
         }
 
         var totalCandidates = await query.CountAsync(context.CancellationToken);
@@ -69,14 +66,15 @@ public class ComputeSimilarityJob : IJob
         }
 
         var scanned = 0;
+        var completed = 0;
         int processed = 0;
         int failed = 0;
         var lastId = 0;
 
         JobState BuildLiveState(string phase) => new()
         {
-            ActivityText = phase,
-            ProgressCurrent = Math.Min(totalCandidates, processed + failed),
+            ActivityText = $"{phase} ({Math.Min(totalCandidates, completed)}/{totalCandidates})",
+            ProgressCurrent = Math.Min(totalCandidates, completed),
             ProgressTotal = totalCandidates
         };
 
@@ -105,13 +103,20 @@ public class ComputeSimilarityJob : IJob
 
             if (imageBatch.Count == 0)
             {
+                Interlocked.Add(ref completed, batch.Count);
                 context.Reporter.Update(new JobState
                 {
-                    ActivityText = "Scanning candidates...",
-                    ProgressCurrent = scanned,
+                    ActivityText = $"Scanning candidates... ({Math.Min(totalCandidates, completed)}/{totalCandidates})",
+                    ProgressCurrent = Math.Min(totalCandidates, completed),
                     ProgressTotal = totalCandidates
                 });
                 continue;
+            }
+
+            var nonImageCount = batch.Count - imageBatch.Count;
+            if (nonImageCount > 0)
+            {
+                Interlocked.Add(ref completed, nonImageCount);
             }
 
             var results = new ConcurrentBag<(int PostId, SimilarityHashes? Hashes)>();
@@ -132,11 +137,13 @@ public class ComputeSimilarityJob : IJob
 
                         results.Add((post.Id, hashes));
                         Interlocked.Increment(ref processed);
+                        Interlocked.Increment(ref completed);
                         context.Reporter.Update(BuildLiveState("Computing similarity hashes..."));
                     }
                     catch (Exception ex)
                     {
                         Interlocked.Increment(ref failed);
+                        Interlocked.Increment(ref completed);
                         _logger.LogWarning(ex, "Failed to compute similarity hash for post {Id}: {Path}", post.Id, post.RelativePath);
                         context.Reporter.Update(BuildLiveState("Computing similarity hashes..."));
                     }
@@ -151,8 +158,7 @@ public class ComputeSimilarityJob : IJob
             {
                 if (entities.TryGetValue(result.PostId, out var entity))
                 {
-                    entity.PerceptualHash = result.Hashes?.DHash;
-                    entity.PerceptualHashP = result.Hashes?.PHash;
+                    entity.PdqHash256 = result.Hashes?.PdqHash256;
                 }
             }
 
@@ -164,17 +170,9 @@ public class ComputeSimilarityJob : IJob
         context.Reporter.Update(new JobState
         {
             ActivityText = "Completed",
-            ProgressCurrent = scanned,
+            ProgressCurrent = Math.Min(totalCandidates, completed),
             ProgressTotal = totalCandidates,
-            FinalText = $"Computed {processed} similarity hashes ({failed} failed).",
-            ResultSchemaVersion = 1,
-            ResultJson = JsonSerializer.Serialize(new
-            {
-                scanned,
-                totalCandidates,
-                processed,
-                failed,
-            })
+            FinalText = $"Computed {processed} similarity hashes ({failed} failed)."
         });
         _logger.LogInformation("Similarity hash computation complete: {Processed} processed, {Failed} failed", processed, failed);
     }

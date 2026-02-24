@@ -65,14 +65,6 @@ public class JobService : IJobService
         return (items, total);
     }
 
-    public async Task<JobExecution?> GetJobExecutionAsync(int executionId, CancellationToken cancellationToken = default)
-    {
-        await using var dbContext = await _dbContextFactory.CreateDbContextAsync(cancellationToken);
-        return await dbContext.JobExecutions
-            .AsNoTracking()
-            .FirstOrDefaultAsync(j => j.Id == executionId, cancellationToken);
-    }
-
     public Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken)
         => StartJobAsync(jobKey, cancellationToken, JobMode.Missing);
 
@@ -253,8 +245,6 @@ public class JobService : IJobService
             FinalText = state.FinalText,
             ProgressCurrent = state.ProgressCurrent,
             ProgressTotal = state.ProgressTotal,
-            ResultSchemaVersion = state.ResultSchemaVersion,
-            ResultJson = state.ResultJson,
         };
     }
 
@@ -346,8 +336,6 @@ public class JobService : IJobService
         execution.FinalText = NormalizeText(state.FinalText);
         execution.ProgressCurrent = state.ProgressCurrent;
         execution.ProgressTotal = state.ProgressTotal;
-        execution.ResultSchemaVersion = state.ResultSchemaVersion;
-        execution.ResultJson = NormalizeText(state.ResultJson);
     }
 
     private static string? NormalizeText(string? value)
@@ -375,9 +363,7 @@ public class JobService : IJobService
         return string.Equals(left.ActivityText, right.ActivityText, StringComparison.Ordinal)
             && string.Equals(left.FinalText, right.FinalText, StringComparison.Ordinal)
             && left.ProgressCurrent == right.ProgressCurrent
-            && left.ProgressTotal == right.ProgressTotal
-            && left.ResultSchemaVersion == right.ResultSchemaVersion
-            && string.Equals(left.ResultJson, right.ResultJson, StringComparison.Ordinal);
+            && left.ProgressTotal == right.ProgressTotal;
     }
 
 }

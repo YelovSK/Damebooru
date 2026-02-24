@@ -1,4 +1,5 @@
 using Damebooru.Core.Results;
+using Damebooru.Core.Paths;
 using Damebooru.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -36,10 +37,7 @@ public class PostContentService
             return Result<PostContentDescriptor>.Failure(OperationError.NotFound, "Post not found.");
         }
 
-        var fullPath = Path.GetFullPath(Path.Combine(post.LibraryPath, post.RelativePath));
-        var libraryRoot = Path.GetFullPath(post.LibraryPath + Path.DirectorySeparatorChar);
-
-        if (!fullPath.StartsWith(libraryRoot, StringComparison.OrdinalIgnoreCase))
+        if (!SafeSubpathResolver.TryResolve(post.LibraryPath, post.RelativePath, out var fullPath))
         {
             return Result<PostContentDescriptor>.Failure(OperationError.InvalidInput, "Invalid file path");
         }

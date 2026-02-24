@@ -17,6 +17,47 @@ namespace Damebooru.Data.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
 
+            modelBuilder.Entity("Damebooru.Core.Entities.AppLogEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Exception")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MessageTemplate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PropertiesJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.HasIndex("Category", "TimestampUtc");
+
+                    b.HasIndex("Level", "TimestampUtc");
+
+                    b.ToTable("AppLogEntries");
+                });
+
             modelBuilder.Entity("Damebooru.Core.Entities.DuplicateGroup", b =>
                 {
                     b.Property<int>("Id")
@@ -32,9 +73,8 @@ namespace Damebooru.Data.Migrations
                     b.Property<int?>("SimilarityPercent")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
@@ -71,6 +111,7 @@ namespace Damebooru.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("ContentHash")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("ExcludedDate")
@@ -125,12 +166,6 @@ namespace Damebooru.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("ProgressTotal")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ResultJson")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("ResultSchemaVersion")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("StartTime")
@@ -235,11 +270,9 @@ namespace Damebooru.Data.Migrations
                     b.Property<int>("LibraryId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<ulong?>("PerceptualHash")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<ulong?>("PerceptualHashP")
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("PdqHash256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("RelativePath")
                         .IsRequired()

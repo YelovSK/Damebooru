@@ -10,7 +10,7 @@ public class ExcludedFile
     public int LibraryId { get; set; }
     public Library Library { get; set; } = null!;
     public string RelativePath { get; set; } = string.Empty;
-    public string? ContentHash { get; set; }
+    public string ContentHash { get; set; } = string.Empty;
     public DateTime ExcludedDate { get; set; }
     public string Reason { get; set; } = string.Empty;
 }

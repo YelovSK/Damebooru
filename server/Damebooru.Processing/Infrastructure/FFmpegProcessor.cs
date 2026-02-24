@@ -1,12 +1,14 @@
 using Damebooru.Core;
 using Damebooru.Core.Interfaces;
+using Damebooru.Core.Paths;
 using FFMpegCore;
 using Microsoft.Extensions.Logging;
+using PhotoSauce.MagicScaler;
 
 namespace Damebooru.Processing.Infrastructure;
 
 /// <summary>
-/// Unified media processor using FFmpeg for all formats (images, videos, JXL, AVIF, WebP, etc.)
+/// Media processor using MagicScaler for images and FFmpeg for videos.
 /// </summary>
 public class FFmpegProcessor : IMediaFileProcessor
 {
@@ -30,30 +32,52 @@ public class FFmpegProcessor : IMediaFileProcessor
                 Directory.CreateDirectory(destinationDirectory);
             }
 
-            var analysis = await FFProbe.AnalyseAsync(sourcePath, null, cancellationToken);
-            var isVideo = IsVideo(analysis);
-            var duration = analysis.Duration;
+            var extension = Path.GetExtension(sourcePath);
+            if (SupportedMedia.IsImage(extension))
+            {
+                await GenerateImageThumbnailAsync(sourcePath, destinationPath, maxSize, cancellationToken);
+            }
+            else
+            {
+                await GenerateVideoThumbnailAsync(sourcePath, destinationPath, maxSize, cancellationToken);
+            }
 
-            var arguments = isVideo
-                // Video — avoid the first frame (often black/fade-in/logo).
-                ? FFMpegArguments.FromFileInput(sourcePath, true, options => options.Seek(GetVideoCaptureTime(duration)))
-                // Image — convert first frame.
-                : FFMpegArguments.FromFileInput(sourcePath);
-
-            await arguments
-                .OutputToFile(destinationPath, true, options => options
-                    .WithCustomArgument($"-vf \"scale={maxSize}:{maxSize}:force_original_aspect_ratio=decrease\"")
-                    .WithCustomArgument("-frames:v 1")
-                )
-                .ProcessAsynchronously();
-
-             EnsureThumbnailCreated(destinationPath, sourcePath);
+            EnsureThumbnailCreated(destinationPath, sourcePath);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate thumbnail for {Path}", sourcePath);
             throw;
         }
+    }
+
+    private static async Task GenerateImageThumbnailAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var settings = new ProcessImageSettings
+        {
+            Width = maxSize,
+            Height = maxSize,
+            ResizeMode = CropScaleMode.Max,
+        };
+
+        settings.TrySetEncoderFormat(MediaPaths.ThumbnailContentType);
+
+        await Task.Run(() => MagicImageProcessor.ProcessImage(sourcePath, destinationPath, settings), cancellationToken);
+    }
+
+    private static async Task GenerateVideoThumbnailAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken)
+    {
+        var analysis = await FFProbe.AnalyseAsync(sourcePath, null, cancellationToken);
+        var duration = analysis.Duration;
+
+        await FFMpegArguments
+            .FromFileInput(sourcePath, true, options => options.Seek(GetVideoCaptureTime(duration)))
+            .OutputToFile(destinationPath, true, options => options
+                .WithCustomArgument($"-vf \"scale={maxSize}:{maxSize}:force_original_aspect_ratio=decrease\"")
+                .WithCustomArgument("-frames:v 1"))
+            .ProcessAsynchronously();
     }
 
     private static TimeSpan GetVideoCaptureTime(TimeSpan duration)
@@ -86,14 +110,14 @@ public class FFmpegProcessor : IMediaFileProcessor
         if (!File.Exists(destinationPath))
         {
             throw new InvalidOperationException(
-                $"FFmpeg completed but did not create thumbnail. Source: '{sourcePath}', Destination: '{destinationPath}'.");
+                $"Thumbnail generation completed but did not create output. Source: '{sourcePath}', Destination: '{destinationPath}'.");
         }
 
         var size = new FileInfo(destinationPath).Length;
         if (size <= 0)
         {
             throw new InvalidOperationException(
-                $"FFmpeg created empty thumbnail file. Source: '{sourcePath}', Destination: '{destinationPath}'.");
+                $"Thumbnail generation created an empty output file. Source: '{sourcePath}', Destination: '{destinationPath}'.");
         }
     }
 
@@ -101,6 +125,22 @@ public class FFmpegProcessor : IMediaFileProcessor
     {
         try
         {
+            var extension = Path.GetExtension(filePath);
+            if (SupportedMedia.IsImage(extension))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var info = await Task.Run(() => ImageFileInfo.Load(filePath), cancellationToken);
+                var hasFrame = info.Frames.Count > 0;
+                var frame = hasFrame ? info.Frames[0] : default;
+
+                return new MediaMetadata
+                {
+                    Width = hasFrame ? frame.Width : 0,
+                    Height = hasFrame ? frame.Height : 0,
+                    Format = string.IsNullOrWhiteSpace(info.MimeType) ? "Unknown" : info.MimeType,
+                };
+            }
+
             var analysis = await FFProbe.AnalyseAsync(filePath, null, cancellationToken);
 
             return new MediaMetadata
@@ -120,26 +160,5 @@ public class FFmpegProcessor : IMediaFileProcessor
                 Format = "Unknown",
             };
         }
-    }
-
-    private static bool IsVideo(IMediaAnalysis analysis)
-    {
-        if (analysis.PrimaryVideoStream == null)
-        {
-            return false;
-        }
-
-        var format = (analysis.Format.FormatName ?? "").ToLowerInvariant();
-        
-        // Exclude image formats that might have video streams
-        if (format.Contains("jpeg") || format.Contains("jxl") || 
-            format.Contains("png") || format.Contains("gif") || 
-            format.Contains("webp") || format.Contains("bmp"))
-        {
-            return false;
-        }
-        
-        // Additional check: duration should be meaningful for actual videos
-        return analysis.Duration > TimeSpan.FromMilliseconds(100);
     }
 }

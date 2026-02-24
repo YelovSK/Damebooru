@@ -112,6 +112,11 @@ export enum PostTagSource {
   Ai = 2,
 }
 
+export enum DuplicateType {
+  Exact = 0,
+  Perceptual = 1,
+}
+
 export interface DamebooruPostDto {
   id: number;
   libraryId: number;
@@ -167,6 +172,7 @@ export const KNOWN_JOB_KEYS = [
   "find-duplicates",
   "generate-thumbnails",
   "cleanup-orphaned-thumbnails",
+  "cleanup-invalid-exclusions",
   "apply-folder-tags",
   "sanitize-tag-names",
 ] as const;
@@ -185,8 +191,6 @@ export interface JobState {
   finalText?: string;
   progressCurrent?: number;
   progressTotal?: number;
-  resultSchemaVersion?: number;
-  resultJson?: string;
 }
 
 export interface JobInfo {
@@ -220,234 +224,6 @@ export interface JobExecution {
   state?: JobState;
 }
 
-export interface JobResult {
-  executionId: number;
-  jobKey: JobKey;
-  schemaVersion?: number;
-  resultJson: string;
-}
-
-export interface ScanAllLibrariesJobResult {
-  scanned: number;
-  added: number;
-  updated: number;
-  moved: number;
-  removed: number;
-}
-
-export interface GenerateThumbnailsJobResult {
-  scanned: number;
-  totalCandidates: number;
-  generated: number;
-  failed: number;
-  skipped: number;
-}
-
-export interface ExtractMetadataJobResult {
-  totalPosts: number;
-  processed: number;
-  failed: number;
-}
-
-export interface ComputeSimilarityJobResult {
-  scanned: number;
-  totalCandidates: number;
-  processed: number;
-  failed: number;
-}
-
-export interface CleanupOrphanedThumbnailsJobResult {
-  scanned: number;
-  deleted: number;
-  failed: number;
-}
-
-export interface ApplyFolderTagsJobResult {
-  totalPosts: number;
-  updatedPosts: number;
-  addedTags: number;
-  removedTags: number;
-  skipped: number;
-  failed: number;
-}
-
-export interface SanitizeTagNamesJobResult {
-  totalTags: number;
-  processed: number;
-  renamed: number;
-  merged: number;
-  failed: number;
-}
-
-export interface FindDuplicatesJobResult {
-  groups: number;
-  exactGroups: number;
-  perceptualGroups: number;
-  matchedPairs: number;
-  totalEntries: number;
-}
-
-export type KnownJobResult =
-  | {
-      type: "scan-all-libraries.v1";
-      data: ScanAllLibrariesJobResult;
-    }
-  | {
-      type: "generate-thumbnails.v1";
-      data: GenerateThumbnailsJobResult;
-    }
-  | {
-      type: "extract-metadata.v1";
-      data: ExtractMetadataJobResult;
-    }
-  | {
-      type: "compute-similarity.v1";
-      data: ComputeSimilarityJobResult;
-    }
-  | {
-      type: "cleanup-orphaned-thumbnails.v1";
-      data: CleanupOrphanedThumbnailsJobResult;
-    }
-  | {
-      type: "apply-folder-tags.v1";
-      data: ApplyFolderTagsJobResult;
-    }
-  | {
-      type: "sanitize-tag-names.v1";
-      data: SanitizeTagNamesJobResult;
-    }
-  | {
-      type: "find-duplicates.v1";
-      data: FindDuplicatesJobResult;
-    };
-
-export function parseKnownJobResult(
-  jobKey: JobKey,
-  schemaVersion: number | undefined,
-  resultJson: string | undefined,
-): KnownJobResult | null {
-  if (!resultJson || resultJson.trim().length === 0) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(resultJson) as unknown;
-
-    if (jobKey === "scan-all-libraries" && schemaVersion === 1) {
-      const candidate = parsed as Partial<ScanAllLibrariesJobResult>;
-      if (
-        typeof candidate.scanned === "number" &&
-        typeof candidate.added === "number" &&
-        typeof candidate.updated === "number" &&
-        typeof candidate.moved === "number" &&
-        typeof candidate.removed === "number"
-      ) {
-        return {
-          type: "scan-all-libraries.v1",
-          data: {
-            scanned: candidate.scanned,
-            added: candidate.added,
-            updated: candidate.updated,
-            moved: candidate.moved,
-            removed: candidate.removed,
-          },
-        };
-      }
-    }
-
-    if (jobKey === "generate-thumbnails" && schemaVersion === 1) {
-      const candidate = parsed as Partial<GenerateThumbnailsJobResult>;
-      if (
-        typeof candidate.scanned === "number" &&
-        typeof candidate.totalCandidates === "number" &&
-        typeof candidate.generated === "number" &&
-        typeof candidate.failed === "number" &&
-        typeof candidate.skipped === "number"
-      ) {
-        return { type: "generate-thumbnails.v1", data: candidate as GenerateThumbnailsJobResult };
-      }
-    }
-
-    if (jobKey === "extract-metadata" && schemaVersion === 1) {
-      const candidate = parsed as Partial<ExtractMetadataJobResult>;
-      if (
-        typeof candidate.totalPosts === "number" &&
-        typeof candidate.processed === "number" &&
-        typeof candidate.failed === "number"
-      ) {
-        return { type: "extract-metadata.v1", data: candidate as ExtractMetadataJobResult };
-      }
-    }
-
-    if (jobKey === "compute-similarity" && schemaVersion === 1) {
-      const candidate = parsed as Partial<ComputeSimilarityJobResult>;
-      if (
-        typeof candidate.scanned === "number" &&
-        typeof candidate.totalCandidates === "number" &&
-        typeof candidate.processed === "number" &&
-        typeof candidate.failed === "number"
-      ) {
-        return { type: "compute-similarity.v1", data: candidate as ComputeSimilarityJobResult };
-      }
-    }
-
-    if (jobKey === "cleanup-orphaned-thumbnails" && schemaVersion === 1) {
-      const candidate = parsed as Partial<CleanupOrphanedThumbnailsJobResult>;
-      if (
-        typeof candidate.scanned === "number" &&
-        typeof candidate.deleted === "number" &&
-        typeof candidate.failed === "number"
-      ) {
-        return { type: "cleanup-orphaned-thumbnails.v1", data: candidate as CleanupOrphanedThumbnailsJobResult };
-      }
-    }
-
-    if (jobKey === "apply-folder-tags" && schemaVersion === 1) {
-      const candidate = parsed as Partial<ApplyFolderTagsJobResult>;
-      if (
-        typeof candidate.totalPosts === "number" &&
-        typeof candidate.updatedPosts === "number" &&
-        typeof candidate.addedTags === "number" &&
-        typeof candidate.removedTags === "number" &&
-        typeof candidate.skipped === "number" &&
-        typeof candidate.failed === "number"
-      ) {
-        return { type: "apply-folder-tags.v1", data: candidate as ApplyFolderTagsJobResult };
-      }
-    }
-
-    if (jobKey === "sanitize-tag-names" && schemaVersion === 1) {
-      const candidate = parsed as Partial<SanitizeTagNamesJobResult>;
-      if (
-        typeof candidate.totalTags === "number" &&
-        typeof candidate.processed === "number" &&
-        typeof candidate.renamed === "number" &&
-        typeof candidate.merged === "number" &&
-        typeof candidate.failed === "number"
-      ) {
-        return { type: "sanitize-tag-names.v1", data: candidate as SanitizeTagNamesJobResult };
-      }
-    }
-
-    if (jobKey === "find-duplicates" && schemaVersion === 1) {
-      const candidate = parsed as Partial<FindDuplicatesJobResult>;
-      if (
-        typeof candidate.groups === "number" &&
-        typeof candidate.exactGroups === "number" &&
-        typeof candidate.perceptualGroups === "number" &&
-        typeof candidate.matchedPairs === "number" &&
-        typeof candidate.totalEntries === "number"
-      ) {
-        return { type: "find-duplicates.v1", data: candidate as FindDuplicatesJobResult };
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export interface JobHistoryResponse {
   items: JobExecution[];
   total: number;
@@ -464,7 +240,7 @@ export interface SimilarPost {
   contentType: string;
   thumbnailLibraryId: number;
   thumbnailContentHash: string;
-  duplicateType: "exact" | "perceptual" | string;
+  duplicateType: DuplicateType;
   similarityPercent: number | null;
   groupIsResolved: boolean;
 }
@@ -514,7 +290,7 @@ export interface DuplicatePost {
 
 export interface DuplicateGroup {
   id: number;
-  type: "exact" | "perceptual";
+  type: DuplicateType;
   similarityPercent: number | null;
   detectedDate: string;
   posts: DuplicatePost[];
@@ -525,9 +301,13 @@ export interface ExcludedFile {
   libraryId: number;
   libraryName: string;
   relativePath: string;
-  contentHash: string | null;
+  contentHash: string;
   excludedDate: string;
   reason: string;
+}
+
+export interface ClearExcludedFilesResponse {
+  removed: number;
 }
 
 export interface SameFolderDuplicatePost {
@@ -546,7 +326,7 @@ export interface SameFolderDuplicatePost {
 
 export interface SameFolderDuplicateGroup {
   parentDuplicateGroupId: number;
-  duplicateType: "exact" | "perceptual";
+  duplicateType: DuplicateType;
   similarityPercent: number | null;
   libraryId: number;
   libraryName: string;
@@ -572,4 +352,20 @@ export interface ResolveSameFolderResponse {
   resolvedGroups: number;
   deletedPosts: number;
   skippedGroups: number;
+}
+
+export interface AppLogEntry {
+  id: number;
+  timestampUtc: string;
+  level: string;
+  category: string;
+  message: string;
+  exception?: string;
+  messageTemplate?: string;
+  propertiesJson?: string;
+}
+
+export interface AppLogList {
+  items: AppLogEntry[];
+  hasMore: boolean;
 }
