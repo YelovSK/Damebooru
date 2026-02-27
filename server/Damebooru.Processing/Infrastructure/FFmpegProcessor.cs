@@ -10,13 +10,13 @@ namespace Damebooru.Processing.Infrastructure;
 /// <summary>
 /// Media processor using MagicScaler for images and FFmpeg for videos.
 /// </summary>
-public class FFmpegProcessor : IMediaFileProcessor
+public class MediaProcessor : IMediaFileProcessor
 {
-    private readonly ILogger<FFmpegProcessor> _logger;
+    private readonly ILogger<MediaProcessor> _logger;
     private static readonly TimeSpan MinVideoCaptureTime = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan MaxVideoCaptureTime = TimeSpan.FromSeconds(10);
 
-    public FFmpegProcessor(ILogger<FFmpegProcessor> logger)
+    public MediaProcessor(ILogger<MediaProcessor> logger)
     {
         _logger = logger;
     }

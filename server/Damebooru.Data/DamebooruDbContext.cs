@@ -15,6 +15,7 @@ public class DamebooruDbContext : DbContext
     public DbSet<TagCategory> TagCategories { get; set; } = null!;
     public DbSet<PostTag> PostTags { get; set; } = null!;
     public DbSet<PostSource> PostSources { get; set; } = null!;
+    public DbSet<PostAuditEntry> PostAuditEntries { get; set; } = null!;
 
     public DbSet<JobExecution> JobExecutions { get; set; } = null!;
     public DbSet<ScheduledJob> ScheduledJobs { get; set; } = null!;
@@ -55,6 +56,12 @@ public class DamebooruDbContext : DbContext
             .HasOne(ps => ps.Post)
             .WithMany(p => p.Sources)
             .HasForeignKey(ps => ps.PostId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PostAuditEntry>()
+            .HasOne(e => e.Post)
+            .WithMany()
+            .HasForeignKey(e => e.PostId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Configure Library -> Post relationship
@@ -108,6 +115,12 @@ public class DamebooruDbContext : DbContext
         modelBuilder.Entity<PostSource>()
             .HasIndex(ps => new { ps.PostId, ps.Order })
             .IsUnique();
+
+        modelBuilder.Entity<PostAuditEntry>()
+            .HasIndex(e => new { e.PostId, e.Id });
+
+        modelBuilder.Entity<PostAuditEntry>()
+            .HasIndex(e => e.OccurredAtUtc);
 
         modelBuilder.Entity<Tag>()
             .HasIndex(t => t.Name)

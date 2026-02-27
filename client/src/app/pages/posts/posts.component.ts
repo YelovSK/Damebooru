@@ -47,27 +47,17 @@ import { SettingsService } from "@services/settings.service";
 import { PostPreviewOverlayComponent } from "@shared/components/post-preview-overlay/post-preview-overlay.component";
 import { PostTileComponent } from "@shared/components/post-tile/post-tile.component";
 import {
-  getFirstVisibleOffsetForRowIndex,
-  getPageForRowIndex,
-  getRowIndexForOffset,
-  getRowIndexForScrollTop,
-  getVirtualContentHeightPx,
-  getVirtualRowCount,
-  getVirtualRowPosition,
   offsetToPage,
 } from "./posts-row-math";
+import { POSTS_PAGE_SIZE } from "./posts.constants";
 import { VirtualRowIndexDataSource } from "./posts-row-index.data-source";
 import { PostsPageCacheStore } from "./posts-page-cache.store";
 import { PostsFastScrollerController } from "./posts-fast-scroller.controller";
-import { PostsCyclicGridStrategyDirective } from "./posts-cyclic-grid-strategy.directive";
 import {
   GridCell,
   GridDensity,
   PageStatus,
-  PostRow,
   RouteState,
-  VirtualRow,
-  VirtualRowPosition,
 } from "./posts.types";
 
 @Component({
@@ -76,7 +66,6 @@ import {
     CommonModule,
     AutocompleteComponent,
     ScrollingModule,
-    PostsCyclicGridStrategyDirective,
     PostPreviewOverlayComponent,
     PostTileComponent,
   ],
@@ -86,8 +75,6 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PostsComponent implements AfterViewInit {
-  private static readonly PAGE_SIZE = 100;
-
   private static readonly GRID_GAP_PX = 8;
   private static readonly MOBILE_BREAKPOINT_PX = 768;
   private static readonly MIN_TILE_SIZE_PX = 56;
@@ -154,10 +141,10 @@ export class PostsComponent implements AfterViewInit {
     label: string;
     targetPx: number;
   }[] = [
-    { value: "compact", label: "Compact", targetPx: 150 },
-    { value: "comfortable", label: "Comfortable", targetPx: 200 },
-    { value: "cozy", label: "Cozy", targetPx: 260 },
-  ];
+      { value: "compact", label: "Compact", targetPx: 150 },
+      { value: "comfortable", label: "Comfortable", targetPx: 200 },
+      { value: "cozy", label: "Cozy", targetPx: 260 },
+    ];
 
   density = signal<GridDensity>(this.getInitialDensity());
 
@@ -204,24 +191,21 @@ export class PostsComponent implements AfterViewInit {
       return 0;
     }
 
-    return Math.ceil(total / PostsComponent.PAGE_SIZE);
+    return Math.ceil(total / POSTS_PAGE_SIZE);
   });
 
   readonly rowItemHeightPx = computed(
     () => this.tileSizePx() + PostsComponent.GRID_GAP_PX,
   );
-  readonly separatorRowHeightPx = computed(() => {
-    const postRowHeight = this.rowItemHeightPx();
-    return Math.max(28, Math.min(48, Math.round(postRowHeight * 0.38)));
+  readonly virtualRowCount = computed(() => {
+    const columns = Math.max(1, this.columns());
+    const total = this.totalCount();
+    if (total === null) {
+      return Math.max(1, Math.ceil(POSTS_PAGE_SIZE / columns));
+    }
+
+    return Math.ceil(Math.max(0, total) / columns);
   });
-  readonly virtualRowCount = computed(() =>
-    getVirtualRowCount(
-      this.totalCount(),
-      this.anchorPageHint(),
-      PostsComponent.PAGE_SIZE,
-      this.columns(),
-    ),
-  );
   readonly virtualRowDataSource = new VirtualRowIndexDataSource();
 
   readonly hasNoResults = computed(
@@ -229,7 +213,7 @@ export class PostsComponent implements AfterViewInit {
   );
 
   readonly currentPage = computed(() =>
-    offsetToPage(this.currentOffset(), PostsComponent.PAGE_SIZE),
+    offsetToPage(this.currentOffset(), POSTS_PAGE_SIZE),
   );
 
   readonly gridTemplateColumns = computed(
@@ -450,13 +434,11 @@ export class PostsComponent implements AfterViewInit {
   trackVirtualRow = (index: number): string => this.getRowIdByIndex(index);
 
   isSeparatorRow(rowIndex: number): boolean {
-    return (this.getVirtualRowPosition(rowIndex)?.rowOffsetInPage ?? -1) === 0;
+    return false;
   }
 
   getRowHeightPx(rowIndex: number): number {
-    return this.isSeparatorRow(rowIndex)
-      ? this.separatorRowHeightPx()
-      : this.rowItemHeightPx();
+    return this.rowItemHeightPx();
   }
 
   onQueryChange(word: string): void {
@@ -510,13 +492,11 @@ export class PostsComponent implements AfterViewInit {
   }
 
   getRowCells(rowIndex: number): GridCell[] {
-    const position = this.getVirtualRowPosition(rowIndex);
-    if (!position || position.rowOffsetInPage === 0) {
+    if (rowIndex < 0) {
       return [];
     }
 
-    const rowInPage = position.rowOffsetInPage - 1;
-    const rowId = this.getPostRowId(position.page, rowInPage);
+    const rowId = this.getRowIdByIndex(rowIndex);
 
     const cached = this.rowCellsCache.get(rowId);
     if (cached) {
@@ -525,20 +505,30 @@ export class PostsComponent implements AfterViewInit {
 
     const cells: GridCell[] = [];
     const columns = Math.max(1, this.columns());
-    const entry = this.pageCache().get(position.page);
-
-    const startInPage = rowInPage * columns;
-    const count = Math.min(
-      columns,
-      Math.max(0, position.pageItemCount - startInPage),
-    );
+    const rowStartOffset = rowIndex * columns;
+    const totalCount = this.totalCount();
 
     for (let col = 0; col < columns; col += 1) {
-      const cellIndexInPage = startInPage + col;
-      const shouldHaveContent = col < count;
+      const absoluteOffset = rowStartOffset + col;
+      const shouldHaveContent =
+        totalCount === null || absoluteOffset < totalCount;
 
-      if (entry?.status === "ready" && shouldHaveContent) {
-        const post = entry.items[cellIndexInPage] ?? null;
+      if (!shouldHaveContent) {
+        cells.push({
+          kind: "placeholder",
+          post: null,
+          trackKey: `placeholder-${rowId}-${col}`,
+        });
+        continue;
+      }
+
+      const page = this.offsetToPage(absoluteOffset);
+      const pageBaseOffset = (page - 1) * POSTS_PAGE_SIZE;
+      const indexInPage = absoluteOffset - pageBaseOffset;
+      const entry = this.pageCache().get(page);
+
+      if (entry?.status === "ready") {
+        const post = entry.items[indexInPage] ?? null;
         if (post) {
           cells.push({
             kind: "post",
@@ -549,7 +539,7 @@ export class PostsComponent implements AfterViewInit {
         }
       }
 
-      if (shouldHaveContent && entry?.status !== "error") {
+      if (entry?.status !== "error") {
         cells.push({
           kind: "skeleton",
           post: null,
@@ -700,7 +690,7 @@ export class PostsComponent implements AfterViewInit {
     this.latestMeasuredOffset = targetOffset;
     this.currentOffset.set(targetOffset);
 
-    const targetPage = offsetToPage(targetOffset, PostsComponent.PAGE_SIZE);
+    const targetPage = offsetToPage(targetOffset, POSTS_PAGE_SIZE);
     this.anchorPageHint.set(targetPage);
     this.fastScrollerBubblePage.set(targetPage);
     this.pageCacheStore.setCurrentPageHint(targetPage);
@@ -730,7 +720,7 @@ export class PostsComponent implements AfterViewInit {
     }
 
     const targetPage = this.clamp(this.currentPage() + delta, 1, totalPages);
-    const targetOffset = (targetPage - 1) * PostsComponent.PAGE_SIZE;
+    const targetOffset = (targetPage - 1) * POSTS_PAGE_SIZE;
 
     this.ensurePageLoaded(targetPage);
     this.prefetchAroundPages(new Set([targetPage]));
@@ -752,7 +742,8 @@ export class PostsComponent implements AfterViewInit {
 
     const pagesInView = new Set<number>();
     for (let index = startIndex; index <= endIndex; index += 1) {
-      pagesInView.add(this.getPageForRowIndex(index));
+      const rowOffset = index * Math.max(1, this.columns());
+      pagesInView.add(this.offsetToPage(rowOffset));
     }
 
     this.prefetchAroundPages(pagesInView);
@@ -982,7 +973,7 @@ export class PostsComponent implements AfterViewInit {
     if (
       !this.toolbarHidden() &&
       this.toolbarScrollAccumulator >=
-        PostsComponent.TOOLBAR_HIDE_SCROLL_DELTA_PX
+      PostsComponent.TOOLBAR_HIDE_SCROLL_DELTA_PX
     ) {
       this.toolbarScrollAccumulator = 0;
       this.setToolbarHidden(true);
@@ -992,7 +983,7 @@ export class PostsComponent implements AfterViewInit {
     if (
       this.toolbarHidden() &&
       this.toolbarScrollAccumulator <=
-        -PostsComponent.TOOLBAR_SHOW_SCROLL_DELTA_PX
+      -PostsComponent.TOOLBAR_SHOW_SCROLL_DELTA_PX
     ) {
       this.toolbarScrollAccumulator = 0;
       this.setToolbarHidden(false);
@@ -1032,15 +1023,7 @@ export class PostsComponent implements AfterViewInit {
 
     const viewportHeight = viewport.getViewportSize();
     const railHeight = rail.clientHeight;
-    const contentHeight = getVirtualContentHeightPx(
-      this.virtualRowCount(),
-      this.totalCount(),
-      PostsComponent.PAGE_SIZE,
-      this.columns(),
-      this.anchorPageHint(),
-      this.rowItemHeightPx(),
-      this.separatorRowHeightPx(),
-    );
+    const contentHeight = this.virtualRowCount() * this.rowItemHeightPx();
     const scrollTop = viewport.measureScrollOffset("top");
 
     if (viewportHeight <= 0 || railHeight <= 0 || contentHeight <= 0) {
@@ -1193,7 +1176,7 @@ export class PostsComponent implements AfterViewInit {
       1,
       Math.floor(
         (width + PostsComponent.GRID_GAP_PX) /
-          (densityTarget + PostsComponent.GRID_GAP_PX),
+        (densityTarget + PostsComponent.GRID_GAP_PX),
       ),
     );
   }
@@ -1209,7 +1192,7 @@ export class PostsComponent implements AfterViewInit {
       1,
       Math.floor(
         (width + PostsComponent.GRID_GAP_PX) /
-          (PostsComponent.MIN_TILE_SIZE_PX + PostsComponent.GRID_GAP_PX),
+        (PostsComponent.MIN_TILE_SIZE_PX + PostsComponent.GRID_GAP_PX),
       ),
     );
 
@@ -1221,12 +1204,12 @@ export class PostsComponent implements AfterViewInit {
     offset: number | null,
   ): number {
     if (page !== null) {
-      const pageBaseOffset = (page - 1) * PostsComponent.PAGE_SIZE;
+      const pageBaseOffset = (page - 1) * POSTS_PAGE_SIZE;
       if (offset !== null) {
         const inPageOffset = this.clamp(
           offset - pageBaseOffset,
           0,
-          PostsComponent.PAGE_SIZE - 1,
+          POSTS_PAGE_SIZE - 1,
         );
         return pageBaseOffset + inPageOffset;
       }
@@ -1242,84 +1225,38 @@ export class PostsComponent implements AfterViewInit {
   }
 
   private getPageForRowIndex(rowIndex: number): number {
-    return getPageForRowIndex(
-      rowIndex,
-      this.virtualRowCount(),
-      this.totalCount(),
-      PostsComponent.PAGE_SIZE,
-      this.columns(),
-      this.anchorPageHint(),
-    );
+    const columns = Math.max(1, this.columns());
+    return this.offsetToPage(rowIndex * columns);
   }
 
   private getFirstVisiblePostOffsetFromRowIndex(rowIndex: number): number {
-    return getFirstVisibleOffsetForRowIndex(
-      rowIndex,
-      this.virtualRowCount(),
-      this.totalCount(),
-      PostsComponent.PAGE_SIZE,
-      this.columns(),
-      this.anchorPageHint(),
-    );
+    const columns = Math.max(1, this.columns());
+    const totalCount = this.totalCount();
+    const offset = Math.max(0, rowIndex) * columns;
+    if (totalCount === null || totalCount <= 0) {
+      return offset;
+    }
+
+    return this.clamp(offset, 0, totalCount - 1);
   }
 
   private getRowIndexForOffset(offset: number): number {
-    return getRowIndexForOffset(
-      offset,
-      this.virtualRowCount(),
-      this.totalCount(),
-      PostsComponent.PAGE_SIZE,
-      this.columns(),
-    );
+    const columns = Math.max(1, this.columns());
+    const normalized = Math.max(0, offset);
+    return Math.floor(normalized / columns);
   }
 
   private getRowIndexForScrollTop(scrollTop: number): number {
-    return getRowIndexForScrollTop(
-      scrollTop,
-      this.virtualRowCount(),
-      this.totalCount(),
-      PostsComponent.PAGE_SIZE,
-      this.columns(),
-      this.anchorPageHint(),
-      this.rowItemHeightPx(),
-      this.separatorRowHeightPx(),
-    );
+    const rowHeight = Math.max(1, this.rowItemHeightPx());
+    return Math.max(0, Math.floor(Math.max(0, scrollTop) / rowHeight));
   }
 
   private getRowIdByIndex(rowIndex: number): string {
-    const position = this.getVirtualRowPosition(rowIndex);
-    if (!position) {
-      return `r${rowIndex}`;
-    }
-
-    if (position.rowOffsetInPage === 0) {
-      return this.getSeparatorRowId(position.page);
-    }
-
-    return this.getPostRowId(position.page, position.rowOffsetInPage - 1);
-  }
-
-  getVirtualRowPosition(rowIndex: number): VirtualRowPosition | null {
-    return getVirtualRowPosition(
-      rowIndex,
-      this.virtualRowCount(),
-      this.totalCount(),
-      PostsComponent.PAGE_SIZE,
-      this.columns(),
-      this.anchorPageHint(),
-    );
-  }
-
-  private getSeparatorRowId(page: number): string {
-    return `p${page}-s`;
-  }
-
-  private getPostRowId(page: number, rowInPage: number): string {
-    return `p${page}-r${rowInPage}`;
+    return `r${rowIndex}`;
   }
 
   private offsetToPage(offset: number): number {
-    return offsetToPage(offset, PostsComponent.PAGE_SIZE);
+    return offsetToPage(offset, POSTS_PAGE_SIZE);
   }
 
   private parsePositiveInt(value: string | null | undefined): number | null {
@@ -1377,7 +1314,7 @@ export class PostsComponent implements AfterViewInit {
     return Math.min(max, Math.max(min, value));
   }
 
-  readonly pageSize = PostsComponent.PAGE_SIZE;
+  readonly pageSize = POSTS_PAGE_SIZE;
   readonly gridGapPx = PostsComponent.GRID_GAP_PX;
 
   private clearHoverPreviewTimer(): void {

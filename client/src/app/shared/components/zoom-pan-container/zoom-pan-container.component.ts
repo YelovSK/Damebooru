@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
 
 @Component({
   selector: 'app-zoom-pan-container',
@@ -14,6 +14,8 @@ export class ZoomPanContainerComponent {
   readonly zoomLevel = signal(1);
   readonly panX = signal(0);
   readonly panY = signal(0);
+
+  readonly zoomDelta = input<number>(0.15);
 
   isDragging = false;
   private dragStartX = 0;
@@ -31,6 +33,14 @@ export class ZoomPanContainerComponent {
 
   readonly isZoomed = computed(() => this.zoomLevel() > 1);
 
+  onDoubleClick(): void {
+    const isDefault = this.zoomLevel() === 1 && this.panX() === 0 && this.panY() === 0;
+    const newZoom = isDefault ? 2 : 1;
+    this.zoomLevel.set(newZoom);
+    this.panX.set(0);
+    this.panY.set(0);
+  }
+
   resetZoom(): void {
     this.zoomLevel.set(1);
     this.panX.set(0);
@@ -39,14 +49,9 @@ export class ZoomPanContainerComponent {
 
   onWheel(event: WheelEvent): void {
     event.preventDefault();
-    const delta = event.deltaY > 0 ? -0.15 : 0.15;
+    const delta = event.deltaY > 0 ? -this.zoomDelta() : this.zoomDelta();
     const currentZoom = this.zoomLevel();
     const newZoom = Math.min(this.maxZoom, Math.max(this.minZoom, currentZoom + delta * currentZoom));
-
-    if (newZoom <= 1) {
-      this.resetZoom();
-      return;
-    }
 
     // Zoom toward cursor position
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -60,7 +65,6 @@ export class ZoomPanContainerComponent {
   }
 
   onMouseDown(event: MouseEvent): void {
-    if (this.zoomLevel() <= 1) return;
     if (event.button !== 0) return;
 
     event.preventDefault();

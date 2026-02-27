@@ -10,6 +10,8 @@ import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
 import { SearchInputComponent } from '@shared/components/search-input/search-input.component';
 import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
+import { FormInputComponent } from '@shared/components/form-input/form-input.component';
+import { FormNumberInputComponent } from '@shared/components/form-number-input/form-number-input.component';
 import { DataTableColumn, DataTableComponent, DataTableSort, DataTableSortDirection } from '@shared/components/data-table/data-table.component';
 import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ConfirmService } from '@services/confirm.service';
@@ -44,6 +46,8 @@ type CategorySortKey = 'name' | 'color' | 'order' | 'tagCount';
     TabComponent,
     SearchInputComponent,
     FormDropdownComponent,
+    FormInputComponent,
+    FormNumberInputComponent,
     DataTableComponent,
     ModalComponent,
     AutocompleteComponent,
@@ -136,6 +140,8 @@ export class TagManagementPageComponent {
   mergeTargetId = signal<number | null>(null);
   private tagsTabInitialized = false;
   private categoriesTabInitialized = false;
+  private categoriesLoadedOnce = false;
+  private categoriesLoading = false;
 
   onTagsTabInit(): void {
     if (this.tagsTabInitialized) {
@@ -191,6 +197,7 @@ export class TagManagementPageComponent {
 
   // Tag CRUD
   openCreateTagModal(): void {
+    this.ensureCategoriesLoaded();
     this.createTagName.set('');
     this.createTagCategoryId.set(null);
     this.createTagOpen.set(true);
@@ -218,6 +225,7 @@ export class TagManagementPageComponent {
   }
 
   openEditTagModal(tag: ManagedTag): void {
+    this.ensureCategoriesLoaded();
     this.editTag.set({
       id: tag.id,
       name: tag.name,
@@ -433,14 +441,30 @@ export class TagManagementPageComponent {
   }
 
   private loadCategories(): void {
+    if (this.categoriesLoading) {
+      return;
+    }
+
+    this.categoriesLoading = true;
     this.api.getManagedTagCategories().subscribe({
       next: categories => {
         this.categories.set(categories);
+        this.categoriesLoadedOnce = true;
+        this.categoriesLoading = false;
       },
       error: () => {
+        this.categoriesLoading = false;
         this.toast.error('Failed to load categories');
       },
     });
+  }
+
+  private ensureCategoriesLoaded(): void {
+    if (this.categoriesLoadedOnce || this.categoriesLoading) {
+      return;
+    }
+
+    this.loadCategories();
   }
 
   private getCategorySortValue(category: ManagedTagCategory, key: CategorySortKey): string | number {

@@ -166,6 +166,36 @@
                 </app-simple-tab>
 
                 <!-- Similar Tab -->
+                <app-simple-tab id="audit" label="Audit">
+                    @if (auditEntries().length > 0) {
+                    <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
+                        @for (entry of auditEntries(); track entry.id) {
+                        <div class="rounded-sm border border-white/10 bg-glass-bg p-2">
+                            <div class="text-[0.72rem] text-text-muted mb-1">{{ entry.occurredAtUtc | date:'medium' }}</div>
+                            <div class="text-[0.84rem] text-text-primary font-medium">{{ describeAuditEntry(entry) }}</div>
+                            @if (entry.oldValue !== undefined && entry.oldValue !== null && entry.oldValue !== '') {
+                            <div class="mt-1 text-[0.75rem] text-text-muted break-all">from: {{ entry.oldValue }}</div>
+                            }
+                            @if (entry.newValue !== undefined && entry.newValue !== null && entry.newValue !== '') {
+                            <div class="text-[0.75rem] text-text-muted break-all">to: {{ entry.newValue }}</div>
+                            }
+                        </div>
+                        }
+                    </div>
+
+                    <div class="mt-3">
+                        @if (auditHasMore()) {
+                        <app-button variant="secondary" size="sm" (click)="loadMoreAudit()" class="w-full">
+                            Load More
+                        </app-button>
+                        }
+                    </div>
+                    } @else {
+                    <span class="text-text-muted text-[0.85rem]">No audit entries yet</span>
+                    }
+                </app-simple-tab>
+
+                <!-- Similar Tab -->
                 <app-simple-tab id="similar" label="Similar">
                     @if (similarPosts().length > 0) {
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">

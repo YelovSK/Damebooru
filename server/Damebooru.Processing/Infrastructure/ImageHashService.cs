@@ -3,7 +3,6 @@
 // See THIRD_PARTY_NOTICES.md for license details.using Damebooru.Core.Interfaces;
 
 using Damebooru.Core.Interfaces;
-using Microsoft.Extensions.Logging;
 using PhotoSauce.MagicScaler;
 using PhotoSauce.MagicScaler.Transforms;
 using System.Drawing;
@@ -25,43 +24,26 @@ public class ImageHashService : ISimilarityService
     private static readonly float DctMatrixScaleFactor = (float)Math.Sqrt(2.0 / PdqReducedSize);
     private static readonly float[,] DctMatrix = BuildDctMatrix();
 
-    private readonly ILogger<ImageHashService> _logger;
-
-    public ImageHashService(ILogger<ImageHashService> logger)
+    public ImageHashService()
     {
-        _logger = logger;
     }
 
-    public async Task<SimilarityHashes?> ComputeHashesAsync(string filePath, CancellationToken cancellationToken = default)
+    public async Task<SimilarityHashes> ComputeHashesAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        try
+        var (pixels, scaledWidth, scaledHeight) = await DecodeGrayscalePixelsAsync(filePath, cancellationToken);
+        if (scaledWidth <= 0 || scaledHeight <= 0 || pixels.Length == 0)
         {
-            var (pixels, scaledWidth, scaledHeight) = await DecodeGrayscalePixelsAsync(filePath, cancellationToken);
-            if (scaledWidth <= 0 || scaledHeight <= 0 || pixels.Length == 0)
-            {
-                _logger.LogWarning("Failed to resolve dimensions for {Path}", filePath);
-                return null;
-            }
-
-            var expectedPixelCount = scaledWidth * scaledHeight;
-            if (pixels.Length < expectedPixelCount)
-            {
-                _logger.LogWarning(
-                    "Unexpected pixel count ({Count}) for {Path}, expected {Expected}",
-                    pixels.Length,
-                    filePath,
-                    expectedPixelCount);
-                return null;
-            }
-
-            var pdqHash = ComputePdqHash256Hex(pixels, scaledHeight, scaledWidth);
-            return new SimilarityHashes(pdqHash);
+            throw new InvalidOperationException($"Failed to resolve dimensions for {filePath}");
         }
-        catch (Exception ex)
+
+        var expectedPixelCount = scaledWidth * scaledHeight;
+        if (pixels.Length < expectedPixelCount)
         {
-            _logger.LogWarning(ex, "Failed to compute PDQ hash for {Path}", filePath);
-            return null;
+            throw new InvalidOperationException($"Unexpected pixel count ({pixels.Length}) for {filePath}, expected {expectedPixelCount}");
         }
+
+        var pdqHash = ComputePdqHash256Hex(pixels, scaledHeight, scaledWidth);
+        return new SimilarityHashes(pdqHash);
     }
 
     private static Task<(byte[] Pixels, int Width, int Height)> DecodeGrayscalePixelsAsync(string filePath, CancellationToken cancellationToken)

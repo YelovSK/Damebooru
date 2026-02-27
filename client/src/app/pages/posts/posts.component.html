@@ -5,7 +5,7 @@
         <div class="flex flex-col gap-[0.55rem] md:gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="relative z-20 w-full lg:max-w-[560px]">
                 <app-autocomplete [value]="currentSearchValue()" [suggestions]="tagSuggestions()" [multi]="true"
-                    [focusShortcut]="{ modifier: 'ctrl', key: 'f' }" placeholder="Search posts..."
+                    [focusShortcut]="{ modifier: null, key: '/' }" placeholder="Search posts..."
                     (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
                     (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
                     <ng-template let-tag>
@@ -56,33 +56,14 @@
         [class.posts-scrolling]="isScrolling() || fastScrollerDragging()" [class.hidden]="hasNoResults()"
         [style.paddingTop.px]="mobileToolbarInsetPx()">
 
-        <cdk-virtual-scroll-viewport #postsViewport appPostsCyclicGridStrategy
+        <cdk-virtual-scroll-viewport #postsViewport
             class="posts-virtual-viewport h-full w-full overflow-auto overscroll-contain pr-[0.2rem] [overflow-anchor:none] [scrollbar-width:none]"
-            [appPostsCyclicGridStrategyPostRowHeightPx]="rowItemHeightPx()"
-            [appPostsCyclicGridStrategySeparatorRowHeightPx]="separatorRowHeightPx()"
-            [appPostsCyclicGridStrategyRowCount]="virtualRowCount()"
-            [appPostsCyclicGridStrategyTotalCount]="totalCount()" [appPostsCyclicGridStrategyColumns]="columns()"
-            [appPostsCyclicGridStrategyPageSize]="pageSize"
-            [appPostsCyclicGridStrategyAnchorPageHint]="anchorPageHint()"
-            [appPostsCyclicGridStrategyMinBufferRows]="virtualMinBufferRows()"
-            [appPostsCyclicGridStrategyMaxBufferRows]="virtualMaxBufferRows()" [style.height.px]="viewportHeightPx()">
+            [itemSize]="rowItemHeightPx()" [minBufferPx]="rowItemHeightPx() * virtualMinBufferRows()"
+            [maxBufferPx]="rowItemHeightPx() * virtualMaxBufferRows()" [style.height.px]="viewportHeightPx()">
 
             <div class="virtual-row relative flex w-full items-stretch box-border contain-strict"
                 *cdkVirtualFor="let _rowItem of virtualRowDataSource; let rowIndex = index; trackBy: trackVirtualRow"
                 [style.height.px]="getRowHeightPx(rowIndex)" [class.items-center]="isSeparatorRow(rowIndex)">
-
-                @if (getVirtualRowPosition(rowIndex); as pos) {
-                @if (pos.rowOffsetInPage === 0) {
-                <div class="flex h-full w-full items-center gap-[0.6rem] box-border">
-                    <span
-                        class="h-px flex-1 bg-[linear-gradient(90deg,transparent,rgba(148,163,184,0.34),transparent)]"></span>
-                    <span
-                        class="rounded-full border border-slate-400/30 bg-slate-950/80 px-[0.72rem] py-[0.3rem] text-[0.73rem] leading-none font-bold uppercase tracking-[0.09em] text-text-muted">Page
-                        {{ pos.page }}</span>
-                    <span
-                        class="h-px flex-1 bg-[linear-gradient(90deg,transparent,rgba(148,163,184,0.34),transparent)]"></span>
-                </div>
-                } @else {
                 <div class="grid h-full w-full box-border content-start"
                     [style.gridTemplateColumns]="gridTemplateColumns()" [style.columnGap.px]="gridGapPx"
                     [style.paddingTop.px]="gridGapPx / 2" [style.paddingBottom.px]="gridGapPx / 2">
@@ -99,16 +80,6 @@
                     }
                     }
                 </div>
-
-                @if (pos.rowOffsetInPage === 1 && getPageStatus(pos.page) === 'error') {
-                <button type="button"
-                    class="absolute top-[0.35rem] right-[0.35rem] z-[7] rounded-full border border-red-400/70 bg-red-900/75 px-[0.55rem] py-[0.3rem] text-[0.67rem] leading-none font-bold text-red-200"
-                    (click)="retryPage(pos.page)">
-                    Retry page {{ pos.page }}
-                </button>
-                }
-                }
-                }
             </div>
         </cdk-virtual-scroll-viewport>
 

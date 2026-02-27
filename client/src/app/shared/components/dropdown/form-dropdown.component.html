@@ -35,7 +35,7 @@
       @for (option of options(); track $index) {
         <li
           (click)="select(option)"
-          class="mb-0.5 cursor-pointer rounded-lg px-4 py-2.5 text-[0.85rem] font-medium text-text-secondary transition-all duration-150 last:mb-0 hover:bg-accent-primary/15 hover:text-white"
+          class="mb-0.5 cursor-pointer rounded-lg px-4 py-2.5 text-[0.85rem] font-medium text-text-secondary last:mb-0 hover:bg-accent-primary/15 hover:text-white"
           [class.bg-accent-primary/10]="option.value === selectedOption()?.value"
           [class.text-accent-primary]="option.value === selectedOption()?.value">
           {{ option.label }}

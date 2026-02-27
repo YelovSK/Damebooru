@@ -42,7 +42,12 @@
           @for (entry of logs(); track entry.id) {
             <tr class="border-b border-gray-800 align-top">
               <td class="py-2 pr-3 whitespace-nowrap">{{ entry.timestampUtc | dateTime }}</td>
-              <td class="py-2 pr-3">{{ entry.level }}</td>
+              <td class="py-2 pr-3">
+                <span class="inline-flex rounded border px-2 py-0.5 text-xs font-semibold uppercase tracking-wide"
+                  [ngClass]="getLevelClass(entry.level)">
+                  {{ entry.level }}
+                </span>
+              </td>
               <td class="py-2 pr-3 break-all">{{ entry.category }}</td>
               <td class="py-2">
                 <div>{{ entry.message }}</div>

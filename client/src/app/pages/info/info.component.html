@@ -4,52 +4,32 @@
     </div>
 
     @if (info(); as data) {
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Stats Card -->
-        <div class="glass-card p-6">
-            <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-                <span class="w-2 h-6 bg-accent-primary rounded-full"></span>
-                Statistics
-            </h2>
-            <div class="space-y-4">
-                <div class="flex justify-between items-center py-2 border-b border-white/5">
-                    <span class="text-text-muted">Total Posts</span>
-                    <span class="text-xl font-bold">{{ data.postCount | number }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-white/5">
-                    <span class="text-text-muted">Total Size</span>
-                    <span class="text-xl font-bold">{{ data.totalSizeBytes | fileSize }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-white/5">
-                    <span class="text-text-muted">Tags</span>
-                    <span class="text-xl font-bold">{{ data.tagCount | number }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2 border-b border-white/5">
-                    <span class="text-text-muted">Libraries</span>
-                    <span class="text-xl font-bold">{{ data.libraryCount | number }}</span>
-                </div>
-                <div class="flex justify-between items-center py-2">
-                    <span class="text-text-muted">Server Time (UTC)</span>
-                    <span class="text-[0.9rem] font-medium">{{ data.serverTime | date:'medium' }}</span>
-                </div>
+    <!-- Stats Card -->
+    <div class="glass-card p-6">
+        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
+            <span class="w-2 h-6 bg-accent-primary rounded-full"></span>
+            Statistics
+        </h2>
+        <div class="space-y-4">
+            <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-text-muted">Total Posts</span>
+                <span class="text-xl font-bold">{{ data.postCount | number }}</span>
             </div>
-        </div>
-
-        <!-- System Info Card -->
-        <div class="glass-card p-6">
-            <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-                <span class="w-2 h-6 bg-accent-secondary rounded-full"></span>
-                Backend
-            </h2>
-            <div class="space-y-4">
-                <div class="flex justify-between items-center py-2 border-b border-white/5">
-                    <span class="text-text-muted">Backend</span>
-                    <span class="badge text-accent-primary font-bold">Damebooru API</span>
-                </div>
-                <div class="flex justify-between items-center py-2">
-                    <span class="text-text-muted">Version</span>
-                    <span class="text-text-primary">1.0.0-dev</span>
-                </div>
+            <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-text-muted">Total Size</span>
+                <span class="text-xl font-bold">{{ data.totalSizeBytes | fileSize }}</span>
+            </div>
+            <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-text-muted">Tags</span>
+                <span class="text-xl font-bold">{{ data.tagCount | number }}</span>
+            </div>
+            <div class="flex justify-between items-center py-2 border-b border-white/5">
+                <span class="text-text-muted">Libraries</span>
+                <span class="text-xl font-bold">{{ data.libraryCount | number }}</span>
+            </div>
+            <div class="flex justify-between items-center py-2">
+                <span class="text-text-muted">Server Time (UTC)</span>
+                <span class="text-[0.9rem] font-medium">{{ data.serverTime | date:'medium' }}</span>
             </div>
         </div>
     </div>

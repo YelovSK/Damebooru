@@ -36,6 +36,7 @@ import {
   ResolveSameFolderResponse,
   SimilarPost,
   AppLogList,
+  PostAuditList,
 } from "./models";
 
 @Injectable({
@@ -297,6 +298,21 @@ export class DamebooruService {
 
   getPost(id: number): Observable<DamebooruPostDto> {
     return this.http.get<DamebooruPostDto>(`${this.baseUrl}/posts/${id}`);
+  }
+
+  getPostAudit(
+    id: number,
+    beforeId?: number,
+    take = 100,
+  ): Observable<PostAuditList> {
+    let params = new HttpParams().set("take", String(take));
+    if (beforeId !== undefined && beforeId !== null) {
+      params = params.set("beforeId", String(beforeId));
+    }
+
+    return this.http.get<PostAuditList>(`${this.baseUrl}/posts/${id}/audit`, {
+      params,
+    });
   }
 
   getThumbnailUrl(libraryId: number, contentHash: string): string {

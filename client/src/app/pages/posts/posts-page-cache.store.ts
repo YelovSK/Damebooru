@@ -3,10 +3,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { CachedPage } from './posts.types';
+import { POSTS_PAGE_SIZE } from './posts.constants';
 
 @Injectable()
 export class PostsPageCacheStore {
-    private static readonly PAGE_SIZE = 100;
     private static readonly PREFETCH_PAGE_RADIUS = 1;
     private static readonly MAX_CONCURRENT_PAGE_REQUESTS = 4;
 
@@ -81,15 +81,10 @@ export class PostsPageCacheStore {
         const knownItems = existing?.items ?? [];
 
         this.inFlightPages.add(pageNumber);
-        this.setPageCacheEntry(pageNumber, {
-            status: 'loading',
-            items: knownItems,
-            error: null,
-        });
 
-        const requestOffset = (pageNumber - 1) * PostsPageCacheStore.PAGE_SIZE;
+        const requestOffset = (pageNumber - 1) * POSTS_PAGE_SIZE;
 
-        this.damebooru.getPosts(queryAtRequest, requestOffset, PostsPageCacheStore.PAGE_SIZE)
+        this.damebooru.getPosts(queryAtRequest, requestOffset, POSTS_PAGE_SIZE)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
                 next: data => {
@@ -194,6 +189,6 @@ export class PostsPageCacheStore {
             return 0;
         }
 
-        return Math.ceil(totalCount / PostsPageCacheStore.PAGE_SIZE);
+        return Math.ceil(totalCount / POSTS_PAGE_SIZE);
     }
 }

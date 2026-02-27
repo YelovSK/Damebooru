@@ -84,11 +84,16 @@ export class FormDropdownComponent<T = unknown> implements ControlValueAccessor 
     this.markTouched();
   }
 
-  @HostListener('document:click', ['$event'])
-  onDocumentClick(event: MouseEvent): void {
+  @HostListener('document:pointerdown', ['$event'])
+  onDocumentPointerDown(event: PointerEvent): void {
     if (!this.elementRef.nativeElement.contains(event.target as Node)) {
       this.isOpen.set(false);
     }
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscapeKey(): void {
+    this.isOpen.set(false);
   }
 
   writeValue(value: T | null): void {

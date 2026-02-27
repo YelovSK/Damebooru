@@ -123,6 +123,55 @@ public class PostReadService
         });
     }
 
+    public async Task<Result<PostAuditListDto>> GetPostAuditAsync(int postId, long? beforeId, int take, CancellationToken cancellationToken)
+    {
+        var postExists = await _context.Posts
+            .AsNoTracking()
+            .AnyAsync(p => p.Id == postId, cancellationToken);
+        if (!postExists)
+        {
+            return Result<PostAuditListDto>.Failure(OperationError.NotFound, "Post not found");
+        }
+
+        var normalizedTake = Math.Clamp(take, 1, 200);
+
+        var query = _context.PostAuditEntries
+            .AsNoTracking()
+            .Where(e => e.PostId == postId);
+
+        if (beforeId.HasValue)
+        {
+            query = query.Where(e => e.Id < beforeId.Value);
+        }
+
+        var items = await query
+            .OrderByDescending(e => e.Id)
+            .Take(normalizedTake + 1)
+            .Select(e => new PostAuditEntryDto
+            {
+                Id = e.Id,
+                OccurredAtUtc = e.OccurredAtUtc,
+                Entity = e.Entity,
+                Operation = e.Operation,
+                Field = e.Field,
+                OldValue = e.OldValue,
+                NewValue = e.NewValue,
+            })
+            .ToListAsync(cancellationToken);
+
+        var hasMore = items.Count > normalizedTake;
+        if (hasMore)
+        {
+            items.RemoveAt(items.Count - 1);
+        }
+
+        return Result<PostAuditListDto>.Success(new PostAuditListDto
+        {
+            Items = items,
+            HasMore = hasMore,
+        });
+    }
+
     private async Task<PostDto?> LoadPostAsync(int id, CancellationToken cancellationToken)
     {
         return await _context.Posts
@@ -147,6 +196,8 @@ public class PostReadService
                 ThumbnailContentHash = p.ContentHash,
                 Sources = p.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
                 Tags = p.PostTags
+                    .OrderBy(pt => pt.Tag.TagCategory!.Order)
+                    .ThenBy(pt => pt.Tag.Name)
                     .Select(pt => new TagDto
                     {
                         Id = pt.Tag.Id,

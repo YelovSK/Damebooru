@@ -65,6 +65,25 @@ export class LogsPageComponent {
     this.loadLogs(false);
   }
 
+  getLevelClass(level: string): string {
+    switch (level.toLowerCase()) {
+      case 'critical':
+        return 'border-red-300/60 bg-red-500/20 text-red-200';
+      case 'error':
+        return 'border-rose-300/60 bg-rose-500/20 text-rose-200';
+      case 'warning':
+        return 'border-amber-300/60 bg-amber-500/20 text-amber-200';
+      case 'information':
+        return 'border-sky-300/60 bg-sky-500/20 text-sky-200';
+      case 'debug':
+        return 'border-emerald-300/60 bg-emerald-500/20 text-emerald-200';
+      case 'trace':
+        return 'border-slate-300/50 bg-slate-500/20 text-slate-200';
+      default:
+        return 'border-gray-300/40 bg-gray-500/20 text-gray-200';
+    }
+  }
+
   private loadLogs(reset: boolean): void {
     const current = this.logs();
     const beforeId = !reset && current.length > 0
@@ -76,7 +95,7 @@ export class LogsPageComponent {
       category: this.categoryQuery().trim() || undefined,
       contains: this.textQuery().trim() || undefined,
       beforeId,
-      take: 100,
+      take: 20,
     }).subscribe({
       next: response => {
         this.hasMore.set(response.hasMore);

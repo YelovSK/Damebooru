@@ -119,7 +119,7 @@ public class ComputeSimilarityJob : IJob
                 Interlocked.Add(ref completed, nonImageCount);
             }
 
-            var results = new ConcurrentBag<(int PostId, SimilarityHashes? Hashes)>();
+            var results = new ConcurrentBag<(int PostId, SimilarityHashes Hashes)>();
 
             await Parallel.ForEachAsync(
                 imageBatch,
@@ -158,7 +158,7 @@ public class ComputeSimilarityJob : IJob
             {
                 if (entities.TryGetValue(result.PostId, out var entity))
                 {
-                    entity.PdqHash256 = result.Hashes?.PdqHash256;
+                    entity.PdqHash256 = result.Hashes.PdqHash256;
                 }
             }
 

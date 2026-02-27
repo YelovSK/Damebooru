@@ -49,3 +49,20 @@ public class UpdatePostTagDto
     public string Name { get; set; } = string.Empty;
     public PostTagSource Source { get; set; }
 }
+
+public class PostAuditEntryDto
+{
+    public long Id { get; set; }
+    public DateTime OccurredAtUtc { get; set; }
+    public string Entity { get; set; } = string.Empty;
+    public string Operation { get; set; } = string.Empty;
+    public string Field { get; set; } = string.Empty;
+    public string? OldValue { get; set; }
+    public string? NewValue { get; set; }
+}
+
+public class PostAuditListDto
+{
+    public List<PostAuditEntryDto> Items { get; set; } = [];
+    public bool HasMore { get; set; }
+}

@@ -89,15 +89,24 @@
                         <div
                             class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors"
                             [class.hover:border-red-500]="isSameFolderScope(group)"
-                            [class.hover:border-accent-primary]="!isSameFolderScope(group)"
-                            (mouseenter)="onPostCardMouseEnter(post.id)"
-                            (mouseleave)="onPostCardMouseLeave($event)">
-                            <div class="relative aspect-square overflow-hidden">
+                            [class.hover:border-accent-primary]="!isSameFolderScope(group)">
+                            <div class="relative aspect-square overflow-hidden" (mouseenter)="onPostCardMouseEnter(post.id)"
+                                (mouseleave)="onPostCardMouseLeave($event)">
                                 <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
                                     class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
+                            </div>
 
-                                <div
-                                    class="absolute inset-x-0 bottom-0 bg-black/80 flex flex-col opacity-0 group-hover/card:opacity-100 transition-opacity">
+                            <div class="p-2 space-y-2">
+                                <a [routerLink]="['/post', post.id]" class="block hover:bg-gray-700/50 transition-colors rounded px-1 py-1">
+                                    <div class="text-xs text-gray-400 truncate mb-1" [title]="post.relativePath">{{
+                                        post.relativePath | fileName }}</div>
+                                    <div class="flex justify-between text-xs text-gray-500">
+                                        <span>{{ post.width }}×{{ post.height }}</span>
+                                        <span>{{ post.sizeBytes | fileSize }}</span>
+                                    </div>
+                                </a>
+
+                                <div class="flex flex-col gap-1">
                                     <app-button variant="warning" size="xs" (click)="onExcludePost(group, post)">
                                         <span class="text-sm leading-none">🚫</span> Exclude
                                     </app-button>
@@ -108,15 +117,6 @@
                                     }
                                 </div>
                             </div>
-
-                            <a [routerLink]="['/post', post.id]" class="block p-2 hover:bg-gray-700/50 transition-colors">
-                                <div class="text-xs text-gray-400 truncate mb-1" [title]="post.relativePath">{{
-                                    post.relativePath | fileName }}</div>
-                                <div class="flex justify-between text-xs text-gray-500">
-                                    <span>{{ post.width }}×{{ post.height }}</span>
-                                    <span>{{ post.sizeBytes | fileSize }}</span>
-                                </div>
-                            </a>
 
                             @if (post.isRecommendedKeep) {
                             <div
@@ -199,10 +199,9 @@
                     <div class="flex flex-wrap gap-3">
                         @for (post of group.posts; track post.id) {
                         <div
-                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-amber-500 transition-colors"
-                            (mouseenter)="onPostCardMouseEnter(post.id)"
-                            (mouseleave)="onPostCardMouseLeave($event)">
-                            <div class="relative aspect-square overflow-hidden">
+                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-amber-500 transition-colors">
+                            <div class="relative aspect-square overflow-hidden" (mouseenter)="onPostCardMouseEnter(post.id)"
+                                (mouseleave)="onPostCardMouseLeave($event)">
                                 <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
                                     class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
                             </div>

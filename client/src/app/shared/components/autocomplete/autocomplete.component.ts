@@ -5,7 +5,7 @@ import { debounceTime, distinctUntilChanged, filter, fromEvent, switchMap } from
 import { HotkeysService } from '@services/hotkeys.service';
 
 export interface FocusShortcut {
-  modifier: 'ctrl' | 'meta';
+  modifier: 'ctrl' | 'meta' | null;
   key: string;
 }
 

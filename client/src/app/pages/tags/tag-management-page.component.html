@@ -62,12 +62,10 @@
 
 <app-modal [open]="createTagOpen()" title="Create Tag" (closed)="closeCreateTagModal()">
   <div class="grid grid-cols-1 gap-3">
-    <label class="text-sm text-text-muted">Name</label>
-    <input type="text" [ngModel]="createTagName()" (ngModelChange)="createTagName.set($event)"
-      class="rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60" />
+    <app-form-input label="Name" [ngModel]="createTagName()" (ngModelChange)="createTagName.set($event)">
+    </app-form-input>
 
-    <label class="text-sm text-text-muted">Category</label>
-    <app-form-dropdown [value]="createTagCategoryId()" [options]="categorySelectOptions()" placeholder="Uncategorized"
+    <app-form-dropdown [value]="createTagCategoryId()" [options]="categorySelectOptions()" label="Category" placeholder="Uncategorized"
       (valueChange)="createTagCategoryId.set($event)">
     </app-form-dropdown>
   </div>
@@ -81,12 +79,10 @@
 @if (editTag(); as model) {
 <app-modal [open]="true" title="Edit Tag" (closed)="closeEditTagModal()">
   <div class="grid grid-cols-1 gap-3">
-    <label class="text-sm text-text-muted">Name</label>
-    <input type="text" [ngModel]="model.name" (ngModelChange)="updateEditTag({ name: $event })"
-      class="rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60" />
+    <app-form-input label="Name" [ngModel]="model.name" (ngModelChange)="updateEditTag({ name: $event })">
+    </app-form-input>
 
-    <label class="text-sm text-text-muted">Category</label>
-    <app-form-dropdown [value]="model.categoryId" [options]="categorySelectOptions()" placeholder="Uncategorized"
+    <app-form-dropdown [value]="model.categoryId" [options]="categorySelectOptions()" label="Category" placeholder="Uncategorized"
       (valueChange)="updateEditTag({ categoryId: $event })">
     </app-form-dropdown>
 
@@ -120,17 +116,16 @@
 
 <app-modal [open]="createCategoryOpen()" title="Create Category" (closed)="closeCreateCategoryModal()">
   <div class="grid grid-cols-1 gap-3">
-    <label class="text-sm text-text-muted">Name</label>
-    <input type="text" [ngModel]="createCategoryName()" (ngModelChange)="createCategoryName.set($event)"
-      class="rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60" />
+    <app-form-input label="Name" [ngModel]="createCategoryName()" (ngModelChange)="createCategoryName.set($event)">
+    </app-form-input>
 
     <label class="text-sm text-text-muted">Color</label>
     <input type="color" [ngModel]="createCategoryColor()" (ngModelChange)="createCategoryColor.set($event)"
       class="h-10 w-20 rounded border border-glass-border bg-glass-bg" />
 
-    <label class="text-sm text-text-muted">Order</label>
-    <input type="number" [ngModel]="createCategoryOrder()" (ngModelChange)="createCategoryOrder.set(+$event)"
-      class="rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60" />
+    <app-form-number-input label="Order" [ngModel]="createCategoryOrder()"
+      (ngModelChange)="createCategoryOrder.set($event ?? 0)">
+    </app-form-number-input>
   </div>
 
   <div class="mt-4 flex justify-end gap-2">
@@ -142,17 +137,16 @@
 @if (editCategory(); as model) {
 <app-modal [open]="true" title="Edit Category" (closed)="closeEditCategoryModal()">
   <div class="grid grid-cols-1 gap-3">
-    <label class="text-sm text-text-muted">Name</label>
-    <input type="text" [ngModel]="model.name" (ngModelChange)="updateEditCategory({ name: $event })"
-      class="rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60" />
+    <app-form-input label="Name" [ngModel]="model.name" (ngModelChange)="updateEditCategory({ name: $event })">
+    </app-form-input>
 
     <label class="text-sm text-text-muted">Color</label>
     <input type="color" [ngModel]="model.color" (ngModelChange)="updateEditCategory({ color: $event })"
       class="h-10 w-20 rounded border border-glass-border bg-glass-bg" />
 
-    <label class="text-sm text-text-muted">Order</label>
-    <input type="number" [ngModel]="model.order" (ngModelChange)="updateEditCategory({ order: +$event })"
-      class="rounded-lg border border-glass-border bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60" />
+    <app-form-number-input label="Order" [ngModel]="model.order"
+      (ngModelChange)="updateEditCategory({ order: $event ?? 0 })">
+    </app-form-number-input>
   </div>
 
   <div class="mt-4 flex justify-between gap-2">

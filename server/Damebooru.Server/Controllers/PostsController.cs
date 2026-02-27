@@ -91,4 +91,14 @@ public class PostsController : ControllerBase
             .GetPostContentAsync(id, cancellationToken)
             .ToHttpResult(descriptor => PhysicalFile(descriptor!.FullPath, descriptor.ContentType, enableRangeProcessing: true));
     }
+
+    [HttpGet("{id}/audit")]
+    public async Task<IActionResult> GetPostAudit(
+        int id,
+        [FromQuery] long? beforeId = null,
+        [FromQuery] int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        return await _postReadService.GetPostAuditAsync(id, beforeId, take, cancellationToken).ToHttpResult();
+    }
 }

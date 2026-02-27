@@ -8,6 +8,7 @@ import {
   DestroyRef,
   computed,
   viewChild,
+  untracked,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { RouterLink, Router } from "@angular/router";
@@ -40,6 +41,7 @@ import {
   ManagedTagCategory,
   PostTagSource,
   SimilarPost,
+  PostAuditEntry,
 } from "@models";
 import { ButtonComponent } from "@shared/components/button/button.component";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
@@ -224,6 +226,9 @@ export class PostDetailComponent {
   similarPosts = computed<SimilarPost[]>(() => this.post()?.similarPosts ?? []);
 
   imageLoading = signal(true);
+  auditEntries = signal<PostAuditEntry[]>([]);
+  auditHasMore = signal(false);
+  private auditRequestInFlight = false;
 
   constructor() {
     effect(() => {
@@ -244,6 +249,17 @@ export class PostDetailComponent {
     });
 
     this.setupHotkeys();
+
+    effect(() => {
+      const id = Number(this.id());
+      if (!Number.isInteger(id) || id < 1) {
+        this.auditEntries.set([]);
+        this.auditHasMore.set(false);
+        return;
+      }
+
+      untracked(() => this.loadAudit(id, false));
+    });
   }
 
   private getPostWithCache(id: number) {
@@ -377,6 +393,7 @@ export class PostDetailComponent {
       if (updatedPost) {
         this.setCachedPost(updatedPost);
         this.refreshTrigger.update((n) => n + 1);
+        this.reloadAuditForCurrentPost();
       }
     });
   }
@@ -536,6 +553,7 @@ export class PostDetailComponent {
         next: (updatedPost) => {
           this.setCachedPost(updatedPost);
           this.refreshTrigger.update((n) => n + 1);
+          this.reloadAuditForCurrentPost();
           this.toastService.success(
             updatedPost.isFavorite ? "Post favorited" : "Post unfavorited",
           );
@@ -581,6 +599,69 @@ export class PostDetailComponent {
       queryParams: this.detailQueryParams(),
       replaceUrl: true,
     });
+  }
+
+  loadMoreAudit() {
+    const id = Number(this.id());
+    if (!Number.isInteger(id) || id < 1) {
+      return;
+    }
+
+    this.loadAudit(id, true);
+  }
+
+  describeAuditEntry(entry: PostAuditEntry): string {
+    const field = entry.field;
+    const operation = entry.operation.toLowerCase();
+    if (operation === "insert") {
+      return `${field} added`;
+    }
+
+    if (operation === "delete") {
+      return `${field} removed`;
+    }
+
+    return `${field} changed`;
+  }
+
+  private reloadAuditForCurrentPost() {
+    const id = Number(this.id());
+    if (!Number.isInteger(id) || id < 1) {
+      return;
+    }
+
+    this.loadAudit(id, false);
+  }
+
+  private loadAudit(postId: number, append: boolean) {
+    if (this.auditRequestInFlight) {
+      return;
+    }
+
+    const currentEntries = this.auditEntries();
+    const beforeId = append && currentEntries.length > 0
+      ? currentEntries[currentEntries.length - 1].id
+      : undefined;
+
+    this.auditRequestInFlight = true;
+    this.damebooru
+      .getPostAudit(postId, beforeId, 50)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          if (append) {
+            this.auditEntries.set([...currentEntries, ...result.items]);
+          } else {
+            this.auditEntries.set(result.items);
+          }
+
+          this.auditHasMore.set(result.hasMore);
+          this.auditRequestInFlight = false;
+        },
+        error: () => {
+          this.auditRequestInFlight = false;
+        },
+      });
   }
 
   private parsePositiveInt(value: string | null | undefined): number | null {

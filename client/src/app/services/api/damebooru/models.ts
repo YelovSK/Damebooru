@@ -369,3 +369,18 @@ export interface AppLogList {
   items: AppLogEntry[];
   hasMore: boolean;
 }
+
+export interface PostAuditEntry {
+  id: number;
+  occurredAtUtc: string;
+  entity: string;
+  operation: string;
+  field: string;
+  oldValue?: string;
+  newValue?: string;
+}
+
+export interface PostAuditList {
+  items: PostAuditEntry[];
+  hasMore: boolean;
+}
