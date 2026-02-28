@@ -71,6 +71,11 @@
     width: 9px;
 }
 
+.fast-scroller-thumb,
+.fast-scroller-bubble {
+    will-change: transform;
+}
+
 @media (hover: hover) and (pointer: fine) {
     .fast-scroller-hover-zone {
         pointer-events: auto;

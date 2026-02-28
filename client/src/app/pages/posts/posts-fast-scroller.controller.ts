@@ -1,4 +1,4 @@
-import { Injectable, signal, inject, NgZone } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 
 interface FastScrollerViewportMetrics {
     viewportHeight: number;
@@ -23,8 +23,7 @@ export class PostsFastScrollerController {
     private static readonly FAST_SCROLLER_MIN_THUMB_PX = 44;
     private static readonly FAST_SCROLLER_HIDE_DELAY_MS = 250;
     private static readonly FAST_SCROLLER_BUBBLE_HEIGHT_PX = 36;
-
-    private readonly zone = inject(NgZone);
+    private static readonly DRAG_SAMPLE_MIN_INTERVAL_MS = 33;
 
     private bindings: PostsFastScrollerBindings | null = null;
 
@@ -32,6 +31,11 @@ export class PostsFastScrollerController {
     private fastScrollerRafId: number | null = null;
     private pendingFastScrollerClientY: number | null = null;
     private fastScrollerPointerId: number | null = null;
+    private dragRailRect: DOMRect | null = null;
+    private dragThumbHeightPx = PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX;
+    private dragUsableHeight = 1;
+    private lastDragSampleTs = 0;
+    private lastDragSamplePage = -1;
 
     readonly visible = signal(false);
     readonly dragging = signal(false);
@@ -56,7 +60,8 @@ export class PostsFastScrollerController {
 
         const bindings = this.bindings;
         const rail = bindings?.getRailElement() ?? null;
-        if (!bindings || !rail || bindings.getTotalPages() <= 1) {
+        const metrics = bindings?.getViewportMetrics() ?? null;
+        if (!bindings || !rail || !metrics || bindings.getTotalPages() <= 1) {
             return;
         }
 
@@ -64,6 +69,13 @@ export class PostsFastScrollerController {
         this.fastScrollerPointerId = event.pointerId;
         this.dragging.set(true);
         this.reveal();
+
+        this.dragRailRect = rail.getBoundingClientRect();
+        this.dragThumbHeightPx = this.calculateThumbHeight(metrics);
+        this.dragUsableHeight = Math.max(1, this.dragRailRect.height - this.dragThumbHeightPx);
+        this.thumbHeightPx.set(this.dragThumbHeightPx);
+        this.lastDragSampleTs = 0;
+        this.lastDragSamplePage = -1;
 
         rail.setPointerCapture(event.pointerId);
         this.pendingFastScrollerClientY = event.clientY;
@@ -124,20 +136,16 @@ export class PostsFastScrollerController {
             return;
         }
 
-        this.zone.runOutsideAngular(() => {
-            this.fastScrollerRafId = requestAnimationFrame(() => {
-                this.zone.run(() => {
-                    this.fastScrollerRafId = null;
+        this.fastScrollerRafId = requestAnimationFrame(() => {
+            this.fastScrollerRafId = null;
 
-                    const clientY = this.pendingFastScrollerClientY;
-                    this.pendingFastScrollerClientY = null;
-                    if (clientY === null) {
-                        return;
-                    }
+            const clientY = this.pendingFastScrollerClientY;
+            this.pendingFastScrollerClientY = null;
+            if (clientY === null) {
+                return;
+            }
 
-                    this.applyFastScrollerPointer(clientY);
-                });
-            });
+            this.applyFastScrollerPointer(clientY);
         });
     }
 
@@ -158,14 +166,9 @@ export class PostsFastScrollerController {
             return;
         }
 
-        const railRect = rail.getBoundingClientRect();
-        const thumbHeight = this.clamp(
-            this.thumbHeightPx() || PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX,
-            1,
-            Math.max(1, railRect.height)
-        );
-
-        const usableHeight = Math.max(1, railRect.height - thumbHeight);
+        const railRect = this.dragRailRect ?? rail.getBoundingClientRect();
+        const thumbHeight = this.clamp(this.dragThumbHeightPx, 1, Math.max(1, railRect.height));
+        const usableHeight = this.dragUsableHeight;
         const clampedCenter = this.clamp(
             clientY,
             railRect.top + thumbHeight / 2,
@@ -182,8 +185,19 @@ export class PostsFastScrollerController {
 
         const targetPage = bindings.resolvePageForScrollTop(targetScrollTop);
         const targetOffset = bindings.resolveOffsetForScrollTop(targetScrollTop);
-        this.bubblePage.set(targetPage);
-        bindings.onDragSample(targetOffset, targetPage);
+        if (targetPage !== this.bubblePage()) {
+            this.bubblePage.set(targetPage);
+        }
+
+        const now = performance.now();
+        if (
+            targetPage !== this.lastDragSamplePage
+            || now - this.lastDragSampleTs >= PostsFastScrollerController.DRAG_SAMPLE_MIN_INTERVAL_MS
+        ) {
+            this.lastDragSampleTs = now;
+            this.lastDragSamplePage = targetPage;
+            bindings.onDragSample(targetOffset, targetPage);
+        }
 
         this.reveal();
     }
@@ -212,6 +226,7 @@ export class PostsFastScrollerController {
         }
 
         this.fastScrollerPointerId = null;
+        this.dragRailRect = null;
         this.cancelFastScrollerRaf();
         this.dragging.set(false);
 
@@ -255,5 +270,18 @@ export class PostsFastScrollerController {
 
     private clamp(value: number, min: number, max: number): number {
         return Math.min(max, Math.max(min, value));
+    }
+
+    private calculateThumbHeight(metrics: FastScrollerViewportMetrics): number {
+        const maxScrollTop = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+        const thumbHeight = maxScrollTop <= 0
+            ? metrics.railHeight
+            : metrics.railHeight * (metrics.viewportHeight / metrics.contentHeight);
+
+        return this.clamp(
+            thumbHeight,
+            PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX,
+            Math.max(PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX, metrics.railHeight)
+        );
     }
 }

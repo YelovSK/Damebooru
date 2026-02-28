@@ -5,11 +5,12 @@ import { AppPaths } from "@app/app.paths";
 import { DamebooruPostDto } from "@models";
 import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { getMediaType } from "@shared/utils/utils";
+import { ScheduledSrcDirective } from "@shared/directives/scheduled-src.directive";
 
 @Component({
   selector: "app-post-tile",
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, ScheduledSrcDirective],
   templateUrl: "./post-tile.component.html",
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

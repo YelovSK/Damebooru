@@ -17,7 +17,6 @@ export interface CachedPage {
 
 export interface RouteState {
     query: string;
-    page: number | null;
     offset: number | null;
 }
 

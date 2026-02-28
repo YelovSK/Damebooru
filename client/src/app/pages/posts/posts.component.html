@@ -58,8 +58,8 @@
 
         <cdk-virtual-scroll-viewport #postsViewport
             class="posts-virtual-viewport h-full w-full overflow-auto overscroll-contain pr-[0.2rem] [overflow-anchor:none] [scrollbar-width:none]"
-            [itemSize]="rowItemHeightPx()" [minBufferPx]="rowItemHeightPx() * virtualMinBufferRows()"
-            [maxBufferPx]="rowItemHeightPx() * virtualMaxBufferRows()" [style.height.px]="viewportHeightPx()">
+            [itemSize]="rowItemHeightPx()" [minBufferPx]="rowItemHeightPx() * virtualMinBufferRows"
+            [maxBufferPx]="rowItemHeightPx() * virtualMaxBufferRows" [style.height.px]="viewportHeightPx()">
 
             <div class="virtual-row relative flex w-full items-stretch box-border contain-strict"
                 *cdkVirtualFor="let _rowItem of virtualRowDataSource; let rowIndex = index; trackBy: trackVirtualRow"
@@ -67,7 +67,7 @@
                 <div class="grid h-full w-full box-border content-start"
                     [style.gridTemplateColumns]="gridTemplateColumns()" [style.columnGap.px]="gridGapPx"
                     [style.paddingTop.px]="gridGapPx / 2" [style.paddingBottom.px]="gridGapPx / 2">
-                    @for (cell of getRowCells(rowIndex); track $index) {
+                    @for (cell of getRowCells(rowIndex); track cell.trackKey) {
                     @if (cell.kind === 'post') {
                     @if (cell.post; as post) {
                     <app-post-tile [post]="post" [queryParams]="activeQueryParams()" />
@@ -95,7 +95,7 @@
         </div>
 
         @if (showFastScrollerBubble()) {
-        <div class="pointer-events-none absolute top-0 right-[31px] z-[36] inline-flex h-9 min-w-[74px] items-center justify-center whitespace-nowrap rounded-full border border-sky-300/45 bg-slate-900/92 px-[0.72rem] text-[0.74rem] font-bold text-text-secondary"
+        <div class="fast-scroller-bubble pointer-events-none absolute top-0 right-[31px] z-[36] inline-flex h-9 min-w-[74px] items-center justify-center whitespace-nowrap rounded-full border border-sky-300/45 bg-slate-900/92 px-[0.72rem] text-[0.74rem] font-bold text-text-secondary"
             [style.transform]="'translateY(' + fastScrollerBubbleTopPx() + 'px)'">
             Page {{ fastScrollerBubblePage() }}
         </div>

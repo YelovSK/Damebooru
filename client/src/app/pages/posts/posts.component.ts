@@ -131,7 +131,6 @@ export class PostsComponent implements AfterViewInit {
   readonly appPaths = AppPaths;
 
   query = input<string | null>("");
-  page = input<string | null>(null);
   offset = input<string | null>("0");
 
   currentSearchValue = signal("");
@@ -230,12 +229,8 @@ export class PostsComponent implements AfterViewInit {
   readonly showFastScrollerBubble = computed(
     () => this.fastScrollerVisible() && this.totalPages() > 1,
   );
-  readonly virtualMinBufferRows = computed(() =>
-    this.fastScrollerDragging() ? 4 : 12,
-  );
-  readonly virtualMaxBufferRows = computed(() =>
-    this.fastScrollerDragging() ? 8 : 24,
-  );
+  readonly virtualMinBufferRows = 12;
+  readonly virtualMaxBufferRows = 24;
 
   private tagQuery$ = new Subject<string>();
   tagSuggestions = toSignal(
@@ -303,19 +298,15 @@ export class PostsComponent implements AfterViewInit {
 
     combineLatest([
       toObservable(this.query).pipe(map((value) => value ?? "")),
-      toObservable(this.page).pipe(
-        map((value) => this.parsePositiveInt(value)),
-      ),
       toObservable(this.offset).pipe(
         map((value) => this.parseNonNegativeInt(value)),
       ),
     ])
       .pipe(
-        map(([query, page, offset]) => ({ query, page, offset }) as RouteState),
+        map(([query, offset]) => ({ query, offset }) as RouteState),
         distinctUntilChanged(
           (left, right) =>
             left.query === right.query &&
-            left.page === right.page &&
             left.offset === right.offset,
         ),
         takeUntilDestroyed(this.destroyRef),
@@ -365,12 +356,19 @@ export class PostsComponent implements AfterViewInit {
         .elementScrolled()
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => {
+          if (this.fastScrollerDragging()) {
+            return;
+          }
+
           if (this.scrollRafId !== null) {
             return;
           }
 
           this.scrollRafId = requestAnimationFrame(() => {
             this.scrollRafId = null;
+            if (this.fastScrollerDragging()) {
+              return;
+            }
             this.zone.run(() => this.onViewportScrolled());
           });
         });
@@ -464,7 +462,7 @@ export class PostsComponent implements AfterViewInit {
     this.router.navigate([], {
       queryParams: {
         query: nextQuery.length > 0 ? nextQuery : null,
-        page: 1,
+        page: null,
         offset: 0,
       },
       queryParamsHandling: "merge",
@@ -650,7 +648,7 @@ export class PostsComponent implements AfterViewInit {
 
     this.routeAnchorAppliedForQuery = state.query;
 
-    const targetOffset = this.resolveAnchorOffset(state.page, state.offset);
+    const targetOffset = this.resolveAnchorOffset(state.offset);
     const targetPage = this.offsetToPage(targetOffset);
 
     if (this.totalCount() === null && !this.pageCache().has(targetPage)) {
@@ -685,7 +683,7 @@ export class PostsComponent implements AfterViewInit {
     this.toolbarScrollAccumulator = 0;
     this.toolbarToggleLockUntilMs = 0;
 
-    const targetOffset = this.resolveAnchorOffset(state.page, state.offset);
+    const targetOffset = this.resolveAnchorOffset(state.offset);
     this.pendingAnchorOffset = targetOffset;
     this.latestMeasuredOffset = targetOffset;
     this.currentOffset.set(targetOffset);
@@ -1111,26 +1109,19 @@ export class PostsComponent implements AfterViewInit {
     }
 
     const offset = this.clamp(this.latestMeasuredOffset, 0, totalCount - 1);
-    const page = this.offsetToPage(offset);
     const query = this.activeQuery();
 
     const currentQuery = this.query() ?? "";
     const currentOffset = this.parseNonNegativeInt(this.offset()) ?? 0;
-    const currentPage =
-      this.parsePositiveInt(this.page()) ?? this.offsetToPage(currentOffset);
 
-    if (
-      query === currentQuery &&
-      offset === currentOffset &&
-      page === currentPage
-    ) {
+    if (query === currentQuery && offset === currentOffset) {
       return;
     }
 
     this.router.navigate([], {
       queryParams: {
         query: query.length > 0 ? query : null,
-        page,
+        page: null,
         offset,
       },
       queryParamsHandling: "merge",
@@ -1199,24 +1190,7 @@ export class PostsComponent implements AfterViewInit {
     return this.clamp(desiredColumns, 1, maxColumnsForMinTile);
   }
 
-  private resolveAnchorOffset(
-    page: number | null,
-    offset: number | null,
-  ): number {
-    if (page !== null) {
-      const pageBaseOffset = (page - 1) * POSTS_PAGE_SIZE;
-      if (offset !== null) {
-        const inPageOffset = this.clamp(
-          offset - pageBaseOffset,
-          0,
-          POSTS_PAGE_SIZE - 1,
-        );
-        return pageBaseOffset + inPageOffset;
-      }
-
-      return pageBaseOffset;
-    }
-
+  private resolveAnchorOffset(offset: number | null): number {
     if (offset !== null) {
       return offset;
     }
@@ -1257,19 +1231,6 @@ export class PostsComponent implements AfterViewInit {
 
   private offsetToPage(offset: number): number {
     return offsetToPage(offset, POSTS_PAGE_SIZE);
-  }
-
-  private parsePositiveInt(value: string | null | undefined): number | null {
-    if (!value) {
-      return null;
-    }
-
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 1) {
-      return null;
-    }
-
-    return parsed;
   }
 
   private parseNonNegativeInt(value: string | null | undefined): number | null {
