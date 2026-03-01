@@ -1,6 +1,7 @@
 using Damebooru.Core.Config;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Collections;
 using System.Text.Json;
 
 namespace Damebooru.Processing.Logging;
@@ -101,7 +102,7 @@ public sealed class DbLoggerProvider : ILoggerProvider
                     continue;
                 }
 
-                dict[pair.Key] = pair.Value;
+                dict[pair.Key] = SanitizeLogPropertyValue(pair.Value);
             }
 
             if (dict.Count == 0)
@@ -109,7 +110,62 @@ public sealed class DbLoggerProvider : ILoggerProvider
                 return;
             }
 
-            propertiesJson = JsonSerializer.Serialize(dict);
+            try
+            {
+                propertiesJson = JsonSerializer.Serialize(dict);
+            }
+            catch (Exception)
+            {
+                propertiesJson = null;
+            }
+        }
+
+        private static object? SanitizeLogPropertyValue(object? value)
+        {
+            if (value is null)
+            {
+                return null;
+            }
+
+            return value switch
+            {
+                Type type => type.FullName ?? type.Name,
+                Exception ex => ex.ToString(),
+                string or bool or byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal or Guid or DateTime or DateTimeOffset or TimeSpan
+                    => value,
+                Enum enumValue => enumValue.ToString(),
+                IDictionary dictionary => SanitizeDictionary(dictionary),
+                IEnumerable enumerable => SanitizeEnumerable(enumerable),
+                _ => value.ToString(),
+            };
+        }
+
+        private static Dictionary<string, object?> SanitizeDictionary(IDictionary dictionary)
+        {
+            var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                var key = entry.Key?.ToString();
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                result[key] = SanitizeLogPropertyValue(entry.Value);
+            }
+
+            return result;
+        }
+
+        private static List<object?> SanitizeEnumerable(IEnumerable enumerable)
+        {
+            var result = new List<object?>();
+            foreach (var item in enumerable)
+            {
+                result.Add(SanitizeLogPropertyValue(item));
+            }
+
+            return result;
         }
     }
 
