@@ -26,7 +26,9 @@ public class DamebooruDbContextFactory : IDesignTimeDbContextFactory<DamebooruDb
             damebooruConfig.Storage.DatabasePath);
 
         var builder = new DbContextOptionsBuilder<DamebooruDbContext>();
-        builder.UseSqlite(resolvedConnectionString);
+        builder.UseSqlite(
+            resolvedConnectionString,
+            sqliteOptions => sqliteOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery));
 
         return new DamebooruDbContext(builder.Options);
     }

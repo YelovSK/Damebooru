@@ -245,6 +245,41 @@ export interface SimilarPost {
   groupIsResolved: boolean;
 }
 
+export interface DuplicateLookupMatch {
+  id: number;
+  libraryId: number;
+  libraryName: string;
+  relativePath: string;
+  contentHash: string;
+  width: number;
+  height: number;
+  contentType: string;
+  sizeBytes: number;
+  importDate: string;
+  fileModifiedDate: string;
+  thumbnailLibraryId: number;
+  thumbnailContentHash: string;
+  similarityPercent: number | null;
+}
+
+export interface DuplicateLookupResponse {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  contentHash: string;
+  perceptualHashComputed: boolean;
+  perceptualUnavailableReason: string | null;
+  exactMatches: DuplicateLookupMatch[];
+  perceptualMatches: DuplicateLookupMatch[];
+}
+
+export interface DuplicateHashLookupRequest {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  contentHash: string;
+}
+
 export interface ScheduledJob {
   id: number;
   jobName: string;

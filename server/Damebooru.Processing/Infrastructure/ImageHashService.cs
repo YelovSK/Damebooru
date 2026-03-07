@@ -30,29 +30,40 @@ public class ImageHashService : ISimilarityService
 
     public async Task<SimilarityHashes> ComputeHashesAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        var (pixels, scaledWidth, scaledHeight) = await DecodeGrayscalePixelsAsync(filePath, cancellationToken);
+        await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return await ComputeHashesAsync(stream, cancellationToken);
+    }
+
+    public async Task<SimilarityHashes> ComputeHashesAsync(Stream stream, CancellationToken cancellationToken = default)
+    {
+        var (pixels, scaledWidth, scaledHeight) = await DecodeGrayscalePixelsAsync(stream, cancellationToken);
         if (scaledWidth <= 0 || scaledHeight <= 0 || pixels.Length == 0)
         {
-            throw new InvalidOperationException($"Failed to resolve dimensions for {filePath}");
+            throw new InvalidOperationException("Failed to resolve dimensions from input stream.");
         }
 
         var expectedPixelCount = scaledWidth * scaledHeight;
         if (pixels.Length < expectedPixelCount)
         {
-            throw new InvalidOperationException($"Unexpected pixel count ({pixels.Length}) for {filePath}, expected {expectedPixelCount}");
+            throw new InvalidOperationException($"Unexpected pixel count ({pixels.Length}), expected {expectedPixelCount}.");
         }
 
         var pdqHash = ComputePdqHash256Hex(pixels, scaledHeight, scaledWidth);
         return new SimilarityHashes(pdqHash);
     }
 
-    private static Task<(byte[] Pixels, int Width, int Height)> DecodeGrayscalePixelsAsync(string filePath, CancellationToken cancellationToken)
+    private static Task<(byte[] Pixels, int Width, int Height)> DecodeGrayscalePixelsAsync(Stream stream, CancellationToken cancellationToken)
     {
         return Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!stream.CanRead || !stream.CanSeek)
+            {
+                throw new InvalidOperationException("Image similarity hashing requires a readable, seekable stream.");
+            }
 
-            var imageInfo = ImageFileInfo.Load(filePath);
+            stream.Seek(0, SeekOrigin.Begin);
+            var imageInfo = ImageFileInfo.Load(stream);
             if (imageInfo.Frames.Count == 0)
             {
                 return ([], 0, 0);
@@ -75,7 +86,8 @@ public class ImageHashService : ISimilarityService
                 ResizeMode = CropScaleMode.Max,
             };
 
-            using var pipeline = MagicImageProcessor.BuildPipeline(filePath, settings);
+            stream.Seek(0, SeekOrigin.Begin);
+            using var pipeline = MagicImageProcessor.BuildPipeline(stream, settings);
             pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
 
             var pixelSource = pipeline.PixelSource;

@@ -1,6 +1,7 @@
 using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
+using Damebooru.Processing.Services.Duplicates;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -231,9 +232,9 @@ public class FindDuplicatesJob : IJob
         var hashPosts = new List<HashPost>();
         foreach (var p in posts)
         {
-            if (!string.IsNullOrWhiteSpace(p.PdqHash256) && TryParseHex256(p.PdqHash256, out var words))
+            if (!string.IsNullOrWhiteSpace(p.PdqHash256) && PdqHashMatchHelper.TryParseHex256(p.PdqHash256, out var words))
             {
-                hashPosts.Add(new HashPost(p.Id, words[0], words[1], words[2], words[3], p.ContentType));
+                hashPosts.Add(new HashPost(p.Id, words.W0, words.W1, words.W2, words.W3, p.ContentType));
             }
         }
 
@@ -325,53 +326,13 @@ public class FindDuplicatesJob : IJob
 
     private static bool TryComputeSimilarity(HashPost a, HashPost b, int combinedSimilarityThresholdPercent, out int similarityPercent)
     {
-        var distance = BitOperations.PopCount(a.W0 ^ b.W0)
-                     + BitOperations.PopCount(a.W1 ^ b.W1)
-                     + BitOperations.PopCount(a.W2 ^ b.W2)
-                     + BitOperations.PopCount(a.W3 ^ b.W3);
-
-        var similarity = 1.0 - (double)distance / 256;
-        var threshold = combinedSimilarityThresholdPercent / 100.0;
-
-        var isAImage = a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-        var isBImage = b.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-        if (!isAImage || !isBImage)
-        {
-            threshold = Math.Max(threshold, 0.90);
-        }
-
-        if (similarity < threshold)
-        {
-            similarityPercent = 0;
-            return false;
-        }
-
-        similarityPercent = (int)Math.Round(similarity * 100);
-        return true;
-    }
-
-    private static bool TryParseHex256(string hex, out ulong[] words)
-    {
-        words = [0UL, 0UL, 0UL, 0UL];
-
-        var trimmed = hex.Trim();
-        if (trimmed.Length != 64)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < 4; i++)
-        {
-            var segment = trimmed.Substring(i * 16, 16);
-            if (!ulong.TryParse(segment, System.Globalization.NumberStyles.HexNumber, null, out var parsed))
-            {
-                return false;
-            }
-
-            words[i] = parsed;
-        }
-
-        return true;
+        return PdqHashMatchHelper.TryComputeSimilarity(
+            new PdqHashWords(a.W0, a.W1, a.W2, a.W3),
+            a.ContentType,
+            new PdqHashWords(b.W0, b.W1, b.W2, b.W3),
+            b.ContentType,
+            combinedSimilarityThresholdPercent,
+            out similarityPercent);
     }
 
     private static void AddEdge(Dictionary<int, HashSet<int>> neighbors, int a, int b)

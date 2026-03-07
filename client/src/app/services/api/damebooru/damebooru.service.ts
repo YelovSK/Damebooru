@@ -35,6 +35,8 @@ import {
   ResolveSameFolderGroupRequest,
   ResolveSameFolderResponse,
   SimilarPost,
+  DuplicateLookupResponse,
+  DuplicateHashLookupRequest,
   AppLogList,
   PostAuditList,
 } from "./models";
@@ -55,8 +57,6 @@ export class DamebooruService {
   private authChecked = signal(false);
 
   private http = inject(HttpClient);
-
-  constructor() {}
 
   private joinMediaUrl(path: string): string {
     const base = this.mediaBaseUrl.endsWith("/")
@@ -597,6 +597,23 @@ export class DamebooruService {
   getSameFolderDuplicateGroups(): Observable<SameFolderDuplicateGroup[]> {
     return this.http.get<SameFolderDuplicateGroup[]>(
       `${this.baseUrl}/duplicates/same-folder`,
+    );
+  }
+
+  lookupDuplicates(file: File): Observable<DuplicateLookupResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return this.http.post<DuplicateLookupResponse>(
+      `${this.baseUrl}/duplicates/lookup`,
+      formData,
+    );
+  }
+
+  lookupDuplicatesByHash(request: DuplicateHashLookupRequest): Observable<DuplicateLookupResponse> {
+    return this.http.post<DuplicateLookupResponse>(
+      `${this.baseUrl}/duplicates/lookup/exact`,
+      request,
     );
   }
 

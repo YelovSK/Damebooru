@@ -129,6 +129,44 @@ public class SimilarPostDto
     public bool GroupIsResolved { get; set; }
 }
 
+public class DuplicateLookupMatchDto
+{
+    public int Id { get; set; }
+    public int LibraryId { get; set; }
+    public string LibraryName { get; set; } = string.Empty;
+    public string RelativePath { get; set; } = string.Empty;
+    public string ContentHash { get; set; } = string.Empty;
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public string ContentType { get; set; } = string.Empty;
+    public long SizeBytes { get; set; }
+    public DateTime ImportDate { get; set; }
+    public DateTime FileModifiedDate { get; set; }
+    public int ThumbnailLibraryId { get; set; }
+    public string ThumbnailContentHash { get; set; } = string.Empty;
+    public int? SimilarityPercent { get; set; }
+}
+
+public class DuplicateLookupResponseDto
+{
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long SizeBytes { get; set; }
+    public string ContentHash { get; set; } = string.Empty;
+    public bool PerceptualHashComputed { get; set; }
+    public string? PerceptualUnavailableReason { get; set; }
+    public List<DuplicateLookupMatchDto> ExactMatches { get; set; } = [];
+    public List<DuplicateLookupMatchDto> PerceptualMatches { get; set; } = [];
+}
+
+public class DuplicateHashLookupRequestDto
+{
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long SizeBytes { get; set; }
+    public string ContentHash { get; set; } = string.Empty;
+}
+
 public class SameFolderDuplicateGroupDto
 {
     public int ParentDuplicateGroupId { get; set; }

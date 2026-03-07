@@ -140,6 +140,175 @@
             </ng-template>
         </app-tab>
 
+        <app-tab id="lookup" label="Lookup">
+            <ng-template>
+                <div class="space-y-6">
+                    <div>
+                        <h2 class="text-xl font-semibold text-white">Find Existing Posts by Upload</h2>
+                        <p class="mt-1 text-sm text-text-muted">
+                            Upload a file to check whether the same post already exists. Image uploads also attempt perceptual matching.
+                        </p>
+                    </div>
+
+                    <label
+                        class="block rounded-xl border border-dashed px-5 py-6 transition-colors cursor-pointer"
+                        [class.border-accent-primary]="lookupDropActive()"
+                        [class.bg-accent-primary/5]="lookupDropActive()"
+                        [class.border-gray-700]="!lookupDropActive()"
+                        [class.bg-gray-900]="!lookupDropActive()"
+                        (dragover)="onLookupDragOver($event)"
+                        (dragleave)="onLookupDragLeave($event)"
+                        (drop)="onLookupDrop($event)">
+                        <input type="file" class="hidden" (change)="onLookupFileInputChange($event)">
+
+                        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div class="space-y-2">
+                                <div class="text-sm font-semibold text-white">Choose or drop a file</div>
+                                <div class="text-sm text-text-muted">
+                                    Exact matching works for any file. Perceptual matching is image-only.
+                                </div>
+                            </div>
+                            <div class="shrink-0 text-sm font-medium text-accent-primary">Click to browse</div>
+                        </div>
+
+                        @if (lookupSelectedFile(); as file) {
+                        <div class="mt-5 grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start">
+                            <div class="overflow-hidden rounded-lg border border-white/10 bg-black/20">
+                                @if (hasLookupImagePreview()) {
+                                <img [src]="lookupPreviewUrl()!" [alt]="file.name" class="aspect-square w-full object-cover">
+                                } @else {
+                                <div class="flex aspect-square items-center justify-center px-4 text-center text-sm text-text-muted">
+                                    No local preview available
+                                </div>
+                                }
+                            </div>
+
+                            <div class="space-y-2 rounded-lg border border-white/10 bg-black/20 p-4">
+                                <div class="break-all text-sm font-semibold text-white">{{ getLookupFileName() }}</div>
+                                <div class="text-xs text-text-muted">{{ getLookupFileType() }} · {{ getLookupFileSize() | fileSize }}</div>
+                            </div>
+                        </div>
+                        }
+                    </label>
+
+                    <div class="flex flex-wrap gap-3">
+                        <app-button variant="primary" size="md" [disabled]="!lookupSelectedFile() || lookupLoading()" (click)="runLookup()">
+                            {{ lookupLoading() ? lookupLoadingText() : 'Find Matches' }}
+                        </app-button>
+                        <app-button variant="secondary" size="md" [disabled]="!lookupSelectedFile() && !lookupHasResults()"
+                            (click)="clearLookup()">
+                            Clear
+                        </app-button>
+                    </div>
+
+                    @if (lookupError()) {
+                    <div class="rounded-lg border border-status-error/40 bg-status-error/10 px-4 py-3 text-sm text-red-200">
+                        {{ lookupError() }}
+                    </div>
+                    }
+
+                    @if (lookupResult(); as result) {
+                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                        <div class="rounded-lg border border-gray-700 bg-gray-900 px-5 py-4">
+                            <div class="text-3xl font-bold text-white">{{ lookupExactMatches().length }}</div>
+                            <div class="text-sm text-gray-400">Exact Matches</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-700 bg-gray-900 px-5 py-4">
+                            <div class="text-3xl font-bold text-blue-400">{{ lookupPerceptualMatches().length }}</div>
+                            <div class="text-sm text-gray-400">Perceptual Matches</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-700 bg-gray-900 px-5 py-4">
+                            <div class="truncate text-sm font-semibold text-white" [title]="result.contentHash">{{ result.contentHash }}</div>
+                            <div class="text-sm text-gray-400">Content Hash</div>
+                        </div>
+                        <div class="rounded-lg border border-gray-700 bg-gray-900 px-5 py-4">
+                            <div class="text-3xl font-bold" [class.text-emerald-400]="result.perceptualHashComputed"
+                                [class.text-gray-500]="!result.perceptualHashComputed">
+                                {{ result.perceptualHashComputed ? 'YES' : 'NO' }}
+                            </div>
+                            <div class="text-sm text-gray-400">PDQ Computed</div>
+                        </div>
+                    </div>
+
+                    @if (lookupPerceptualReason()) {
+                    <div class="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                        {{ lookupPerceptualReason() }}
+                    </div>
+                    }
+
+                    <section class="space-y-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="text-lg font-semibold text-white">Exact Matches</h3>
+                            <span class="text-sm text-text-muted">{{ lookupExactMatches().length }} found</span>
+                        </div>
+
+                        @if (lookupExactMatches().length === 0) {
+                        <div class="rounded-lg border border-gray-700 bg-gray-900 px-4 py-6 text-sm text-text-muted">
+                            No exact matches found for this content hash.
+                        </div>
+                        } @else {
+                        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            @for (match of lookupExactMatches(); track trackLookupMatch($index, match)) {
+                            <a [routerLink]="['/post', match.id]"
+                                class="block overflow-hidden rounded-lg border border-gray-700 bg-gray-900 transition-colors hover:border-accent-primary">
+                                <img [src]="getLookupThumbnailUrl(match)" [alt]="match.relativePath" class="aspect-square w-full object-cover"
+                                    loading="lazy" (error)="onImageError($event)">
+                                <div class="space-y-1 p-3">
+                                    <div class="truncate text-sm font-semibold text-white" [title]="match.relativePath">{{ match.relativePath | fileName }}</div>
+                                    <div class="text-xs text-text-muted">{{ match.libraryName }}</div>
+                                    <div class="text-xs text-text-muted break-all">{{ match.relativePath }}</div>
+                                    <div class="flex justify-between text-xs text-gray-500">
+                                        <span>{{ match.width }}×{{ match.height }}</span>
+                                        <span>{{ match.sizeBytes | fileSize }}</span>
+                                    </div>
+                                </div>
+                            </a>
+                            }
+                        </div>
+                        }
+                    </section>
+
+                    <section class="space-y-4">
+                        <div class="flex items-center justify-between gap-3">
+                            <h3 class="text-lg font-semibold text-white">Perceptual Matches</h3>
+                            <span class="text-sm text-text-muted">{{ lookupPerceptualMatches().length }} found</span>
+                        </div>
+
+                        @if (lookupPerceptualMatches().length === 0) {
+                        <div class="rounded-lg border border-gray-700 bg-gray-900 px-4 py-6 text-sm text-text-muted">
+                            No perceptual matches found for this upload.
+                        </div>
+                        } @else {
+                        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                            @for (match of lookupPerceptualMatches(); track trackLookupMatch($index, match)) {
+                            <a [routerLink]="['/post', match.id]"
+                                class="block overflow-hidden rounded-lg border border-gray-700 bg-gray-900 transition-colors hover:border-purple-400">
+                                <img [src]="getLookupThumbnailUrl(match)" [alt]="match.relativePath" class="aspect-square w-full object-cover"
+                                    loading="lazy" (error)="onImageError($event)">
+                                <div class="space-y-1 p-3">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <div class="truncate text-sm font-semibold text-white" [title]="match.relativePath">{{ match.relativePath | fileName }}</div>
+                                        <span class="rounded bg-purple-600/20 px-2 py-0.5 text-[11px] font-semibold text-purple-200">
+                                            {{ match.similarityPercent }}%
+                                        </span>
+                                    </div>
+                                    <div class="text-xs text-text-muted">{{ match.libraryName }}</div>
+                                    <div class="text-xs text-text-muted break-all">{{ match.relativePath }}</div>
+                                    <div class="flex justify-between text-xs text-gray-500">
+                                        <span>{{ match.width }}×{{ match.height }}</span>
+                                        <span>{{ match.sizeBytes | fileSize }}</span>
+                                    </div>
+                                </div>
+                            </a>
+                            }
+                        </div>
+                        }
+                    </section>
+                    }
+                </div>
+            </ng-template>
+        </app-tab>
+
         <app-tab id="resolved" label="Resolved Groups" (init)="onResolvedTabInit()">
             <ng-template>
                 <div class="mb-6 flex flex-wrap gap-3">

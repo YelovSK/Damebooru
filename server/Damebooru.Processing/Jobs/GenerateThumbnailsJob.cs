@@ -1,5 +1,6 @@
 using Damebooru.Core;
 using Damebooru.Core.Config;
+using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
 using Damebooru.Core.Paths;
 using Damebooru.Data;
@@ -15,6 +16,7 @@ public class GenerateThumbnailsJob : IJob
 {
     public static readonly JobKey JobKey = JobKeys.GenerateThumbnails;
     public const string JobName = "Generate Thumbnails";
+    private const int BatchSize = 20;
 
     private sealed record ThumbnailCandidate(int Id, int LibraryId, string ContentHash, string RelativePath, string LibraryPath);
 
@@ -57,7 +59,10 @@ public class GenerateThumbnailsJob : IJob
             .Where(p => !string.IsNullOrEmpty(p.ContentHash))
             .AsQueryable();
 
-        var totalCandidates = await query.CountAsync(context.CancellationToken);
+        var totalPosts = await query.CountAsync(context.CancellationToken);
+        var totalCandidates = context.Mode == JobMode.All
+            ? totalPosts
+            : await CountMissingThumbnailCandidatesAsync(query, totalPosts, context);
         _logger.LogInformation(
             "Generating thumbnails for up to {Count} posts (mode: {Mode})",
             totalCandidates,
@@ -75,7 +80,6 @@ public class GenerateThumbnailsJob : IJob
             return;
         }
 
-        var scanned = 0;
         int processed = 0;
         int failed = 0;
         int skipped = 0;
@@ -89,19 +93,18 @@ public class GenerateThumbnailsJob : IJob
 
         JobState BuildLiveState() => new()
         {
-            ActivityText = $"Generating thumbnails... ({Math.Min(totalCandidates, processed + failed + skipped)}/{totalCandidates})",
-            ProgressCurrent = Math.Min(totalCandidates, processed + failed + skipped),
+            ActivityText = $"Generating thumbnails... ({Math.Min(totalCandidates, processed + failed)}/{totalCandidates})",
+            ProgressCurrent = Math.Min(totalCandidates, processed + failed),
             ProgressTotal = totalCandidates
         };
 
-        const int batchSize = 20;
         while (true)
         {
             var batch = await query
                 .Where(p => p.Id > lastId)
                 .OrderBy(p => p.Id)
                 .Select(p => new ThumbnailCandidate(p.Id, p.LibraryId, p.ContentHash!, p.RelativePath, p.Library.Path))
-                .Take(batchSize)
+                .Take(BatchSize)
                 .ToListAsync(context.CancellationToken);
 
             if (batch.Count == 0)
@@ -110,8 +113,6 @@ public class GenerateThumbnailsJob : IJob
             }
 
             lastId = batch[^1].Id;
-            scanned += batch.Count;
-
             List<ThumbnailCandidate> toProcess;
             if (context.Mode == JobMode.All)
             {
@@ -155,7 +156,7 @@ public class GenerateThumbnailsJob : IJob
         context.Reporter.Update(new JobState
         {
             ActivityText = "Completed",
-            ProgressCurrent = scanned,
+            ProgressCurrent = Math.Min(totalCandidates, processed + failed),
             ProgressTotal = totalCandidates,
             FinalText = $"Generated {processed} thumbnails ({failed} failed, {skipped} skipped)."
         });
@@ -164,5 +165,47 @@ public class GenerateThumbnailsJob : IJob
             processed,
             failed,
             skipped);
+    }
+
+    private async Task<int> CountMissingThumbnailCandidatesAsync(IQueryable<Post> query, int totalPosts, JobContext context)
+    {
+        context.Reporter.Update(new JobState
+        {
+            ActivityText = $"Scanning posts for missing thumbnails... (0/{totalPosts})",
+            ProgressCurrent = 0,
+            ProgressTotal = totalPosts,
+        });
+
+        var lastId = 0;
+        var scanned = 0;
+        var missingCount = 0;
+
+        while (true)
+        {
+            var batch = await query
+                .Where(p => p.Id > lastId)
+                .OrderBy(p => p.Id)
+                .Select(p => new ThumbnailCandidate(p.Id, p.LibraryId, p.ContentHash!, p.RelativePath, p.Library.Path))
+                .Take(BatchSize)
+                .ToListAsync(context.CancellationToken);
+
+            if (batch.Count == 0)
+            {
+                break;
+            }
+
+            lastId = batch[^1].Id;
+            scanned += batch.Count;
+            missingCount += batch.Count(p => !File.Exists(MediaPaths.GetThumbnailFilePath(_thumbnailPath, p.LibraryId, p.ContentHash)));
+
+            context.Reporter.Update(new JobState
+            {
+                ActivityText = $"Scanning posts for missing thumbnails... ({scanned}/{totalPosts})",
+                ProgressCurrent = scanned,
+                ProgressTotal = totalPosts,
+            });
+        }
+
+        return missingCount;
     }
 }

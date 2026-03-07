@@ -46,9 +46,6 @@ public class ScanAllLibrariesJob : IJob
         var phase = "Scanning libraries...";
         var currentProcessed = 0;
 
-        static string WithProgress(string phaseText, int processed)
-            => $"{phaseText} ({processed}/100)";
-
         IProgress<float> progress = new Progress<float>(percent =>
         {
             var normalized = percent <= 1f ? percent * 100f : percent;
@@ -56,7 +53,7 @@ public class ScanAllLibrariesJob : IJob
             currentProcessed = processed;
             context.Reporter.Update(new JobState
             {
-                ActivityText = WithProgress(phase, processed),
+                ActivityText = phase,
                 ProgressCurrent = processed,
                 ProgressTotal = 100
             });
@@ -67,7 +64,7 @@ public class ScanAllLibrariesJob : IJob
             phase = string.IsNullOrWhiteSpace(message) ? "Scanning libraries..." : message.Trim();
             context.Reporter.Update(new JobState
             {
-                ActivityText = WithProgress(phase, currentProcessed),
+                ActivityText = phase,
                 ProgressCurrent = currentProcessed,
                 ProgressTotal = 100
             });
@@ -75,7 +72,7 @@ public class ScanAllLibrariesJob : IJob
 
         context.Reporter.Update(new JobState
         {
-            ActivityText = WithProgress(phase, 0),
+            ActivityText = phase,
             ProgressCurrent = 0,
             ProgressTotal = 100
         });

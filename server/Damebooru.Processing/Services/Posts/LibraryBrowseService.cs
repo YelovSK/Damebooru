@@ -199,7 +199,6 @@ public class LibraryBrowseService
         return await _context.Posts
             .AsNoTracking()
             .Where(p => p.Id == id)
-            .AsSplitQuery()
             .Select(p => new PostDto
             {
                 Id = p.Id,

@@ -94,7 +94,9 @@ var resolvedConnectionString = StoragePathResolver.ResolveSqliteConnectionString
     damebooruConfig.Storage.DatabasePath);
 
 builder.Services.AddDbContextFactory<DamebooruDbContext>(options =>
-    options.UseSqlite(resolvedConnectionString));
+    options.UseSqlite(
+        resolvedConnectionString,
+        sqliteOptions => sqliteOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IDbContextFactory<DamebooruDbContext>>().CreateDbContext());
 builder.Services.AddScoped<PostReadService>();
@@ -106,6 +108,7 @@ builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<TagCategoryService>();
 builder.Services.AddScoped<DuplicateWriteService>();
 builder.Services.AddScoped<DuplicateReadService>();
+builder.Services.AddScoped<DuplicateLookupService>();
 builder.Services.AddScoped<JobScheduleService>();
 builder.Services.AddScoped<SystemReadService>();
 

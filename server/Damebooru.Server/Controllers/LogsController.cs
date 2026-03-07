@@ -9,6 +9,7 @@ namespace Damebooru.Server.Controllers;
 [Route("api/[controller]")]
 public class LogsController : ControllerBase
 {
+    private static readonly string[] LogLevelOrder = ["trace", "debug", "information", "warning", "error", "critical"];
     private readonly DamebooruDbContext _context;
 
     public LogsController(DamebooruDbContext context)
@@ -34,7 +35,17 @@ public class LogsController : ControllerBase
         if (!string.IsNullOrWhiteSpace(level))
         {
             var normalizedLevel = level.Trim().ToLower();
-            query = query.Where(e => e.Level.ToLower() == normalizedLevel);
+            var minimumLevelIndex = Array.IndexOf(LogLevelOrder, normalizedLevel);
+
+            if (minimumLevelIndex >= 0)
+            {
+                var allowedLevels = LogLevelOrder[minimumLevelIndex..];
+                query = query.Where(e => allowedLevels.Contains(e.Level.ToLower()));
+            }
+            else
+            {
+                query = query.Where(e => e.Level.ToLower() == normalizedLevel);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(category))

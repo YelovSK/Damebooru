@@ -11,11 +11,16 @@ public class DuplicatesController : ControllerBase
 {
     private readonly DuplicateWriteService _duplicateWriteService;
     private readonly DuplicateReadService _duplicateReadService;
+    private readonly DuplicateLookupService _duplicateLookupService;
 
-    public DuplicatesController(DuplicateWriteService duplicateWriteService, DuplicateReadService duplicateReadService)
+    public DuplicatesController(
+        DuplicateWriteService duplicateWriteService,
+        DuplicateReadService duplicateReadService,
+        DuplicateLookupService duplicateLookupService)
     {
         _duplicateWriteService = duplicateWriteService;
         _duplicateReadService = duplicateReadService;
+        _duplicateLookupService = duplicateLookupService;
     }
 
     /// <summary>
@@ -43,6 +48,27 @@ public class DuplicatesController : ControllerBase
     public async Task<ActionResult<IEnumerable<SameFolderDuplicateGroupDto>>> GetSameFolderDuplicateGroups(CancellationToken cancellationToken)
     {
         return Ok(await _duplicateReadService.GetSameFolderDuplicateGroupsAsync(cancellationToken));
+    }
+
+    [HttpPost("lookup")]
+    public async Task<IActionResult> LookupDuplicates([FromForm] IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file == null || file.Length <= 0)
+        {
+            return BadRequest("A non-empty file upload is required.");
+        }
+
+        return await _duplicateLookupService.LookupAsync(
+            file.OpenReadStream,
+            file.FileName,
+            file.ContentType,
+            cancellationToken).ToHttpResult();
+    }
+
+    [HttpPost("lookup/exact")]
+    public async Task<IActionResult> LookupDuplicatesByHash([FromBody] DuplicateHashLookupRequestDto request, CancellationToken cancellationToken)
+    {
+        return await _duplicateLookupService.LookupExactByHashAsync(request, cancellationToken).ToHttpResult();
     }
 
     /// <summary>

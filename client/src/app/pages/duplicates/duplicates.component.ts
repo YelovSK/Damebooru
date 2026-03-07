@@ -1,12 +1,17 @@
-import { ChangeDetectionStrategy, Component, HostListener, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, HostListener, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { finalize } from 'rxjs/operators';
+import { filter, map, startWith } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import {
   DuplicateType,
   DamebooruPostDto,
   DuplicateGroup,
+  DuplicateLookupMatch,
+  DuplicateLookupResponse,
   DuplicatePost,
   ExcludedFile,
   ResolveSameFolderGroupRequest,
@@ -25,6 +30,7 @@ import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-che
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
 import { SettingsService } from '@services/settings.service';
+import { computeLookupContentHash } from './lookup-hash';
 
 type DuplicateScope = 'all' | 'same-folder';
 
@@ -63,9 +69,20 @@ interface VisibleDuplicateGroup {
 export class DuplicatesPageComponent {
   private readonly damebooru = inject(DamebooruService);
   private readonly confirmService = inject(ConfirmService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly settingsService = inject(SettingsService);
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationEnd),
+      map(() => this.router.url),
+      startWith(this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
   readonly duplicateType = DuplicateType;
+  readonly isLookupTabActive = computed(() => this.currentUrl().split('?')[0].endsWith('/duplicates/lookup'));
   readonly hoverPreviewEnabled = this.settingsService.enablePostPreviewOnHover;
   readonly hoverPreviewDelayMs = computed(() => {
     const raw = this.settingsService.postPreviewDelayMs();
@@ -85,6 +102,17 @@ export class DuplicatesPageComponent {
   excludedFiles = signal<ExcludedFile[]>([]);
 
   sameFolderGroups = signal<SameFolderDuplicateGroup[]>([]);
+  lookupSelectedFile = signal<File | null>(null);
+  lookupPreviewUrl = signal<string | null>(null);
+  lookupResult = signal<DuplicateLookupResponse | null>(null);
+  lookupError = signal<string | null>(null);
+  lookupLoading = signal(false);
+  lookupLoadingText = signal('Finding Matches...');
+  lookupDropActive = signal(false);
+  readonly lookupExactMatches = computed(() => this.lookupResult()?.exactMatches ?? []);
+  readonly lookupPerceptualMatches = computed(() => this.lookupResult()?.perceptualMatches ?? []);
+  readonly lookupPerceptualReason = computed(() => this.lookupResult()?.perceptualUnavailableReason ?? null);
+  readonly lookupHasResults = computed(() => this.lookupResult() !== null);
 
   showSameFolderOnly = signal(false);
   previewPost = signal<DamebooruPostDto | null>(null);
@@ -98,6 +126,10 @@ export class DuplicatesPageComponent {
   private hoverPreviewTimer: ReturnType<typeof setTimeout> | null = null;
   private hoveredPostId: number | null = null;
   private readonly previewPostCache = new Map<number, DamebooruPostDto>();
+
+  constructor() {
+    this.destroyRef.onDestroy(() => this.revokeLookupPreviewUrl());
+  }
 
   onGroupsTabInit() {
     if (this.groupsTabInitialized) {
@@ -125,6 +157,95 @@ export class DuplicatesPageComponent {
 
     this.excludedTabInitialized = true;
     this.loadExcludedFiles();
+  }
+
+  onLookupFileInputChange(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    this.setLookupFile(file);
+    input.value = '';
+  }
+
+  onLookupDragOver(event: DragEvent) {
+    event.preventDefault();
+    this.lookupDropActive.set(true);
+  }
+
+  onLookupDragLeave(event: DragEvent) {
+    event.preventDefault();
+    this.lookupDropActive.set(false);
+  }
+
+  onLookupDrop(event: DragEvent) {
+    event.preventDefault();
+    this.lookupDropActive.set(false);
+    const file = event.dataTransfer?.files?.[0] ?? null;
+    this.setLookupFile(file);
+  }
+
+  runLookup() {
+    const file = this.lookupSelectedFile();
+    if (!file || this.lookupLoading()) {
+      return;
+    }
+
+    this.lookupLoading.set(true);
+    this.lookupError.set(null);
+
+    if (this.isLookupImageFile(file)) {
+      this.lookupLoadingText.set('Finding Matches...');
+      this.damebooru.lookupDuplicates(file)
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          finalize(() => {
+            this.lookupLoading.set(false);
+            this.lookupLoadingText.set('Finding Matches...');
+          }),
+        )
+        .subscribe({
+          next: result => {
+            this.lookupResult.set(result);
+          },
+          error: () => {
+            this.lookupResult.set(null);
+            this.lookupError.set('Lookup failed. Please try a different file or check the server logs.');
+            this.toast.error('Failed to look up similar posts.');
+          }
+        });
+      return;
+    }
+
+    this.lookupLoadingText.set('Hashing File...');
+    void this.runExactHashLookup(file);
+  }
+
+  clearLookup() {
+    this.lookupSelectedFile.set(null);
+    this.lookupResult.set(null);
+    this.lookupError.set(null);
+    this.lookupDropActive.set(false);
+    this.lookupLoadingText.set('Finding Matches...');
+    this.revokeLookupPreviewUrl();
+  }
+
+  hasLookupImagePreview(): boolean {
+    return this.lookupPreviewUrl() !== null;
+  }
+
+  getLookupFileName(): string {
+    return this.lookupSelectedFile()?.name ?? 'No file selected';
+  }
+
+  getLookupFileType(): string {
+    return this.lookupSelectedFile()?.type || 'unknown';
+  }
+
+  getLookupFileSize(): number {
+    return this.lookupSelectedFile()?.size ?? 0;
+  }
+
+  trackLookupMatch(_: number, match: DuplicateLookupMatch) {
+    return `${match.id}:${match.similarityPercent ?? 'exact'}`;
   }
 
   onSameFolderOnlyChange(checked: boolean) {
@@ -425,7 +546,7 @@ export class DuplicatesPageComponent {
         this.resolvedGroups.set(groups);
         this.resolvedPage.set(Math.min(this.resolvedPage(), this.resolvedTotalPages()));
       },
-      error: () => {}
+      error: () => void 0
     });
   }
 
@@ -496,7 +617,7 @@ export class DuplicatesPageComponent {
         this.exactCount.set(groups.filter(group => group.type === DuplicateType.Exact).length);
         this.perceptualCount.set(groups.filter(group => group.type === DuplicateType.Perceptual).length);
       },
-      error: () => {}
+      error: () => void 0
     });
   }
 
@@ -506,7 +627,7 @@ export class DuplicatesPageComponent {
         this.sameFolderGroups.set(groups);
         this.visiblePage.set(Math.min(this.visiblePage(), this.visibleTotalPages()));
       },
-      error: () => {}
+      error: () => void 0
     });
   }
 
@@ -624,7 +745,7 @@ export class DuplicatesPageComponent {
       next: (files) => {
         this.excludedFiles.set(files);
       },
-      error: () => {}
+      error: () => void 0
     });
   }
 
@@ -679,6 +800,10 @@ export class DuplicatesPageComponent {
     return this.damebooru.getThumbnailUrl(post.thumbnailLibraryId, post.thumbnailContentHash);
   }
 
+  getLookupThumbnailUrl(match: DuplicateLookupMatch): string {
+    return this.damebooru.getThumbnailUrl(match.thumbnailLibraryId, match.thumbnailContentHash);
+  }
+
   onImageError(event: Event) {
     (event.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23374151" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239CA3AF" font-size="12">No image</text></svg>';
   }
@@ -723,6 +848,35 @@ export class DuplicatesPageComponent {
     this.closePreview();
   }
 
+  @HostListener('document:paste', ['$event'])
+  onPaste(event: ClipboardEvent) {
+    if (!this.isLookupTabActive()) {
+      return;
+    }
+
+    const items = event.clipboardData?.items;
+    if (!items || items.length === 0) {
+      return;
+    }
+
+    for (const item of Array.from(items)) {
+      if (!item.type.startsWith('image/')) {
+        continue;
+      }
+
+      const blob = item.getAsFile();
+      if (!blob) {
+        continue;
+      }
+
+      event.preventDefault();
+      const extension = this.getLookupFileExtension(blob.type);
+      const file = new File([blob], `clipboard-image${extension}`, { type: blob.type });
+      this.setLookupFile(file);
+      return;
+    }
+  }
+
   private showPostPreview(postId: number) {
     if (this.hoveredPostId !== postId) {
       return;
@@ -756,7 +910,7 @@ export class DuplicatesPageComponent {
     }
   }
 
-  private selectBestQualityVisiblePostId(posts: ReadonlyArray<DuplicatePost>): number | null {
+  private selectBestQualityVisiblePostId(posts: readonly DuplicatePost[]): number | null {
     if (posts.length === 0) {
       return null;
     }
@@ -816,6 +970,88 @@ export class DuplicatesPageComponent {
 
     if (this.excludedTabInitialized) {
       this.loadExcludedFiles();
+    }
+  }
+
+  private setLookupFile(file: File | null) {
+    this.lookupResult.set(null);
+    this.lookupError.set(null);
+    this.lookupSelectedFile.set(file);
+    this.revokeLookupPreviewUrl();
+
+    if (file && this.isLookupImageFile(file)) {
+      this.lookupPreviewUrl.set(URL.createObjectURL(file));
+    }
+  }
+
+  private revokeLookupPreviewUrl() {
+    const currentUrl = this.lookupPreviewUrl();
+    if (currentUrl) {
+      URL.revokeObjectURL(currentUrl);
+      this.lookupPreviewUrl.set(null);
+    }
+  }
+
+  private isLookupImageFile(file: File): boolean {
+    return file.type.startsWith('image/')
+      || /\.(jpg|jpeg|png|gif|bmp|tga|webp|jxl)$/i.test(file.name);
+  }
+
+  private getLookupFileExtension(contentType: string): string {
+    switch (contentType.toLowerCase()) {
+      case 'image/jpeg':
+        return '.jpg';
+      case 'image/png':
+        return '.png';
+      case 'image/gif':
+        return '.gif';
+      case 'image/webp':
+        return '.webp';
+      case 'image/bmp':
+        return '.bmp';
+      case 'image/tga':
+        return '.tga';
+      case 'image/jxl':
+        return '.jxl';
+      default:
+        return '';
+    }
+  }
+
+  private async runExactHashLookup(file: File): Promise<void> {
+    try {
+      const contentHash = await computeLookupContentHash(file);
+      this.lookupLoadingText.set('Finding Exact Matches...');
+
+      this.damebooru.lookupDuplicatesByHash({
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        sizeBytes: file.size,
+        contentHash,
+      })
+        .pipe(
+          takeUntilDestroyed(this.destroyRef),
+          finalize(() => {
+            this.lookupLoading.set(false);
+            this.lookupLoadingText.set('Finding Matches...');
+          }),
+        )
+        .subscribe({
+          next: result => {
+            this.lookupResult.set(result);
+          },
+          error: () => {
+            this.lookupResult.set(null);
+            this.lookupError.set('Lookup failed. Please try a different file or check the server logs.');
+            this.toast.error('Failed to look up similar posts.');
+          }
+        });
+    } catch {
+      this.lookupLoading.set(false);
+      this.lookupLoadingText.set('Finding Matches...');
+      this.lookupResult.set(null);
+      this.lookupError.set('Could not hash this file in the browser.');
+      this.toast.error('Failed to hash file locally.');
     }
   }
 }
