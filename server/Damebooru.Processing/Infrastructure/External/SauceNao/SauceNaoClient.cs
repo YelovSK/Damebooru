@@ -11,19 +11,10 @@ using PhotoSauce.MagicScaler;
 
 namespace Damebooru.Processing.Infrastructure.External.SauceNao;
 
-internal sealed class SauceNaoClient : ISauceNaoClient
+internal sealed class SauceNaoClient(HttpClient httpClient, DamebooruConfig config) : ISauceNaoClient
 {
-    private readonly HttpClient _httpClient;
-    private readonly SauceNaoApiConfig _config;
-
-    private const int ShortTermLimitStatus = -2;
-    private const int DailyLimitStatus = -3;
-
-    public SauceNaoClient(HttpClient httpClient, DamebooruConfig config)
-    {
-        _httpClient = httpClient;
-        _config = config.ExternalApis.SauceNao;
-    }
+    private readonly HttpClient _httpClient = httpClient;
+    private readonly SauceNaoApiConfig _config = config.ExternalApis.SauceNao;
 
     public async Task<SauceNaoSearchResult> SearchAsync(
         Stream fileStream,
@@ -47,34 +38,24 @@ internal sealed class SauceNaoClient : ISauceNaoClient
 
         var url = $"/search.php?output_type=2&api_key={Uri.EscapeDataString(_config.ApiKey)}&numres={_config.ResultsCount}&db={_config.Database}&minsim={_config.MinimumSimilarity.ToString(CultureInfo.InvariantCulture)}";
         using var response = await _httpClient.PostAsync(url, formData, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+
+        var payload = await response.Content.ReadFromJsonAsync<SauceNaoResponseDto>(cancellationToken);
+        if (payload is null)
         {
-            throw new ExternalProviderException(
-                AutoTagProvider.SauceNao,
-                $"SauceNAO request failed with status code {(int)response.StatusCode}.",
-                response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500,
-                retryAfter: response.StatusCode == HttpStatusCode.TooManyRequests ? TimeSpan.FromSeconds(30) : null,
-                stopCurrentRun: false);
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new InvalidOperationException($"Could not deserialize SauceNAO response: {content}");
         }
 
-        var payload = await response.Content.ReadFromJsonAsync<SauceNaoResponseDto>(cancellationToken: cancellationToken)
-            ?? throw new InvalidOperationException("SauceNAO returned an empty response.");
-
-        if (payload.Header.Status < 0)
+        if (!response.IsSuccessStatusCode || !payload.Header.IsSuccess)
         {
-            TimeSpan? retryAfter = payload.Header.Status switch
-            {
-                ShortTermLimitStatus => TimeSpan.FromSeconds(30),
-                DailyLimitStatus => TimeSpan.FromHours(24),
-                _ => null,
-            };
-
             throw new ExternalProviderException(
-                AutoTagProvider.SauceNao,
-                $"SauceNAO request failed with status {payload.Header.Status}: {payload.Header.Message}",
-                payload.Header.Status is ShortTermLimitStatus or DailyLimitStatus,
-                retryAfter,
-                stopCurrentRun: payload.Header.Status == DailyLimitStatus);
+                provider: AutoTagProvider.SauceNao,
+                message: $"SauceNAO request failed with status code {(int)response.StatusCode}.",
+                isRetryable: response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500,
+                retryAfter: payload.Header.IsShortLimitExceeded || payload.Header.IsFailedAttemptsExceeded
+                    ? TimeSpan.FromSeconds(30)
+                    : null,
+                stopCurrentRun: payload.Header.IsDailyLimitExceeded);
         }
 
         return new SauceNaoSearchResult(
@@ -84,7 +65,8 @@ internal sealed class SauceNaoClient : ISauceNaoClient
             payload.Header.ResultsReturned,
             ParseDecimal(payload.Header.ShortLimit),
             ParseDecimal(payload.Header.LongLimit),
-            payload.Results.Select(MapMatch).ToList());
+            payload.Results.Select(MapMatch).ToList()
+        );
     }
 
     private static SauceNaoMatch MapMatch(SauceNaoResultDto result)
@@ -143,26 +125,19 @@ internal sealed class SauceNaoClient : ISauceNaoClient
     }
 
     private static bool RequiresJpegTranscode(string fileName, string contentType)
-        => string.Equals(contentType, "image/jxl", StringComparison.OrdinalIgnoreCase)
-           || string.Equals(Path.GetExtension(fileName), ".jxl", StringComparison.OrdinalIgnoreCase);
+        => string.Equals(contentType, "image/jxl", StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(Path.GetExtension(fileName), ".jxl", StringComparison.OrdinalIgnoreCase);
 
-    private sealed class PreparedUploadStream : IAsyncDisposable
+    private sealed class PreparedUploadStream(Stream stream, string fileName, string contentType, bool ownsStream) : IAsyncDisposable
     {
-        public PreparedUploadStream(Stream stream, string fileName, string contentType, bool ownsStream)
-        {
-            Stream = stream;
-            FileName = fileName;
-            ContentType = contentType;
-            _ownsStream = ownsStream;
-        }
+        private readonly bool _ownsStream = ownsStream;
 
-        private readonly bool _ownsStream;
+        public Stream Stream { get; } = stream;
+        public string FileName { get; } = fileName;
+        public string ContentType { get; } = contentType;
 
-        public Stream Stream { get; }
-        public string FileName { get; }
-        public string ContentType { get; }
-
-        public ValueTask DisposeAsync()
-            => _ownsStream ? Stream.DisposeAsync() : ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => _ownsStream
+            ? Stream.DisposeAsync()
+            : ValueTask.CompletedTask;
     }
 }

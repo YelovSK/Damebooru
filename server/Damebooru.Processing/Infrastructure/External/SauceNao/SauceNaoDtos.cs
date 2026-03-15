@@ -30,6 +30,13 @@ internal sealed class SauceNaoHeaderDto
 
     [JsonPropertyName("long_limit")]
     public string? LongLimit { get; set; }
+
+    public bool IsSuccess => Status >= 0;
+
+    // Maybe there's a better way, but based on the response I don't see it.
+    public bool IsShortLimitExceeded => !IsSuccess && Message?.Contains("Search Rate Too High", StringComparison.InvariantCultureIgnoreCase) == true;
+    public bool IsDailyLimitExceeded => !IsSuccess && Message?.Contains("Daily Search Limit Exceeded", StringComparison.InvariantCultureIgnoreCase) == true;
+    public bool IsFailedAttemptsExceeded => !IsSuccess && Message?.Contains("Too many failed search attempts", StringComparison.InvariantCultureIgnoreCase) == true;
 }
 
 internal sealed class SauceNaoResultDto
