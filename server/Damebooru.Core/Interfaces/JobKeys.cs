@@ -11,4 +11,5 @@ public static class JobKeys
     public static readonly JobKey CleanupInvalidExclusions = JobKey.Parse("cleanup-invalid-exclusions");
     public static readonly JobKey ApplyFolderTags = JobKey.Parse("apply-folder-tags");
     public static readonly JobKey SanitizeTagNames = JobKey.Parse("sanitize-tag-names");
+    public static readonly JobKey AutoTagPosts = JobKey.Parse("auto-tag-posts");
 }

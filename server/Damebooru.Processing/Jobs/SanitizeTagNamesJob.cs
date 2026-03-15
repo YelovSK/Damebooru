@@ -1,3 +1,4 @@
+using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
 using Damebooru.Processing.Services;
@@ -87,12 +88,12 @@ public class SanitizeTagNamesJob : IJob
                     survivor.Name = sanitizedName;
 
                     // Transfer the best category if survivor has none
-                    if (survivor.TagCategoryId == null)
+                    if (survivor.Category == TagCategoryKind.General)
                     {
-                        var donor = group.FirstOrDefault(t => t.TagCategoryId != null);
+                        var donor = group.FirstOrDefault(t => t.Category != TagCategoryKind.General);
                         if (donor != null)
                         {
-                            survivor.TagCategoryId = donor.TagCategoryId;
+                            survivor.Category = donor.Category;
                         }
                     }
 

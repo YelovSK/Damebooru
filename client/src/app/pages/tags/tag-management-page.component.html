@@ -1,63 +1,27 @@
 <div class="p-3">
   <h1 class="mb-2 text-2xl font-bold text-text-primary">Tag Management</h1>
-  <p class="mb-6 text-text-muted">Manage tags and tag categories in one place.</p>
+  <p class="mb-6 text-text-muted">Manage tags and assign fixed categories.</p>
 
-  <app-tabs>
-    <app-tab id="tags" label="Tags" (init)="onTagsTabInit()">
-      <ng-template>
-        <section class="glass-card p-4">
-          <div class="mb-4 flex flex-wrap items-center gap-3">
-            <div class="min-w-[280px] grow">
-              <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (search)="onTagsSearch($event)">
-              </app-search-input>
-            </div>
-            <app-button (click)="openCreateTagModal()">New Tag</app-button>
-          </div>
+  <section class="glass-card p-4">
+    <div class="mb-4 flex flex-wrap items-center gap-3">
+      <div class="min-w-[280px] grow">
+        <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (search)="onTagsSearch($event)">
+        </app-search-input>
+      </div>
+      <app-button (click)="openCreateTagModal()">New Tag</app-button>
+    </div>
 
-          <div class="mb-3 text-sm text-text-muted">Showing {{ tags().length }} of {{ tagsTotal() }} tags</div>
-          <app-data-table [columns]="tagColumns" [rows]="tags()" [trackBy]="trackTagRow"
-            sortMode="external" [initialSort]="tagsSort()" (sortChange)="onTagsSortChange($event)"
-            (rowClick)="openEditTagModal($event)">
-          </app-data-table>
+    <div class="mb-3 text-sm text-text-muted">Showing {{ tags().length }} of {{ tagsTotal() }} tags</div>
+    <app-data-table [columns]="tagColumns" [rows]="tags()" [trackBy]="trackTagRow"
+      sortMode="external" [initialSort]="tagsSort()" (sortChange)="onTagsSortChange($event)"
+      (rowClick)="openEditTagModal($event)">
+    </app-data-table>
 
-          <div class="mt-4 flex justify-center">
-            <app-paginator [currentPage]="tagsPage()" [totalPages]="tagsTotalPages()"
-              (pageChange)="onTagsPageChange($event)">
-            </app-paginator>
-          </div>
-        </section>
-      </ng-template>
-    </app-tab>
-
-    <app-tab id="categories" label="Categories" (init)="onCategoriesTabInit()">
-      <ng-template>
-        <section class="glass-card p-4">
-          <div class="mb-4 flex flex-wrap items-center gap-3">
-            <div class="min-w-[280px] grow">
-              <app-search-input placeholder="Search categories..." [value]="categoriesQuery()"
-                (search)="onCategoriesSearch($event)">
-              </app-search-input>
-            </div>
-            <app-button (click)="openCreateCategoryModal()">New Category</app-button>
-          </div>
-
-          <div class="mb-3 text-sm text-text-muted">
-            Showing {{ pagedCategories().length }} of {{ sortedFilteredCategories().length }} categories
-          </div>
-          <app-data-table [columns]="categoryColumns" [rows]="pagedCategories()" [trackBy]="trackCategoryRow"
-            sortMode="external" [initialSort]="categoriesSort()" (sortChange)="onCategoriesSortChange($event)"
-            (rowClick)="openEditCategoryModal($event)">
-          </app-data-table>
-
-          <div class="mt-4 flex justify-center">
-            <app-paginator [currentPage]="categoriesPage()" [totalPages]="categoriesTotalPages()"
-              (pageChange)="onCategoriesPageChange($event)">
-            </app-paginator>
-          </div>
-        </section>
-      </ng-template>
-    </app-tab>
-  </app-tabs>
+    <div class="mt-4 flex justify-center">
+      <app-paginator [currentPage]="tagsPage()" [totalPages]="tagsTotalPages()" (pageChange)="onTagsPageChange($event)">
+      </app-paginator>
+    </div>
+  </section>
 </div>
 
 <app-modal [open]="createTagOpen()" title="Create Tag" (closed)="closeCreateTagModal()">
@@ -65,8 +29,8 @@
     <app-form-input label="Name" [ngModel]="createTagName()" (ngModelChange)="createTagName.set($event)">
     </app-form-input>
 
-    <app-form-dropdown [value]="createTagCategoryId()" [options]="categorySelectOptions()" label="Category" placeholder="Uncategorized"
-      (valueChange)="createTagCategoryId.set($event)">
+    <app-form-dropdown [value]="createTagCategory()" [options]="categoryOptions" label="Category"
+      (valueChange)="createTagCategory.set($event ?? 0)">
     </app-form-dropdown>
   </div>
 
@@ -82,12 +46,12 @@
     <app-form-input label="Name" [ngModel]="model.name" (ngModelChange)="updateEditTag({ name: $event })">
     </app-form-input>
 
-    <app-form-dropdown [value]="model.categoryId" [options]="categorySelectOptions()" label="Category" placeholder="Uncategorized"
-      (valueChange)="updateEditTag({ categoryId: $event })">
+    <app-form-dropdown [value]="model.category" [options]="categoryOptions" label="Category"
+      (valueChange)="updateEditTag({ category: $event ?? 0 })">
     </app-form-dropdown>
 
-    <label class="text-sm text-text-muted">Merge Into</label>
-    <div class="flex gap-2 items-end">
+    <span class="text-sm text-text-muted">Merge Into</span>
+    <div class="flex items-end gap-2">
       <div class="grow">
         <app-autocomplete [value]="model.mergeTargetName" [suggestions]="mergeTagSuggestions()"
           placeholder="Search target tag..." [debounce]="200" (queryChange)="onMergeQueryChange($event)"
@@ -109,51 +73,6 @@
     <div class="flex gap-2">
       <app-button variant="ghost" (click)="closeEditTagModal()">Cancel</app-button>
       <app-button variant="secondary" (click)="saveTag()">Save</app-button>
-    </div>
-  </div>
-</app-modal>
-}
-
-<app-modal [open]="createCategoryOpen()" title="Create Category" (closed)="closeCreateCategoryModal()">
-  <div class="grid grid-cols-1 gap-3">
-    <app-form-input label="Name" [ngModel]="createCategoryName()" (ngModelChange)="createCategoryName.set($event)">
-    </app-form-input>
-
-    <label class="text-sm text-text-muted">Color</label>
-    <input type="color" [ngModel]="createCategoryColor()" (ngModelChange)="createCategoryColor.set($event)"
-      class="h-10 w-20 rounded border border-glass-border bg-glass-bg" />
-
-    <app-form-number-input label="Order" [ngModel]="createCategoryOrder()"
-      (ngModelChange)="createCategoryOrder.set($event ?? 0)">
-    </app-form-number-input>
-  </div>
-
-  <div class="mt-4 flex justify-end gap-2">
-    <app-button variant="ghost" (click)="closeCreateCategoryModal()">Cancel</app-button>
-    <app-button (click)="createCategory()">Create</app-button>
-  </div>
-</app-modal>
-
-@if (editCategory(); as model) {
-<app-modal [open]="true" title="Edit Category" (closed)="closeEditCategoryModal()">
-  <div class="grid grid-cols-1 gap-3">
-    <app-form-input label="Name" [ngModel]="model.name" (ngModelChange)="updateEditCategory({ name: $event })">
-    </app-form-input>
-
-    <label class="text-sm text-text-muted">Color</label>
-    <input type="color" [ngModel]="model.color" (ngModelChange)="updateEditCategory({ color: $event })"
-      class="h-10 w-20 rounded border border-glass-border bg-glass-bg" />
-
-    <app-form-number-input label="Order" [ngModel]="model.order"
-      (ngModelChange)="updateEditCategory({ order: $event ?? 0 })">
-    </app-form-number-input>
-  </div>
-
-  <div class="mt-4 flex justify-between gap-2">
-    <app-button variant="danger" (click)="deleteCategoryFromEdit()">Delete</app-button>
-    <div class="flex gap-2">
-      <app-button variant="ghost" (click)="closeEditCategoryModal()">Cancel</app-button>
-      <app-button variant="secondary" (click)="saveCategory()">Save</app-button>
     </div>
   </div>
 </app-modal>

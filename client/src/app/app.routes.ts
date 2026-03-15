@@ -2,7 +2,6 @@ import { Routes } from '@angular/router';
 import { LoginComponent } from '@pages/login/login.component';
 import { PostsComponent } from '@pages/posts/posts.component';
 import { PostDetailComponent } from '@pages/post-detail/post-detail.component';
-import { BulkTaggingComponent } from '@pages/bulk-tagging/bulk-tagging.component';
 import { LibrariesComponent } from '@pages/libraries/libraries.component';
 import { SettingsComponent } from '@pages/settings/settings.component';
 import { MainLayoutComponent } from '@shared/components/main-layout/main-layout.component';
@@ -24,7 +23,6 @@ export const routes: Routes = [
             { path: 'duplicates/:tab', loadComponent: () => import('./pages/duplicates/duplicates.component').then(m => m.DuplicatesPageComponent), data: { pageWidth: 'wide' } },
             { path: AppPaths.posts, component: PostsComponent, data: { pageWidth: 'full' } },
             { path: `${AppPaths.post}/:id`, component: PostDetailComponent, data: { pageWidth: 'full' } },
-            { path: AppPaths.bulkTagging, component: BulkTaggingComponent, data: { pageWidth: 'full' } },
             { path: AppPaths.libraries, component: LibrariesComponent, data: { pageWidth: 'content' } },
             { path: `${AppPaths.libraries}/:id/${AppPaths.libraryExplorer}`, loadComponent: () => import('./pages/library-explorer/library-explorer.component').then(m => m.LibraryExplorerComponent), data: { pageWidth: 'full' } },
             { path: AppPaths.tags, redirectTo: `${AppPaths.tags}/tags`, pathMatch: 'full' },

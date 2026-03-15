@@ -1,5 +1,6 @@
 using Damebooru.Core.DTOs;
 using Damebooru.Processing.Services;
+using Damebooru.Processing.Services.AutoTagging;
 using Damebooru.Server.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,12 +13,14 @@ public class PostsController : ControllerBase
     private readonly PostReadService _postReadService;
     private readonly PostWriteService _postWriteService;
     private readonly PostContentService _postContentService;
+    private readonly PostAutoTaggingService _postAutoTaggingService;
 
-    public PostsController(PostReadService postReadService, PostWriteService postWriteService, PostContentService postContentService)
+    public PostsController(PostReadService postReadService, PostWriteService postWriteService, PostContentService postContentService, PostAutoTaggingService postAutoTaggingService)
     {
         _postReadService = postReadService;
         _postWriteService = postWriteService;
         _postContentService = postContentService;
+        _postAutoTaggingService = postAutoTaggingService;
     }
 
     [HttpGet]
@@ -100,5 +103,11 @@ public class PostsController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         return await _postReadService.GetPostAuditAsync(id, beforeId, take, cancellationToken).ToHttpResult();
+    }
+
+    [HttpPost("{id}/auto-tag")]
+    public async Task<IActionResult> AutoTagPost(int id, CancellationToken cancellationToken = default)
+    {
+        return await _postAutoTaggingService.AutoTagAsync(id, cancellationToken).ToHttpResult();
     }
 }

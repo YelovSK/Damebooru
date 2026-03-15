@@ -2,37 +2,34 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { ManagedTag, ManagedTagCategory } from '@services/api/damebooru/models';
+import { ManagedTag, TagCategoryKind } from '@services/api/damebooru/models';
 import { ToastService } from '@services/toast.service';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
-import { TabsComponent } from '@shared/components/tabs/tabs.component';
-import { TabComponent } from '@shared/components/tabs/tab.component';
 import { SearchInputComponent } from '@shared/components/search-input/search-input.component';
 import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
 import { FormInputComponent } from '@shared/components/form-input/form-input.component';
-import { FormNumberInputComponent } from '@shared/components/form-number-input/form-number-input.component';
-import { DataTableColumn, DataTableComponent, DataTableSort, DataTableSortDirection } from '@shared/components/data-table/data-table.component';
+import { DataTableColumn, DataTableComponent, DataTableSort } from '@shared/components/data-table/data-table.component';
 import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ConfirmService } from '@services/confirm.service';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 
-type EditTagModel = {
+interface EditTagModel {
   id: number;
   name: string;
-  categoryId: number | null;
+  category: TagCategoryKind;
   mergeTargetName: string;
-};
-
-type EditCategoryModel = {
-  id: number;
-  name: string;
-  color: string;
-  order: number;
-};
+}
 
 type TagSortKey = 'name' | 'category' | 'usages';
-type CategorySortKey = 'name' | 'color' | 'order' | 'tagCount';
+
+const CATEGORY_OPTIONS: FormDropdownOption<TagCategoryKind>[] = [
+  { label: 'General', value: TagCategoryKind.General },
+  { label: 'Artist', value: TagCategoryKind.Artist },
+  { label: 'Character', value: TagCategoryKind.Character },
+  { label: 'Copyright', value: TagCategoryKind.Copyright },
+  { label: 'Meta', value: TagCategoryKind.Meta },
+];
 
 @Component({
   selector: 'app-tag-management-page',
@@ -42,12 +39,9 @@ type CategorySortKey = 'name' | 'color' | 'order' | 'tagCount';
     FormsModule,
     ButtonComponent,
     PaginatorComponent,
-    TabsComponent,
-    TabComponent,
     SearchInputComponent,
     FormDropdownComponent,
     FormInputComponent,
-    FormNumberInputComponent,
     DataTableComponent,
     ModalComponent,
     AutocompleteComponent,
@@ -60,10 +54,9 @@ export class TagManagementPageComponent {
   private readonly toast = inject(ToastService);
   private readonly confirmService = inject(ConfirmService);
 
-  tags = signal<ManagedTag[]>([]);
-  categories = signal<ManagedTagCategory[]>([]);
+  readonly categoryOptions = CATEGORY_OPTIONS;
 
-  // Tags tab state
+  tags = signal<ManagedTag[]>([]);
   tagsQuery = signal('');
   tagsPage = signal(1);
   readonly tagsPageSize = signal(50);
@@ -71,95 +64,25 @@ export class TagManagementPageComponent {
   readonly tagsSort = signal<DataTableSort<TagSortKey>>({ key: 'usages', direction: 'desc' });
   tagsTotalPages = computed(() => Math.max(1, Math.ceil(this.tagsTotal() / this.tagsPageSize())));
 
-  // Categories tab state
-  categoriesQuery = signal('');
-  categoriesPage = signal(1);
-  readonly categoriesPageSize = signal(30);
-  readonly categoriesSort = signal<DataTableSort<CategorySortKey>>({ key: 'name', direction: 'asc' });
-  filteredCategories = computed(() => {
-    const query = this.categoriesQuery().toLowerCase();
-    if (!query) return this.categories();
-    return this.categories().filter(category => category.name.toLowerCase().includes(query));
-  });
-  sortedFilteredCategories = computed(() => {
-    const sort = this.categoriesSort();
-    const rows = [...this.filteredCategories()];
-
-    return rows.sort((a, b) => {
-      const direction = sort.direction === 'asc' ? 1 : -1;
-
-      const aValue = this.getCategorySortValue(a, sort.key);
-      const bValue = this.getCategorySortValue(b, sort.key);
-
-      if (aValue < bValue) return -1 * direction;
-      if (aValue > bValue) return 1 * direction;
-      return 0;
-    });
-  });
-  pagedCategories = computed(() => {
-    const start = (this.categoriesPage() - 1) * this.categoriesPageSize();
-    return this.sortedFilteredCategories().slice(start, start + this.categoriesPageSize());
-  });
-  categoriesTotalPages = computed(() =>
-    Math.max(1, Math.ceil(this.sortedFilteredCategories().length / this.categoriesPageSize())),
-  );
-
-  categorySelectOptions = computed<FormDropdownOption<number | null>[]>(() =>
-    this.categories().map(category => ({ label: category.name, value: category.id })),
-  );
-
   tagColumns: DataTableColumn<ManagedTag, TagSortKey>[] = [
     { key: 'name', label: 'Name', sortable: true, value: row => row.name },
-    { key: 'category', label: 'Category', sortable: true, value: row => row.categoryName || 'Uncategorized' },
+    { key: 'category', label: 'Category', sortable: true, value: row => this.getCategoryLabel(row.category) },
     { key: 'usages', label: 'Usages', sortable: true, align: 'right', value: row => row.usages },
   ];
 
-  categoryColumns: DataTableColumn<ManagedTagCategory, CategorySortKey>[] = [
-    { key: 'name', label: 'Name', sortable: true, value: row => row.name },
-    { key: 'color', label: 'Color', sortable: true, value: row => row.color },
-    { key: 'order', label: 'Order', sortable: true, align: 'right', value: row => row.order },
-    { key: 'tagCount', label: 'Tag Count', sortable: true, align: 'right', value: row => row.tagCount },
-  ];
-
-  // Create modals
   createTagOpen = signal(false);
   createTagName = signal('');
-  createTagCategoryId = signal<number | null>(null);
+  createTagCategory = signal(TagCategoryKind.General);
 
-  createCategoryOpen = signal(false);
-  createCategoryName = signal('');
-  createCategoryColor = signal('#888888');
-  createCategoryOrder = signal(0);
-
-  // Edit modals
   editTag = signal<EditTagModel | null>(null);
-  editCategory = signal<EditCategoryModel | null>(null);
-
-  // Merge tag autocomplete
   mergeTagSuggestions = signal<ManagedTag[]>([]);
   mergeTargetId = signal<number | null>(null);
-  private tagsTabInitialized = false;
-  private categoriesTabInitialized = false;
-  private categoriesLoadedOnce = false;
-  private categoriesLoading = false;
 
-  onTagsTabInit(): void {
-    if (this.tagsTabInitialized) {
-      return;
-    }
-
-    this.tagsTabInitialized = true;
+  constructor() {
     this.loadTags();
   }
 
-  onCategoriesTabInit(): void {
-    if (this.categoriesTabInitialized) {
-      return;
-    }
-
-    this.categoriesTabInitialized = true;
-    this.loadCategories();
-  }
+  trackTagRow = (row: ManagedTag): number => row.id;
 
   onTagsSearch(query: string): void {
     this.tagsQuery.set(query);
@@ -167,18 +90,9 @@ export class TagManagementPageComponent {
     this.loadTags();
   }
 
-  onCategoriesSearch(query: string): void {
-    this.categoriesQuery.set(query);
-    this.categoriesPage.set(1);
-  }
-
   onTagsPageChange(page: number): void {
     this.tagsPage.set(page);
     this.loadTags();
-  }
-
-  onCategoriesPageChange(page: number): void {
-    this.categoriesPage.set(page);
   }
 
   onTagsSortChange(sort: DataTableSort<TagSortKey>): void {
@@ -187,19 +101,9 @@ export class TagManagementPageComponent {
     this.loadTags();
   }
 
-  onCategoriesSortChange(sort: DataTableSort<CategorySortKey>): void {
-    this.categoriesSort.set(sort);
-    this.categoriesPage.set(1);
-  }
-
-  trackTagRow = (row: ManagedTag): number => row.id;
-  trackCategoryRow = (row: ManagedTagCategory): number => row.id;
-
-  // Tag CRUD
   openCreateTagModal(): void {
-    this.ensureCategoriesLoaded();
     this.createTagName.set('');
-    this.createTagCategoryId.set(null);
+    this.createTagCategory.set(TagCategoryKind.General);
     this.createTagOpen.set(true);
   }
 
@@ -214,7 +118,7 @@ export class TagManagementPageComponent {
       return;
     }
 
-    this.api.createManagedTag(name, this.createTagCategoryId()).subscribe({
+    this.api.createManagedTag(name, this.createTagCategory()).subscribe({
       next: () => {
         this.toast.success('Tag created');
         this.createTagOpen.set(false);
@@ -225,11 +129,10 @@ export class TagManagementPageComponent {
   }
 
   openEditTagModal(tag: ManagedTag): void {
-    this.ensureCategoriesLoaded();
     this.editTag.set({
       id: tag.id,
       name: tag.name,
-      categoryId: tag.categoryId,
+      category: tag.category,
       mergeTargetName: '',
     });
     this.mergeTargetId.set(null);
@@ -254,12 +157,11 @@ export class TagManagementPageComponent {
       return;
     }
 
-    this.api.updateManagedTag(model.id, name, model.categoryId).subscribe({
+    this.api.updateManagedTag(model.id, name, model.category).subscribe({
       next: () => {
         this.toast.success('Tag updated');
         this.editTag.set(null);
         this.loadTags();
-        this.loadCategories();
       },
       error: err => this.toast.error(err?.error || 'Failed to update tag'),
     });
@@ -270,12 +172,11 @@ export class TagManagementPageComponent {
       this.mergeTagSuggestions.set([]);
       return;
     }
+
     this.api.getManagedTags(query, 0, 10).subscribe({
       next: result => {
         const model = this.editTag();
-        this.mergeTagSuggestions.set(
-          result.results.filter(tag => tag.id !== model?.id)
-        );
+        this.mergeTagSuggestions.set(result.results.filter(tag => tag.id !== model?.id));
       },
     });
   }
@@ -294,6 +195,7 @@ export class TagManagementPageComponent {
       this.toast.warning('Select a target tag from the suggestions');
       return;
     }
+
     if (targetId === model.id) {
       this.toast.warning('Source and target tags are the same');
       return;
@@ -305,7 +207,6 @@ export class TagManagementPageComponent {
         this.editTag.set(null);
         this.mergeTargetId.set(null);
         this.loadTags();
-        this.loadCategories();
       },
       error: err => this.toast.error(err?.error || 'Failed to merge tag'),
     });
@@ -328,102 +229,14 @@ export class TagManagementPageComponent {
           this.toast.success('Tag deleted');
           this.editTag.set(null);
           this.loadTags();
-          this.loadCategories();
         },
         error: err => this.toast.error(err?.error || 'Failed to delete tag'),
       });
     });
   }
 
-  // Category CRUD
-  openCreateCategoryModal(): void {
-    this.createCategoryName.set('');
-    this.createCategoryColor.set('#888888');
-    this.createCategoryOrder.set(0);
-    this.createCategoryOpen.set(true);
-  }
-
-  closeCreateCategoryModal(): void {
-    this.createCategoryOpen.set(false);
-  }
-
-  createCategory(): void {
-    const name = this.createCategoryName().trim();
-    if (!name) {
-      this.toast.warning('Category name is required');
-      return;
-    }
-
-    this.api.createTagCategory(name, this.createCategoryColor(), this.createCategoryOrder()).subscribe({
-      next: () => {
-        this.toast.success('Category created');
-        this.createCategoryOpen.set(false);
-        this.loadCategories();
-      },
-      error: err => this.toast.error(err?.error || 'Failed to create category'),
-    });
-  }
-
-  openEditCategoryModal(category: ManagedTagCategory): void {
-    this.editCategory.set({
-      id: category.id,
-      name: category.name,
-      color: category.color,
-      order: category.order,
-    });
-  }
-
-  closeEditCategoryModal(): void {
-    this.editCategory.set(null);
-  }
-
-  updateEditCategory(patch: Partial<EditCategoryModel>): void {
-    this.editCategory.update(model => (model ? { ...model, ...patch } : null));
-  }
-
-  saveCategory(): void {
-    const model = this.editCategory();
-    if (!model) return;
-
-    const name = model.name.trim();
-    if (!name) {
-      this.toast.warning('Category name is required');
-      return;
-    }
-
-    this.api.updateTagCategory(model.id, name, model.color, model.order).subscribe({
-      next: () => {
-        this.toast.success('Category updated');
-        this.editCategory.set(null);
-        this.loadCategories();
-        this.loadTags();
-      },
-      error: err => this.toast.error(err?.error || 'Failed to update category'),
-    });
-  }
-
-  deleteCategoryFromEdit(): void {
-    const model = this.editCategory();
-    if (!model) return;
-
-    this.confirmService.confirm({
-      title: 'Delete Category',
-      message: `Delete category "${model.name}"? Tags in it become uncategorized.`,
-      confirmText: 'Delete',
-      variant: 'danger',
-    }).subscribe(confirmed => {
-      if (!confirmed) return;
-
-      this.api.deleteTagCategory(model.id).subscribe({
-        next: () => {
-          this.toast.success('Category deleted');
-          this.editCategory.set(null);
-          this.loadCategories();
-          this.loadTags();
-        },
-        error: err => this.toast.error(err?.error || 'Failed to delete category'),
-      });
-    });
+  getCategoryLabel(category: TagCategoryKind): string {
+    return CATEGORY_OPTIONS.find(option => option.value === category)?.label ?? 'General';
   }
 
   private loadTags(): void {
@@ -438,45 +251,5 @@ export class TagManagementPageComponent {
         this.toast.error('Failed to load tags');
       },
     });
-  }
-
-  private loadCategories(): void {
-    if (this.categoriesLoading) {
-      return;
-    }
-
-    this.categoriesLoading = true;
-    this.api.getManagedTagCategories().subscribe({
-      next: categories => {
-        this.categories.set(categories);
-        this.categoriesLoadedOnce = true;
-        this.categoriesLoading = false;
-      },
-      error: () => {
-        this.categoriesLoading = false;
-        this.toast.error('Failed to load categories');
-      },
-    });
-  }
-
-  private ensureCategoriesLoaded(): void {
-    if (this.categoriesLoadedOnce || this.categoriesLoading) {
-      return;
-    }
-
-    this.loadCategories();
-  }
-
-  private getCategorySortValue(category: ManagedTagCategory, key: CategorySortKey): string | number {
-    switch (key) {
-      case 'name':
-        return category.name.toLowerCase();
-      case 'color':
-        return category.color.toLowerCase();
-      case 'order':
-        return category.order;
-      case 'tagCount':
-        return category.tagCount;
-    }
   }
 }

@@ -1,5 +1,8 @@
 using Damebooru.Core.Config;
 using Damebooru.Core.Interfaces;
+using Damebooru.Processing.Infrastructure.External.Danbooru;
+using Damebooru.Processing.Infrastructure.External.Gelbooru;
+using Damebooru.Processing.Infrastructure.External.SauceNao;
 using Damebooru.Processing.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using PhotoSauce.MagicScaler;
@@ -11,6 +14,7 @@ using PhotoSauce.NativeCodecs.Libwebp;
 
 using Damebooru.Processing.Scanning;
 using Damebooru.Processing.Services;
+using Damebooru.Processing.Services.AutoTagging;
 using Damebooru.Processing.Services.Scanning;
 
 namespace Damebooru.Processing;
@@ -37,12 +41,18 @@ public static class ServiceCollectionExtensions
         configure?.Invoke(options);
 
         RegisterImageCodecs();
+        services.AddSingleton(config);
 
         // Infrastructure
         services.AddSingleton<IHasherService, ContentHasher>();
         services.AddSingleton<IMediaFileProcessor, MediaProcessor>();
         services.AddSingleton<ISimilarityService, ImageHashService>();
         services.AddSingleton<IFileIdentityResolver, PlatformFileIdentityResolver>();
+        services.AddHttpClient<ISauceNaoClient, SauceNaoClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.SauceNao));
+        services.AddHttpClient<IDanbooruClient, DanbooruClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.Danbooru));
+        services.AddHttpClient<IGelbooruClient, GelbooruClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.Gelbooru));
+        services.AddScoped<IExternalPostMetadataClient>(sp => (IExternalPostMetadataClient)sp.GetRequiredService<IDanbooruClient>());
+        services.AddScoped<IExternalPostMetadataClient>(sp => (IExternalPostMetadataClient)sp.GetRequiredService<IGelbooruClient>());
 
         // Core Pipeline Services
         services.AddSingleton<ILibrarySyncProcessor, LibrarySyncService>();
@@ -59,6 +69,9 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IMediaSource, FileSystemMediaSource>();
         services.AddTransient<FolderTaggingService>();
+        services.AddSingleton<AutoTagConfigurationValidator>();
+        services.AddScoped<AutoTagScanService>();
+        services.AddScoped<AutoTagApplyService>();
 
         // Jobs
         services.AddTransient<IJob, Jobs.ScanAllLibrariesJob>();
@@ -70,6 +83,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IJob, Jobs.ComputeSimilarityJob>();
         services.AddTransient<IJob, Jobs.ApplyFolderTagsJob>();
         services.AddTransient<IJob, Jobs.SanitizeTagNamesJob>();
+        services.AddTransient<IJob, Jobs.AutoTagPostsJob>();
 
         return services;
     }
@@ -94,5 +108,19 @@ public static class ServiceCollectionExtensions
 
             _codecsRegistered = true;
         }
+    }
+
+    private static void ConfigureExternalClient(HttpClient client, ExternalApiClientConfig config)
+    {
+        client.BaseAddress = new Uri(config.BaseUrl, UriKind.Absolute);
+        client.Timeout = TimeSpan.FromSeconds(Math.Max(1, config.TimeoutSeconds));
+
+        client.DefaultRequestHeaders.UserAgent.Clear();
+        if (!string.IsNullOrWhiteSpace(config.UserAgent))
+        {
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(config.UserAgent);
+        }
+
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
     }
 }

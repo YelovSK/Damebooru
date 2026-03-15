@@ -344,6 +344,170 @@ namespace Damebooru.Data.Migrations
                     b.ToTable("PostAuditEntries");
                 });
 
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastCompletedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastStartedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PostId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("SauceNaoMinimumSimilarity")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "LastCompletedAtUtc");
+
+                    b.ToTable("PostAutoTagScans");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScanCandidate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CanonicalUrl")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ExternalPostId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScanId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Similarity")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScanId", "Provider", "ExternalPostId")
+                        .IsUnique();
+
+                    b.ToTable("PostAutoTagScanCandidates");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScanSource", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScanId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScanId", "Provider", "Url")
+                        .IsUnique();
+
+                    b.ToTable("PostAutoTagScanSources");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScanStep", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ExternalPostId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastAttemptAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("NextRetryAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScanId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScanId", "Provider")
+                        .IsUnique();
+
+                    b.HasIndex("Provider", "Status", "NextRetryAtUtc");
+
+                    b.ToTable("PostAutoTagScanSteps");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScanTag", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ExternalPostId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Provider")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScanId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScanId", "Provider", "ExternalPostId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("PostAutoTagScanTags");
+                });
+
             modelBuilder.Entity("Damebooru.Core.Entities.PostSource", b =>
                 {
                     b.Property<int>("Id")
@@ -423,6 +587,9 @@ namespace Damebooru.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("Category")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -431,39 +598,12 @@ namespace Damebooru.Data.Migrations
                     b.Property<int>("PostCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("TagCategoryId")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.HasIndex("TagCategoryId");
-
                     b.ToTable("Tags");
-                });
-
-            modelBuilder.Entity("Damebooru.Core.Entities.TagCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Color")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Order")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("TagCategories");
                 });
 
             modelBuilder.Entity("Damebooru.Core.Entities.DuplicateGroupEntry", b =>
@@ -529,6 +669,61 @@ namespace Damebooru.Data.Migrations
                     b.Navigation("Post");
                 });
 
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScan", b =>
+                {
+                    b.HasOne("Damebooru.Core.Entities.Post", "Post")
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScanCandidate", b =>
+                {
+                    b.HasOne("Damebooru.Core.Entities.PostAutoTagScan", "Scan")
+                        .WithMany("Candidates")
+                        .HasForeignKey("ScanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scan");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScanSource", b =>
+                {
+                    b.HasOne("Damebooru.Core.Entities.PostAutoTagScan", "Scan")
+                        .WithMany("Sources")
+                        .HasForeignKey("ScanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scan");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScanStep", b =>
+                {
+                    b.HasOne("Damebooru.Core.Entities.PostAutoTagScan", "Scan")
+                        .WithMany("Steps")
+                        .HasForeignKey("ScanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scan");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScanTag", b =>
+                {
+                    b.HasOne("Damebooru.Core.Entities.PostAutoTagScan", "Scan")
+                        .WithMany("Tags")
+                        .HasForeignKey("ScanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scan");
+                });
+
             modelBuilder.Entity("Damebooru.Core.Entities.PostSource", b =>
                 {
                     b.HasOne("Damebooru.Core.Entities.Post", "Post")
@@ -559,16 +754,6 @@ namespace Damebooru.Data.Migrations
                     b.Navigation("Tag");
                 });
 
-            modelBuilder.Entity("Damebooru.Core.Entities.Tag", b =>
-                {
-                    b.HasOne("Damebooru.Core.Entities.TagCategory", "TagCategory")
-                        .WithMany("Tags")
-                        .HasForeignKey("TagCategoryId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("TagCategory");
-                });
-
             modelBuilder.Entity("Damebooru.Core.Entities.DuplicateGroup", b =>
                 {
                     b.Navigation("Entries");
@@ -583,14 +768,20 @@ namespace Damebooru.Data.Migrations
                     b.Navigation("Sources");
                 });
 
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAutoTagScan", b =>
+                {
+                    b.Navigation("Candidates");
+
+                    b.Navigation("Sources");
+
+                    b.Navigation("Steps");
+
+                    b.Navigation("Tags");
+                });
+
             modelBuilder.Entity("Damebooru.Core.Entities.Tag", b =>
                 {
                     b.Navigation("PostTags");
-                });
-
-            modelBuilder.Entity("Damebooru.Core.Entities.TagCategory", b =>
-                {
-                    b.Navigation("Tags");
                 });
 #pragma warning restore 612, 618
         }

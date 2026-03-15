@@ -32,7 +32,12 @@
                 </app-button>
             </div>
             } @else {
-            <app-button variant="secondary" size="sm" (click)="startEditing()" class="w-full">Edit</app-button>
+            <div class="flex gap-2">
+                <app-button variant="secondary" size="sm" (click)="startEditing()" class="flex-1">Edit</app-button>
+                <app-button variant="primary" size="sm" (click)="autoTagPost()" [disabled]="isAutoTagging()" class="flex-1">
+                    {{ isAutoTagging() ? 'Auto-Tagging...' : 'Auto-Tag' }}
+                </app-button>
+            </div>
             }
         </section>
 
@@ -109,9 +114,7 @@
                                 <span
                                     class="text-text-link flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{
                                     tag.name }}</span>
-                                <span
-                                    class="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-2 py-[0.1rem] text-[0.65rem] uppercase tracking-wide text-text-muted">{{
-                                    getTagSourceLabel(tag.source) }}</span>
+                                <app-post-tag-sources [sources]="tag.sources"></app-post-tag-sources>
                                 <app-button variant="ghost" size="xs" (click)="removeTag(tag)"
                                     class="text-status-error">×</app-button>
                             </div>
@@ -123,18 +126,13 @@
                             @for (tag of pd.tags; track trackByTag(tag)) {
                             <a class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-glass-bg rounded-sm border-l-3 cursor-pointer transition-all hover:bg-glass-bg-hover"
                                 [routerLink]="appLinks.posts()" [queryParams]="{ query: tag.name | tag }"
-                                [style.border-left-color]="getTagCategory(tag)?.color || 'var(--color-text-dim)'"
-                                [appTooltip]="getTagCategory(tag)?.name || 'Uncategorized'" tooltipPosition="right">
+                                [style.border-left-color]="getTagCategoryColor(tag)"
+                                [appTooltip]="getTagCategoryLabel(tag)" tooltipPosition="right">
                                 <span
                                     class="text-text-link flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{
                                     tag.name }}</span>
                                 <div class="flex shrink-0 items-center gap-2">
-                                    @if (hasTagSource(tag, postTagSource.Folder)) {
-                                    <span
-                                        class="inline-flex items-center gap-1 rounded-full border border-amber-300/35 bg-amber-500/10 px-2 py-[0.15rem] text-[0.68rem] font-semibold text-amber-200">
-                                        <span>folder</span>
-                                    </span>
-                                    }
+                                    <app-post-tag-sources [sources]="tag.sources"></app-post-tag-sources>
                                     <span class="text-text-dim">{{ tag.usages }}</span>
                                 </div>
                             </a>
@@ -228,15 +226,6 @@
                     } @else {
                     <span class="text-text-muted text-[0.85rem]">No similar posts found from duplicate groups.</span>
                     }
-                </app-simple-tab>
-
-                <!-- Auto-tagging Tab (edit mode only) -->
-                <app-simple-tab id="autotag" label="Auto-Tag" [hidden]="!editService.isEditing()">
-                    <app-auto-tagging-results [status]="editService.taggingStatus()" [results]="editService.autoTags()"
-                        [providers]="registeredProviders()" [showProviderButtons]="true"
-                        (runProvider)="triggerProviderAutoTagging($event)" (applyTags)="applyAutoTags($event)"
-                        (applySources)="applyAutoSources($event)">
-                    </app-auto-tagging-results>
                 </app-simple-tab>
             </app-simple-tabs>
         </section>

@@ -1,0 +1,11 @@
+<div class="flex flex-wrap items-center gap-1">
+  @for (badge of badgeModels(); track trackBySource($index, badge)) {
+    <span
+      class="inline-flex min-w-5 items-center justify-center rounded-full border px-1.5 py-[0.1rem] text-[0.6rem] font-semibold uppercase tracking-wide"
+      [class]="badge.className"
+      [appTooltip]="badge.label"
+      tooltipPosition="right">
+      {{ badge.icon }}
+    </span>
+  }
+</div>

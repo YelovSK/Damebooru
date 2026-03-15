@@ -29,7 +29,6 @@ export class MainLayoutComponent {
   readonly navLinks: NavbarLink[] = [
     { route: AppLinks.posts(), icon: 'icon-posts', label: 'Posts' },
     { route: AppLinks.libraries(), icon: 'icon-settings', label: 'Libraries' },
-    { route: AppLinks.bulkTagging(), icon: 'icon-settings', label: 'Bulk-Tagging' },
     { route: AppLinks.tags(), icon: 'icon-settings', label: 'Tags' },
     { route: AppLinks.jobs(), icon: 'icon-settings', label: 'Jobs' },
     { route: AppLinks.logs(), icon: 'icon-settings', label: 'Logs' },

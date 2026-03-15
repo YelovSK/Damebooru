@@ -62,20 +62,18 @@ export interface LibraryBrowseResponse {
   posts: DamebooruPostDto[];
 }
 
-export interface ManagedTagCategory {
-  id: number;
-  name: string;
-  color: string;
-  order: number;
-  tagCount: number;
+export enum TagCategoryKind {
+  General = 0,
+  Artist = 1,
+  Character = 2,
+  Copyright = 3,
+  Meta = 4,
 }
 
 export interface ManagedTag {
   id: number;
   name: string;
-  categoryId: number | null;
-  categoryName: string | null;
-  categoryColor: string | null;
+  category: TagCategoryKind;
   usages: number;
 }
 
@@ -99,17 +97,17 @@ export interface DamebooruPagedResponse<T> {
 export interface DamebooruTagDto {
   id: number;
   name: string;
-  categoryId: number | null;
-  categoryName: string | null;
-  categoryColor: string | null;
+  category: TagCategoryKind;
   usages: number;
-  source: PostTagSource;
+  sources: PostTagSource[];
 }
 
 export enum PostTagSource {
   Manual = 0,
   Folder = 1,
   Ai = 2,
+  Danbooru = 3,
+  Gelbooru = 4,
 }
 
 export enum DuplicateType {
@@ -175,6 +173,7 @@ export const KNOWN_JOB_KEYS = [
   "cleanup-invalid-exclusions",
   "apply-folder-tags",
   "sanitize-tag-names",
+  "auto-tag-posts",
 ] as const;
 
 export type KnownJobKey = (typeof KNOWN_JOB_KEYS)[number];
@@ -300,6 +299,15 @@ export interface UpdatePostMetadata {
   sources?: string[];
   safety?: Safety;
   version?: string;
+}
+
+export interface AutoTagPostResult {
+  scanStatus: number;
+  addedTags: number;
+  removedTags: number;
+  updatedTagCategories: number;
+  addedSources: number;
+  post: DamebooruPostDto;
 }
 
 export interface UpdatePostTagInput {

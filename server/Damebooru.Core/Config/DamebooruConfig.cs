@@ -10,6 +10,7 @@ public class DamebooruConfig
     public IngestionConfig Ingestion { get; set; } = new();
     public AuthConfig Auth { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
+    public ExternalApisConfig ExternalApis { get; set; } = new();
 }
 
 public class StorageConfig
@@ -76,4 +77,53 @@ public class DbLoggingConfig
     public int RetentionDays { get; set; } = 7;
     public int MaxRows { get; set; } = 10000;
     public int RetentionCheckIntervalMinutes { get; set; } = 15;
+}
+
+public class ExternalApisConfig
+{
+    public SauceNaoApiConfig SauceNao { get; set; } = new();
+    public DanbooruApiConfig Danbooru { get; set; } = new();
+    public GelbooruApiConfig Gelbooru { get; set; } = new();
+}
+
+public class ExternalApiClientConfig
+{
+    public string BaseUrl { get; set; } = string.Empty;
+    public int TimeoutSeconds { get; set; } = 30;
+    public string UserAgent { get; set; } = "Damebooru/1.0";
+}
+
+public sealed class SauceNaoApiConfig : ExternalApiClientConfig
+{
+    public SauceNaoApiConfig()
+    {
+        BaseUrl = "https://saucenao.com";
+    }
+
+    public string ApiKey { get; set; } = string.Empty;
+    public int ResultsCount { get; set; } = 10;
+    public int Database { get; set; } = 999;
+    public decimal MinimumSimilarity { get; set; } = 60m;
+}
+
+public sealed class DanbooruApiConfig : ExternalApiClientConfig
+{
+    public DanbooruApiConfig()
+    {
+        BaseUrl = "https://danbooru.donmai.us";
+    }
+
+    public string Username { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
+}
+
+public sealed class GelbooruApiConfig : ExternalApiClientConfig
+{
+    public GelbooruApiConfig()
+    {
+        BaseUrl = "https://gelbooru.com";
+    }
+
+    public string UserId { get; set; } = string.Empty;
+    public string ApiKey { get; set; } = string.Empty;
 }

@@ -1,17 +1,15 @@
 import { Injectable, signal, computed, inject, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, of, forkJoin, catchError, tap, switchMap, map } from 'rxjs';
+import { Observable, of, catchError, tap, switchMap } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { AutoTaggingService } from '@services/auto-tagging/auto-tagging.service';
 import { ToastService } from '@services/toast.service';
-import { DamebooruPostDto, UpdatePostMetadata, ManagedTagCategory, PostTagSource } from '@models';
-import { AutoTaggingResult, TaggingStatus } from '@services/auto-tagging/models';
+import { DamebooruPostDto, UpdatePostMetadata, PostTagSource } from '@models';
 import { areArraysEqual } from '@shared/utils/utils';
 
 export interface PostEditTag {
   tagId?: number;
   name: string;
-  source: PostTagSource;
+  sources: PostTagSource[];
 }
 
 export interface PostEditState {
@@ -22,7 +20,6 @@ export interface PostEditState {
 @Injectable()
 export class PostEditService {
   private readonly damebooru = inject(DamebooruService);
-  private readonly autoTagging = inject(AutoTaggingService);
   private readonly toast = inject(ToastService);
 
   private originalPost = signal<DamebooruPostDto | null>(null);
@@ -30,8 +27,6 @@ export class PostEditService {
 
   isEditing = signal(false);
   isSaving = signal(false);
-  taggingStatus = signal<TaggingStatus>('idle');
-  autoTags = signal<AutoTaggingResult[]>([]);
 
   currentState = computed(() => this.editState());
 
@@ -44,7 +39,7 @@ export class PostEditService {
     const originalTags = new Set(original.tags.map(t => this.getTagKey({
       tagId: t.id,
       name: t.name,
-      source: t.source,
+      sources: t.sources,
     })));
     const currentTags = new Set(current.tags.map(t => this.getTagKey(t)));
 
@@ -61,19 +56,15 @@ export class PostEditService {
       tags: post.tags.map(t => ({
         tagId: t.id,
         name: t.name,
-        source: t.source,
+        sources: [...t.sources],
       })),
     });
     this.isEditing.set(true);
-    this.autoTags.set([]);
-    this.taggingStatus.set('idle');
   }
 
   cancelEditing() {
     this.isEditing.set(false);
     this.editState.set(null);
-    this.autoTags.set([]);
-    this.taggingStatus.set('idle');
   }
 
   setSources(sources: string[]) {
@@ -85,13 +76,38 @@ export class PostEditService {
     this.editState.update(state => {
       if (!state) return null;
 
-      const nonManualTags = state.tags.filter(t => t.source !== PostTagSource.Manual);
-      const manualTags = normalized.map(name => ({
-        name,
-        source: PostTagSource.Manual,
-      }));
+      const normalizedSet = new Set(normalized);
+      const nextTags = state.tags
+        .map(tag => {
+          const hasManualSource = tag.sources.includes(PostTagSource.Manual);
+          const shouldHaveManualSource = normalizedSet.has(tag.name);
+          if (hasManualSource === shouldHaveManualSource) {
+            return tag;
+          }
 
-      return { ...state, tags: [...nonManualTags, ...manualTags] };
+          const nextSources = shouldHaveManualSource
+            ? [...tag.sources, PostTagSource.Manual]
+            : tag.sources.filter(source => source !== PostTagSource.Manual);
+
+          return {
+            ...tag,
+            sources: this.normalizeSources(nextSources),
+          };
+        })
+        .filter(tag => tag.sources.length > 0);
+
+      for (const name of normalized) {
+        if (nextTags.some(tag => tag.name === name)) {
+          continue;
+        }
+
+        nextTags.push({
+          name,
+          sources: [PostTagSource.Manual],
+        });
+      }
+
+      return { ...state, tags: nextTags };
     });
   }
 
@@ -104,7 +120,7 @@ export class PostEditService {
 
       const manualTagKey = this.getTagKey({
         name: normalized,
-        source: PostTagSource.Manual,
+        sources: [PostTagSource.Manual],
       });
       const hasManualTag = state.tags.some(t => this.getTagKey(t) === manualTagKey);
       if (hasManualTag) {
@@ -113,14 +129,23 @@ export class PostEditService {
 
       return {
         ...state,
-        tags: [
-          ...state.tags,
-          {
-            tagId,
-            name: normalized,
-            source: PostTagSource.Manual,
-          },
-        ],
+        tags: (() => {
+          const existingTag = state.tags.find(t => t.name === normalized);
+          if (existingTag) {
+            return state.tags.map(tag => tag === existingTag
+              ? { ...tag, sources: this.normalizeSources([...tag.sources, PostTagSource.Manual]) }
+              : tag);
+          }
+
+          return [
+            ...state.tags,
+            {
+              tagId,
+              name: normalized,
+              sources: [PostTagSource.Manual],
+            },
+          ];
+        })(),
       };
     });
   }
@@ -134,126 +159,6 @@ export class PostEditService {
         tags: state.tags.filter(t => this.getTagKey(t) !== targetKey),
       };
     });
-  }
-
-  applyAutoTags(providerId: string) {
-    const result = this.autoTags().find(r => r.providerId === providerId);
-    if (!result) return;
-
-    this.editState.update(state => {
-      if (!state) return state;
-      const existingManualKeys = new Set(
-        state.tags
-          .filter(t => t.source === PostTagSource.Manual)
-          .map(t => this.getTagKey(t)),
-      );
-      const tagsToAdd: PostEditTag[] = [];
-
-      for (const ct of result.categorizedTags) {
-        const normalized = this.normalizeTagName(ct.name);
-        if (!normalized) {
-          continue;
-        }
-
-        const key = this.getTagKey({
-          name: normalized,
-          source: PostTagSource.Manual,
-        });
-        if (existingManualKeys.has(key)) {
-          continue;
-        }
-
-        existingManualKeys.add(key);
-        tagsToAdd.push({ name: normalized, source: PostTagSource.Manual });
-      }
-
-      if (tagsToAdd.length === 0) {
-        return state;
-      }
-
-      return {
-        ...state,
-        tags: [...state.tags, ...tagsToAdd],
-      };
-    });
-  }
-
-  applyAutoSources(providerId: string) {
-    const result = this.autoTags().find(r => r.providerId === providerId);
-    if (!result?.sources || result.sources.length === 0) return;
-
-    this.editState.update(state => {
-      if (!state) return state;
-      const newSources = new Set(state.sources);
-      for (const source of result.sources!) {
-        newSources.add(source);
-      }
-      return { ...state, sources: Array.from(newSources) };
-    });
-  }
-
-  triggerAutoTagging(file: File, destroyRef: DestroyRef) {
-    if (this.taggingStatus() === 'tagging') return;
-
-    this.taggingStatus.set('tagging');
-    this.autoTagging.queue(file)
-      .pipe(
-        tap(entry => {
-          if (entry.status === 'completed' && entry.results) {
-            this.autoTags.set(entry.results);
-            this.taggingStatus.set('completed');
-          } else if (entry.status === 'failed') {
-            this.taggingStatus.set('failed');
-          }
-        }),
-        catchError(() => {
-          this.taggingStatus.set('failed');
-          return of(null);
-        }),
-        takeUntilDestroyed(destroyRef),
-      )
-      .subscribe();
-  }
-
-  triggerProviderAutoTagging(file: File, providerId: string, destroyRef: DestroyRef) {
-    if (this.taggingStatus() === 'tagging') return;
-
-    const provider = this.autoTagging.getProviders().find(p => p.id === providerId);
-    if (!provider) return;
-
-    this.taggingStatus.set('tagging');
-    this.autoTagging.queueWith(file, provider)
-      .pipe(
-        tap(entry => {
-          if (entry.status === 'completed' && entry.results) {
-            const result = entry.results.find(r => r.providerId === providerId);
-            if (result) {
-              this.autoTags.update(tags => {
-                const index = tags.findIndex(t => t.providerId === providerId);
-                if (index >= 0) {
-                  const newTags = [...tags];
-                  newTags[index] = result;
-                  return newTags;
-                }
-                return [...tags, result];
-              });
-            }
-            this.taggingStatus.set('completed');
-          } else if (entry.status === 'failed') {
-            this.taggingStatus.set('failed');
-          }
-        }),
-        catchError(() => {
-          this.taggingStatus.set('failed');
-          return of(null);
-        }),
-        takeUntilDestroyed(destroyRef),
-      )
-      .subscribe();
-  }
-
-  getRegisteredProviders() {
-    return this.autoTagging.getEnabledProviders();
   }
 
   save(destroyRef: DestroyRef): Observable<DamebooruPostDto | null> {
@@ -272,76 +177,32 @@ export class PostEditService {
     const originalTags = new Set(post.tags.map(t => this.getTagKey({
       tagId: t.id,
       name: t.name,
-      source: t.source,
+      sources: t.sources,
     })));
     const currentTags = new Set(state.tags.map(t => this.getTagKey(t)));
     if (!this.areSetsEqual(originalTags, currentTags)) {
-      payload.tagsWithSources = state.tags.map(t => ({
-        tagId: t.tagId,
-        name: this.normalizeTagName(t.name),
-        source: t.source,
-      })).filter(t => !!t.name);
+      payload.tagsWithSources = state.tags
+        .flatMap(t => this.normalizeSources(t.sources).map(source => ({
+          tagId: t.tagId,
+          name: this.normalizeTagName(t.name),
+          source,
+        })))
+        .filter(t => !!t.name);
     }
 
     return this.damebooru.updatePost(post.id, payload).pipe(
       switchMap(() => this.damebooru.getPost(post.id)),
-      switchMap(updatedPost => {
-        // Update tag categories from auto-tagging results
-        const categorizedTags = this.collectCategorizedTags();
-        if (categorizedTags.length === 0) return of(updatedPost);
-        return this.updateTagCategories(categorizedTags, destroyRef).pipe(map(() => updatedPost));
-      }),
       tap(updatedPost => {
         this.isSaving.set(false);
         this.isEditing.set(false);
         this.originalPost.set(updatedPost);
         this.editState.set(null);
-        this.autoTags.set([]);
         this.toast.success('Post updated successfully');
       }),
       catchError(err => {
         this.isSaving.set(false);
         this.toast.error(err.error?.description || 'Failed to update post');
         return of(null);
-      }),
-      takeUntilDestroyed(destroyRef),
-    );
-  }
-
-  private collectCategorizedTags(): { name: string; category: string }[] {
-    const categorizedTags: { name: string; category: string }[] = [];
-    for (const result of this.autoTags()) {
-      for (const ct of result.categorizedTags) {
-        if (ct.category && ct.category !== 'general') {
-          categorizedTags.push({ name: ct.name, category: ct.category });
-        }
-      }
-    }
-    return categorizedTags;
-  }
-
-  private updateTagCategories(
-    categorizedTags: { name: string; category: string }[],
-    destroyRef: DestroyRef,
-  ) {
-    return this.damebooru.getManagedTagCategories().pipe(
-      switchMap(categories => {
-        const updateTasks = categorizedTags.map(ct =>
-          this.damebooru.getManagedTags(ct.name, 0, 100).pipe(
-            switchMap(tags => {
-              const tag = tags.results.find(t => t.name.toLowerCase() === ct.name.toLowerCase());
-              if (!tag) return of(null);
-
-              const category = categories.find(c => c.name.toLowerCase() === ct.category.toLowerCase()) as ManagedTagCategory | undefined;
-              if (!category) return of(null);
-
-              return this.damebooru.updateManagedTag(tag.id, tag.name, category.id);
-            }),
-            catchError(() => of(null)),
-          ),
-        );
-
-        return forkJoin(updateTasks);
       }),
       takeUntilDestroyed(destroyRef),
     );
@@ -368,7 +229,11 @@ export class PostEditService {
   }
 
   private getTagKey(tag: PostEditTag): string {
-    return `${tag.source}|${this.normalizeTagName(tag.name)}`;
+    return `${this.normalizeSources(tag.sources).join(',')}|${this.normalizeTagName(tag.name)}`;
+  }
+
+  private normalizeSources(sources: PostTagSource[]): PostTagSource[] {
+    return Array.from(new Set(sources)).sort((a, b) => a - b);
   }
 
   private areSetsEqual(left: Set<string>, right: Set<string>): boolean {

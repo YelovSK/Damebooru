@@ -16,9 +16,9 @@ import {
   DamebooruPostListDto,
   DamebooruTagDto,
   DamebooruSystemInfoDto,
-  ManagedTagCategory,
   UpdatePostMetadata,
   ManagedTag,
+  TagCategoryKind,
   DamebooruPostsAroundDto,
   Comment as DamebooruComment,
   JobViewModel,
@@ -39,6 +39,7 @@ import {
   DuplicateHashLookupRequest,
   AppLogList,
   PostAuditList,
+  AutoTagPostResult,
 } from "./models";
 
 @Injectable({
@@ -358,10 +359,6 @@ export class DamebooruService {
       );
   }
 
-  getTagCategories(): Observable<ManagedTagCategory[]> {
-    return this.http.get<ManagedTagCategory[]>(`${this.baseUrl}/tagcategories`);
-  }
-
   getComments(): Observable<PagedSearchResult<DamebooruComment>> {
     return of({ query: "", offset: 0, limit: 100, total: 0, results: [] });
   }
@@ -398,46 +395,16 @@ export class DamebooruService {
     return this.http.put<void>(`${this.baseUrl}/posts/${id}`, metadata);
   }
 
+  autoTagPost(id: number): Observable<AutoTagPostResult> {
+    return this.http.post<AutoTagPostResult>(`${this.baseUrl}/posts/${id}/auto-tag`, {});
+  }
+
   favoritePost(id: number): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/posts/${id}/favorite`, {});
   }
 
   unfavoritePost(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/posts/${id}/favorite`);
-  }
-
-  // --- Tag Management ---
-  getManagedTagCategories(): Observable<ManagedTagCategory[]> {
-    return this.http.get<ManagedTagCategory[]>(`${this.baseUrl}/tagcategories`);
-  }
-
-  createTagCategory(
-    name: string,
-    color: string,
-    order: number,
-  ): Observable<ManagedTagCategory> {
-    return this.http.post<ManagedTagCategory>(`${this.baseUrl}/tagcategories`, {
-      name,
-      color,
-      order,
-    });
-  }
-
-  updateTagCategory(
-    id: number,
-    name: string,
-    color: string,
-    order: number,
-  ): Observable<void> {
-    return this.http.put<void>(`${this.baseUrl}/tagcategories/${id}`, {
-      name,
-      color,
-      order,
-    });
-  }
-
-  deleteTagCategory(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.baseUrl}/tagcategories/${id}`);
   }
 
   getManagedTags(
@@ -478,22 +445,22 @@ export class DamebooruService {
 
   createManagedTag(
     name: string,
-    categoryId: number | null,
+    category: TagCategoryKind,
   ): Observable<ManagedTag> {
     return this.http.post<ManagedTag>(`${this.baseUrl}/tags`, {
       name,
-      categoryId,
+      category,
     });
   }
 
   updateManagedTag(
     id: number,
     name: string,
-    categoryId: number | null,
+    category: TagCategoryKind,
   ): Observable<void> {
     return this.http.put<void>(`${this.baseUrl}/tags/${id}`, {
       name,
-      categoryId,
+      category,
     });
   }
 

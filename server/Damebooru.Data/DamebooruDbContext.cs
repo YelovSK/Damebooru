@@ -12,9 +12,13 @@ public class DamebooruDbContext : DbContext
     public DbSet<Library> Libraries { get; set; } = null!;
     public DbSet<Post> Posts { get; set; } = null!;
     public DbSet<Tag> Tags { get; set; } = null!;
-    public DbSet<TagCategory> TagCategories { get; set; } = null!;
     public DbSet<PostTag> PostTags { get; set; } = null!;
     public DbSet<PostSource> PostSources { get; set; } = null!;
+    public DbSet<PostAutoTagScan> PostAutoTagScans { get; set; } = null!;
+    public DbSet<PostAutoTagScanStep> PostAutoTagScanSteps { get; set; } = null!;
+    public DbSet<PostAutoTagScanCandidate> PostAutoTagScanCandidates { get; set; } = null!;
+    public DbSet<PostAutoTagScanSource> PostAutoTagScanSources { get; set; } = null!;
+    public DbSet<PostAutoTagScanTag> PostAutoTagScanTags { get; set; } = null!;
     public DbSet<PostAuditEntry> PostAuditEntries { get; set; } = null!;
 
     public DbSet<JobExecution> JobExecutions { get; set; } = null!;
@@ -58,6 +62,36 @@ public class DamebooruDbContext : DbContext
             .HasForeignKey(ps => ps.PostId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<PostAutoTagScan>()
+            .HasOne(scan => scan.Post)
+            .WithMany()
+            .HasForeignKey(scan => scan.PostId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PostAutoTagScanStep>()
+            .HasOne(step => step.Scan)
+            .WithMany(scan => scan.Steps)
+            .HasForeignKey(step => step.ScanId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PostAutoTagScanCandidate>()
+            .HasOne(candidate => candidate.Scan)
+            .WithMany(scan => scan.Candidates)
+            .HasForeignKey(candidate => candidate.ScanId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PostAutoTagScanSource>()
+            .HasOne(source => source.Scan)
+            .WithMany(scan => scan.Sources)
+            .HasForeignKey(source => source.ScanId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PostAutoTagScanTag>()
+            .HasOne(tag => tag.Scan)
+            .WithMany(scan => scan.Tags)
+            .HasForeignKey(tag => tag.ScanId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<PostAuditEntry>()
             .HasOne(e => e.Post)
             .WithMany()
@@ -71,13 +105,6 @@ public class DamebooruDbContext : DbContext
             .HasForeignKey(p => p.LibraryId)
             .OnDelete(DeleteBehavior.Cascade);
             
-         // Configure Tag -> TagCategory relationship
-         modelBuilder.Entity<Tag>()
-            .HasOne(t => t.TagCategory)
-            .WithMany(c => c.Tags)
-            .HasForeignKey(t => t.TagCategoryId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         modelBuilder.Entity<JobExecution>()
             .HasIndex(j => j.JobName);
 
@@ -114,6 +141,32 @@ public class DamebooruDbContext : DbContext
 
         modelBuilder.Entity<PostSource>()
             .HasIndex(ps => new { ps.PostId, ps.Order })
+            .IsUnique();
+
+        modelBuilder.Entity<PostAutoTagScan>()
+            .HasIndex(scan => scan.PostId)
+            .IsUnique();
+
+        modelBuilder.Entity<PostAutoTagScan>()
+            .HasIndex(scan => new { scan.Status, scan.LastCompletedAtUtc });
+
+        modelBuilder.Entity<PostAutoTagScanStep>()
+            .HasIndex(step => new { step.ScanId, step.Provider })
+            .IsUnique();
+
+        modelBuilder.Entity<PostAutoTagScanStep>()
+            .HasIndex(step => new { step.Provider, step.Status, step.NextRetryAtUtc });
+
+        modelBuilder.Entity<PostAutoTagScanCandidate>()
+            .HasIndex(candidate => new { candidate.ScanId, candidate.Provider, candidate.ExternalPostId })
+            .IsUnique();
+
+        modelBuilder.Entity<PostAutoTagScanSource>()
+            .HasIndex(source => new { source.ScanId, source.Provider, source.Url })
+            .IsUnique();
+
+        modelBuilder.Entity<PostAutoTagScanTag>()
+            .HasIndex(tag => new { tag.ScanId, tag.Provider, tag.ExternalPostId, tag.Name })
             .IsUnique();
 
         modelBuilder.Entity<PostAuditEntry>()

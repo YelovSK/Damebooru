@@ -10,8 +10,7 @@ public class Tag
     [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
     
-    public int? TagCategoryId { get; set; }
-    public TagCategory? TagCategory { get; set; }
+    public TagCategoryKind Category { get; set; } = TagCategoryKind.General;
 
     public int PostCount { get; set; }
     

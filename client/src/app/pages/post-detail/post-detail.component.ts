@@ -12,7 +12,6 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { RouterLink, Router } from "@angular/router";
-import { HttpClient } from "@angular/common/http";
 import {
   Subject,
   switchMap,
@@ -38,15 +37,14 @@ import {
   DamebooruPostsAroundDto,
   DamebooruTagDto,
   DuplicateType,
-  ManagedTagCategory,
-  PostTagSource,
   SimilarPost,
   PostAuditEntry,
+  TagCategoryKind,
 } from "@models";
 import { ButtonComponent } from "@shared/components/button/button.component";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
-import { AutoTaggingResultsComponent } from "@shared/components/auto-tagging-results/auto-tagging-results.component";
 import { ProgressiveImageComponent } from "@shared/components/progressive-image/progressive-image.component";
+import { PostTagSourcesComponent } from '@shared/components/post-tag-sources/post-tag-sources.component';
 import { ZoomPanContainerComponent } from "@shared/components/zoom-pan-container/zoom-pan-container.component";
 import {
   SimpleTabsComponent,
@@ -67,8 +65,8 @@ import { FileNamePipe } from "@shared/pipes/file-name.pipe";
     TagPipe,
     ButtonComponent,
     AutocompleteComponent,
-    AutoTaggingResultsComponent,
     ProgressiveImageComponent,
+    PostTagSourcesComponent,
     ZoomPanContainerComponent,
     SimpleTabsComponent,
     SimpleTabComponent,
@@ -84,7 +82,6 @@ import { FileNamePipe } from "@shared/pipes/file-name.pipe";
 export class PostDetailComponent {
   private readonly damebooru = inject(DamebooruService);
   private readonly router = inject(Router);
-  private readonly http = inject(HttpClient);
   private readonly hotkeys = inject(HotkeysService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly settingsService = inject(SettingsService);
@@ -92,7 +89,6 @@ export class PostDetailComponent {
   readonly editService = inject(PostEditService);
 
   readonly appLinks = AppLinks;
-  readonly postTagSource = PostTagSource;
   readonly duplicateType = DuplicateType;
 
   // Video settings from user preferences
@@ -133,10 +129,7 @@ export class PostDetailComponent {
   private refreshTrigger = signal(0);
   private readonly postCache = signal(new Map<number, DamebooruPostDto>());
 
-  // Registered auto-tagging providers
-  registeredProviders = computed(() =>
-    this.editService.getRegisteredProviders(),
-  );
+  isAutoTagging = signal(false);
 
   // Tag autocomplete for edit mode
   private tagQuery$ = new Subject<string>();
@@ -210,17 +203,6 @@ export class PostDetailComponent {
         );
       }),
     ),
-  );
-
-  // Fetch tag categories for proper tag coloring
-  tagCategories = toSignal(
-    this.damebooru.getTagCategories().pipe(
-      catchError(() => {
-        console.error("Failed to load tag categories");
-        return of([]);
-      }),
-    ),
-    { initialValue: [] as ManagedTagCategory[] },
   );
 
   similarPosts = computed<SimilarPost[]>(() => this.post()?.similarPosts ?? []);
@@ -311,13 +293,38 @@ export class PostDetailComponent {
       });
   }
 
-  getTagCategory(tag: DamebooruTagDto): ManagedTagCategory | undefined {
-    if (!tag.categoryName) return undefined;
-    return this.tagCategories().find((cat) => cat.name === tag.categoryName);
+  getTagCategoryLabel(tag: DamebooruTagDto): string {
+    switch (tag.category) {
+      case TagCategoryKind.General:
+        return 'General';
+      case TagCategoryKind.Artist:
+        return 'Artist';
+      case TagCategoryKind.Character:
+        return 'Character';
+      case TagCategoryKind.Copyright:
+        return 'Copyright';
+      case TagCategoryKind.Meta:
+        return 'Meta';
+      default:
+        return 'General';
+    }
   }
 
-  hasTagSource(tag: DamebooruTagDto, source: PostTagSource): boolean {
-    return tag.source === source;
+  getTagCategoryColor(tag: DamebooruTagDto): string {
+    switch (tag.category) {
+      case TagCategoryKind.General:
+        return '#7dd3fc';
+      case TagCategoryKind.Artist:
+        return '#f9a8d4';
+      case TagCategoryKind.Character:
+        return '#86efac';
+      case TagCategoryKind.Copyright:
+        return '#fcd34d';
+      case TagCategoryKind.Meta:
+        return '#c4b5fd';
+      default:
+        return 'var(--color-text-dim)';
+    }
   }
 
   // Sidebar toggle
@@ -434,108 +441,37 @@ export class PostDetailComponent {
     this.editService.removeTag(tag);
   }
 
-  getTagSourceLabel(source: PostTagSource): string {
-    switch (source) {
-      case PostTagSource.Manual:
-        return 'manual';
-      case PostTagSource.Folder:
-        return 'folder';
-      case PostTagSource.Ai:
-        return 'ai';
-      default:
-        return 'unknown';
-    }
-  }
-
   protected trackByEditTag(tag: PostEditTag): string {
-    return `${tag.source}|${tag.name}`;
+    return `${tag.sources.join(',')}|${tag.name}`;
   }
 
-  // Auto-tagging
-  triggerAutoTagging() {
+  autoTagPost() {
     const post = this.post();
-    if (!post) return;
+    if (!post || this.isAutoTagging()) return;
 
-    // Use HttpClient to fetch through the proxy (avoids CORS)
-    const url = this.damebooru.getPostContentUrl(post.id);
-    this.http
-      .get(url, { responseType: "blob" })
+    this.isAutoTagging.set(true);
+    this.damebooru.autoTagPost(post.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((blob) => {
-        const file = new File([blob], `post-${post.id}`, { type: blob.type });
-        this.editService.triggerAutoTagging(file, this.destroyRef);
+      .subscribe({
+        next: result => {
+          this.setCachedPost(result.post);
+          this.refreshTrigger.update((n) => n + 1);
+          this.reloadAuditForCurrentPost();
+
+          const parts: string[] = [];
+          if (result.addedTags > 0) parts.push(`added ${result.addedTags} tag${result.addedTags === 1 ? '' : 's'}`);
+          if (result.removedTags > 0) parts.push(`removed ${result.removedTags} tag${result.removedTags === 1 ? '' : 's'}`);
+          if (result.updatedTagCategories > 0) parts.push(`updated ${result.updatedTagCategories} categor${result.updatedTagCategories === 1 ? 'y' : 'ies'}`);
+          if (result.addedSources > 0) parts.push(`added ${result.addedSources} source${result.addedSources === 1 ? '' : 's'}`);
+
+          this.toastService.success(parts.length > 0 ? `Auto-tagging complete: ${parts.join(', ')}` : 'Auto-tagging complete with no changes');
+          this.isAutoTagging.set(false);
+        },
+        error: (error) => {
+          this.toastService.error(error?.error || 'Auto-tagging failed');
+          this.isAutoTagging.set(false);
+        },
       });
-  }
-
-  triggerProviderAutoTagging(providerId: string) {
-    const post = this.post();
-    if (!post) return;
-
-    const url = this.damebooru.getPostContentUrl(post.id);
-    this.http
-      .get(url, { responseType: "blob" })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((blob) => {
-        const file = new File([blob], `post-${post.id}`, { type: blob.type });
-        this.editService.triggerProviderAutoTagging(
-          file,
-          providerId,
-          this.destroyRef,
-        );
-      });
-  }
-
-  applyAutoTags(providerId: string) {
-    const result = this.editService
-      .autoTags()
-      .find((r) => r.providerId === providerId);
-    if (!result) return;
-
-    const stateBefore = this.editService.currentState();
-    const tagsBefore = stateBefore?.tags.length || 0;
-
-    this.editService.applyAutoTags(providerId);
-
-    const stateAfter = this.editService.currentState();
-    const tagsAfter = stateAfter?.tags.length || 0;
-    const added = tagsAfter - tagsBefore;
-
-    if (added > 0) {
-      this.toastService.success(
-        `Added ${added} tag${added !== 1 ? "s" : ""} from ${result.provider}`,
-      );
-    } else {
-      this.toastService.info(`No new tags added (all already present)`);
-    }
-  }
-
-  applyAutoSources(providerId: string) {
-    const result = this.editService
-      .autoTags()
-      .find((r) => r.providerId === providerId);
-    if (!result) return;
-
-    const stateBefore = this.editService.currentState();
-    const sourcesBefore = stateBefore?.sources.length || 0;
-
-    this.editService.applyAutoSources(providerId);
-
-    // Update the textarea
-    const state = this.editService.currentState();
-    if (state) {
-      this.sourcesValue.set(state.sources.join("\n"));
-    }
-
-    const sourcesAfter = state?.sources.length || 0;
-    const added = sourcesAfter - sourcesBefore;
-
-    if (added > 0) {
-      this.toastService.success(
-        `Added ${added} source${added !== 1 ? "s" : ""} from ${result.provider}`,
-      );
-    } else {
-      this.toastService.info(`No new sources added (all already present)`);
-    }
   }
 
   toggleFavorite() {
@@ -692,6 +628,6 @@ export class PostDetailComponent {
   }
 
   protected trackByTag(tag: DamebooruTagDto): string {
-    return tag.id.toString() + '|' + tag.source.toString();
+    return tag.id.toString();
   }
 }

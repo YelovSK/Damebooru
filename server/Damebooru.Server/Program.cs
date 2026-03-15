@@ -5,6 +5,7 @@ using Damebooru.Data;
 using Damebooru.Processing;
 using Damebooru.Processing.Logging;
 using Damebooru.Processing.Services;
+using Damebooru.Processing.Services.AutoTagging;
 using Damebooru.Processing.Services.Duplicates;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authentication;
@@ -102,10 +103,10 @@ builder.Services.AddScoped(sp =>
 builder.Services.AddScoped<PostReadService>();
 builder.Services.AddScoped<PostWriteService>();
 builder.Services.AddScoped<PostContentService>();
+builder.Services.AddScoped<PostAutoTaggingService>();
 builder.Services.AddScoped<LibraryService>();
 builder.Services.AddScoped<LibraryBrowseService>();
 builder.Services.AddScoped<TagService>();
-builder.Services.AddScoped<TagCategoryService>();
 builder.Services.AddScoped<DuplicateWriteService>();
 builder.Services.AddScoped<DuplicateReadService>();
 builder.Services.AddScoped<DuplicateLookupService>();
@@ -130,6 +131,20 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+    var pendingMigrations = db.Database.GetPendingMigrations().ToList();
+    if (pendingMigrations.Count > 0)
+    {
+        var sqliteDbPath = db.Database.GetDbConnection().DataSource;
+        if (!string.IsNullOrWhiteSpace(sqliteDbPath) && File.Exists(sqliteDbPath))
+        {
+            var backupPath = sqliteDbPath + ".bak-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+            File.Copy(sqliteDbPath, backupPath, overwrite: false);
+            app.Logger.LogInformation("Backed up SQLite database before applying migrations: {BackupPath}", backupPath);
+        }
+
+        app.Logger.LogInformation("Applying {Count} pending migration(s): {Migrations}", pendingMigrations.Count, string.Join(", ", pendingMigrations));
+    }
+
     db.Database.Migrate();
 
     // Reconcile stale "Running" executions left behind by shutdown/crash.

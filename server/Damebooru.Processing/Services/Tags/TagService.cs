@@ -38,9 +38,7 @@ public class TagService
             {
                 Id = t.Id,
                 Name = t.Name,
-                CategoryId = t.TagCategoryId,
-                CategoryName = t.TagCategory != null ? t.TagCategory.Name : null,
-                CategoryColor = t.TagCategory != null ? t.TagCategory.Color : null,
+                Category = t.Category,
                 Usages = t.PostCount
             })
             .ToListAsync(cancellationToken);
@@ -83,9 +81,7 @@ public class TagService
             {
                 Id = t.Id,
                 Name = t.Name,
-                CategoryId = t.TagCategoryId,
-                CategoryName = t.TagCategory != null ? t.TagCategory.Name : null,
-                CategoryColor = t.TagCategory != null ? t.TagCategory.Color : null,
+                Category = t.Category,
                 Usages = t.PostCount
             })
             .ToListAsync(cancellationToken);
@@ -113,19 +109,10 @@ public class TagService
             return Result<TagDto>.Failure(OperationError.Conflict, "Tag already exists.");
         }
 
-        if (dto.CategoryId.HasValue)
-        {
-            var categoryExists = await _context.TagCategories.AnyAsync(c => c.Id == dto.CategoryId.Value);
-            if (!categoryExists)
-            {
-                return Result<TagDto>.Failure(OperationError.InvalidInput, "Category not found.");
-            }
-        }
-
         var tag = new Tag
         {
             Name = name,
-            TagCategoryId = dto.CategoryId
+            Category = dto.Category
         };
 
         _context.Tags.Add(tag);
@@ -135,7 +122,7 @@ public class TagService
         {
             Id = tag.Id,
             Name = tag.Name,
-            CategoryId = tag.TagCategoryId,
+            Category = tag.Category,
             Usages = 0
         });
     }
@@ -160,17 +147,8 @@ public class TagService
             return Result<TagDto>.Failure(OperationError.Conflict, "Another tag with this name already exists.");
         }
 
-        if (dto.CategoryId.HasValue)
-        {
-            var categoryExists = await _context.TagCategories.AnyAsync(c => c.Id == dto.CategoryId.Value);
-            if (!categoryExists)
-            {
-                return Result<TagDto>.Failure(OperationError.InvalidInput, "Category not found.");
-            }
-        }
-
         tag.Name = name;
-        tag.TagCategoryId = dto.CategoryId;
+        tag.Category = dto.Category;
         await _context.SaveChangesAsync();
 
         var updated = await _context.Tags
@@ -179,9 +157,7 @@ public class TagService
             {
                 Id = t.Id,
                 Name = t.Name,
-                CategoryId = t.TagCategoryId,
-                CategoryName = t.TagCategory != null ? t.TagCategory.Name : null,
-                CategoryColor = t.TagCategory != null ? t.TagCategory.Color : null,
+                Category = t.Category,
                 Usages = t.PostCount
             })
             .FirstAsync();
@@ -234,9 +210,9 @@ public class TagService
         _context.PostTags.RemoveRange(sourceLinks);
 
         // Transfer category from source to target if target has none
-        if (target.TagCategoryId == null && source.TagCategoryId != null)
+        if (target.Category == TagCategoryKind.General && source.Category != TagCategoryKind.General)
         {
-            target.TagCategoryId = source.TagCategoryId;
+            target.Category = source.Category;
         }
 
         _context.Tags.Remove(source);
@@ -289,14 +265,8 @@ public class TagService
             ("name", false) => query.OrderBy(t => t.Name).ThenBy(t => t.Id),
             ("name", true) => query.OrderByDescending(t => t.Name).ThenByDescending(t => t.Id),
 
-            ("category", false) => query
-                .OrderBy(t => t.TagCategory != null ? t.TagCategory.Name : string.Empty)
-                .ThenBy(t => t.Name)
-                .ThenBy(t => t.Id),
-            ("category", true) => query
-                .OrderByDescending(t => t.TagCategory != null ? t.TagCategory.Name : string.Empty)
-                .ThenByDescending(t => t.Name)
-                .ThenByDescending(t => t.Id),
+            ("category", false) => query.OrderBy(t => t.Category).ThenBy(t => t.Name).ThenBy(t => t.Id),
+            ("category", true) => query.OrderByDescending(t => t.Category).ThenByDescending(t => t.Name).ThenByDescending(t => t.Id),
 
             ("usages", false) => query.OrderBy(t => t.PostCount).ThenBy(t => t.Name).ThenBy(t => t.Id),
             ("usages", true) => query.OrderByDescending(t => t.PostCount).ThenBy(t => t.Name).ThenBy(t => t.Id),

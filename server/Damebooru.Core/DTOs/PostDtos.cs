@@ -48,6 +48,17 @@ public class UpdatePostTagDto
     public int? TagId { get; set; }
     public string Name { get; set; } = string.Empty;
     public PostTagSource Source { get; set; }
+    public TagCategoryKind Category { get; set; } = TagCategoryKind.General;
+}
+
+public class AutoTagPostResultDto
+{
+    public AutoTagScanStatus ScanStatus { get; set; }
+    public int AddedTags { get; set; }
+    public int RemovedTags { get; set; }
+    public int UpdatedTagCategories { get; set; }
+    public int AddedSources { get; set; }
+    public PostDto Post { get; set; } = null!;
 }
 
 public class PostAuditEntryDto

@@ -55,4 +55,5 @@ public static class StoragePathResolver
         builder[dataSourceKey] = resolved;
         return builder.ConnectionString;
     }
+
 }

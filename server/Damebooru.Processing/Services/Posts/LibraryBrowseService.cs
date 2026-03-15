@@ -1,3 +1,4 @@
+using Damebooru.Core.Entities;
 using Damebooru.Core.DTOs;
 using Damebooru.Core.Results;
 using Damebooru.Data;
@@ -196,64 +197,85 @@ public class LibraryBrowseService
 
     private async Task<PostDto?> LoadPostAsync(int id, CancellationToken cancellationToken)
     {
-        return await _context.Posts
-            .AsNoTracking()
+        var post = await _context.Posts
+            .Include(p => p.Library)
+            .Include(p => p.Sources)
+            .Include(p => p.PostTags)
+                .ThenInclude(pt => pt.Tag)
+            .Include(p => p.DuplicateGroupEntries)
+                .ThenInclude(dge => dge.DuplicateGroup)
+                    .ThenInclude(g => g.Entries)
+                        .ThenInclude(e => e.Post)
+                            .ThenInclude(sp => sp.Library)
             .Where(p => p.Id == id)
-            .Select(p => new PostDto
-            {
-                Id = p.Id,
-                LibraryId = p.LibraryId,
-                LibraryName = p.Library.Name,
-                RelativePath = p.RelativePath,
-                ContentHash = p.ContentHash,
-                SizeBytes = p.SizeBytes,
-                Width = p.Width,
-                Height = p.Height,
-                ContentType = p.ContentType,
-                ImportDate = p.ImportDate,
-                FileModifiedDate = p.FileModifiedDate,
-                IsFavorite = p.IsFavorite,
-                ThumbnailLibraryId = p.LibraryId,
-                ThumbnailContentHash = p.ContentHash,
-                Sources = p.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
-                Tags = p.PostTags
-                    .OrderBy(pt => pt.Tag.TagCategory!.Order)
-                    .ThenBy(pt => pt.Tag.Name)
-                    .Select(pt => new TagDto
-                    {
-                        Id = pt.Tag.Id,
-                        Name = pt.Tag.Name,
-                        CategoryId = pt.Tag.TagCategoryId,
-                        CategoryName = pt.Tag.TagCategory!.Name,
-                        CategoryColor = pt.Tag.TagCategory!.Color,
-                        Usages = pt.Tag.PostCount,
-                        Source = pt.Source,
-                    })
-                    .ToList(),
-                SimilarPosts = p.DuplicateGroupEntries
-                    .Select(dge => dge.DuplicateGroup)
-                    .SelectMany(g => g.Entries)
-                    .Where(e => e.PostId != p.Id)
-                    .Select(e => new SimilarPostDto
-                    {
-                        Id = e.Post.Id,
-                        LibraryId = e.Post.LibraryId,
-                        LibraryName = e.Post.Library.Name,
-                        RelativePath = e.Post.RelativePath,
-                        Width = e.Post.Width,
-                        Height = e.Post.Height,
-                        SizeBytes = e.Post.SizeBytes,
-                        ContentType = e.Post.ContentType,
-                        ThumbnailLibraryId = e.Post.LibraryId,
-                        ThumbnailContentHash = e.Post.ContentHash,
-                        DuplicateType = e.DuplicateGroup.Type,
-                        SimilarityPercent = e.DuplicateGroup.SimilarityPercent,
-                        GroupIsResolved = e.DuplicateGroup.IsResolved,
-                    })
-                    .ToList(),
-            })
             .FirstOrDefaultAsync(cancellationToken);
+
+        return post == null ? null : MapPost(post);
     }
+
+    private static PostDto MapPost(Post post)
+        => new()
+        {
+            Id = post.Id,
+            LibraryId = post.LibraryId,
+            LibraryName = post.Library.Name,
+            RelativePath = post.RelativePath,
+            ContentHash = post.ContentHash,
+            SizeBytes = post.SizeBytes,
+            Width = post.Width,
+            Height = post.Height,
+            ContentType = post.ContentType,
+            ImportDate = post.ImportDate,
+            FileModifiedDate = post.FileModifiedDate,
+            IsFavorite = post.IsFavorite,
+            ThumbnailLibraryId = post.LibraryId,
+            ThumbnailContentHash = post.ContentHash,
+            Sources = post.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
+            Tags = post.PostTags
+                .GroupBy(pt => new { pt.Tag.Id, pt.Tag.Name, pt.Tag.Category, pt.Tag.PostCount })
+                .OrderBy(group => GetTagCategoryDisplayOrder(group.Key.Category))
+                .ThenBy(group => group.Key.Name)
+                .Select(group => new TagDto
+                {
+                    Id = group.Key.Id,
+                    Name = group.Key.Name,
+                    Category = group.Key.Category,
+                    Usages = group.Key.PostCount,
+                    Sources = group.Select(pt => pt.Source).Distinct().OrderBy(source => source).ToList(),
+                })
+                .ToList(),
+            SimilarPosts = post.DuplicateGroupEntries
+                .Select(dge => dge.DuplicateGroup)
+                .SelectMany(g => g.Entries)
+                .Where(e => e.PostId != post.Id)
+                .Select(e => new SimilarPostDto
+                {
+                    Id = e.Post.Id,
+                    LibraryId = e.Post.LibraryId,
+                    LibraryName = e.Post.Library.Name,
+                    RelativePath = e.Post.RelativePath,
+                    Width = e.Post.Width,
+                    Height = e.Post.Height,
+                    SizeBytes = e.Post.SizeBytes,
+                    ContentType = e.Post.ContentType,
+                    ThumbnailLibraryId = e.Post.LibraryId,
+                    ThumbnailContentHash = e.Post.ContentHash,
+                    DuplicateType = e.DuplicateGroup.Type,
+                    SimilarityPercent = e.DuplicateGroup.SimilarityPercent,
+                    GroupIsResolved = e.DuplicateGroup.IsResolved,
+                })
+                .ToList(),
+        };
+
+    private static int GetTagCategoryDisplayOrder(TagCategoryKind category)
+        => category switch
+        {
+            TagCategoryKind.Artist => 0,
+            TagCategoryKind.Character => 1,
+            TagCategoryKind.Copyright => 2,
+            TagCategoryKind.Meta => 3,
+            _ => 4,
+        };
 
     private async Task<List<LibraryFolderNodeDto>> GetFoldersInternalAsync(
         int libraryId,
