@@ -48,6 +48,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMediaFileProcessor, MediaProcessor>();
         services.AddSingleton<ISimilarityService, ImageHashService>();
         services.AddSingleton<IFileIdentityResolver, PlatformFileIdentityResolver>();
+        services.AddSingleton<SauceNaoRateCoordinator>();
         services.AddHttpClient<ISauceNaoClient, SauceNaoClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.SauceNao));
         services.AddHttpClient<IDanbooruClient, DanbooruClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.Danbooru));
         services.AddHttpClient<IGelbooruClient, GelbooruClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.Gelbooru));

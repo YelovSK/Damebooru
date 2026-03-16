@@ -31,6 +31,12 @@ internal sealed class SauceNaoHeaderDto
     [JsonPropertyName("long_limit")]
     public string? LongLimit { get; set; }
 
+    [JsonPropertyName("short_remaining")]
+    public int? ShortRemaining { get; set; }
+
+    [JsonPropertyName("long_remaining")]
+    public int? LongRemaining { get; set; }
+
     public bool IsSuccess => Status >= 0;
 
     // Maybe there's a better way, but based on the response I don't see it.
@@ -67,6 +73,9 @@ internal sealed class SauceNaoResultDataDto
 
     [JsonPropertyName("source")]
     public string? Source { get; set; }
+
+    [JsonPropertyName("author_name")]
+    public string? AuthorName { get; set; }
 
     [JsonPropertyName("author_url")]
     public string? AuthorUrl { get; set; }

@@ -6,5 +6,7 @@ public sealed record SauceNaoSearchResult(
     int ResultsRequested,
     int ResultsReturned,
     decimal? ShortLimit,
+    decimal? ShortRemaining,
     decimal? LongLimit,
+    decimal? LongRemaining,
     IReadOnlyList<SauceNaoMatch> Matches);

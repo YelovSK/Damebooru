@@ -7,14 +7,21 @@ using Damebooru.Core.Entities;
 using Damebooru.Core.External;
 using Damebooru.Core.Interfaces;
 using Damebooru.Processing.Infrastructure.External.Shared;
+using Microsoft.Extensions.Logging;
 using PhotoSauce.MagicScaler;
 
 namespace Damebooru.Processing.Infrastructure.External.SauceNao;
 
-internal sealed class SauceNaoClient(HttpClient httpClient, DamebooruConfig config) : ISauceNaoClient
+internal sealed class SauceNaoClient(
+    HttpClient httpClient,
+    DamebooruConfig config,
+    SauceNaoRateCoordinator rateCoordinator,
+    ILogger<SauceNaoClient> logger) : ISauceNaoClient
 {
     private readonly HttpClient _httpClient = httpClient;
     private readonly SauceNaoApiConfig _config = config.ExternalApis.SauceNao;
+    private readonly SauceNaoRateCoordinator _rateCoordinator = rateCoordinator;
+    private readonly ILogger<SauceNaoClient> _logger = logger;
 
     public async Task<SauceNaoSearchResult> SearchAsync(
         Stream fileStream,
@@ -30,6 +37,7 @@ internal sealed class SauceNaoClient(HttpClient httpClient, DamebooruConfig conf
         }
 
         await using var uploadStream = await PrepareUploadStreamAsync(fileStream, fileName, contentType, cancellationToken);
+        await using var _ = await _rateCoordinator.AcquireAsync(cancellationToken);
 
         using var formData = new MultipartFormDataContent();
         var fileContent = new StreamContent(uploadStream.Stream);
@@ -42,32 +50,78 @@ internal sealed class SauceNaoClient(HttpClient httpClient, DamebooruConfig conf
         var payload = await response.Content.ReadFromJsonAsync<SauceNaoResponseDto>(cancellationToken);
         if (payload is null)
         {
+            _rateCoordinator.ObserveFailure();
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new InvalidOperationException($"Could not deserialize SauceNAO response: {content}");
         }
+
+        if (response.IsSuccessStatusCode && payload.Header.IsSuccess)
+        {
+            var rateObservation = _rateCoordinator.ObserveSuccess(payload.Header);
+            if (rateObservation.RequiresResync)
+            {
+                _logger.LogWarning(
+                    "SauceNAO quota drift detected. ExpectedShortRemaining={ExpectedShortRemaining}, ActualShortRemaining={ActualShortRemaining}, delaying until {BlockedUntilUtc}.",
+                    rateObservation.ExpectedShortRemaining,
+                    rateObservation.ActualShortRemaining,
+                    rateObservation.BlockedUntilUtc);
+            }
+
+            return new SauceNaoSearchResult(
+                payload.Header.Status,
+                payload.Header.Message,
+                payload.Header.ResultsRequested,
+                payload.Header.ResultsReturned,
+                ParseDecimal(payload.Header.ShortLimit),
+                payload.Header.ShortRemaining,
+                ParseDecimal(payload.Header.LongLimit),
+                payload.Header.LongRemaining,
+                payload.Results.Select(MapMatch).ToList()
+            );
+        }
+
+        if (payload.Header.IsShortLimitExceeded)
+        {
+            var blockedUntilUtc = _rateCoordinator.ObserveShortLimitExceeded();
+            _logger.LogWarning(
+                "SauceNAO short-term limit exceeded. Blocking further requests until {BlockedUntilUtc}.",
+                blockedUntilUtc);
+        }
+        else
+        {
+            _rateCoordinator.ObserveFailure();
+        }
+
+        LogFailure(response.StatusCode, payload.Header);
 
         if (!response.IsSuccessStatusCode || !payload.Header.IsSuccess)
         {
             throw new ExternalProviderException(
                 provider: AutoTagProvider.SauceNao,
-                message: $"SauceNAO request failed with status code {(int)response.StatusCode}.",
+                message: BuildFailureMessage(response.StatusCode, payload.Header),
                 isRetryable: response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500,
                 retryAfter: payload.Header.IsShortLimitExceeded || payload.Header.IsFailedAttemptsExceeded
                     ? TimeSpan.FromSeconds(30)
                     : null,
-                stopCurrentRun: payload.Header.IsDailyLimitExceeded);
+                stopCurrentRun: payload.Header.IsDailyLimitExceeded || payload.Header.IsFailedAttemptsExceeded || response.StatusCode == HttpStatusCode.TooManyRequests);
         }
 
-        return new SauceNaoSearchResult(
-            payload.Header.Status,
-            payload.Header.Message,
-            payload.Header.ResultsRequested,
-            payload.Header.ResultsReturned,
-            ParseDecimal(payload.Header.ShortLimit),
-            ParseDecimal(payload.Header.LongLimit),
-            payload.Results.Select(MapMatch).ToList()
-        );
+        throw new InvalidOperationException("Unreachable SauceNAO response state encountered.");
     }
+
+    private void LogFailure(HttpStatusCode statusCode, SauceNaoHeaderDto header)
+    {
+        _logger.LogWarning(
+            "SauceNAO request failed. HttpStatus={HttpStatus}, HeaderStatus={HeaderStatus}, ShortRemaining={ShortRemaining}, LongRemaining={LongRemaining}, Message={Message}",
+            (int)statusCode,
+            header.Status,
+            header.ShortRemaining,
+            header.LongRemaining,
+            header.Message);
+    }
+
+    private static string BuildFailureMessage(HttpStatusCode statusCode, SauceNaoHeaderDto header)
+        => $"SauceNAO request failed with HTTP {(int)statusCode}, header status {header.Status}: {header.Message}";
 
     private static SauceNaoMatch MapMatch(SauceNaoResultDto result)
     {
