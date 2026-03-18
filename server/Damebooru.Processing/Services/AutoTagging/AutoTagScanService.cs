@@ -4,8 +4,8 @@ using Damebooru.Core.Entities;
 using Damebooru.Core.External;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
-using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Damebooru.Processing.Services.AutoTagging;
 
@@ -17,17 +17,20 @@ public sealed class AutoTagScanService
     private readonly ISauceNaoClient _sauceNaoClient;
     private readonly IReadOnlyDictionary<AutoTagProvider, IExternalPostMetadataClient> _metadataClients;
     private readonly decimal _minimumSauceNaoSimilarity;
+    private readonly ILogger<AutoTagScanService> _logger;
 
     public AutoTagScanService(
         DamebooruDbContext db,
         ISauceNaoClient sauceNaoClient,
         IEnumerable<IExternalPostMetadataClient> metadataClients,
-        DamebooruConfig config)
+        DamebooruConfig config,
+        ILogger<AutoTagScanService> logger)
     {
         _db = db;
         _sauceNaoClient = sauceNaoClient;
         _metadataClients = metadataClients.ToDictionary(client => client.Provider);
         _minimumSauceNaoSimilarity = Math.Max(0m, config.ExternalApis.SauceNao.MinimumSimilarity);
+        _logger = logger;
     }
 
     public async Task<AutoTagScanResult> ScanPostAsync(int postId, CancellationToken cancellationToken = default)
@@ -129,6 +132,7 @@ public sealed class AutoTagScanService
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Auto-tag scan failed for post {PostId} ({RelativePath}) at provider {Provider}", post.Id, post.RelativePath, AutoTagProvider.SauceNao);
             return HandleStepFailure(step, ex);
         }
     }
@@ -197,6 +201,7 @@ public sealed class AutoTagScanService
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Auto-tag metadata scan failed for post {PostId} at provider {Provider}", scan.PostId, provider);
             HandleStepFailure(step, ex);
         }
     }

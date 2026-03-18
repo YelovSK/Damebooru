@@ -23,6 +23,28 @@ internal sealed class SauceNaoClient(
     private readonly SauceNaoRateCoordinator _rateCoordinator = rateCoordinator;
     private readonly ILogger<SauceNaoClient> _logger = logger;
 
+    // It's 25MB, but using 20MB to be safe.
+    private const long SauceNaoMaxUploadBytes = 20L * 1024L * 1024L;
+    private static readonly HashSet<string> SupportedUploadContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/bmp",
+        "image/webp",
+    };
+
+    private static readonly HashSet<string> SupportedUploadExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".webp",
+    };
+
     public async Task<SauceNaoSearchResult> SearchAsync(
         Stream fileStream,
         string fileName,
@@ -99,7 +121,7 @@ internal sealed class SauceNaoClient(
             throw new ExternalProviderException(
                 provider: AutoTagProvider.SauceNao,
                 message: BuildFailureMessage(response.StatusCode, payload.Header),
-                isRetryable: response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500,
+                isRetryable: IsRetryable(response.StatusCode, payload.Header),
                 retryAfter: payload.Header.IsShortLimitExceeded || payload.Header.IsFailedAttemptsExceeded
                     ? TimeSpan.FromSeconds(30)
                     : null,
@@ -152,8 +174,10 @@ internal sealed class SauceNaoClient(
     {
         var resolvedFileName = string.IsNullOrWhiteSpace(fileName) ? "upload.bin" : fileName;
         var resolvedContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType;
+        var shouldTranscode = RequiresJpegTranscode(resolvedFileName, resolvedContentType)
+            || IsFileTooLarge(fileStream);
 
-        if (!RequiresJpegTranscode(resolvedFileName, resolvedContentType))
+        if (!shouldTranscode)
         {
             if (fileStream.CanSeek)
             {
@@ -175,12 +199,34 @@ internal sealed class SauceNaoClient(
         await Task.Run(() => MagicImageProcessor.ProcessImage(fileStream, output, settings), cancellationToken);
         output.Seek(0, SeekOrigin.Begin);
 
+        if (output.Length > SauceNaoMaxUploadBytes)
+        {
+            await output.DisposeAsync();
+            throw new ExternalProviderException(
+                AutoTagProvider.SauceNao,
+                $"SauceNAO upload remains too large after JPEG conversion ({output.Length} bytes).",
+                isRetryable: false);
+        }
+
         return new PreparedUploadStream(output, Path.ChangeExtension(resolvedFileName, ".jpg"), "image/jpeg", ownsStream: true);
     }
 
     private static bool RequiresJpegTranscode(string fileName, string contentType)
-        => string.Equals(contentType, "image/jxl", StringComparison.OrdinalIgnoreCase) ||
-           string.Equals(Path.GetExtension(fileName), ".jxl", StringComparison.OrdinalIgnoreCase);
+        => !SupportedUploadContentTypes.Contains(contentType)
+           && !SupportedUploadExtensions.Contains(Path.GetExtension(fileName));
+
+    private static bool IsFileTooLarge(Stream stream)
+        => stream.CanSeek && stream.Length > SauceNaoMaxUploadBytes;
+
+    private static bool IsRetryable(HttpStatusCode statusCode, SauceNaoHeaderDto header)
+    {
+        if (header.IsNoImageProvided || header.IsFileTooLarge || header.IsImageTooSmall)
+        {
+            return false;
+        }
+
+        return statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
+    }
 
     private sealed class PreparedUploadStream(Stream stream, string fileName, string contentType, bool ownsStream) : IAsyncDisposable
     {

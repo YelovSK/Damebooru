@@ -178,7 +178,9 @@ public sealed class AutoTagPostsJob : IJob
                 (post, scans) => new { Post = post, Scan = scans.FirstOrDefault() })
             .Where(x => x.Scan == null
                 || x.Scan.ContentHash != x.Post.ContentHash
-                || x.Scan.Status != AutoTagScanStatus.Completed
+                || x.Scan.Status == AutoTagScanStatus.Pending
+                || x.Scan.Status == AutoTagScanStatus.InProgress
+                || x.Scan.Status == AutoTagScanStatus.Partial
                 || db.PostAutoTagScanSteps.Any(step => step.ScanId == x.Scan!.Id && step.Status == AutoTagScanStepStatus.RetryableFailure && step.NextRetryAtUtc <= now))
             .OrderBy(x => x.Post.Id)
             .Select(x => x.Post.Id)

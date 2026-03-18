@@ -13,6 +13,14 @@ internal sealed class SauceNaoResponseDto
 
 internal sealed class SauceNaoHeaderDto
 {
+    public enum SauceNaoErrorStatus
+    {
+        RateLimitExceeded = -2,
+        NoImage = -4,
+        FileTooLarge = -5,
+        ImageTooSmall = -6,
+    }
+
     [JsonPropertyName("status")]
     public int Status { get; set; }
 
@@ -40,9 +48,13 @@ internal sealed class SauceNaoHeaderDto
     public bool IsSuccess => Status >= 0;
 
     // Maybe there's a better way, but based on the response I don't see it.
-    public bool IsShortLimitExceeded => !IsSuccess && Message?.Contains("Search Rate Too High", StringComparison.InvariantCultureIgnoreCase) == true;
-    public bool IsDailyLimitExceeded => !IsSuccess && Message?.Contains("Daily Search Limit Exceeded", StringComparison.InvariantCultureIgnoreCase) == true;
-    public bool IsFailedAttemptsExceeded => !IsSuccess && Message?.Contains("Too many failed search attempts", StringComparison.InvariantCultureIgnoreCase) == true;
+    public bool IsRateLimitExceeded => Status == (int)SauceNaoErrorStatus.RateLimitExceeded;
+    public bool IsShortLimitExceeded => IsRateLimitExceeded && Message?.Contains("Search Rate Too High", StringComparison.InvariantCultureIgnoreCase) == true;
+    public bool IsDailyLimitExceeded => IsRateLimitExceeded && Message?.Contains("Daily Search Limit Exceeded", StringComparison.InvariantCultureIgnoreCase) == true;
+    public bool IsFailedAttemptsExceeded => IsRateLimitExceeded && Message?.Contains("Too many failed search attempts", StringComparison.InvariantCultureIgnoreCase) == true;
+    public bool IsNoImageProvided => Status == (int)SauceNaoErrorStatus.NoImage;
+    public bool IsFileTooLarge => Status == (int)SauceNaoErrorStatus.FileTooLarge;
+    public bool IsImageTooSmall => Status == (int)SauceNaoErrorStatus.ImageTooSmall;
 }
 
 internal sealed class SauceNaoResultDto
