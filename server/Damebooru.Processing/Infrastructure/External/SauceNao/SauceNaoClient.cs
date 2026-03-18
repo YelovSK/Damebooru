@@ -30,7 +30,6 @@ internal sealed class SauceNaoClient(
         "image/jpeg",
         "image/jpg",
         "image/png",
-        "image/gif",
         "image/bmp",
         "image/webp",
     };
@@ -40,7 +39,6 @@ internal sealed class SauceNaoClient(
         ".jpg",
         ".jpeg",
         ".png",
-        ".gif",
         ".bmp",
         ".webp",
     };
