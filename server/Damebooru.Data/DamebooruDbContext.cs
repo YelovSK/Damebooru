@@ -151,14 +151,14 @@ public class DamebooruDbContext : DbContext
             .HasIndex(scan => new { scan.Status, scan.LastCompletedAtUtc });
 
         modelBuilder.Entity<PostAutoTagScanStep>()
-            .HasIndex(step => new { step.ScanId, step.Provider })
+            .HasIndex(step => new { step.ScanId, step.Provider, step.Kind })
             .IsUnique();
 
         modelBuilder.Entity<PostAutoTagScanStep>()
             .HasIndex(step => new { step.Provider, step.Status, step.NextRetryAtUtc });
 
         modelBuilder.Entity<PostAutoTagScanCandidate>()
-            .HasIndex(candidate => new { candidate.ScanId, candidate.Provider, candidate.ExternalPostId })
+            .HasIndex(candidate => new { candidate.ScanId, candidate.DiscoveryProvider, candidate.Provider, candidate.ExternalPostId })
             .IsUnique();
 
         modelBuilder.Entity<PostAutoTagScanSource>()

@@ -7,6 +7,9 @@ internal sealed class DanbooruPostDto
     [JsonPropertyName("id")]
     public long Id { get; set; }
 
+    [JsonPropertyName("md5")]
+    public string? Md5 { get; set; }
+
     [JsonPropertyName("source")]
     public string? Source { get; set; }
 

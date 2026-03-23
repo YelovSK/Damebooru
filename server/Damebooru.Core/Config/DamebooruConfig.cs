@@ -84,6 +84,7 @@ public class ExternalApisConfig
     public SauceNaoApiConfig SauceNao { get; set; } = new();
     public DanbooruApiConfig Danbooru { get; set; } = new();
     public GelbooruApiConfig Gelbooru { get; set; } = new();
+    public IqdbApiConfig Iqdb { get; set; } = new();
 }
 
 public class ExternalApiClientConfig
@@ -126,4 +127,14 @@ public sealed class GelbooruApiConfig : ExternalApiClientConfig
 
     public string UserId { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
+}
+
+public sealed class IqdbApiConfig : ExternalApiClientConfig
+{
+    public IqdbApiConfig()
+    {
+        BaseUrl = "https://iqdb.org";
+    }
+
+    public decimal MinimumSimilarity { get; set; } = 75m;
 }

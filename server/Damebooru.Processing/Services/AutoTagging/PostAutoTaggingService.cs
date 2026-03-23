@@ -28,7 +28,7 @@ public sealed class PostAutoTaggingService
         try
         {
             _configurationValidator.EnsureConfigured();
-            var scanResult = await _scanService.ScanPostAsync(postId, cancellationToken);
+            var scanResult = await _scanService.ScanPostAsync(postId, forceRefresh: true, cancellationToken);
             var applyResult = await _applyService.ApplyScanAsync(postId, cancellationToken);
             var postResult = await _postReadService.GetPostAsync(postId, cancellationToken);
             if (!postResult.IsSuccess || postResult.Value == null)

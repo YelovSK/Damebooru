@@ -4,5 +4,6 @@ public enum AutoTagProvider
 {
     SauceNao = 0,
     Danbooru = 1,
-    Gelbooru = 2
+    Gelbooru = 2,
+    Iqdb = 3,
 }

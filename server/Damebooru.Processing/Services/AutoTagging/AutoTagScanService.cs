@@ -4,6 +4,7 @@ using Damebooru.Core.Entities;
 using Damebooru.Core.External;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -14,26 +15,29 @@ public sealed class AutoTagScanService
     private sealed record PostScanTarget(int Id, int LibraryId, string RelativePath, string ContentHash, string ContentType);
 
     private readonly DamebooruDbContext _db;
-    private readonly ISauceNaoClient _sauceNaoClient;
+    private readonly IReadOnlyDictionary<AutoTagProvider, IExternalPostDiscoveryClient> _discoveryClients;
     private readonly IReadOnlyDictionary<AutoTagProvider, IExternalPostMetadataClient> _metadataClients;
     private readonly decimal _minimumSauceNaoSimilarity;
     private readonly ILogger<AutoTagScanService> _logger;
 
     public AutoTagScanService(
         DamebooruDbContext db,
-        ISauceNaoClient sauceNaoClient,
+        IEnumerable<IExternalPostDiscoveryClient> discoveryClients,
         IEnumerable<IExternalPostMetadataClient> metadataClients,
         DamebooruConfig config,
         ILogger<AutoTagScanService> logger)
     {
         _db = db;
-        _sauceNaoClient = sauceNaoClient;
+        _discoveryClients = discoveryClients.ToDictionary(client => client.Provider);
         _metadataClients = metadataClients.ToDictionary(client => client.Provider);
         _minimumSauceNaoSimilarity = Math.Max(0m, config.ExternalApis.SauceNao.MinimumSimilarity);
         _logger = logger;
     }
 
     public async Task<AutoTagScanResult> ScanPostAsync(int postId, CancellationToken cancellationToken = default)
+        => await ScanPostAsync(postId, forceRefresh: false, cancellationToken);
+
+    public async Task<AutoTagScanResult> ScanPostAsync(int postId, bool forceRefresh, CancellationToken cancellationToken = default)
     {
         var post = await _db.Posts
             .AsNoTracking()
@@ -61,6 +65,11 @@ public sealed class AutoTagScanService
             _db.PostAutoTagScans.Add(scan);
             isStaleContentReset = true;
         }
+        else if (forceRefresh)
+        {
+            ResetScan(scan, post.ContentHash, _minimumSauceNaoSimilarity, preserveMd5Hash: true);
+            isStaleContentReset = true;
+        }
         else if (!string.Equals(scan.ContentHash, post.ContentHash, StringComparison.Ordinal)
             || scan.SauceNaoMinimumSimilarity != _minimumSauceNaoSimilarity)
         {
@@ -72,18 +81,34 @@ public sealed class AutoTagScanService
         scan.LastStartedAtUtc = DateTime.UtcNow;
         scan.LastError = null;
 
-        EnsureStep(scan, AutoTagProvider.SauceNao);
-        EnsureStep(scan, AutoTagProvider.Danbooru);
-        EnsureStep(scan, AutoTagProvider.Gelbooru);
+        foreach (var provider in AutoTagDiscoveryPlan.OrderedDiscoveryProviders)
+        {
+            EnsureStep(scan, provider, AutoTagScanStepKind.Discovery);
+        }
+
+        foreach (var provider in AutoTagDiscoveryPlan.MetadataProviders)
+        {
+            EnsureStep(scan, provider, AutoTagScanStepKind.Metadata);
+        }
+
         AutoTagExecutionDirective? directive = null;
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        directive = await RunSauceNaoStepAsync(scan, post, cancellationToken);
+        var libraryRoot = await _db.Libraries
+            .AsNoTracking()
+            .Where(l => l.Id == post.LibraryId)
+            .Select(l => l.Path)
+            .FirstAsync(cancellationToken);
+        var filePath = Path.Combine(libraryRoot, post.RelativePath);
+        var md5Hash = await EnsureMd5HashAsync(scan, filePath, cancellationToken);
+        var discoveryContext = new PostDiscoveryContext(post.Id, post.RelativePath, post.ContentType, filePath, post.ContentHash, md5Hash);
+
+        directive = await RunDiscoveryPipelineAsync(scan, discoveryContext, cancellationToken);
 
         if (directive == null)
         {
-            foreach (var provider in new[] { AutoTagProvider.Danbooru, AutoTagProvider.Gelbooru })
+            foreach (var provider in AutoTagDiscoveryPlan.MetadataProviders)
             {
                 await RunMetadataStepAsync(scan, provider, cancellationToken);
             }
@@ -99,47 +124,57 @@ public sealed class AutoTagScanService
         return new AutoTagScanResult(postId, scan.Status, isStaleContentReset, ShouldApply(scan, directive), directive);
     }
 
-    private async Task<AutoTagExecutionDirective?> RunSauceNaoStepAsync(PostAutoTagScan scan, PostScanTarget post, CancellationToken cancellationToken)
+    private async Task<AutoTagExecutionDirective?> RunDiscoveryPipelineAsync(PostAutoTagScan scan, PostDiscoveryContext context, CancellationToken cancellationToken)
     {
-        var step = EnsureStep(scan, AutoTagProvider.SauceNao);
-        if (!ShouldRunStep(step))
+        foreach (var provider in AutoTagDiscoveryPlan.OrderedDiscoveryProviders)
         {
-            return null;
+            if (scan.Candidates.Count > 0)
+            {
+                MarkRemainingDiscoveryStepsSkipped(scan, provider);
+                return null;
+            }
+
+            var step = EnsureStep(scan, provider, AutoTagScanStepKind.Discovery);
+            if (!ShouldRunStep(step))
+            {
+                continue;
+            }
+
+            if (!_discoveryClients.TryGetValue(provider, out var client))
+            {
+                throw new InvalidOperationException($"No discovery client is registered for provider {provider}.");
+            }
+
+            PrepareStepAttempt(step);
+
+            try
+            {
+                var result = await client.DiscoverAsync(context, cancellationToken);
+                ReplaceProviderDiscoveryArtifacts(scan, provider, result);
+
+                step.Status = AutoTagScanStepStatus.Succeeded;
+                step.NextRetryAtUtc = null;
+                step.LastError = null;
+
+                if (scan.Candidates.Count > 0)
+                {
+                    MarkRemainingDiscoveryStepsSkipped(scan, provider);
+                    return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Auto-tag discovery failed for post {PostId} ({RelativePath}) at provider {Provider}", context.PostId, context.RelativePath, provider);
+                return HandleStepFailure(step, ex);
+            }
         }
 
-        PrepareStepAttempt(step);
-
-        try
-        {
-            var libraryRoot = await _db.Libraries
-                .AsNoTracking()
-                .Where(l => l.Id == post.LibraryId)
-                .Select(l => l.Path)
-                .FirstAsync(cancellationToken);
-            var filePath = Path.Combine(libraryRoot, post.RelativePath);
-
-            await using var stream = File.OpenRead(filePath);
-            var result = await _sauceNaoClient.SearchAsync(stream, Path.GetFileName(filePath), cancellationToken: cancellationToken);
-            var acceptedMatches = GetAcceptedSauceNaoMatches(result).ToList();
-
-            ReplaceProviderCandidates(scan, BuildCandidates(acceptedMatches));
-            ReplaceProviderSources(scan, AutoTagProvider.SauceNao, acceptedMatches.SelectMany(match => match.ExternalUrls));
-
-            step.Status = AutoTagScanStepStatus.Succeeded;
-            step.NextRetryAtUtc = null;
-            step.LastError = null;
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Auto-tag scan failed for post {PostId} ({RelativePath}) at provider {Provider}", post.Id, post.RelativePath, AutoTagProvider.SauceNao);
-            return HandleStepFailure(step, ex);
-        }
+        return null;
     }
 
     private async Task RunMetadataStepAsync(PostAutoTagScan scan, AutoTagProvider provider, CancellationToken cancellationToken)
     {
-        var step = EnsureStep(scan, provider);
+        var step = EnsureStep(scan, provider, AutoTagScanStepKind.Metadata);
         var candidate = scan.Candidates
             .Where(c => c.Provider == provider)
             .OrderByDescending(c => c.Similarity)
@@ -211,13 +246,19 @@ public sealed class AutoTagScanService
         {
             PostId = postId,
             ContentHash = contentHash,
+            DiscoveryVersion = AutoTagDiscoveryPlan.Version,
             SauceNaoMinimumSimilarity = minimumSauceNaoSimilarity,
             Status = AutoTagScanStatus.Pending
         };
 
-    private static void ResetScan(PostAutoTagScan scan, string contentHash, decimal minimumSauceNaoSimilarity)
+    private static void ResetScan(PostAutoTagScan scan, string contentHash, decimal minimumSauceNaoSimilarity, bool preserveMd5Hash = false)
     {
         scan.ContentHash = contentHash;
+        scan.DiscoveryVersion = AutoTagDiscoveryPlan.Version;
+        if (!preserveMd5Hash)
+        {
+            scan.Md5Hash = null;
+        }
         scan.SauceNaoMinimumSimilarity = minimumSauceNaoSimilarity;
         scan.Status = AutoTagScanStatus.Pending;
         scan.LastCompletedAtUtc = null;
@@ -236,15 +277,15 @@ public sealed class AutoTagScanService
         }
     }
 
-    private static PostAutoTagScanStep EnsureStep(PostAutoTagScan scan, AutoTagProvider provider)
+    private static PostAutoTagScanStep EnsureStep(PostAutoTagScan scan, AutoTagProvider provider, AutoTagScanStepKind kind)
     {
-        var step = scan.Steps.FirstOrDefault(s => s.Provider == provider);
+        var step = scan.Steps.FirstOrDefault(s => s.Provider == provider && s.Kind == kind);
         if (step != null)
         {
             return step;
         }
 
-        step = new PostAutoTagScanStep { Provider = provider };
+        step = new PostAutoTagScanStep { Provider = provider, Kind = kind };
         scan.Steps.Add(step);
         return step;
     }
@@ -277,51 +318,80 @@ public sealed class AutoTagScanService
             : new AutoTagExecutionDirective(providerException.Provider, providerException.Message, providerException.RetryAfter, providerException.StopCurrentRun);
     }
 
-    private IEnumerable<SauceNaoMatch> GetAcceptedSauceNaoMatches(SauceNaoSearchResult result)
-        => result.Matches.Where(match => match.Similarity >= _minimumSauceNaoSimilarity);
-
     private static bool CanAutoTag(PostScanTarget post)
         => post.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
            || SupportedMedia.IsImage(Path.GetExtension(post.RelativePath));
 
-    private static List<PostAutoTagScanCandidate> BuildCandidates(IEnumerable<SauceNaoMatch> matches)
+    private void ReplaceProviderDiscoveryArtifacts(PostAutoTagScan scan, AutoTagProvider discoveryProvider, ExternalDiscoveryResult result)
     {
-        var candidates = new Dictionary<(AutoTagProvider Provider, long ExternalPostId), PostAutoTagScanCandidate>();
-        foreach (var match in matches)
+        ReplaceProviderSources(scan, discoveryProvider, result.Matches.Select(match => match.Url));
+
+        foreach (var existingCandidate in scan.Candidates.Where(candidate => candidate.DiscoveryProvider == discoveryProvider).ToList())
         {
-            AddCandidate(candidates, AutoTagProvider.Danbooru, match.DanbooruPostId, match.Similarity, $"https://danbooru.donmai.us/posts/{match.DanbooruPostId}");
-            AddCandidate(candidates, AutoTagProvider.Gelbooru, match.GelbooruPostId, match.Similarity, $"https://gelbooru.com/index.php?page=post&s=view&id={match.GelbooruPostId}");
+            scan.Candidates.Remove(existingCandidate);
         }
 
-        return candidates.Values.ToList();
+        var metadataReferences = result.Matches
+            .SelectMany(match => _metadataClients.Values
+                .Select(client => client.TryParseReference(match.Url, match.Score))
+                .Where(reference => reference != null)
+                .Select(reference => reference!))
+            .GroupBy(reference => (reference.Provider, reference.ExternalPostId), reference => reference)
+            .Select(group => group.OrderByDescending(reference => reference.Score).First())
+            .ToList();
+
+        foreach (var candidate in metadataReferences)
+        {
+            scan.Candidates.Add(new PostAutoTagScanCandidate
+            {
+                DiscoveryProvider = discoveryProvider,
+                Provider = candidate.Provider,
+                ExternalPostId = candidate.ExternalPostId,
+                Similarity = candidate.Score,
+                CanonicalUrl = candidate.CanonicalUrl
+            });
+        }
     }
 
-    private static void AddCandidate(Dictionary<(AutoTagProvider Provider, long ExternalPostId), PostAutoTagScanCandidate> candidates, AutoTagProvider provider, long? externalPostId, decimal similarity, string canonicalUrl)
+    private static void MarkRemainingDiscoveryStepsSkipped(PostAutoTagScan scan, AutoTagProvider lastAttemptedProvider)
     {
-        if (!externalPostId.HasValue)
+        var seenProvider = false;
+        foreach (var provider in AutoTagDiscoveryPlan.OrderedDiscoveryProviders)
         {
-            return;
-        }
-
-        var key = (provider, externalPostId.Value);
-        if (candidates.TryGetValue(key, out var existing))
-        {
-            if (similarity > existing.Similarity)
+            if (provider == lastAttemptedProvider)
             {
-                existing.Similarity = similarity;
-                existing.CanonicalUrl = canonicalUrl;
+                seenProvider = true;
+                continue;
             }
 
-            return;
+            if (!seenProvider)
+            {
+                continue;
+            }
+
+            var step = EnsureStep(scan, provider, AutoTagScanStepKind.Discovery);
+            if (step.Status == AutoTagScanStepStatus.Pending)
+            {
+                step.Status = AutoTagScanStepStatus.Skipped;
+                step.NextRetryAtUtc = null;
+                step.LastError = null;
+            }
+        }
+    }
+
+    private async Task<string> EnsureMd5HashAsync(PostAutoTagScan scan, string filePath, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(scan.Md5Hash))
+        {
+            return scan.Md5Hash;
         }
 
-        candidates[key] = new PostAutoTagScanCandidate
-        {
-            Provider = provider,
-            ExternalPostId = externalPostId.Value,
-            Similarity = similarity,
-            CanonicalUrl = canonicalUrl
-        };
+        await using var stream = File.OpenRead(filePath);
+        using var md5 = MD5.Create();
+        var hash = await md5.ComputeHashAsync(stream, cancellationToken);
+        scan.Md5Hash = Convert.ToHexStringLower(hash);
+        await _db.SaveChangesAsync(cancellationToken);
+        return scan.Md5Hash;
     }
 
     private static void ReplaceProviderCandidates(PostAutoTagScan scan, IReadOnlyCollection<PostAutoTagScanCandidate> candidates)

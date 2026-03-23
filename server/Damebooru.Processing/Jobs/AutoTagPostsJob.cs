@@ -181,6 +181,9 @@ public sealed class AutoTagPostsJob : IJob
                 || x.Scan.Status == AutoTagScanStatus.Pending
                 || x.Scan.Status == AutoTagScanStatus.InProgress
                 || x.Scan.Status == AutoTagScanStatus.Partial
+                || (x.Scan.Status == AutoTagScanStatus.Completed
+                    && !db.PostAutoTagScanCandidates.Any(candidate => candidate.ScanId == x.Scan.Id)
+                    && x.Scan.DiscoveryVersion != AutoTagDiscoveryPlan.Version)
                 || db.PostAutoTagScanSteps.Any(step => step.ScanId == x.Scan!.Id && step.Status == AutoTagScanStepStatus.RetryableFailure && step.NextRetryAtUtc <= now))
             .OrderBy(x => x.Post.Id)
             .Select(x => x.Post.Id)

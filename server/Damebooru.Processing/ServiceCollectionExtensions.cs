@@ -2,6 +2,7 @@ using Damebooru.Core.Config;
 using Damebooru.Core.Interfaces;
 using Damebooru.Processing.Infrastructure.External.Danbooru;
 using Damebooru.Processing.Infrastructure.External.Gelbooru;
+using Damebooru.Processing.Infrastructure.External.Iqdb;
 using Damebooru.Processing.Infrastructure.External.SauceNao;
 using Damebooru.Processing.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,10 +51,14 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFileIdentityResolver, PlatformFileIdentityResolver>();
         services.AddSingleton<SauceNaoRateCoordinator>();
         services.AddHttpClient<ISauceNaoClient, SauceNaoClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.SauceNao));
+        services.AddScoped<IExternalPostDiscoveryClient, SauceNaoDiscoveryClient>();
+        services.AddHttpClient<IExternalPostDiscoveryClient, IqdbClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.Iqdb));
         services.AddHttpClient<IDanbooruClient, DanbooruClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.Danbooru));
         services.AddHttpClient<IGelbooruClient, GelbooruClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.Gelbooru));
         services.AddScoped<IExternalPostMetadataClient>(sp => (IExternalPostMetadataClient)sp.GetRequiredService<IDanbooruClient>());
         services.AddScoped<IExternalPostMetadataClient>(sp => (IExternalPostMetadataClient)sp.GetRequiredService<IGelbooruClient>());
+        services.AddScoped<IExternalPostDiscoveryClient>(sp => (IExternalPostDiscoveryClient)sp.GetRequiredService<IDanbooruClient>());
+        services.AddScoped<IExternalPostDiscoveryClient>(sp => (IExternalPostDiscoveryClient)sp.GetRequiredService<IGelbooruClient>());
 
         // Core Pipeline Services
         services.AddSingleton<ILibrarySyncProcessor, LibrarySyncService>();

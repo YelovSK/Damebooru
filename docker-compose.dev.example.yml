@@ -17,6 +17,7 @@ services:
       Damebooru__ExternalApis__Danbooru__ApiKey: "${DANBOORU_API_KEY:-}"
       Damebooru__ExternalApis__Gelbooru__UserId: "${GELBOORU_USER_ID:-}"
       Damebooru__ExternalApis__Gelbooru__ApiKey: "${GELBOORU_API_KEY:-}"
+      Damebooru__ExternalApis__Iqdb__BaseUrl: "${IQDB_BASE_URL:-https://iqdb.org}"
     volumes:
       - ./data/server:/app/data
       - ${MEDIA_PATH:-./media}:/media

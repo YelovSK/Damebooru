@@ -8,6 +8,8 @@ public class PostAutoTagScan
     public Post Post { get; set; } = null!;
 
     public string ContentHash { get; set; } = string.Empty;
+    public int DiscoveryVersion { get; set; }
+    public string? Md5Hash { get; set; }
     public decimal SauceNaoMinimumSimilarity { get; set; }
     public AutoTagScanStatus Status { get; set; } = AutoTagScanStatus.Pending;
     public DateTime? LastStartedAtUtc { get; set; }

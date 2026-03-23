@@ -8,7 +8,6 @@ using Damebooru.Core.External;
 using Damebooru.Core.Interfaces;
 using Damebooru.Processing.Infrastructure.External.Shared;
 using Microsoft.Extensions.Logging;
-using PhotoSauce.MagicScaler;
 
 namespace Damebooru.Processing.Infrastructure.External.SauceNao;
 
@@ -41,6 +40,15 @@ internal sealed class SauceNaoClient(
         ".png",
         ".bmp",
         ".webp",
+    };
+
+    private static readonly ImageUploadPreparationOptions UploadPreparationOptions = new()
+    {
+        ProviderName = "SauceNAO",
+        Provider = AutoTagProvider.SauceNao,
+        MaxUploadBytes = SauceNaoMaxUploadBytes,
+        SupportedUploadContentTypes = SupportedUploadContentTypes,
+        SupportedUploadExtensions = SupportedUploadExtensions,
     };
 
     public async Task<SauceNaoSearchResult> SearchAsync(
@@ -169,52 +177,7 @@ internal sealed class SauceNaoClient(
         string fileName,
         string? contentType,
         CancellationToken cancellationToken)
-    {
-        var resolvedFileName = string.IsNullOrWhiteSpace(fileName) ? "upload.bin" : fileName;
-        var resolvedContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType;
-        var shouldTranscode = RequiresJpegTranscode(resolvedFileName, resolvedContentType)
-            || IsFileTooLarge(fileStream);
-
-        if (!shouldTranscode)
-        {
-            if (fileStream.CanSeek)
-            {
-                fileStream.Seek(0, SeekOrigin.Begin);
-            }
-
-            return new PreparedUploadStream(fileStream, resolvedFileName, resolvedContentType, ownsStream: false);
-        }
-
-        var output = new MemoryStream();
-        var settings = new ProcessImageSettings();
-        settings.TrySetEncoderFormat("image/jpeg");
-
-        if (fileStream.CanSeek)
-        {
-            fileStream.Seek(0, SeekOrigin.Begin);
-        }
-
-        await Task.Run(() => MagicImageProcessor.ProcessImage(fileStream, output, settings), cancellationToken);
-        output.Seek(0, SeekOrigin.Begin);
-
-        if (output.Length > SauceNaoMaxUploadBytes)
-        {
-            await output.DisposeAsync();
-            throw new ExternalProviderException(
-                AutoTagProvider.SauceNao,
-                $"SauceNAO upload remains too large after JPEG conversion ({output.Length} bytes).",
-                isRetryable: false);
-        }
-
-        return new PreparedUploadStream(output, Path.ChangeExtension(resolvedFileName, ".jpg"), "image/jpeg", ownsStream: true);
-    }
-
-    private static bool RequiresJpegTranscode(string fileName, string contentType)
-        => !SupportedUploadContentTypes.Contains(contentType)
-           && !SupportedUploadExtensions.Contains(Path.GetExtension(fileName));
-
-    private static bool IsFileTooLarge(Stream stream)
-        => stream.CanSeek && stream.Length > SauceNaoMaxUploadBytes;
+        => await ImageUploadPreparer.PrepareAsync(fileStream, fileName, contentType, UploadPreparationOptions, cancellationToken);
 
     private static bool IsRetryable(HttpStatusCode statusCode, SauceNaoHeaderDto header)
     {
@@ -224,18 +187,5 @@ internal sealed class SauceNaoClient(
         }
 
         return statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
-    }
-
-    private sealed class PreparedUploadStream(Stream stream, string fileName, string contentType, bool ownsStream) : IAsyncDisposable
-    {
-        private readonly bool _ownsStream = ownsStream;
-
-        public Stream Stream { get; } = stream;
-        public string FileName { get; } = fileName;
-        public string ContentType { get; } = contentType;
-
-        public ValueTask DisposeAsync() => _ownsStream
-            ? Stream.DisposeAsync()
-            : ValueTask.CompletedTask;
     }
 }

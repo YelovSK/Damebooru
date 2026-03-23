@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using Damebooru.Core.Config;
 using Damebooru.Core.Entities;
@@ -8,7 +9,7 @@ using Damebooru.Processing.Infrastructure.External.Shared;
 
 namespace Damebooru.Processing.Infrastructure.External.Gelbooru;
 
-internal sealed class GelbooruClient : IGelbooruClient
+internal sealed partial class GelbooruClient : IGelbooruClient
 {
     private readonly HttpClient _httpClient;
     private readonly GelbooruApiConfig _config;
@@ -64,6 +65,55 @@ internal sealed class GelbooruClient : IGelbooruClient
             $"https://gelbooru.com/index.php?page=post&s=view&id={id}",
             sourceUrls,
             tags);
+    }
+
+    public async Task<ExternalDiscoveryResult> DiscoverAsync(PostDiscoveryContext context, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(context.Md5Hash))
+        {
+            return new ExternalDiscoveryResult(Provider, []);
+        }
+
+        var postResponse = await GetJsonAsync(BuildQuery(new Dictionary<string, string>
+        {
+            ["page"] = "dapi",
+            ["s"] = "post",
+            ["q"] = "index",
+            ["tags"] = $"md5:{context.Md5Hash}",
+            ["limit"] = "1",
+            ["json"] = "1"
+        }), cancellationToken);
+
+        if (!postResponse.IsSuccessStatusCode)
+        {
+            throw new ExternalProviderException(
+                Provider,
+                $"Gelbooru md5 discovery failed with status code {(int)postResponse.StatusCode}.",
+                IsRetryable(postResponse.StatusCode));
+        }
+
+        using var postDocument = await JsonDocument.ParseAsync(await postResponse.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+        if (!TryGetFirstPost(postDocument.RootElement, out var postElement))
+        {
+            return new ExternalDiscoveryResult(Provider, []);
+        }
+
+        var id = GetInt64(postElement, "id");
+        if (!id.HasValue)
+        {
+            return new ExternalDiscoveryResult(Provider, []);
+        }
+
+        var canonicalUrl = $"https://gelbooru.com/index.php?page=post&s=view&id={id.Value}";
+        return new ExternalDiscoveryResult(Provider, [new DiscoveredUrlMatch(canonicalUrl, 1m)]);
+    }
+
+    public ExternalPostReference? TryParseReference(string url, decimal score)
+    {
+        var match = GelbooruViewRegex().Match(url);
+        return match.Success && long.TryParse(match.Groups[1].Value, out var postId)
+            ? new ExternalPostReference(Provider, postId, $"https://gelbooru.com/index.php?page=post&s=view&id={postId}", score)
+            : null;
     }
 
     private async Task<IReadOnlyList<ExternalTagData>> GetTagDetailsAsync(string[] tagNames, CancellationToken cancellationToken)
@@ -202,4 +252,7 @@ internal sealed class GelbooruClient : IGelbooruClient
 
     private static bool IsRetryable(HttpStatusCode statusCode)
         => statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
+
+    [GeneratedRegex(@"https?://gelbooru\.com/index\.php\?page=post&s=view&id=(\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex GelbooruViewRegex();
 }

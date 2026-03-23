@@ -8,6 +8,7 @@ public class PostAutoTagScanStep
     public PostAutoTagScan Scan { get; set; } = null!;
 
     public AutoTagProvider Provider { get; set; }
+    public AutoTagScanStepKind Kind { get; set; }
     public AutoTagScanStepStatus Status { get; set; } = AutoTagScanStepStatus.Pending;
     public int AttemptCount { get; set; }
     public DateTime? LastAttemptAtUtc { get; set; }
