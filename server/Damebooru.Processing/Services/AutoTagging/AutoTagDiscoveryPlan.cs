@@ -4,8 +4,6 @@ namespace Damebooru.Processing.Services.AutoTagging;
 
 internal static class AutoTagDiscoveryPlan
 {
-    public const int Version = 2;
-
     public static readonly AutoTagProvider[] OrderedDiscoveryProviders =
     [
         AutoTagProvider.SauceNao,

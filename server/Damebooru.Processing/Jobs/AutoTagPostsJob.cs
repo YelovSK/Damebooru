@@ -157,6 +157,7 @@ public sealed class AutoTagPostsJob : IJob
 
     private static async Task<List<int>> GetCandidatePostIdsAsync(DamebooruDbContext db, JobMode mode, CancellationToken cancellationToken)
     {
+        var currentDiscoveryProviders = AutoTagDiscoveryPlan.OrderedDiscoveryProviders;
         var imagePosts = db.Posts
             .AsNoTracking()
             .Where(p => EF.Functions.Like(p.ContentType, "image/%"));
@@ -180,10 +181,16 @@ public sealed class AutoTagPostsJob : IJob
                 || x.Scan.ContentHash != x.Post.ContentHash
                 || x.Scan.Status == AutoTagScanStatus.Pending
                 || x.Scan.Status == AutoTagScanStatus.InProgress
-                || x.Scan.Status == AutoTagScanStatus.Partial
+                || (x.Scan.Status == AutoTagScanStatus.Partial
+                    && db.PostAutoTagScanSteps.Any(step => step.ScanId == x.Scan.Id
+                        && (step.Status == AutoTagScanStepStatus.Pending
+                            || step.Status == AutoTagScanStepStatus.Running
+                            || (step.Status == AutoTagScanStepStatus.RetryableFailure && step.NextRetryAtUtc <= now))))
                 || (x.Scan.Status == AutoTagScanStatus.Completed
                     && !db.PostAutoTagScanCandidates.Any(candidate => candidate.ScanId == x.Scan.Id)
-                    && x.Scan.DiscoveryVersion != AutoTagDiscoveryPlan.Version)
+                    && db.PostAutoTagScanSteps.Count(step => step.ScanId == x.Scan.Id
+                        && step.Kind == AutoTagScanStepKind.Discovery
+                        && currentDiscoveryProviders.Contains(step.Provider)) < currentDiscoveryProviders.Length)
                 || db.PostAutoTagScanSteps.Any(step => step.ScanId == x.Scan!.Id && step.Status == AutoTagScanStepStatus.RetryableFailure && step.NextRetryAtUtc <= now))
             .OrderBy(x => x.Post.Id)
             .Select(x => x.Post.Id)

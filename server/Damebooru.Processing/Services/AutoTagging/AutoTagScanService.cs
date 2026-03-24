@@ -246,7 +246,6 @@ public sealed class AutoTagScanService
         {
             PostId = postId,
             ContentHash = contentHash,
-            DiscoveryVersion = AutoTagDiscoveryPlan.Version,
             SauceNaoMinimumSimilarity = minimumSauceNaoSimilarity,
             Status = AutoTagScanStatus.Pending
         };
@@ -254,7 +253,6 @@ public sealed class AutoTagScanService
     private static void ResetScan(PostAutoTagScan scan, string contentHash, decimal minimumSauceNaoSimilarity, bool preserveMd5Hash = false)
     {
         scan.ContentHash = contentHash;
-        scan.DiscoveryVersion = AutoTagDiscoveryPlan.Version;
         if (!preserveMd5Hash)
         {
             scan.Md5Hash = null;
