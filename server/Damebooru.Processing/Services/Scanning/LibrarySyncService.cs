@@ -173,22 +173,15 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
-            var affectedPostIds = new HashSet<int>();
 
             foreach (var update in state.PostFilesToUpdate)
             {
-                foreach (var affectedPostId in await ApplyPostFileUpdateAsync(dbContext, library, update, cancellationToken))
-                {
-                    affectedPostIds.Add(affectedPostId);
-                }
+                await ApplyPostFileUpdateAsync(dbContext, library, update, cancellationToken);
             }
 
             foreach (var move in movedPosts)
             {
-                foreach (var affectedPostId in await ApplyMoveAsync(dbContext, move, cancellationToken))
-                {
-                    affectedPostIds.Add(affectedPostId);
-                }
+                await ApplyMoveAsync(dbContext, move, cancellationToken);
 
                 _logger.LogInformation(
                     "Moved post {PostId}: {OldPath} -> {NewPath}",
@@ -199,14 +192,13 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
             foreach (var candidate in state.NewFiles)
             {
-                var postId = await PersistNewFileAsync(dbContext, library, candidate, cancellationToken);
-                affectedPostIds.Add(postId);
+                await PersistNewFileAsync(dbContext, library, candidate, cancellationToken);
                 addedCount++;
             }
 
             foreach (var candidate in moveResolution.UnmatchedCandidates)
             {
-                var postId = await PersistNewFileAsync(dbContext, library, new NewFileCandidate(
+                await PersistNewFileAsync(dbContext, library, new NewFileCandidate(
                     candidate.FullPath,
                     candidate.RelativePath,
                     candidate.Hash,
@@ -214,12 +206,9 @@ public class LibrarySyncService : ILibrarySyncProcessor
                     candidate.LastModifiedUtc,
                     candidate.FileIdentityDevice,
                     candidate.FileIdentityValue), cancellationToken);
-                affectedPostIds.Add(postId);
                 addedCount++;
             }
 
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, affectedPostIds.ToList(), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
@@ -234,17 +223,12 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
-            var affectedPostIds = new HashSet<int>();
 
             const int batchSize = 100;
             for (var i = 0; i < orphanPaths.Count; i += batchSize)
             {
                 var batch = orphanPaths.Skip(i).Take(batchSize).ToList();
                 var orphanFileIds = batch.Select(path => state.ExistingFilesByPath[path].PostFileId).ToList();
-                foreach (var path in batch)
-                {
-                    affectedPostIds.Add(state.ExistingFilesByPath[path].PostId);
-                }
 
                 await dbContext.PostFiles
                     .Where(pf => orphanFileIds.Contains(pf.Id))
@@ -252,11 +236,12 @@ public class LibrarySyncService : ILibrarySyncProcessor
             }
 
             await dbContext.SaveChangesAsync(cancellationToken);
-            await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, affectedPostIds.ToList(), cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Removed {Count} orphaned files", orphanPaths.Count);
         }
+
+        status?.Report($"Reconciling folder tags for {library.Name}...");
+        await ReconcileLibraryFolderTagsAsync(library.Id, cancellationToken);
 
         progress?.Report(100);
         status?.Report($"Finished scanning {library.Name} - {scanned} files, {addedCount} added, {state.PostFilesToUpdate.Count} updated, {movedPosts.Count} moved, {orphanPaths.Count} orphans removed");
@@ -285,7 +270,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         }
 
         var identity = _fileIdentityResolver.TryResolve(item.FullPath);
-        await PersistNewFileAsync(dbContext, library, new NewFileCandidate(
+        var post = await PersistNewFileAsync(dbContext, library, new NewFileCandidate(
             item.FullPath,
             item.RelativePath,
             hash,
@@ -293,6 +278,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
             item.LastModifiedUtc,
             identity?.Device,
             identity?.Value), cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        if (post.Id > 0)
+        {
+            await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, [post.Id], cancellationToken);
+        }
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -763,7 +753,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         return [move.PostId];
     }
 
-    private async Task<int> PersistNewFileAsync(
+    private async Task<Post> PersistNewFileAsync(
         DamebooruDbContext dbContext,
         Library library,
         NewFileCandidate candidate,
@@ -798,7 +788,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             });
 
             dbContext.Posts.Add(post);
-            return post.Id;
+            return post;
         }
 
         var newPostFile = new PostFile
@@ -825,7 +815,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             dbContext.PostFiles.Add(newPostFile);
         }
 
-        return canonicalPost.Id;
+        return canonicalPost;
     }
 
     private async Task<Post?> FindCanonicalPostByHashAsync(
@@ -886,6 +876,36 @@ public class LibrarySyncService : ILibrarySyncProcessor
             {
                 dbContext.Posts.Remove(post);
             }
+        }
+    }
+
+    private async Task ReconcileLibraryFolderTagsAsync(int libraryId, CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+
+        const int batchSize = 500;
+        var lastPostId = 0;
+
+        while (true)
+        {
+            var postIds = await dbContext.Posts
+                .AsNoTracking()
+                .Where(p => p.Id > lastPostId)
+                .Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId))
+                .OrderBy(p => p.Id)
+                .Select(p => p.Id)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+
+            if (postIds.Count == 0)
+            {
+                break;
+            }
+
+            lastPostId = postIds[^1];
+            await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, postIds, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
 

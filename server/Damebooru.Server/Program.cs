@@ -19,10 +19,12 @@ using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 var damebooruConfig = builder.Configuration.GetSection(DamebooruConfig.SectionName).Get<DamebooruConfig>() ?? new DamebooruConfig();
+TrimSecretLikeValues(damebooruConfig);
 var authEnabled = damebooruConfig.Auth.Enabled;
 var trustForwardedHeaders = damebooruConfig.Proxy.TrustForwardedHeaders;
 
 builder.Services.Configure<DamebooruConfig>(builder.Configuration.GetSection(DamebooruConfig.SectionName));
+builder.Services.PostConfigure<DamebooruConfig>(config => TrimSecretLikeValues(config));
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -103,7 +105,7 @@ if (trustForwardedHeaders)
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        options.KnownNetworks.Clear();
+        options.KnownIPNetworks.Clear();
         options.KnownProxies.Clear();
     });
 }
@@ -224,31 +226,6 @@ if (!Directory.Exists(thumbnailPath))
 
 app.Logger.LogInformation("Serving thumbnails from: {Path}", thumbnailPath);
 
-if (app.Environment.IsDevelopment())
-{
-    app.Use(async (context, next) =>
-    {
-        if (context.Request.Path.StartsWithSegments(MediaPaths.ThumbnailsRequestPath))
-        {
-            await next();
-            if (context.Response.StatusCode == 404)
-            {
-                var requestPath = context.Request.Path.Value ?? string.Empty;
-                var relativePath = requestPath.StartsWith(MediaPaths.ThumbnailsRequestPath, StringComparison.OrdinalIgnoreCase)
-                    ? requestPath[MediaPaths.ThumbnailsRequestPath.Length..].TrimStart('/')
-                    : requestPath.TrimStart('/');
-                var filePath = Path.Combine(thumbnailPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-                var exists = File.Exists(filePath);
-                app.Logger.LogWarning("Thumbnail 404: {Url} (File exists at {Path}: {Exists})", context.Request.Path, filePath, exists);
-            }
-        }
-        else
-        {
-            await next();
-        }
-    });
-}
-
 if (authEnabled)
 {
     app.Use(async (context, next) =>
@@ -277,3 +254,15 @@ app.MapControllers();
 app.MapGet("/", () => Results.Text("Damebooru API"));
 
 app.Run();
+
+static void TrimSecretLikeValues(DamebooruConfig config)
+{
+    config.Auth.Username = config.Auth.Username?.Trim() ?? string.Empty;
+    config.Auth.Password = config.Auth.Password?.Trim() ?? string.Empty;
+
+    config.ExternalApis.SauceNao.ApiKey = config.ExternalApis.SauceNao.ApiKey?.Trim() ?? string.Empty;
+    config.ExternalApis.Danbooru.Username = config.ExternalApis.Danbooru.Username?.Trim() ?? string.Empty;
+    config.ExternalApis.Danbooru.ApiKey = config.ExternalApis.Danbooru.ApiKey?.Trim() ?? string.Empty;
+    config.ExternalApis.Gelbooru.UserId = config.ExternalApis.Gelbooru.UserId?.Trim() ?? string.Empty;
+    config.ExternalApis.Gelbooru.ApiKey = config.ExternalApis.Gelbooru.ApiKey?.Trim() ?? string.Empty;
+}
