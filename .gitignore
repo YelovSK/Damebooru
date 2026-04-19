@@ -30,6 +30,8 @@ data/
 
 # Docker env
 .env
+secrets/*
+!secrets/.gitkeep
 
 # LLM shit (99% of the time the info is outdated, so I don't feel like committing it)
 agents/

@@ -71,11 +71,22 @@ cp docker-compose.example.yml docker-compose.yml
 ```
 
 2. Edit values as needed:
-- `Damebooru__Auth__Username` / `Damebooru__Auth__Password`
+- `Damebooru__Auth__Username`
 - volume mounts (`./data/server`, `./media`)
 - client port mapping (`8080:80`)
+- `TRUST_FORWARDED_HEADERS=true` if running behind a TLS reverse proxy (for example Nginx Proxy Manager)
 
-3. Start:
+3. Create Docker secret files for auth/API keys:
+
+```bash
+mkdir -p secrets
+printf '%s' 'change-me' > secrets/auth_password.txt
+printf '%s' '' > secrets/saucenao_api_key.txt
+printf '%s' '' > secrets/danbooru_api_key.txt
+printf '%s' '' > secrets/gelbooru_api_key.txt
+```
+
+4. Start:
 
 ```bash
 docker compose up -d
@@ -96,6 +107,10 @@ cp .env.example .env
 
 3. Build and start:
 
+Create the same `./secrets/*.txt` files as in Option A before starting.
+
+4. Build and start:
+
 ```bash
 docker compose up -d --build
 ```
@@ -103,6 +118,7 @@ docker compose up -d --build
 ## Notes
 - Client uses `BACKEND_HOST` and `BACKEND_PORT` to point Nginx to the API container.
 - In `docker-compose.example.yml`, server is intentionally not published to host by default; the client talks to it over the compose network.
+- Leave `TRUST_FORWARDED_HEADERS=false` for plain local HTTP. Set it to `true` only when the app is behind a trusted reverse proxy that sends `X-Forwarded-For` / `X-Forwarded-Proto`.
 
 ## Images
 <img width="1382" height="608" alt="Screenshot 2026-02-22 165425" src="https://github.com/user-attachments/assets/9b742e92-2c1b-4620-881f-3eef7b2848c2" />

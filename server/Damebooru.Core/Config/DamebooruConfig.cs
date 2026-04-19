@@ -9,6 +9,7 @@ public class DamebooruConfig
     public ProcessingConfig Processing { get; set; } = new();
     public IngestionConfig Ingestion { get; set; } = new();
     public AuthConfig Auth { get; set; } = new();
+    public ProxyConfig Proxy { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
     public ExternalApisConfig ExternalApis { get; set; } = new();
 }
@@ -60,6 +61,11 @@ public class AuthConfig
     public bool Enabled { get; set; } = true;
     public string Username { get; set; } = "admin";
     public string Password { get; set; } = "change-me";
+}
+
+public class ProxyConfig
+{
+    public bool TrustForwardedHeaders { get; set; } = false;
 }
 
 public class LoggingConfig

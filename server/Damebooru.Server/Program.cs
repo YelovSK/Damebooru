@@ -10,12 +10,17 @@ using Damebooru.Processing.Services.Duplicates;
 using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddKeyPerFile("/run/secrets", optional: true);
 var damebooruConfig = builder.Configuration.GetSection(DamebooruConfig.SectionName).Get<DamebooruConfig>() ?? new DamebooruConfig();
 var authEnabled = damebooruConfig.Auth.Enabled;
+var trustForwardedHeaders = damebooruConfig.Proxy.TrustForwardedHeaders;
 
 builder.Services.Configure<DamebooruConfig>(builder.Configuration.GetSection(DamebooruConfig.SectionName));
 
@@ -33,7 +38,7 @@ if (authEnabled)
             options.Cookie.SameSite = SameSiteMode.Lax;
             options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             options.SlidingExpiration = true;
-            options.ExpireTimeSpan = TimeSpan.FromDays(30);
+            options.ExpireTimeSpan = TimeSpan.FromDays(7);
 
             options.Events = new CookieAuthenticationEvents
             {
@@ -65,6 +70,24 @@ if (authEnabled)
         });
 }
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth-login", context =>
+    {
+        var remoteIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: remoteIp,
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            });
+    });
+});
+
 builder.Services.AddAuthorization(options =>
 {
     if (authEnabled)
@@ -74,6 +97,16 @@ builder.Services.AddAuthorization(options =>
             .Build();
     }
 });
+
+if (trustForwardedHeaders)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        options.KnownNetworks.Clear();
+        options.KnownProxies.Clear();
+    });
+}
 
 // CORS
 builder.Services.AddCors(options =>
@@ -168,6 +201,13 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseCors("AllowAngular");
+
+if (trustForwardedHeaders)
+{
+    app.UseForwardedHeaders();
+}
+
+app.UseRateLimiter();
 
 if (authEnabled)
 {

@@ -11,13 +11,19 @@ services:
       Damebooru__Storage__TempPath: /app/data/temp
       Damebooru__Auth__Enabled: "${AUTH_ENABLED:-true}"
       Damebooru__Auth__Username: "${AUTH_USERNAME:-admin}"
-      Damebooru__Auth__Password: "${AUTH_PASSWORD:-change-me}"
-      Damebooru__ExternalApis__SauceNao__ApiKey: "${SAUCENAO_API_KEY:-}"
+      Damebooru__Proxy__TrustForwardedHeaders: "${TRUST_FORWARDED_HEADERS:-false}"
       Damebooru__ExternalApis__Danbooru__Username: "${DANBOORU_USERNAME:-}"
-      Damebooru__ExternalApis__Danbooru__ApiKey: "${DANBOORU_API_KEY:-}"
       Damebooru__ExternalApis__Gelbooru__UserId: "${GELBOORU_USER_ID:-}"
-      Damebooru__ExternalApis__Gelbooru__ApiKey: "${GELBOORU_API_KEY:-}"
       Damebooru__ExternalApis__Iqdb__BaseUrl: "${IQDB_BASE_URL:-https://iqdb.org}"
+    secrets:
+      - source: auth_password
+        target: Damebooru__Auth__Password
+      - source: saucenao_api_key
+        target: Damebooru__ExternalApis__SauceNao__ApiKey
+      - source: danbooru_api_key
+        target: Damebooru__ExternalApis__Danbooru__ApiKey
+      - source: gelbooru_api_key
+        target: Damebooru__ExternalApis__Gelbooru__ApiKey
     volumes:
       - ./data/server:/app/data
       - ${MEDIA_PATH:-./media}:/media
@@ -34,3 +40,13 @@ services:
       BACKEND_PORT: "${SERVER_PORT:-6666}"
     ports:
       - "${CLIENT_PORT:-8080}:80"
+
+secrets:
+  auth_password:
+    file: ./secrets/auth_password.txt
+  saucenao_api_key:
+    file: ./secrets/saucenao_api_key.txt
+  danbooru_api_key:
+    file: ./secrets/danbooru_api_key.txt
+  gelbooru_api_key:
+    file: ./secrets/gelbooru_api_key.txt
