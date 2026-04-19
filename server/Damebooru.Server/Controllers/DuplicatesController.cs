@@ -32,6 +32,12 @@ public class DuplicatesController : ControllerBase
         return Ok(await _duplicateReadService.GetDuplicateGroupsAsync(cancellationToken));
     }
 
+    [HttpGet("exact")]
+    public async Task<ActionResult<IEnumerable<ExactDuplicateClusterDto>>> GetExactDuplicateClusters(CancellationToken cancellationToken)
+    {
+        return Ok(await _duplicateReadService.GetExactDuplicateClustersAsync(cancellationToken));
+    }
+
     /// <summary>
     /// Returns all resolved duplicate groups with their post details.
     /// </summary>
@@ -130,24 +136,17 @@ public class DuplicatesController : ControllerBase
         return await _duplicateWriteService.DeleteDuplicatePostAsync(groupId, postId, cancellationToken).ToHttpResult();
     }
 
-    /// <summary>
-    /// Bulk-resolve all unresolved duplicate groups by keeping the highest-quality post in each.
-    /// </summary>
-    [HttpPost("resolve-all")]
-    public async Task<ActionResult<ResolveAllExactResponseDto>> ResolveAll(CancellationToken cancellationToken)
+    [HttpPost("exact/exclude/{postFileId}")]
+    public async Task<IActionResult> ExcludeExactFile(int postFileId, CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateWriteService.ResolveAllAsync(cancellationToken));
+        return await _duplicateWriteService.ExcludeExactDuplicateFileAsync(postFileId, cancellationToken).ToHttpResult();
     }
 
-    /// <summary>
-    /// Bulk-resolve all exact (content-hash) duplicate groups by keeping the oldest post in each.
-    /// </summary>
-    [HttpPost("resolve-all-exact")]
-    public async Task<ActionResult<ResolveAllExactResponseDto>> ResolveAllExact()
+    [HttpPost("exact/delete/{postFileId}")]
+    public async Task<IActionResult> DeleteExactFile(int postFileId, CancellationToken cancellationToken)
     {
-        return Ok(await _duplicateWriteService.ResolveAllExactAsync());
+        return await _duplicateWriteService.DeleteExactDuplicateFileAsync(postFileId, cancellationToken).ToHttpResult();
     }
-
 
     /// <summary>
     /// Resolve one same-folder duplicate partition by keeping the best quality post.
@@ -158,15 +157,6 @@ public class DuplicatesController : ControllerBase
         CancellationToken cancellationToken)
     {
         return await _duplicateWriteService.ResolveSameFolderGroupAsync(request, cancellationToken).ToHttpResult();
-    }
-
-    /// <summary>
-    /// Resolve all same-folder duplicate partitions by keeping the best quality post in each.
-    /// </summary>
-    [HttpPost("same-folder/resolve-all")]
-    public async Task<IActionResult> ResolveAllSameFolder([FromQuery] bool exactOnly = false, CancellationToken cancellationToken = default)
-    {
-        return await _duplicateWriteService.ResolveAllSameFolderAsync(exactOnly, cancellationToken).ToHttpResult();
     }
 
     /// <summary>

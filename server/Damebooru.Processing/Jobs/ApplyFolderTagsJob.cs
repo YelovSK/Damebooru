@@ -65,7 +65,9 @@ public class ApplyFolderTagsJob : IJob
                 .AsNoTracking()
                 .Where(p => p.Id > lastId)
                 .OrderBy(p => p.Id)
-                .Select(p => new FolderTagCandidate(p.Id, p.RelativePath))
+                .Select(p => new FolderTagCandidate(
+                    p.Id,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty))
                 .Take(batchSize)
                 .ToListAsync(context.CancellationToken);
 
@@ -80,122 +82,32 @@ public class ApplyFolderTagsJob : IJob
             try
             {
                 var postIds = batch.Select(p => p.Id).ToList();
-
-                var existingFolderLinks = await db.PostTags
+                var folderTagLinksBefore = await db.PostTags
                     .AsNoTracking()
-                    .Where(pt => postIds.Contains(pt.PostId) && pt.Source == PostTagSource.Folder)
-                    .Select(pt => new ExistingFolderTagLink(pt.PostId, pt.TagId, pt.Tag.Name))
-                    .ToListAsync(context.CancellationToken);
+                    .CountAsync(pt => postIds.Contains(pt.PostId) && pt.Source == PostTagSource.Folder, context.CancellationToken);
 
-                var existingFolderByPost = existingFolderLinks
-                    .GroupBy(x => x.PostId)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => g.ToList());
+                await folderTagging.SyncPostFolderTagsAsync(db, postIds, context.CancellationToken);
+                await db.SaveChangesAsync(context.CancellationToken);
 
-                var postsToRemoveLinks = new List<PostTag>();
-                var plans = new List<(int PostId, List<string> TagsToAdd)>(batch.Count);
-                var neededTagNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var folderTagLinksAfter = await db.PostTags
+                    .AsNoTracking()
+                    .CountAsync(pt => postIds.Contains(pt.PostId) && pt.Source == PostTagSource.Folder, context.CancellationToken);
 
-                foreach (var post in batch)
+                if (folderTagLinksAfter != folderTagLinksBefore)
                 {
-                    var desiredFolderTags = folderTagging.BuildPlan(post.RelativePath).FolderTags
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var existingFolderLinksForPost = existingFolderByPost.TryGetValue(post.Id, out var links)
-                        ? links
-                        : [];
-                    var existingFolderNames = existingFolderLinksForPost
-                        .Select(link => link.TagName)
-                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                    var tagsToAdd = desiredFolderTags
-                        .Where(name => !existingFolderNames.Contains(name))
-                        .ToList();
-                    var tagIdsToRemove = existingFolderLinksForPost
-                        .Where(link => !desiredFolderTags.Contains(link.TagName))
-                        .Select(link => link.TagId)
-                        .ToHashSet();
-
-                    if (tagIdsToRemove.Count > 0)
+                    updatedPosts += batch.Count;
+                    if (folderTagLinksAfter > folderTagLinksBefore)
                     {
-                        postsToRemoveLinks.AddRange(tagIdsToRemove.Select(tagId => new PostTag
-                        {
-                            PostId = post.Id,
-                            TagId = tagId,
-                            Source = PostTagSource.Folder
-                        }));
+                        addedTags += folderTagLinksAfter - folderTagLinksBefore;
                     }
-
-                    if (tagsToAdd.Count > 0)
+                    else
                     {
-                        plans.Add((post.Id, tagsToAdd));
-                    }
-
-                    foreach (var tagName in tagsToAdd)
-                    {
-                        neededTagNames.Add(tagName);
-                    }
-
-                    if (tagsToAdd.Count == 0 && tagIdsToRemove.Count == 0)
-                    {
-                        skipped++;
+                        removedTags += folderTagLinksBefore - folderTagLinksAfter;
                     }
                 }
-
-                if (postsToRemoveLinks.Count > 0)
+                else
                 {
-                    db.PostTags.RemoveRange(postsToRemoveLinks);
-                    removedTags += postsToRemoveLinks.Count;
-                }
-
-                if (plans.Count > 0 || postsToRemoveLinks.Count > 0)
-                {
-                    var tagsByName = await db.Tags
-                        .Where(t => neededTagNames.Contains(t.Name))
-                        .ToDictionaryAsync(t => t.Name, StringComparer.OrdinalIgnoreCase, context.CancellationToken);
-
-                    foreach (var tagName in neededTagNames)
-                    {
-                        if (tagsByName.ContainsKey(tagName))
-                        {
-                            continue;
-                        }
-
-                        var tag = new Tag { Name = tagName };
-                        db.Tags.Add(tag);
-                        tagsByName[tagName] = tag;
-                    }
-
-                    foreach (var (postId, tagsToAdd) in plans)
-                    {
-                        var postAdded = 0;
-                        foreach (var tagName in tagsToAdd)
-                        {
-                            db.PostTags.Add(new PostTag
-                            {
-                                PostId = postId,
-                                Tag = tagsByName[tagName],
-                                Source = PostTagSource.Folder
-                            });
-                            postAdded++;
-                        }
-
-                        if (postAdded > 0 || postsToRemoveLinks.Any(link => link.PostId == postId))
-                        {
-                            updatedPosts++;
-                            addedTags += postAdded;
-                        }
-                    }
-
-                    if (postsToRemoveLinks.Count > 0)
-                    {
-                        updatedPosts += postsToRemoveLinks
-                            .Select(link => link.PostId)
-                            .Where(postId => plans.All(plan => plan.PostId != postId))
-                            .Distinct()
-                            .Count();
-                    }
-
-                    await db.SaveChangesAsync(context.CancellationToken);
+                    skipped += batch.Count;
                 }
             }
             catch (Exception ex)

@@ -28,15 +28,15 @@ public class LibraryService
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
-        var stats = await _context.Posts
+        var stats = await _context.PostFiles
             .AsNoTracking()
-            .GroupBy(p => p.LibraryId)
+            .GroupBy(pf => pf.LibraryId)
             .Select(g => new
             {
                 LibraryId = g.Key,
-                PostCount = g.Count(),
-                TotalSizeBytes = g.Sum(p => p.SizeBytes),
-                LastImportDate = g.Max(p => p.ImportDate)
+                PostCount = g.Select(pf => pf.PostId).Distinct().Count(),
+                TotalSizeBytes = g.Sum(pf => pf.SizeBytes),
+                LastImportDate = g.Max(pf => (DateTime?)pf.Post.ImportDate)
             })
             .ToDictionaryAsync(x => x.LibraryId, cancellationToken);
 
@@ -282,13 +282,13 @@ public class LibraryService
             Name = library.Name,
             Path = library.Path,
             ScanIntervalHours = library.ScanInterval.TotalHours,
-            PostCount = await _context.Posts.CountAsync(p => p.LibraryId == library.Id, cancellationToken),
-            TotalSizeBytes = await _context.Posts
-                .Where(p => p.LibraryId == library.Id)
-                .Select(p => (long?)p.SizeBytes)
+            PostCount = await _context.PostFiles.Where(pf => pf.LibraryId == library.Id).Select(pf => pf.PostId).Distinct().CountAsync(cancellationToken),
+            TotalSizeBytes = await _context.PostFiles
+                .Where(pf => pf.LibraryId == library.Id)
+                .Select(pf => (long?)pf.SizeBytes)
                 .SumAsync(cancellationToken) ?? 0,
             LastImportDate = await _context.Posts
-                .Where(p => p.LibraryId == library.Id)
+                .Where(p => p.PostFiles.Any(pf => pf.LibraryId == library.Id))
                 .MaxAsync(p => (DateTime?)p.ImportDate, cancellationToken),
             IgnoredPaths = ignoredPaths
         };
@@ -296,15 +296,16 @@ public class LibraryService
 
     private async Task<int> DeletePostsInIgnoredPathAsync(int libraryId, string normalizedPathPrefix)
     {
-        var postCandidates = await _context.Posts
+        var postCandidates = await _context.PostFiles
             .AsNoTracking()
-            .Where(p => p.LibraryId == libraryId)
-            .Select(p => new { p.Id, p.RelativePath })
+            .Where(pf => pf.LibraryId == libraryId)
+            .Select(pf => new { pf.PostId, pf.RelativePath })
             .ToListAsync();
 
         var idsToDelete = postCandidates
             .Where(p => RelativePathMatcher.IsWithinPrefix(p.RelativePath, normalizedPathPrefix))
-            .Select(p => p.Id)
+            .Select(p => p.PostId)
+            .Distinct()
             .ToList();
 
         var removed = 0;

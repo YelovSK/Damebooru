@@ -36,19 +36,64 @@ public class PostReadService
             .Select(p => new PostDto
             {
                 Id = p.Id,
-                LibraryId = p.LibraryId,
-                RelativePath = p.RelativePath,
-                ContentHash = p.ContentHash,
-                SizeBytes = p.SizeBytes,
-                Width = p.Width,
-                Height = p.Height,
-                ContentType = p.ContentType,
+                LibraryId = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.LibraryId)
+                    .FirstOrDefault(),
+                RelativePath = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.RelativePath)
+                    .FirstOrDefault() ?? string.Empty,
+                ContentHash = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.ContentHash)
+                    .FirstOrDefault() ?? string.Empty,
+                SizeBytes = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (long?)pf.SizeBytes)
+                    .FirstOrDefault() ?? 0,
+                Width = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (int?)pf.Width)
+                    .FirstOrDefault() ?? 0,
+                Height = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (int?)pf.Height)
+                    .FirstOrDefault() ?? 0,
+                ContentType = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.ContentType)
+                    .FirstOrDefault() ?? string.Empty,
                 ImportDate = p.ImportDate,
-                FileModifiedDate = p.FileModifiedDate,
+                FileModifiedDate = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (DateTime?)pf.FileModifiedDate)
+                    .FirstOrDefault() ?? default,
                 IsFavorite = p.IsFavorite,
                 Sources = new List<string>(),
-                ThumbnailLibraryId = p.LibraryId,
-                ThumbnailContentHash = p.ContentHash,
+                PostFiles = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => new PostFileDto
+                    {
+                        LibraryId = pf.LibraryId,
+                        LibraryName = null,
+                        RelativePath = pf.RelativePath,
+                        ContentHash = pf.ContentHash,
+                        SizeBytes = pf.SizeBytes,
+                        Width = pf.Width,
+                        Height = pf.Height,
+                        ContentType = pf.ContentType,
+                        FileModifiedDate = pf.FileModifiedDate,
+                    })
+                    .ToList(),
+                ThumbnailLibraryId = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.LibraryId)
+                    .FirstOrDefault(),
+                ThumbnailContentHash = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.ContentHash)
+                    .FirstOrDefault() ?? string.Empty,
                 Tags = new List<TagDto>(),
             })
             .ToListAsync(cancellationToken);
@@ -80,7 +125,14 @@ public class PostReadService
         var current = await _context.Posts
             .AsNoTracking()
             .Where(p => p.Id == id)
-            .Select(p => new { p.Id, p.FileModifiedDate })
+            .Select(p => new
+            {
+                p.Id,
+                FileModifiedDate = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (DateTime?)pf.FileModifiedDate)
+                    .FirstOrDefault() ?? default(DateTime)
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (current == null)
@@ -95,8 +147,8 @@ public class PostReadService
         var prevRaw = await query
             .Where(p => p.Id != current.Id
                 && (
-                    p.FileModifiedDate > currentSortDate
-                    || (p.FileModifiedDate == currentSortDate && p.Id > current.Id)
+                    (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) > currentSortDate
+                    || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == currentSortDate && p.Id > current.Id)
                 ))
             .OrderByOldest()
             .Select(p => new { p.Id })
@@ -105,8 +157,8 @@ public class PostReadService
         var nextRaw = await query
             .Where(p => p.Id != current.Id
                 && (
-                    p.FileModifiedDate < currentSortDate
-                    || (p.FileModifiedDate == currentSortDate && p.Id < current.Id)
+                    (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) < currentSortDate
+                    || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == currentSortDate && p.Id < current.Id)
                 ))
             .OrderByNewest()
             .Select(p => new { p.Id })
@@ -175,7 +227,8 @@ public class PostReadService
     private async Task<PostDto?> LoadPostAsync(int id, CancellationToken cancellationToken)
     {
         var post = await _context.Posts
-            .Include(p => p.Library)
+            .Include(p => p.PostFiles)
+                .ThenInclude(pf => pf.Library)
             .Include(p => p.Sources)
             .Include(p => p.PostTags)
                 .ThenInclude(pt => pt.Tag)
@@ -183,7 +236,7 @@ public class PostReadService
                 .ThenInclude(dge => dge.DuplicateGroup)
                     .ThenInclude(g => g.Entries)
                         .ThenInclude(e => e.Post)
-                            .ThenInclude(sp => sp.Library)
+                            .ThenInclude(sp => sp.PostFiles)
             .Where(p => p.Id == id)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -191,23 +244,41 @@ public class PostReadService
     }
 
     private static PostDto MapPost(Post post)
-        => new()
+    {
+        var representativeFile = GetRepresentativeFile(post);
+
+        return new PostDto
         {
             Id = post.Id,
-            LibraryId = post.LibraryId,
-            LibraryName = post.Library.Name,
-            RelativePath = post.RelativePath,
-            ContentHash = post.ContentHash,
-            SizeBytes = post.SizeBytes,
-            Width = post.Width,
-            Height = post.Height,
-            ContentType = post.ContentType,
+            LibraryId = representativeFile?.LibraryId ?? 0,
+            LibraryName = representativeFile?.Library?.Name ?? string.Empty,
+            RelativePath = representativeFile?.RelativePath ?? string.Empty,
+            ContentHash = representativeFile?.ContentHash ?? string.Empty,
+            SizeBytes = representativeFile?.SizeBytes ?? 0,
+            Width = representativeFile?.Width ?? 0,
+            Height = representativeFile?.Height ?? 0,
+            ContentType = representativeFile?.ContentType ?? string.Empty,
             ImportDate = post.ImportDate,
-            FileModifiedDate = post.FileModifiedDate,
+            FileModifiedDate = representativeFile?.FileModifiedDate ?? default,
             IsFavorite = post.IsFavorite,
-            ThumbnailLibraryId = post.LibraryId,
-            ThumbnailContentHash = post.ContentHash,
+            ThumbnailLibraryId = representativeFile?.LibraryId ?? 0,
+            ThumbnailContentHash = representativeFile?.ContentHash ?? string.Empty,
             Sources = post.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
+            PostFiles = post.PostFiles
+                .OrderBy(pf => pf.Id)
+                .Select(pf => new PostFileDto
+                {
+                    LibraryId = pf.LibraryId,
+                    LibraryName = pf.Library?.Name,
+                    RelativePath = pf.RelativePath,
+                    ContentHash = pf.ContentHash,
+                    SizeBytes = pf.SizeBytes,
+                    Width = pf.Width,
+                    Height = pf.Height,
+                    ContentType = pf.ContentType,
+                    FileModifiedDate = pf.FileModifiedDate,
+                })
+                .ToList(),
             Tags = post.PostTags
                 .GroupBy(pt => new { pt.Tag.Id, pt.Tag.Name, pt.Tag.Category, pt.Tag.PostCount })
                 .OrderBy(group => GetTagCategoryDisplayOrder(group.Key.Category))
@@ -225,24 +296,29 @@ public class PostReadService
                 .Select(dge => dge.DuplicateGroup)
                 .SelectMany(g => g.Entries)
                 .Where(e => e.PostId != post.Id)
-                .Select(e => new SimilarPostDto
+                .Select(e =>
                 {
-                    Id = e.Post.Id,
-                    LibraryId = e.Post.LibraryId,
-                    LibraryName = e.Post.Library.Name,
-                    RelativePath = e.Post.RelativePath,
-                    Width = e.Post.Width,
-                    Height = e.Post.Height,
-                    SizeBytes = e.Post.SizeBytes,
-                    ContentType = e.Post.ContentType,
-                    ThumbnailLibraryId = e.Post.LibraryId,
-                    ThumbnailContentHash = e.Post.ContentHash,
-                    DuplicateType = e.DuplicateGroup.Type,
-                    SimilarityPercent = e.DuplicateGroup.SimilarityPercent,
-                    GroupIsResolved = e.DuplicateGroup.IsResolved,
+                    var similarFile = GetRepresentativeFile(e.Post);
+                    return new SimilarPostDto
+                    {
+                        Id = e.Post.Id,
+                        LibraryId = similarFile?.LibraryId ?? 0,
+                        LibraryName = similarFile?.Library?.Name ?? string.Empty,
+                        RelativePath = similarFile?.RelativePath ?? string.Empty,
+                        Width = similarFile?.Width ?? 0,
+                        Height = similarFile?.Height ?? 0,
+                        SizeBytes = similarFile?.SizeBytes ?? 0,
+                        ContentType = similarFile?.ContentType ?? string.Empty,
+                        ThumbnailLibraryId = similarFile?.LibraryId ?? 0,
+                        ThumbnailContentHash = similarFile?.ContentHash ?? string.Empty,
+                        DuplicateType = e.DuplicateGroup.Type,
+                        SimilarityPercent = e.DuplicateGroup.SimilarityPercent,
+                        GroupIsResolved = e.DuplicateGroup.IsResolved,
+                    };
                 })
                 .ToList()
         };
+    }
 
     private static int GetTagCategoryDisplayOrder(TagCategoryKind category)
         => category switch
@@ -298,26 +374,26 @@ public class PostReadService
             var includeVideo = parsedQuery.IncludedMediaTypes.Contains(PostMediaType.Video);
 
             query = query.Where(p =>
-                (includeImage && p.ContentType.StartsWith("image/") && p.ContentType != "image/gif")
-                || (includeAnimation && p.ContentType == "image/gif")
-                || (includeVideo && p.ContentType.StartsWith("video/")));
+                (includeImage && p.PostFiles.Any(pf => pf.ContentType.StartsWith("image/") && pf.ContentType != "image/gif"))
+                || (includeAnimation && p.PostFiles.Any(pf => pf.ContentType == "image/gif"))
+                || (includeVideo && p.PostFiles.Any(pf => pf.ContentType.StartsWith("video/"))));
         }
 
         if (parsedQuery.ExcludedMediaTypes.Count > 0)
         {
             if (parsedQuery.ExcludedMediaTypes.Contains(PostMediaType.Image))
             {
-                query = query.Where(p => !(p.ContentType.StartsWith("image/") && p.ContentType != "image/gif"));
+                query = query.Where(p => !p.PostFiles.Any(pf => pf.ContentType.StartsWith("image/") && pf.ContentType != "image/gif"));
             }
 
             if (parsedQuery.ExcludedMediaTypes.Contains(PostMediaType.Animation))
             {
-                query = query.Where(p => p.ContentType != "image/gif");
+                query = query.Where(p => !p.PostFiles.Any(pf => pf.ContentType == "image/gif"));
             }
 
             if (parsedQuery.ExcludedMediaTypes.Contains(PostMediaType.Video))
             {
-                query = query.Where(p => !p.ContentType.StartsWith("video/"));
+                query = query.Where(p => !p.PostFiles.Any(pf => pf.ContentType.StartsWith("video/")));
             }
         }
 
@@ -344,17 +420,22 @@ public class PostReadService
         foreach (var filename in includedFilenames)
         {
             var pattern = BuildFilenamePattern(filename);
-            query = query.Where(p => EF.Functions.Like(p.RelativePath, pattern));
+            query = query.Where(p => p.PostFiles.Any(pf => EF.Functions.Like(pf.RelativePath, pattern)));
         }
 
         foreach (var filename in excludedFilenames)
         {
             var pattern = BuildFilenamePattern(filename);
-            query = query.Where(p => !EF.Functions.Like(p.RelativePath, pattern));
+            query = query.Where(p => !p.PostFiles.Any(pf => EF.Functions.Like(pf.RelativePath, pattern)));
         }
 
         return query;
     }
+
+    private static PostFile? GetRepresentativeFile(Post post)
+        => post.PostFiles
+            .OrderBy(pf => pf.Id)
+            .FirstOrDefault();
 
     private static string BuildFilenamePattern(string rawFilenameFilter)
     {

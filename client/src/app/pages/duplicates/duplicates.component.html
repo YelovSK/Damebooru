@@ -3,27 +3,129 @@
     <p class="text-gray-400 mb-6">Review and resolve duplicate posts, or manage excluded files.</p>
 
     <app-tabs>
-        <app-tab id="groups" label="Duplicate Groups" (init)="onGroupsTabInit()">
+        <app-tab id="exact" label="Exact Duplicates" (init)="onExactTabInit()">
             <ng-template>
-                <div class="mb-4 flex items-center gap-3 rounded-lg border border-gray-700 bg-gray-900 px-4 py-3">
-                    <app-form-checkbox id="same-folder-only" [ngModel]="showSameFolderOnly()"
-                        label="Show same-folder candidates only (enables disk delete actions)"
-                        (ngModelChange)="onSameFolderOnlyChange($event)">
-                    </app-form-checkbox>
+                <div class="mb-6 flex flex-wrap gap-3">
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-white">{{ getExactClusterCount() }}</div>
+                        <div class="text-sm text-gray-400">Exact Clusters</div>
+                    </div>
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-blue-400">{{ getExactFileCount() }}</div>
+                        <div class="text-sm text-gray-400">Files</div>
+                    </div>
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-indigo-400">{{ getExactSameFolderCount() }}</div>
+                        <div class="text-sm text-gray-400">Same-Folder</div>
+                    </div>
+                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
+                        <div class="text-3xl font-bold text-purple-400">{{ getExactCrossFolderCount() }}</div>
+                        <div class="text-sm text-gray-400">Cross-Folder</div>
+                    </div>
+                </div>
+
+                <div class="mb-6 rounded-lg border border-gray-700 bg-gray-900 px-4 py-3 text-sm text-text-muted">
+                    Exact duplicates are shown as file clusters grouped by folder. Use this view to inspect where identical files exist; use the merge and hardlink jobs for bulk maintenance.
+                </div>
+
+                <div class="mb-6 flex flex-wrap gap-2">
+                    <app-button [variant]="exactViewFilter() === 'all' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('all')">All</app-button>
+                    <app-button [variant]="exactViewFilter() === 'same-folder' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('same-folder')">Same Folder</app-button>
+                    <app-button [variant]="exactViewFilter() === 'different-folder' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('different-folder')">Different Folder</app-button>
+                </div>
+
+                @if (getExactClusterCount() === 0) {
+                <div class="text-center py-16">
+                    <div class="text-6xl mb-4">✓</div>
+                    <h2 class="text-xl font-semibold text-white mb-2">No exact duplicate files found</h2>
+                    <p class="text-gray-400">Exact duplicate file clusters will appear here after scanning.</p>
+                </div>
+                } @else {
+                @for (cluster of pagedExactClusters(); track trackExactCluster($index, cluster)) {
+                <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 md:p-5 mb-6 shadow-lg">
+                    <div class="mb-4 flex flex-wrap items-center gap-3">
+                        <span class="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">EXACT</span>
+                        @if (cluster.hasSameFolderDuplicates) {
+                        <span class="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-200">same-folder duplicates</span>
+                        }
+                        @if (cluster.hasCrossFolderDuplicates) {
+                        <span class="rounded border border-cyan-500/30 bg-cyan-500/10 px-2 py-1 text-xs font-semibold text-cyan-200">cross-folder duplicates</span>
+                        }
+                        <span class="text-sm text-gray-500">{{ cluster.fileCount }} files</span>
+                        <span class="text-sm text-gray-500">{{ cluster.folderCount }} folders</span>
+                        <span class="truncate text-sm text-gray-400" [title]="cluster.contentHash">{{ cluster.contentHash }}</span>
+                    </div>
+
+                    <div class="space-y-4">
+                        @for (folder of cluster.folders; track trackExactFolder($index, folder)) {
+                        <div class="rounded-lg border border-gray-800 bg-gray-950/50 p-3">
+                            <div class="mb-3 flex flex-wrap items-center gap-3">
+                                <div class="text-sm font-semibold text-white">{{ folder.libraryName }} / {{ formatFolderPath(folder.folderPath) }}</div>
+                                @if (folder.files.length > 1) {
+                                <span class="rounded bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-200">{{ folder.files.length }} files in this folder</span>
+                                }
+                            </div>
+
+                            <div class="flex flex-wrap gap-3">
+                                @for (file of folder.files; track trackExactFile($index, file)) {
+                                <div class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors hover:border-accent-primary">
+                                    <div class="relative aspect-square overflow-hidden" (mouseenter)="onPostCardMouseEnter(file.postId)"
+                                        (mouseleave)="onPostCardMouseLeave($event)">
+                                        <img [src]="getExactFileThumbnailUrl(file)" [alt]="file.relativePath"
+                                            class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
+                                    </div>
+
+                                    <a [routerLink]="['/post', file.postId]" class="block p-2 hover:bg-gray-700/50 transition-colors">
+                                        <div class="text-xs text-gray-400 truncate mb-1" [title]="file.relativePath">{{ file.relativePath | fileName }}</div>
+                                        <div class="flex justify-between text-xs text-gray-500">
+                                            <span>{{ file.width }}×{{ file.height }}</span>
+                                            <span>{{ file.sizeBytes | fileSize }}</span>
+                                        </div>
+                                    </a>
+
+                                    <div class="px-2 pb-2 flex flex-col gap-1">
+                                        <app-button variant="warning" size="xs" (click)="onExcludeExactFile(file)">
+                                            <span class="text-sm leading-none">🚫</span> Exclude
+                                        </app-button>
+                                        <app-button variant="danger" size="xs" (click)="onDeleteExactFile(file)">
+                                            <span class="text-sm leading-none">🗑️</span> Delete
+                                        </app-button>
+                                    </div>
+                                </div>
+                                }
+                            </div>
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+                @if (exactTotalPages() > 1) {
+                <div class="mt-4 flex justify-center">
+                    <app-paginator [currentPage]="exactCurrentPage()" [totalPages]="exactTotalPages()"
+                        (pageChange)="onExactPageChange($event)">
+                    </app-paginator>
+                </div>
+                }
+                }
+            </ng-template>
+        </app-tab>
+
+        <app-tab id="perceptual" label="Perceptual Duplicates" (init)="onPerceptualTabInit()">
+            <ng-template>
+                <div class="mb-6 flex flex-wrap gap-2">
+                    <app-button [variant]="perceptualViewFilter() === 'all' ? 'primary' : 'secondary'" size="sm" (click)="onPerceptualViewFilterChange('all')">All</app-button>
+                    <app-button [variant]="perceptualViewFilter() === 'same-folder' ? 'primary' : 'secondary'" size="sm" (click)="onPerceptualViewFilterChange('same-folder')">Same Folder</app-button>
+                    <app-button [variant]="perceptualViewFilter() === 'different-folder' ? 'primary' : 'secondary'" size="sm" (click)="onPerceptualViewFilterChange('different-folder')">Different Folder</app-button>
                 </div>
 
                 <div class="mb-6 flex flex-wrap gap-3">
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
                         <div class="text-3xl font-bold text-white">{{ getVisibleGroupCount() }}</div>
-                        <div class="text-sm text-gray-400">Groups</div>
+                        <div class="text-sm text-gray-400">Perceptual Groups</div>
                     </div>
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
                         <div class="text-3xl font-bold text-blue-400">{{ getVisiblePostCount() }}</div>
                         <div class="text-sm text-gray-400">Posts</div>
-                    </div>
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
-                        <div class="text-3xl font-bold text-indigo-400">{{ getVisibleExactCount() }}</div>
-                        <div class="text-sm text-gray-400">Exact</div>
                     </div>
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
                         <div class="text-3xl font-bold text-purple-400">{{ getVisiblePerceptualCount() }}</div>
@@ -31,36 +133,18 @@
                     </div>
                 </div>
 
-                @if (canBulkResolveVisible()) {
-                <div class="mb-6 flex items-center gap-3">
-                    <app-button (click)="resolveAllVisible()" [variant]="showSameFolderOnly() ? 'danger' : 'primary'" size="md">
-                        {{ getBulkResolveButtonLabel() }}
-                    </app-button>
-                    @if (getVisibleExactCount() > 0) {
-                    <app-button (click)="resolveAllExact()" variant="secondary" size="md">
-                        Auto Resolve Exact Only ({{ getVisibleExactCount() }} groups)
-                    </app-button>
-                    }
-                    <span class="text-xs text-gray-500">{{ getBulkResolveHint() }}</span>
-                </div>
-                }
-
                 @if (getVisibleGroupCount() === 0) {
                 <div class="text-center py-16">
                     <div class="text-6xl mb-4">✓</div>
-                    <h2 class="text-xl font-semibold text-white mb-2">No duplicates found</h2>
-                    <p class="text-gray-400">Run "Find Duplicates" from the Jobs page to refresh duplicate groups.</p>
+                    <h2 class="text-xl font-semibold text-white mb-2">No perceptual duplicates found</h2>
+                    <p class="text-gray-400">Run "Find Duplicates" from the Jobs page to refresh perceptual duplicate groups.</p>
                 </div>
                 } @else {
                 @for (group of pagedVisibleGroups(); track trackVisibleGroup($index, group)) {
                 <div class="bg-gray-900 border border-gray-700 rounded-lg p-4 md:p-5 mb-6 shadow-lg">
                     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <div class="flex flex-wrap items-center gap-3">
-                            <span [class]="group.type === duplicateType.Exact
-                              ? 'bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold'
-                              : 'bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold'">
-                                {{ group.type === duplicateType.Exact ? 'EXACT' : 'PERCEPTUAL' }}
-                            </span>
+                            <span class="bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold">PERCEPTUAL</span>
                             @if (group.similarityPercent) {
                             <span class="text-sm text-gray-400">~{{ group.similarityPercent }}% similar</span>
                             }
@@ -98,8 +182,7 @@
 
                             <div class="p-2 space-y-2">
                                 <a [routerLink]="['/post', post.id]" class="block hover:bg-gray-700/50 transition-colors rounded px-1 py-1">
-                                    <div class="text-xs text-gray-400 truncate mb-1" [title]="post.relativePath">{{
-                                        post.relativePath | fileName }}</div>
+                                    <div class="text-xs text-gray-400 truncate mb-1" [title]="post.relativePath">{{ post.relativePath | fileName }}</div>
                                     <div class="flex justify-between text-xs text-gray-500">
                                         <span>{{ post.width }}×{{ post.height }}</span>
                                         <span>{{ post.sizeBytes | fileSize }}</span>
@@ -119,8 +202,7 @@
                             </div>
 
                             @if (post.isRecommendedKeep) {
-                            <div
-                                class="pointer-events-none absolute left-2 top-2 rounded bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                            <div class="pointer-events-none absolute left-2 top-2 rounded bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">
                                 KEEP (AUTO)
                             </div>
                             }

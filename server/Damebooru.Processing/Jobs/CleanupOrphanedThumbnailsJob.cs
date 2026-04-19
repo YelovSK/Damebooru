@@ -58,8 +58,10 @@ public class CleanupOrphanedThumbnailsJob : IJob
         });
         var knownThumbnailRelativePaths = (await db.Posts
                 .AsNoTracking()
-                .Where(p => !string.IsNullOrEmpty(p.ContentHash))
-                .Select(p => MediaPaths.GetThumbnailRelativePath(p.LibraryId, p.ContentHash))
+                .Where(p => p.PostFiles.Any(pf => !string.IsNullOrEmpty(pf.ContentHash)))
+                .Select(p => MediaPaths.GetThumbnailRelativePath(
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty))
                 .Distinct()
                 .ToListAsync(context.CancellationToken))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);

@@ -59,6 +59,20 @@
                             {{ pd.relativePath | fileName }}
                         </span>
 
+                        @if (pd.postFiles.length > 1) {
+                        <span class="text-text-muted">All Files</span>
+                        <div class="min-w-0 flex flex-col gap-1">
+                            @for (postFile of pd.postFiles; track postFile.libraryId + ':' + postFile.relativePath) {
+                            <div class="rounded-sm border border-white/10 bg-glass-bg px-2 py-1.5 text-[0.78rem] text-text-primary">
+                                <div class="break-all">{{ postFile.relativePath }}</div>
+                                <div class="mt-0.5 text-[0.68rem] text-text-muted">
+                                    {{ postFile.libraryName || ('#' + postFile.libraryId) }}
+                                </div>
+                            </div>
+                            }
+                        </div>
+                        }
+
                         <span class="text-text-muted">Imported</span>
                         <span class="text-text-primary font-medium">{{ pd.importDate | date:'medium' }}</span>
 
@@ -242,6 +256,11 @@
             <span class="text-sm">{{ sidebarCollapsed() ? '→' : '←' }}</span>
         </button>
 
+        @if (getMediaType(pd.contentType) === 'video') {
+        <video [src]="getPostContentUrl(pd)" (loadeddata)="imageLoading.set(false)"
+            class="w-full h-full object-contain" controls [autoplay]="autoPlayVideos()" [muted]="startVideosMuted()"
+            loop></video>
+        } @else {
         <app-zoom-pan-container #zoomPan>
             @switch (getMediaType(pd.contentType)) {
             @case ('image')
@@ -250,13 +269,9 @@
                 [fullSrc]="getPostContentUrl(pd)" [alt]="'' + pd.id" [width]="pd.width"
                 [height]="pd.height" />
             }
-            @case ('video') {
-            <video [src]="getPostContentUrl(pd)" (loadeddata)="imageLoading.set(false)"
-                class="w-full h-full object-contain" controls [autoplay]="autoPlayVideos()" [muted]="startVideosMuted()"
-                loop></video>
-            }
             }
         </app-zoom-pan-container>
+        }
     </div>
 </div>
 } @else {

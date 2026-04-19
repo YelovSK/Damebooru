@@ -74,6 +74,7 @@ public static class ServiceCollectionExtensions
         }
 
         services.AddSingleton<IMediaSource, FileSystemMediaSource>();
+        services.AddSingleton<IHardLinkService, Services.Files.PlatformHardLinkService>();
         services.AddTransient<FolderTaggingService>();
         services.AddSingleton<AutoTagConfigurationValidator>();
         services.AddScoped<AutoTagScanService>();
@@ -82,12 +83,13 @@ public static class ServiceCollectionExtensions
         // Jobs
         services.AddTransient<IJob, Jobs.ScanAllLibrariesJob>();
         services.AddTransient<IJob, Jobs.FindDuplicatesJob>();
+        services.AddTransient<IJob, Jobs.MergeExactDuplicatePostsJob>();
+        services.AddTransient<IJob, Jobs.HardlinkExactDuplicateFilesJob>();
         services.AddTransient<IJob, Jobs.GenerateThumbnailsJob>();
         services.AddTransient<IJob, Jobs.CleanupOrphanedThumbnailsJob>();
         services.AddTransient<IJob, Jobs.CleanupInvalidExclusionsJob>();
         services.AddTransient<IJob, Jobs.ExtractMetadataJob>();
         services.AddTransient<IJob, Jobs.ComputeSimilarityJob>();
-        services.AddTransient<IJob, Jobs.ApplyFolderTagsJob>();
         services.AddTransient<IJob, Jobs.SanitizeTagNamesJob>();
         services.AddTransient<IJob, Jobs.AutoTagPostsJob>();
 

@@ -19,7 +19,7 @@ export const routes: Routes = [
             { path: '', pathMatch: 'full', redirectTo: AppPaths.posts },
             { path: 'jobs', loadComponent: () => import('./pages/jobs/jobs.component').then(m => m.JobsPageComponent), data: { pageWidth: 'wide' } },
             { path: AppPaths.logs, loadComponent: () => import('./pages/logs/logs.component').then(m => m.LogsPageComponent), data: { pageWidth: 'wide' } },
-            { path: 'duplicates', redirectTo: 'duplicates/groups', pathMatch: 'full' },
+            { path: 'duplicates', redirectTo: 'duplicates/exact', pathMatch: 'full' },
             { path: 'duplicates/:tab', loadComponent: () => import('./pages/duplicates/duplicates.component').then(m => m.DuplicatesPageComponent), data: { pageWidth: 'wide' } },
             { path: AppPaths.posts, component: PostsComponent, data: { pageWidth: 'full' } },
             { path: `${AppPaths.post}/:id`, component: PostDetailComponent, data: { pageWidth: 'full' } },

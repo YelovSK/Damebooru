@@ -15,7 +15,7 @@ public class ExtractMetadataJob : IJob
     public static readonly JobKey JobKey = JobKeys.ExtractMetadata;
     public const string JobName = "Extract Metadata";
 
-    private sealed record PostMetadataCandidate(int Id, string RelativePath, string LibraryPath);
+    private sealed record PostMetadataCandidate(int PostId, int PostFileId, string RelativePath, string LibraryPath);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ExtractMetadataJob> _logger;
@@ -47,7 +47,7 @@ public class ExtractMetadataJob : IJob
         var query = db.Posts.AsNoTracking().AsQueryable();
         if (context.Mode == JobMode.Missing)
         {
-            query = query.Where(p => p.Width == 0 || string.IsNullOrEmpty(p.ContentType));
+            query = query.Where(p => p.PostFiles.Any(pf => pf.Width == 0 || string.IsNullOrEmpty(pf.ContentType)));
         }
 
         var totalPosts = await query.CountAsync(context.CancellationToken);
@@ -85,7 +85,11 @@ public class ExtractMetadataJob : IJob
             var batch = await query
                 .Where(p => p.Id > lastId)
                 .OrderBy(p => p.Id)
-                .Select(p => new PostMetadataCandidate(p.Id, p.RelativePath, p.Library.Path))
+                .Select(p => new PostMetadataCandidate(
+                    p.Id,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Id).FirstOrDefault(),
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Path).FirstOrDefault() ?? string.Empty))
                 .Take(batchSize)
                 .ToListAsync(context.CancellationToken);
 
@@ -94,8 +98,8 @@ public class ExtractMetadataJob : IJob
                 break;
             }
 
-            lastId = batch[^1].Id;
-            var results = new ConcurrentBag<(int PostId, int Width, int Height, string ContentType)>();
+            lastId = batch[^1].PostId;
+            var results = new ConcurrentBag<(int PostFileId, int Width, int Height, string ContentType)>();
 
             await Parallel.ForEachAsync(
                 batch,
@@ -115,7 +119,7 @@ public class ExtractMetadataJob : IJob
                             Interlocked.Increment(ref failed);
                             _logger.LogWarning(
                                 "Metadata extraction produced invalid dimensions for post {Id}: {Path} ({Width}x{Height})",
-                                post.Id,
+                                post.PostFileId,
                                 post.RelativePath,
                                 metadata.Width,
                                 metadata.Height);
@@ -124,26 +128,26 @@ public class ExtractMetadataJob : IJob
 
                         var contentType = SupportedMedia.GetMimeType(Path.GetExtension(post.RelativePath));
 
-                        results.Add((post.Id, metadata.Width, metadata.Height, contentType));
+                        results.Add((post.PostFileId, metadata.Width, metadata.Height, contentType));
                         Interlocked.Increment(ref processed);
                         context.Reporter.Update(BuildLiveState());
                     }
                     catch (Exception ex)
                     {
                         Interlocked.Increment(ref failed);
-                        _logger.LogWarning(ex, "Failed to extract metadata for post {Id}: {Path}", post.Id, post.RelativePath);
+                        _logger.LogWarning(ex, "Failed to extract metadata for post {Id}: {Path}", post.PostId, post.RelativePath);
                         context.Reporter.Update(BuildLiveState());
                     }
                 });
 
-            var entityIds = batch.Select(p => p.Id).ToList();
-            var entities = await db.Posts
-                .Where(p => entityIds.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id, context.CancellationToken);
+            var entityIds = batch.Select(p => p.PostFileId).ToList();
+            var entities = await db.PostFiles
+                .Where(pf => entityIds.Contains(pf.Id))
+                .ToDictionaryAsync(pf => pf.Id, context.CancellationToken);
 
             foreach (var result in results)
             {
-                if (entities.TryGetValue(result.PostId, out var entity))
+                if (entities.TryGetValue(result.PostFileId, out var entity))
                 {
                     entity.Width = result.Width;
                     entity.Height = result.Height;

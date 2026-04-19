@@ -108,42 +108,60 @@ public class DuplicateLookupServiceTests
         context.Posts.AddRange(
             new Post
             {
-                LibraryId = libraryA.Id,
-                RelativePath = "exact/a.png",
-                ContentHash = "exact-hash",
-                PdqHash256 = includePdqCandidates ? new string('0', 64) : null,
-                SizeBytes = 100,
-                Width = 100,
-                Height = 100,
-                ContentType = "image/png",
                 ImportDate = now,
-                FileModifiedDate = now,
+                PostFiles =
+                [
+                    new PostFile
+                    {
+                        LibraryId = libraryA.Id,
+                        RelativePath = "exact/a.png",
+                        ContentHash = "exact-hash",
+                        PdqHash256 = includePdqCandidates ? new string('0', 64) : null,
+                        SizeBytes = 100,
+                        Width = 100,
+                        Height = 100,
+                        ContentType = "image/png",
+                        FileModifiedDate = now,
+                    }
+                ],
             },
             new Post
             {
-                LibraryId = libraryB.Id,
-                RelativePath = "exact/b.png",
-                ContentHash = "exact-hash",
-                PdqHash256 = includePdqCandidates ? new string('1', 64) : null,
-                SizeBytes = 120,
-                Width = 110,
-                Height = 110,
-                ContentType = "image/png",
                 ImportDate = now.AddMinutes(1),
-                FileModifiedDate = now.AddMinutes(1),
+                PostFiles =
+                [
+                    new PostFile
+                    {
+                        LibraryId = libraryB.Id,
+                        RelativePath = "exact/b.png",
+                        ContentHash = "exact-hash",
+                        PdqHash256 = includePdqCandidates ? new string('1', 64) : null,
+                        SizeBytes = 120,
+                        Width = 110,
+                        Height = 110,
+                        ContentType = "image/png",
+                        FileModifiedDate = now.AddMinutes(1),
+                    }
+                ],
             },
             new Post
             {
-                LibraryId = libraryA.Id,
-                RelativePath = "similar/c.png",
-                ContentHash = "different-hash",
-                PdqHash256 = includePdqCandidates ? new string('f', 64) : null,
-                SizeBytes = 140,
-                Width = 120,
-                Height = 120,
-                ContentType = "image/png",
                 ImportDate = now.AddMinutes(2),
-                FileModifiedDate = now.AddMinutes(2),
+                PostFiles =
+                [
+                    new PostFile
+                    {
+                        LibraryId = libraryA.Id,
+                        RelativePath = "similar/c.png",
+                        ContentHash = "different-hash",
+                        PdqHash256 = includePdqCandidates ? new string('f', 64) : null,
+                        SizeBytes = 140,
+                        Width = 120,
+                        Height = 120,
+                        ContentType = "image/png",
+                        FileModifiedDate = now.AddMinutes(2),
+                    }
+                ],
             });
 
         await context.SaveChangesAsync();

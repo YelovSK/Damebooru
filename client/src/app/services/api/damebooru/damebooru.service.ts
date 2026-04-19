@@ -28,6 +28,7 @@ import {
   JobMode,
   JobKey,
   DuplicateGroup,
+  ExactDuplicateCluster,
   ExcludedFile,
   ClearExcludedFilesResponse,
   SameFolderDuplicateGroup,
@@ -479,6 +480,10 @@ export class DamebooruService {
     return this.http.get<DuplicateGroup[]>(`${this.baseUrl}/duplicates`);
   }
 
+  getExactDuplicateClusters(): Observable<ExactDuplicateCluster[]> {
+    return this.http.get<ExactDuplicateCluster[]>(`${this.baseUrl}/duplicates/exact`);
+  }
+
   getResolvedDuplicateGroups(): Observable<DuplicateGroup[]> {
     return this.http.get<DuplicateGroup[]>(
       `${this.baseUrl}/duplicates/resolved`,
@@ -527,16 +532,16 @@ export class DamebooruService {
     );
   }
 
-  resolveAllExactDuplicates(): Observable<{ resolved: number }> {
-    return this.http.post<{ resolved: number }>(
-      `${this.baseUrl}/duplicates/resolve-all-exact`,
+  excludeExactDuplicateFile(postFileId: number): Observable<void> {
+    return this.http.post<void>(
+      `${this.baseUrl}/duplicates/exact/exclude/${postFileId}`,
       {},
     );
   }
 
-  resolveAllDuplicateGroups(): Observable<{ resolved: number }> {
-    return this.http.post<{ resolved: number }>(
-      `${this.baseUrl}/duplicates/resolve-all`,
+  deleteExactDuplicateFile(postFileId: number): Observable<void> {
+    return this.http.post<void>(
+      `${this.baseUrl}/duplicates/exact/delete/${postFileId}`,
       {},
     );
   }
@@ -590,13 +595,6 @@ export class DamebooruService {
     return this.http.post<ResolveSameFolderResponse>(
       `${this.baseUrl}/duplicates/same-folder/resolve-group`,
       request,
-    );
-  }
-
-  resolveAllSameFolderDuplicates(exactOnly = false): Observable<ResolveSameFolderResponse> {
-    return this.http.post<ResolveSameFolderResponse>(
-      `${this.baseUrl}/duplicates/same-folder/resolve-all?exactOnly=${exactOnly}`,
-      {},
     );
   }
 

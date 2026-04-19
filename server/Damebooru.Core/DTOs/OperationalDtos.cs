@@ -84,12 +84,44 @@ public class DuplicateGroupDto
     public DuplicateType Type { get; set; }
     public int? SimilarityPercent { get; set; }
     public DateTime DetectedDate { get; set; }
+    public bool HasSameFolderDuplicates { get; set; }
+    public bool HasCrossFolderDuplicates { get; set; }
     public List<DuplicatePostDto> Posts { get; set; } = [];
 }
 
-public class ResolveAllExactResponseDto
+public class ExactDuplicateFileDto
 {
-    public int Resolved { get; set; }
+    public int PostId { get; set; }
+    public int PostFileId { get; set; }
+    public int LibraryId { get; set; }
+    public string LibraryName { get; set; } = string.Empty;
+    public string RelativePath { get; set; } = string.Empty;
+    public string ContentHash { get; set; } = string.Empty;
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public string ContentType { get; set; } = string.Empty;
+    public long SizeBytes { get; set; }
+    public DateTime FileModifiedDate { get; set; }
+    public int ThumbnailLibraryId { get; set; }
+    public string ThumbnailContentHash { get; set; } = string.Empty;
+}
+
+public class ExactDuplicateFolderBucketDto
+{
+    public int LibraryId { get; set; }
+    public string LibraryName { get; set; } = string.Empty;
+    public string FolderPath { get; set; } = string.Empty;
+    public List<ExactDuplicateFileDto> Files { get; set; } = [];
+}
+
+public class ExactDuplicateClusterDto
+{
+    public string ContentHash { get; set; } = string.Empty;
+    public int FileCount { get; set; }
+    public int FolderCount { get; set; }
+    public bool HasSameFolderDuplicates { get; set; }
+    public bool HasCrossFolderDuplicates { get; set; }
+    public List<ExactDuplicateFolderBucketDto> Folders { get; set; } = [];
 }
 
 public class MarkAllUnresolvedResponseDto

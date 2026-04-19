@@ -22,13 +22,14 @@ public class SchedulerService : BackgroundService
     private static readonly (JobKey Key, string Cron)[] DefaultJobs =
     [
         (JobKeys.ScanAllLibraries, "0 */6 * * *"),    // Every 6 hours
-        (JobKeys.GenerateThumbnails, "30 */6 * * *"),   // 30 min after scan
+        (JobKeys.ExtractMetadata, "35 */6 * * *"),      // 35 min after scan
+        (JobKeys.GenerateThumbnails, "37 */6 * * *"),   // Shortly after metadata extraction
+        (JobKeys.ComputeSimilarity, "40 */6 * * *"),    // 40 min after scan
         (JobKeys.CleanupOrphanedThumbnails, "45 */6 * * *"), // 45 min after scan
         (JobKeys.CleanupInvalidExclusions, "50 */6 * * *"), // 50 min after scan
-        (JobKeys.ExtractMetadata, "35 */6 * * *"),      // 35 min after scan
-        (JobKeys.ComputeSimilarity, "40 */6 * * *"),    // 40 min after scan
         (JobKeys.AutoTagPosts, "10 */6 * * *"),         // 10 min after scan
         (JobKeys.FindDuplicates, "0 3 * * 0"),          // Weekly, Sunday 3 AM
+        (JobKeys.HardlinkExactDuplicateFiles, "30 3 * * 0"), // Weekly, Sunday 3:30 AM
     ];
 
     public SchedulerService(IServiceScopeFactory scopeFactory, ILogger<SchedulerService> logger)

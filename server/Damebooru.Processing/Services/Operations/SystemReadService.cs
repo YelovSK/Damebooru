@@ -16,7 +16,7 @@ public class SystemReadService
     public async Task<SystemInfoDto> GetInfoAsync(CancellationToken cancellationToken = default)
     {
         var postCount = await _dbContext.Posts.CountAsync(cancellationToken);
-        var totalSizeBytes = await _dbContext.Posts.SumAsync(p => p.SizeBytes, cancellationToken);
+        var totalSizeBytes = await _dbContext.PostFiles.SumAsync(pf => pf.SizeBytes, cancellationToken);
         var tagCount = await _dbContext.Tags.CountAsync(cancellationToken);
         var libraryCount = await _dbContext.Libraries.CountAsync(cancellationToken);
 

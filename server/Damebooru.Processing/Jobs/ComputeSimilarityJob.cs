@@ -15,7 +15,7 @@ public class ComputeSimilarityJob : IJob
     public static readonly JobKey JobKey = JobKeys.ComputeSimilarity;
     public const string JobName = "Compute Similarity";
 
-    private sealed record SimilarityCandidate(int Id, string RelativePath, string LibraryPath);
+    private sealed record SimilarityCandidate(int PostId, int PostFileId, string RelativePath, string LibraryPath);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<ComputeSimilarityJob> _logger;
@@ -47,7 +47,7 @@ public class ComputeSimilarityJob : IJob
         var query = db.Posts.AsNoTracking().AsQueryable();
         if (context.Mode == JobMode.Missing)
         {
-            query = query.Where(p => string.IsNullOrEmpty(p.PdqHash256));
+            query = query.Where(p => p.PostFiles.Any(pf => string.IsNullOrEmpty(pf.PdqHash256)));
         }
 
         var totalCandidates = await query.CountAsync(context.CancellationToken);
@@ -84,7 +84,11 @@ public class ComputeSimilarityJob : IJob
             var batch = await query
                 .Where(p => p.Id > lastId)
                 .OrderBy(p => p.Id)
-                .Select(p => new SimilarityCandidate(p.Id, p.RelativePath, p.Library.Path))
+                .Select(p => new SimilarityCandidate(
+                    p.Id,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Id).FirstOrDefault(),
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Path).FirstOrDefault() ?? string.Empty))
                 .Take(batchSize)
                 .ToListAsync(context.CancellationToken);
 
@@ -93,7 +97,7 @@ public class ComputeSimilarityJob : IJob
                 break;
             }
 
-            lastId = batch[^1].Id;
+            lastId = batch[^1].PostId;
             scanned += batch.Count;
 
             // Similarity hashing only applies to image files.
@@ -119,7 +123,7 @@ public class ComputeSimilarityJob : IJob
                 Interlocked.Add(ref completed, nonImageCount);
             }
 
-            var results = new ConcurrentBag<(int PostId, SimilarityHashes Hashes)>();
+            var results = new ConcurrentBag<(int PostFileId, SimilarityHashes Hashes)>();
 
             await Parallel.ForEachAsync(
                 imageBatch,
@@ -135,7 +139,7 @@ public class ComputeSimilarityJob : IJob
                         var fullPath = Path.Combine(post.LibraryPath, post.RelativePath);
                         var hashes = await similarityService.ComputeHashesAsync(fullPath, ct);
 
-                        results.Add((post.Id, hashes));
+                        results.Add((post.PostFileId, hashes));
                         Interlocked.Increment(ref processed);
                         Interlocked.Increment(ref completed);
                         context.Reporter.Update(BuildLiveState("Computing similarity hashes..."));
@@ -144,19 +148,19 @@ public class ComputeSimilarityJob : IJob
                     {
                         Interlocked.Increment(ref failed);
                         Interlocked.Increment(ref completed);
-                        _logger.LogWarning(ex, "Failed to compute similarity hash for post {Id}: {Path}", post.Id, post.RelativePath);
+                        _logger.LogWarning(ex, "Failed to compute similarity hash for post {Id}: {Path}", post.PostId, post.RelativePath);
                         context.Reporter.Update(BuildLiveState("Computing similarity hashes..."));
                     }
                 });
 
-            var entityIds = imageBatch.Select(p => p.Id).ToList();
-            var entities = await db.Posts
-                .Where(p => entityIds.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id, context.CancellationToken);
+            var entityIds = imageBatch.Select(p => p.PostFileId).ToList();
+            var entities = await db.PostFiles
+                .Where(pf => entityIds.Contains(pf.Id))
+                .ToDictionaryAsync(pf => pf.Id, context.CancellationToken);
 
             foreach (var result in results)
             {
-                if (entities.TryGetValue(result.PostId, out var entity))
+                if (entities.TryGetValue(result.PostFileId, out var entity))
                 {
                     entity.PdqHash256 = result.Hashes.PdqHash256;
                 }

@@ -131,8 +131,21 @@ export interface DamebooruPostDto {
   thumbnailContentHash: string;
   isFavorite: boolean;
   sources: string[];
+  postFiles: DamebooruPostFileDto[];
   tags: DamebooruTagDto[];
   similarPosts: SimilarPost[];
+}
+
+export interface DamebooruPostFileDto {
+  libraryId: number;
+  libraryName: string | null;
+  relativePath: string;
+  contentHash: string;
+  sizeBytes: number;
+  width: number;
+  height: number;
+  contentType: string;
+  fileModifiedDate: string;
 }
 
 export interface DamebooruPostListDto {
@@ -168,10 +181,10 @@ export const KNOWN_JOB_KEYS = [
   "extract-metadata",
   "compute-similarity",
   "find-duplicates",
+  "hardlink-exact-duplicate-files",
   "generate-thumbnails",
   "cleanup-orphaned-thumbnails",
   "cleanup-invalid-exclusions",
-  "apply-folder-tags",
   "sanitize-tag-names",
   "auto-tag-posts",
 ] as const;
@@ -336,7 +349,41 @@ export interface DuplicateGroup {
   type: DuplicateType;
   similarityPercent: number | null;
   detectedDate: string;
+  hasSameFolderDuplicates: boolean;
+  hasCrossFolderDuplicates: boolean;
   posts: DuplicatePost[];
+}
+
+export interface ExactDuplicateFile {
+  postId: number;
+  postFileId: number;
+  libraryId: number;
+  libraryName: string;
+  relativePath: string;
+  contentHash: string;
+  width: number;
+  height: number;
+  contentType: string;
+  sizeBytes: number;
+  fileModifiedDate: string;
+  thumbnailLibraryId: number;
+  thumbnailContentHash: string;
+}
+
+export interface ExactDuplicateFolderBucket {
+  libraryId: number;
+  libraryName: string;
+  folderPath: string;
+  files: ExactDuplicateFile[];
+}
+
+export interface ExactDuplicateCluster {
+  contentHash: string;
+  fileCount: number;
+  folderCount: number;
+  hasSameFolderDuplicates: boolean;
+  hasCrossFolderDuplicates: boolean;
+  folders: ExactDuplicateFolderBucket[];
 }
 
 export interface ExcludedFile {

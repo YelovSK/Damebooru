@@ -18,61 +18,130 @@ public class DuplicateReadService
 
     public Task<List<DuplicateGroupDto>> GetDuplicateGroupsAsync(CancellationToken cancellationToken = default)
     {
-        return _context.DuplicateGroups
-            .Where(g => !g.IsResolved && g.Entries.Count >= 2)
-            .OrderByDescending(g => g.SimilarityPercent ?? 100)
-            .ThenByDescending(g => g.DetectedDate)
-            .Select(g => new DuplicateGroupDto
-            {
-                Id = g.Id,
-                Type = g.Type,
-                SimilarityPercent = g.SimilarityPercent,
-                DetectedDate = g.DetectedDate,
-                Posts = g.Entries.Select(e => new DuplicatePostDto
-                {
-                    Id = e.Post.Id,
-                    LibraryId = e.Post.LibraryId,
-                    RelativePath = e.Post.RelativePath,
-                    ContentHash = e.Post.ContentHash,
-                    Width = e.Post.Width,
-                    Height = e.Post.Height,
-                    ContentType = e.Post.ContentType,
-                    SizeBytes = e.Post.SizeBytes,
-                    ImportDate = e.Post.ImportDate,
-                    FileModifiedDate = e.Post.FileModifiedDate,
-                    ThumbnailLibraryId = e.Post.LibraryId,
-                    ThumbnailContentHash = e.Post.ContentHash,
-                }).ToList()
-            }).ToListAsync(cancellationToken);
+        return GetDuplicateGroupsCoreAsync(resolved: false, cancellationToken);
     }
 
     public Task<List<DuplicateGroupDto>> GetResolvedDuplicateGroupsAsync(CancellationToken cancellationToken = default)
     {
-        return _context.DuplicateGroups
-            .Where(g => g.IsResolved)
+        return GetDuplicateGroupsCoreAsync(resolved: true, cancellationToken);
+    }
+
+    private async Task<List<DuplicateGroupDto>> GetDuplicateGroupsCoreAsync(bool resolved, CancellationToken cancellationToken)
+    {
+        var groups = await _context.DuplicateGroups
+            .AsNoTracking()
+            .Where(g => g.IsResolved == resolved)
+            .Where(g => g.Type != DuplicateType.Exact)
+            .Include(g => g.Entries)
+                .ThenInclude(e => e.Post)
+                    .ThenInclude(p => p.PostFiles)
+                        .ThenInclude(pf => pf.Library)
             .OrderByDescending(g => g.DetectedDate)
-            .Select(g => new DuplicateGroupDto
+            .ToListAsync(cancellationToken);
+
+        return groups
+            .Where(g => g.Entries.Count >= 2)
+            .Select(g =>
             {
-                Id = g.Id,
-                Type = g.Type,
-                SimilarityPercent = g.SimilarityPercent,
-                DetectedDate = g.DetectedDate,
-                Posts = g.Entries.Select(e => new DuplicatePostDto
+                var posts = g.Entries.Select(e => e.Post).ToList();
+                return new DuplicateGroupDto
                 {
-                    Id = e.Post.Id,
-                    LibraryId = e.Post.LibraryId,
-                    RelativePath = e.Post.RelativePath,
-                    ContentHash = e.Post.ContentHash,
-                    Width = e.Post.Width,
-                    Height = e.Post.Height,
-                    ContentType = e.Post.ContentType,
-                    SizeBytes = e.Post.SizeBytes,
-                    ImportDate = e.Post.ImportDate,
-                    FileModifiedDate = e.Post.FileModifiedDate,
-                    ThumbnailLibraryId = e.Post.LibraryId,
-                    ThumbnailContentHash = e.Post.ContentHash,
-                }).ToList()
-            }).ToListAsync(cancellationToken);
+                    Id = g.Id,
+                    Type = g.Type,
+                    SimilarityPercent = g.SimilarityPercent,
+                    DetectedDate = g.DetectedDate,
+                    HasSameFolderDuplicates = posts
+                        .GroupBy(p => new { LibraryId = GetRepresentativeLibraryId(p), FolderPath = DuplicatePathHelper.GetParentFolderPath(GetRepresentativeRelativePath(p)) })
+                        .Any(group => group.Count() > 1),
+                    HasCrossFolderDuplicates = posts
+                        .Select(p => new { LibraryId = GetRepresentativeLibraryId(p), FolderPath = DuplicatePathHelper.GetParentFolderPath(GetRepresentativeRelativePath(p)) })
+                        .Distinct()
+                        .Count() > 1,
+                    Posts = posts.Select(p => new DuplicatePostDto
+                    {
+                        Id = p.Id,
+                        LibraryId = GetRepresentativeLibraryId(p),
+                        RelativePath = GetRepresentativeRelativePath(p),
+                        ContentHash = GetRepresentativeContentHash(p),
+                        Width = GetRepresentativeWidth(p),
+                        Height = GetRepresentativeHeight(p),
+                        ContentType = GetRepresentativeContentType(p),
+                        SizeBytes = GetRepresentativeSizeBytes(p),
+                        ImportDate = p.ImportDate,
+                        FileModifiedDate = GetRepresentativeFileModifiedDate(p),
+                        ThumbnailLibraryId = GetRepresentativeLibraryId(p),
+                        ThumbnailContentHash = GetRepresentativeContentHash(p),
+                    }).ToList()
+                };
+            })
+            .OrderByDescending(g => g.SimilarityPercent ?? 100)
+            .ThenByDescending(g => g.DetectedDate)
+            .ToList();
+    }
+
+    public async Task<List<ExactDuplicateClusterDto>> GetExactDuplicateClustersAsync(CancellationToken cancellationToken = default)
+    {
+        var files = await _context.PostFiles
+            .AsNoTracking()
+            .Where(pf => pf.ContentHash != string.Empty)
+            .Select(pf => new ExactDuplicateFileDto
+            {
+                PostId = pf.PostId,
+                PostFileId = pf.Id,
+                LibraryId = pf.LibraryId,
+                LibraryName = pf.Library.Name,
+                RelativePath = pf.RelativePath,
+                ContentHash = pf.ContentHash,
+                Width = pf.Width,
+                Height = pf.Height,
+                ContentType = pf.ContentType,
+                SizeBytes = pf.SizeBytes,
+                FileModifiedDate = pf.FileModifiedDate,
+                ThumbnailLibraryId = pf.LibraryId,
+                ThumbnailContentHash = pf.ContentHash,
+            })
+            .ToListAsync(cancellationToken);
+
+        return files
+            .GroupBy(file => file.ContentHash, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group =>
+            {
+                var folderBuckets = group
+                    .GroupBy(file => new
+                    {
+                        file.LibraryId,
+                        file.LibraryName,
+                        FolderPath = DuplicatePathHelper.GetParentFolderPath(file.RelativePath)
+                    })
+                    .Select(folderGroup => new ExactDuplicateFolderBucketDto
+                    {
+                        LibraryId = folderGroup.Key.LibraryId,
+                        LibraryName = folderGroup.Key.LibraryName,
+                        FolderPath = folderGroup.Key.FolderPath,
+                        Files = folderGroup
+                            .OrderBy(file => file.RelativePath, StringComparer.OrdinalIgnoreCase)
+                            .ThenBy(file => file.PostFileId)
+                            .ToList()
+                    })
+                    .OrderBy(bucket => bucket.LibraryName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(bucket => bucket.FolderPath, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                return new ExactDuplicateClusterDto
+                {
+                    ContentHash = group.Key,
+                    FileCount = group.Count(),
+                    FolderCount = folderBuckets.Count,
+                    HasSameFolderDuplicates = folderBuckets.Any(bucket => bucket.Files.Count > 1),
+                    HasCrossFolderDuplicates = folderBuckets.Count > 1,
+                    Folders = folderBuckets,
+                };
+            })
+            .OrderByDescending(cluster => cluster.HasSameFolderDuplicates)
+            .ThenByDescending(cluster => cluster.FileCount)
+            .ThenBy(cluster => cluster.ContentHash, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     public async Task<List<SameFolderDuplicateGroupDto>> GetSameFolderDuplicateGroupsAsync(CancellationToken cancellationToken = default)
@@ -82,7 +151,8 @@ public class DuplicateReadService
             .Where(g => !g.IsResolved)
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Library)
+                    .ThenInclude(p => p.PostFiles)
+                        .ThenInclude(pf => pf.Library)
             .ToListAsync(cancellationToken);
 
         var result = new List<SameFolderDuplicateGroupDto>();
@@ -92,7 +162,7 @@ public class DuplicateReadService
             var sameFolderPartitions = group.Entries
                 .Select(e => e.Post)
                 .GroupBy(
-                    p => new { p.LibraryId, FolderPath = DuplicatePathHelper.GetParentFolderPath(p.RelativePath) },
+                    p => new { LibraryId = GetRepresentativeLibraryId(p), FolderPath = DuplicatePathHelper.GetParentFolderPath(GetRepresentativeRelativePath(p)) },
                     p => p);
 
             foreach (var partition in sameFolderPartitions)
@@ -104,9 +174,9 @@ public class DuplicateReadService
                 }
 
                 var orderedPosts = posts
-                    .OrderByDescending(p => (long)p.Width * p.Height)
-                    .ThenByDescending(p => p.SizeBytes)
-                    .ThenByDescending(p => p.FileModifiedDate)
+                    .OrderByDescending(p => GetRepresentativeWidth(p) * GetRepresentativeHeight(p))
+                    .ThenByDescending(GetRepresentativeSizeBytes)
+                    .ThenByDescending(GetRepresentativeFileModifiedDate)
                     .ThenByDescending(p => p.Id)
                     .ToList();
 
@@ -116,27 +186,27 @@ public class DuplicateReadService
                     DuplicateType = group.Type,
                     SimilarityPercent = group.SimilarityPercent,
                     LibraryId = partition.Key.LibraryId,
-                    LibraryName = orderedPosts[0].Library.Name,
+                    LibraryName = GetRepresentativeFile(orderedPosts[0])?.Library?.Name ?? string.Empty,
                     FolderPath = partition.Key.FolderPath,
                     RecommendedKeepPostId = orderedPosts[0].Id,
-                    Posts = posts
-                        .OrderByDescending(p => (long)p.Width * p.Height)
-                        .ThenByDescending(p => p.SizeBytes)
-                        .ThenByDescending(p => p.FileModifiedDate)
+                        Posts = posts
+                        .OrderByDescending(p => GetRepresentativeWidth(p) * GetRepresentativeHeight(p))
+                        .ThenByDescending(GetRepresentativeSizeBytes)
+                        .ThenByDescending(GetRepresentativeFileModifiedDate)
                         .ThenByDescending(p => p.Id)
                         .Select(p => new SameFolderDuplicatePostDto
                         {
                             Id = p.Id,
-                            LibraryId = p.LibraryId,
-                            RelativePath = p.RelativePath,
-                            ContentHash = p.ContentHash,
-                            Width = p.Width,
-                            Height = p.Height,
-                            SizeBytes = p.SizeBytes,
+                            LibraryId = GetRepresentativeLibraryId(p),
+                            RelativePath = GetRepresentativeRelativePath(p),
+                            ContentHash = GetRepresentativeContentHash(p),
+                            Width = GetRepresentativeWidth(p),
+                            Height = GetRepresentativeHeight(p),
+                            SizeBytes = GetRepresentativeSizeBytes(p),
                             ImportDate = p.ImportDate,
-                            FileModifiedDate = p.FileModifiedDate,
-                            ThumbnailLibraryId = p.LibraryId,
-                            ThumbnailContentHash = p.ContentHash,
+                            FileModifiedDate = GetRepresentativeFileModifiedDate(p),
+                            ThumbnailLibraryId = GetRepresentativeLibraryId(p),
+                            ThumbnailContentHash = GetRepresentativeContentHash(p),
                         })
                         .ToList()
                 });
@@ -151,6 +221,33 @@ public class DuplicateReadService
             .ThenBy(r => r.ParentDuplicateGroupId)
             .ToList();
     }
+
+    private static PostFile? GetRepresentativeFile(Post post)
+        => post.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault();
+
+    private static int GetRepresentativeLibraryId(Post post)
+        => GetRepresentativeFile(post)?.LibraryId ?? 0;
+
+    private static string GetRepresentativeRelativePath(Post post)
+        => GetRepresentativeFile(post)?.RelativePath ?? string.Empty;
+
+    private static string GetRepresentativeContentHash(Post post)
+        => GetRepresentativeFile(post)?.ContentHash ?? string.Empty;
+
+    private static long GetRepresentativeSizeBytes(Post post)
+        => GetRepresentativeFile(post)?.SizeBytes ?? 0;
+
+    private static string GetRepresentativeContentType(Post post)
+        => GetRepresentativeFile(post)?.ContentType ?? string.Empty;
+
+    private static int GetRepresentativeWidth(Post post)
+        => GetRepresentativeFile(post)?.Width ?? 0;
+
+    private static int GetRepresentativeHeight(Post post)
+        => GetRepresentativeFile(post)?.Height ?? 0;
+
+    private static DateTime GetRepresentativeFileModifiedDate(Post post)
+        => GetRepresentativeFile(post)?.FileModifiedDate ?? default;
 
     public async Task<List<ExcludedFileDto>> GetExcludedFilesAsync(CancellationToken cancellationToken = default)
     {

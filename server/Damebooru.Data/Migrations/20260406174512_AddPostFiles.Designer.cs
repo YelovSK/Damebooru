@@ -3,6 +3,7 @@ using System;
 using Damebooru.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Damebooru.Data.Migrations
 {
     [DbContext(typeof(DamebooruDbContext))]
-    partial class DamebooruDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260406174512_AddPostFiles")]
+    partial class AddPostFiles
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.2");
@@ -237,17 +240,67 @@ namespace Damebooru.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileIdentityDevice")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileIdentityValue")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FileModifiedDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("ImportDate")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsFavorite")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("LibraryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PdqHash256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RelativePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ContentHash");
 
                     b.HasIndex("IsFavorite");
 
+                    b.HasIndex("FileModifiedDate", "Id");
+
                     b.HasIndex("ImportDate", "Id");
+
+                    b.HasIndex("LibraryId", "RelativePath");
+
+                    b.HasIndex("LibraryId", "FileIdentityDevice", "FileIdentityValue");
 
                     b.ToTable("Posts");
                 });
@@ -661,6 +714,17 @@ namespace Damebooru.Data.Migrations
                 });
 
             modelBuilder.Entity("Damebooru.Core.Entities.LibraryIgnoredPath", b =>
+                {
+                    b.HasOne("Damebooru.Core.Entities.Library", "Library")
+                        .WithMany()
+                        .HasForeignKey("LibraryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Library");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.Post", b =>
                 {
                     b.HasOne("Damebooru.Core.Entities.Library", "Library")
                         .WithMany()

@@ -17,10 +17,24 @@ public class PostDto
     public DateTime FileModifiedDate { get; set; }
     public bool IsFavorite { get; set; }
     public List<string> Sources { get; set; } = [];
+    public List<PostFileDto> PostFiles { get; set; } = [];
     public int ThumbnailLibraryId { get; set; }
     public string ThumbnailContentHash { get; set; } = string.Empty;
     public List<TagDto> Tags { get; set; } = [];
     public List<SimilarPostDto> SimilarPosts { get; set; } = [];
+}
+
+public class PostFileDto
+{
+    public int LibraryId { get; set; }
+    public string? LibraryName { get; set; }
+    public string RelativePath { get; set; } = string.Empty;
+    public string ContentHash { get; set; } = string.Empty;
+    public long SizeBytes { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public string ContentType { get; set; } = string.Empty;
+    public DateTime FileModifiedDate { get; set; }
 }
 
 public class PostListDto

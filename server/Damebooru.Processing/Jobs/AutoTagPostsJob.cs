@@ -160,7 +160,7 @@ public sealed class AutoTagPostsJob : IJob
         var currentDiscoveryProviders = AutoTagDiscoveryPlan.OrderedDiscoveryProviders;
         var imagePosts = db.Posts
             .AsNoTracking()
-            .Where(p => EF.Functions.Like(p.ContentType, "image/%"));
+            .Where(p => p.PostFiles.Any(pf => EF.Functions.Like(pf.ContentType, "image/%")));
 
         if (mode == JobMode.All)
         {
@@ -178,7 +178,7 @@ public sealed class AutoTagPostsJob : IJob
                 scan => scan.PostId,
                 (post, scans) => new { Post = post, Scan = scans.FirstOrDefault() })
             .Where(x => x.Scan == null
-                || x.Scan.ContentHash != x.Post.ContentHash
+                || x.Scan.ContentHash != x.Post.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault()
                 || x.Scan.Status == AutoTagScanStatus.Pending
                 || x.Scan.Status == AutoTagScanStatus.InProgress
                 || (x.Scan.Status == AutoTagScanStatus.Partial

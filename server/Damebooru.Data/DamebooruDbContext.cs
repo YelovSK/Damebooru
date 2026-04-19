@@ -11,6 +11,7 @@ public class DamebooruDbContext : DbContext
 
     public DbSet<Library> Libraries { get; set; } = null!;
     public DbSet<Post> Posts { get; set; } = null!;
+    public DbSet<PostFile> PostFiles { get; set; } = null!;
     public DbSet<Tag> Tags { get; set; } = null!;
     public DbSet<PostTag> PostTags { get; set; } = null!;
     public DbSet<PostSource> PostSources { get; set; } = null!;
@@ -98,11 +99,16 @@ public class DamebooruDbContext : DbContext
             .HasForeignKey(e => e.PostId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        // Configure Library -> Post relationship
-        modelBuilder.Entity<Post>()
-            .HasOne(p => p.Library)
+        modelBuilder.Entity<PostFile>()
+            .HasOne(pf => pf.Post)
+            .WithMany(p => p.PostFiles)
+            .HasForeignKey(pf => pf.PostId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PostFile>()
+            .HasOne(pf => pf.Library)
             .WithMany()
-            .HasForeignKey(p => p.LibraryId)
+            .HasForeignKey(pf => pf.LibraryId)
             .OnDelete(DeleteBehavior.Cascade);
             
         modelBuilder.Entity<JobExecution>()
@@ -116,22 +122,23 @@ public class DamebooruDbContext : DbContext
 
         // Indexes for performance
         modelBuilder.Entity<Post>()
-            .HasIndex(p => p.ContentHash);
-
-        modelBuilder.Entity<Post>()
             .HasIndex(p => new { p.ImportDate, p.Id });
 
         modelBuilder.Entity<Post>()
-            .HasIndex(p => new { p.FileModifiedDate, p.Id });
-
-        modelBuilder.Entity<Post>()
-            .HasIndex(p => new { p.LibraryId, p.RelativePath });
-
-        modelBuilder.Entity<Post>()
-            .HasIndex(p => new { p.LibraryId, p.FileIdentityDevice, p.FileIdentityValue });
-
-        modelBuilder.Entity<Post>()
             .HasIndex(p => p.IsFavorite);
+
+        modelBuilder.Entity<PostFile>()
+            .HasIndex(pf => pf.ContentHash);
+
+        modelBuilder.Entity<PostFile>()
+            .HasIndex(pf => new { pf.LibraryId, pf.RelativePath })
+            .IsUnique();
+
+        modelBuilder.Entity<PostFile>()
+            .HasIndex(pf => new { pf.LibraryId, pf.FileIdentityDevice, pf.FileIdentityValue });
+
+        modelBuilder.Entity<PostFile>()
+            .HasIndex(pf => new { pf.PostId, pf.Id });
 
         modelBuilder.Entity<PostTag>()
             .HasIndex(p => new { p.TagId, p.PostId, p.Source });

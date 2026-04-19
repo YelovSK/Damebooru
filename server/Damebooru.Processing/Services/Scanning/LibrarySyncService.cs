@@ -15,12 +15,22 @@ namespace Damebooru.Processing.Services.Scanning;
 
 public class LibrarySyncService : ILibrarySyncProcessor
 {
-    private sealed record ExistingPostInfo(
-        int Id,
+    private sealed record ExistingPostFileInfo(
+        int PostId,
+        int PostFileId,
         string RelativePath,
         string Hash,
         long SizeBytes,
         DateTime FileModifiedDate,
+        string? FileIdentityDevice,
+        string? FileIdentityValue);
+
+    private sealed record NewFileCandidate(
+        string FullPath,
+        string RelativePath,
+        string Hash,
+        long SizeBytes,
+        DateTime LastModifiedUtc,
         string? FileIdentityDevice,
         string? FileIdentityValue);
 
@@ -34,7 +44,8 @@ public class LibrarySyncService : ILibrarySyncProcessor
         string? FileIdentityValue);
 
     private sealed record MoveUpdate(
-        int Id,
+        int PostId,
+        int PostFileId,
         string OldRelativePath,
         string NewRelativePath,
         string Hash,
@@ -43,8 +54,9 @@ public class LibrarySyncService : ILibrarySyncProcessor
         string? FileIdentityDevice,
         string? FileIdentityValue);
 
-    private sealed record PostUpdateCandidate(
-        int Id,
+    private sealed record PostFileUpdateCandidate(
+        int PostId,
+        int PostFileId,
         string NewHash,
         long NewSize,
         DateTime NewMtime,
@@ -54,15 +66,15 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
     private sealed class SyncRunState
     {
-        public required Dictionary<string, ExistingPostInfo> ExistingPosts { get; init; }
-        public required Dictionary<string, List<ExistingPostInfo>> ExistingPostsByIdentity { get; init; }
+        public required Dictionary<string, ExistingPostFileInfo> ExistingFilesByPath { get; init; }
+        public required Dictionary<string, List<ExistingPostFileInfo>> ExistingFilesByIdentity { get; init; }
         public required Dictionary<string, string> ExcludedHashesByPath { get; init; }
         public required HashSet<string> IgnoredPathPrefixes { get; init; }
 
         public ConcurrentDictionary<string, byte> SeenPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public ConcurrentBag<PostUpdateCandidate> PostsToUpdate { get; } = [];
+        public ConcurrentBag<PostFileUpdateCandidate> PostFilesToUpdate { get; } = [];
         public ConcurrentBag<PotentialMoveCandidate> PotentialMoves { get; } = [];
-        public ConcurrentDictionary<string, byte> AddedPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public ConcurrentBag<NewFileCandidate> NewFiles { get; } = [];
     }
 
     private sealed record MoveResolution(List<MoveUpdate> Moves, List<PotentialMoveCandidate> UnmatchedCandidates);
@@ -73,6 +85,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IMediaSource _mediaSource;
     private readonly IFileIdentityResolver _fileIdentityResolver;
+    private readonly FolderTaggingService _folderTaggingService;
     private readonly int _scanParallelism;
 
     public LibrarySyncService(
@@ -82,6 +95,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         IServiceScopeFactory scopeFactory,
         IMediaSource mediaSource,
         IFileIdentityResolver fileIdentityResolver,
+        FolderTaggingService folderTaggingService,
         IOptions<DamebooruConfig> options)
     {
         _logger = logger;
@@ -90,6 +104,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         _scopeFactory = scopeFactory;
         _mediaSource = mediaSource;
         _fileIdentityResolver = fileIdentityResolver;
+        _folderTaggingService = folderTaggingService;
         _scanParallelism = Math.Max(1, options.Value.Scanner.Parallelism);
     }
 
@@ -110,9 +125,9 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         var state = await LoadStateAsync(library.Id, cancellationToken);
         _logger.LogInformation(
-            "Loaded {Count} existing posts and {IdentityCount} identity buckets.",
-            state.ExistingPosts.Count,
-            state.ExistingPostsByIdentity.Count);
+            "Loaded {Count} existing files and {IdentityCount} identity buckets.",
+            state.ExistingFilesByPath.Count,
+            state.ExistingFilesByIdentity.Count);
 
         status?.Report("Scanning files...");
         _logger.LogInformation("Streaming files from {Path}...", directoryPath);
@@ -128,11 +143,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var items = _mediaSource.GetItemsAsync(directoryPath, cancellationToken);
         await Parallel.ForEachAsync(items, parallelOptions, async (item, ct) =>
         {
-            var added = await ProcessFileOptimizedAsync(library, item, state, ct);
-            if (added)
-            {
-                Interlocked.Increment(ref addedCount);
-            }
+            await ProcessFileOptimizedAsync(library, item, state, ct);
 
             Interlocked.Increment(ref scanned);
             if (scanned % 10 == 0 || scanned == total)
@@ -145,107 +156,74 @@ public class LibrarySyncService : ILibrarySyncProcessor
             }
         });
 
-        await _ingestionService.FlushAsync(cancellationToken);
-
         var moveResolution = ResolveMoveCandidates(state);
         var movedPosts = moveResolution.Moves;
 
-        foreach (var unmatchedCandidate in moveResolution.UnmatchedCandidates)
+        if (!state.PostFilesToUpdate.IsEmpty || movedPosts.Count > 0 || !state.NewFiles.IsEmpty || moveResolution.UnmatchedCandidates.Count > 0)
         {
-            var item = new MediaSourceItem
-            {
-                FullPath = unmatchedCandidate.FullPath,
-                RelativePath = unmatchedCandidate.RelativePath,
-                SizeBytes = unmatchedCandidate.SizeBytes,
-                LastModifiedUtc = unmatchedCandidate.LastModifiedUtc,
-            };
-
-            await EnqueuePostAsync(
-                library,
-                item,
-                unmatchedCandidate.Hash,
-                unmatchedCandidate.FileIdentityDevice,
-                unmatchedCandidate.FileIdentityValue,
-                cancellationToken);
-
-            state.AddedPaths.TryAdd(unmatchedCandidate.RelativePath, 0);
-            addedCount++;
-        }
-
-        if (moveResolution.UnmatchedCandidates.Count > 0)
-        {
-            await _ingestionService.FlushAsync(cancellationToken);
-        }
-
-        if (!state.PostsToUpdate.IsEmpty || movedPosts.Count > 0)
-        {
-            var totalUpdates = state.PostsToUpdate.Count + movedPosts.Count;
-            status?.Report($"Updating {totalUpdates} posts ({state.PostsToUpdate.Count} changed, {movedPosts.Count} moved)...");
+            var totalUpdates = state.PostFilesToUpdate.Count + movedPosts.Count;
+            status?.Report($"Updating {totalUpdates} files ({state.PostFilesToUpdate.Count} changed, {movedPosts.Count} moved)...");
 
             _logger.LogInformation(
-                "Updating posts in library {Library}: {ChangedCount} changed, {MovedCount} moved",
+                "Updating files in library {Library}: {ChangedCount} changed, {MovedCount} moved, {NewCount} new",
                 library.Name,
-                state.PostsToUpdate.Count,
-                movedPosts.Count);
+                state.PostFilesToUpdate.Count,
+                movedPosts.Count,
+                state.NewFiles.Count + moveResolution.UnmatchedCandidates.Count);
 
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+            var affectedPostIds = new HashSet<int>();
 
-            foreach (var update in state.PostsToUpdate)
+            foreach (var update in state.PostFilesToUpdate)
             {
-                var post = await dbContext.Posts.FindAsync(new object[] { update.Id }, cancellationToken);
-                if (post == null)
+                foreach (var affectedPostId in await ApplyPostFileUpdateAsync(dbContext, library, update, cancellationToken))
                 {
-                    continue;
-                }
-
-                post.ContentHash = update.NewHash;
-                post.SizeBytes = update.NewSize;
-                post.FileModifiedDate = update.NewMtime;
-                post.FileIdentityDevice = update.FileIdentityDevice;
-                post.FileIdentityValue = update.FileIdentityValue;
-
-                if (update.HashChanged)
-                {
-                    post.Width = 0;
-                    post.Height = 0;
-                    post.PdqHash256 = null;
+                    affectedPostIds.Add(affectedPostId);
                 }
             }
 
             foreach (var move in movedPosts)
             {
-                var post = await dbContext.Posts.FindAsync(new object[] { move.Id }, cancellationToken);
-                if (post == null)
+                foreach (var affectedPostId in await ApplyMoveAsync(dbContext, move, cancellationToken))
                 {
-                    continue;
+                    affectedPostIds.Add(affectedPostId);
                 }
-
-                post.RelativePath = move.NewRelativePath;
-                post.ContentHash = move.Hash;
-                post.SizeBytes = move.NewSize;
-                post.FileModifiedDate = move.NewMtime;
-                post.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(move.NewRelativePath));
-                post.FileIdentityDevice = move.FileIdentityDevice;
-                post.FileIdentityValue = move.FileIdentityValue;
 
                 _logger.LogInformation(
                     "Moved post {PostId}: {OldPath} -> {NewPath}",
-                    move.Id,
+                    move.PostId,
                     move.OldRelativePath,
                     move.NewRelativePath);
             }
 
+            foreach (var candidate in state.NewFiles)
+            {
+                var postId = await PersistNewFileAsync(dbContext, library, candidate, cancellationToken);
+                affectedPostIds.Add(postId);
+                addedCount++;
+            }
+
+            foreach (var candidate in moveResolution.UnmatchedCandidates)
+            {
+                var postId = await PersistNewFileAsync(dbContext, library, new NewFileCandidate(
+                    candidate.FullPath,
+                    candidate.RelativePath,
+                    candidate.Hash,
+                    candidate.SizeBytes,
+                    candidate.LastModifiedUtc,
+                    candidate.FileIdentityDevice,
+                    candidate.FileIdentityValue), cancellationToken);
+                affectedPostIds.Add(postId);
+                addedCount++;
+            }
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, affectedPostIds.ToList(), cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
-        var copiedTags = await CopyNonFolderTagsFromHashMatchesAsync(library.Id, state.AddedPaths.Keys.ToList(), cancellationToken);
-        if (copiedTags > 0)
-        {
-            _logger.LogInformation("Copied {Count} non-folder tag assignments onto newly added duplicate posts.", copiedTags);
-        }
-
-        var orphanPaths = state.ExistingPosts.Keys
+        var orphanPaths = state.ExistingFilesByPath.Keys
             .Where(path => !state.SeenPaths.ContainsKey(path))
             .ToList();
 
@@ -256,25 +234,34 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
             using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+            var affectedPostIds = new HashSet<int>();
 
             const int batchSize = 100;
             for (var i = 0; i < orphanPaths.Count; i += batchSize)
             {
                 var batch = orphanPaths.Skip(i).Take(batchSize).ToList();
-                var orphanIds = batch.Select(path => state.ExistingPosts[path].Id).ToList();
+                var orphanFileIds = batch.Select(path => state.ExistingFilesByPath[path].PostFileId).ToList();
+                foreach (var path in batch)
+                {
+                    affectedPostIds.Add(state.ExistingFilesByPath[path].PostId);
+                }
 
-                await dbContext.Posts
-                    .Where(p => orphanIds.Contains(p.Id))
+                await dbContext.PostFiles
+                    .Where(pf => orphanFileIds.Contains(pf.Id))
                     .ExecuteDeleteAsync(cancellationToken);
             }
 
-            _logger.LogInformation("Removed {Count} orphaned posts", orphanPaths.Count);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, affectedPostIds.ToList(), cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Removed {Count} orphaned files", orphanPaths.Count);
         }
 
         progress?.Report(100);
-        status?.Report($"Finished scanning {library.Name} - {scanned} files, {addedCount} added, {state.PostsToUpdate.Count} updated, {movedPosts.Count} moved, {orphanPaths.Count} orphans removed");
+        status?.Report($"Finished scanning {library.Name} - {scanned} files, {addedCount} added, {state.PostFilesToUpdate.Count} updated, {movedPosts.Count} moved, {orphanPaths.Count} orphans removed");
 
-        return new ScanResult(scanned, addedCount, state.PostsToUpdate.Count, movedPosts.Count, orphanPaths.Count);
+        return new ScanResult(scanned, addedCount, state.PostFilesToUpdate.Count, movedPosts.Count, orphanPaths.Count);
     }
 
     public async Task ProcessFileAsync(Library library, MediaSourceItem item, CancellationToken cancellationToken)
@@ -282,10 +269,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
 
-        var existingPost = await dbContext.Posts
-            .FirstOrDefaultAsync(p => p.LibraryId == library.Id && p.RelativePath == item.RelativePath, cancellationToken);
+        var existingPostFile = await dbContext.PostFiles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(pf => pf.LibraryId == library.Id && pf.RelativePath == item.RelativePath, cancellationToken);
 
-        if (existingPost != null)
+        if (existingPostFile != null)
         {
             return;
         }
@@ -297,7 +285,15 @@ public class LibrarySyncService : ILibrarySyncProcessor
         }
 
         var identity = _fileIdentityResolver.TryResolve(item.FullPath);
-        await EnqueuePostAsync(library, item, hash, identity?.Device, identity?.Value, cancellationToken);
+        await PersistNewFileAsync(dbContext, library, new NewFileCandidate(
+            item.FullPath,
+            item.RelativePath,
+            hash,
+            item.SizeBytes,
+            item.LastModifiedUtc,
+            identity?.Device,
+            identity?.Value), cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<SyncRunState> LoadStateAsync(int libraryId, CancellationToken cancellationToken)
@@ -305,29 +301,31 @@ public class LibrarySyncService : ILibrarySyncProcessor
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
 
-        var libraryPosts = await dbContext.Posts
+        var libraryPostFiles = await dbContext.PostFiles
             .AsNoTracking()
-            .Where(p => p.LibraryId == libraryId)
-            .Select(p => new
+            .Where(pf => pf.LibraryId == libraryId)
+            .Select(pf => new
             {
-                p.Id,
-                p.RelativePath,
-                p.ContentHash,
-                p.SizeBytes,
-                p.FileModifiedDate,
-                p.FileIdentityDevice,
-                p.FileIdentityValue
+                pf.PostId,
+                pf.Id,
+                pf.RelativePath,
+                pf.ContentHash,
+                pf.SizeBytes,
+                pf.FileModifiedDate,
+                pf.FileIdentityDevice,
+                pf.FileIdentityValue
             })
             .ToListAsync(cancellationToken);
 
-        var existingPosts = libraryPosts
+        var existingPostFiles = libraryPostFiles
             .GroupBy(p => p.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 g => g.Key,
                 g =>
                 {
                     var first = g.First();
-                    return new ExistingPostInfo(
+                    return new ExistingPostFileInfo(
+                        first.PostId,
                         first.Id,
                         first.RelativePath,
                         first.ContentHash,
@@ -338,10 +336,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
                 },
                 StringComparer.OrdinalIgnoreCase);
 
-        var existingPostsByIdentity = libraryPosts
+        var existingPostFilesByIdentity = libraryPostFiles
             .Select(p => new
             {
-                Post = new ExistingPostInfo(
+                PostFile = new ExistingPostFileInfo(
+                    p.PostId,
                     p.Id,
                     p.RelativePath,
                     p.ContentHash,
@@ -355,7 +354,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .GroupBy(x => x.Key!, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 g => g.Key,
-                g => g.Select(x => x.Post).ToList(),
+                g => g.Select(x => x.PostFile).ToList(),
                 StringComparer.OrdinalIgnoreCase);
 
         var excludedHashesByPath = (await dbContext.ExcludedFiles
@@ -377,20 +376,20 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         return new SyncRunState
         {
-            ExistingPosts = existingPosts,
-            ExistingPostsByIdentity = existingPostsByIdentity,
+            ExistingFilesByPath = existingPostFiles,
+            ExistingFilesByIdentity = existingPostFilesByIdentity,
             ExcludedHashesByPath = excludedHashesByPath,
             IgnoredPathPrefixes = ignoredPathPrefixes
         };
     }
 
-    private async Task<bool> ProcessFileOptimizedAsync(Library library, MediaSourceItem item, SyncRunState state, CancellationToken cancellationToken)
+    private async Task ProcessFileOptimizedAsync(Library library, MediaSourceItem item, SyncRunState state, CancellationToken cancellationToken)
     {
         var relativePath = item.RelativePath;
         var normalizedRelativePath = RelativePathMatcher.NormalizePath(relativePath);
         if (state.IgnoredPathPrefixes.Any(prefix => RelativePathMatcher.IsWithinPrefix(normalizedRelativePath, prefix)))
         {
-            return false;
+            return;
         }
 
         state.SeenPaths.TryAdd(relativePath, 0);
@@ -401,19 +400,19 @@ public class LibrarySyncService : ILibrarySyncProcessor
             var currentHash = await ComputeHashAsync(item.FullPath, cancellationToken);
             if (string.IsNullOrEmpty(currentHash))
             {
-                return false;
+                return;
             }
 
             precomputedHash = currentHash;
             if (string.Equals(currentHash, excludedHash, StringComparison.OrdinalIgnoreCase))
             {
-                return false;
+                return;
             }
 
             _logger.LogInformation("Exclusion mismatch for {Path}: path matched but hash changed, allowing ingest", relativePath);
         }
 
-        if (state.ExistingPosts.TryGetValue(relativePath, out var existing))
+        if (state.ExistingFilesByPath.TryGetValue(relativePath, out var existing))
         {
             var fileChanged = item.SizeBytes != existing.SizeBytes
                 || Math.Abs((item.LastModifiedUtc - existing.FileModifiedDate).TotalSeconds) > 1;
@@ -424,7 +423,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             {
                 if (!missingIdentity)
                 {
-                    return false;
+                    return;
                 }
 
                 var resolvedIdentity = _fileIdentityResolver.TryResolve(item.FullPath);
@@ -436,11 +435,12 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
                 if (!identityChanged)
                 {
-                    return false;
+                    return;
                 }
 
-                state.PostsToUpdate.Add(new PostUpdateCandidate(
-                    existing.Id,
+                state.PostFilesToUpdate.Add(new PostFileUpdateCandidate(
+                    existing.PostId,
+                    existing.PostFileId,
                     existing.Hash,
                     existing.SizeBytes,
                     existing.FileModifiedDate,
@@ -448,7 +448,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
                     newDevice,
                     newValue));
 
-                return false;
+                return;
             }
 
             var changedIdentity = _fileIdentityResolver.TryResolve(item.FullPath);
@@ -458,12 +458,13 @@ public class LibrarySyncService : ILibrarySyncProcessor
             var newHash = precomputedHash ?? await ComputeHashAsync(item.FullPath, cancellationToken);
             if (string.IsNullOrEmpty(newHash))
             {
-                return false;
+                return;
             }
 
             var hashChanged = !string.Equals(newHash, existing.Hash, StringComparison.OrdinalIgnoreCase);
-            state.PostsToUpdate.Add(new PostUpdateCandidate(
-                existing.Id,
+            state.PostFilesToUpdate.Add(new PostFileUpdateCandidate(
+                existing.PostId,
+                existing.PostFileId,
                 newHash,
                 item.SizeBytes,
                 item.LastModifiedUtc,
@@ -476,19 +477,19 @@ public class LibrarySyncService : ILibrarySyncProcessor
                 _logger.LogInformation("File changed: {Path} (size: {OldSize}->{NewSize})", relativePath, existing.SizeBytes, item.SizeBytes);
             }
 
-            return false;
+            return;
         }
 
         var hash = precomputedHash ?? await ComputeHashAsync(item.FullPath, cancellationToken);
         if (string.IsNullOrEmpty(hash))
         {
-            return false;
+            return;
         }
 
         var identity = _fileIdentityResolver.TryResolve(item.FullPath);
         var identityKey = BuildIdentityKey(identity?.Device, identity?.Value);
         if (identityKey != null
-            && state.ExistingPostsByIdentity.TryGetValue(identityKey, out var candidatesByIdentity)
+            && state.ExistingFilesByIdentity.TryGetValue(identityKey, out var candidatesByIdentity)
             && candidatesByIdentity.Count > 0)
         {
             state.PotentialMoves.Add(new PotentialMoveCandidate(
@@ -499,12 +500,17 @@ public class LibrarySyncService : ILibrarySyncProcessor
                 item.LastModifiedUtc,
                 identity?.Device,
                 identity?.Value));
-            return false;
+            return;
         }
 
-        await EnqueuePostAsync(library, item, hash, identity?.Device, identity?.Value, cancellationToken);
-        state.AddedPaths.TryAdd(relativePath, 0);
-        return true;
+        state.NewFiles.Add(new NewFileCandidate(
+            item.FullPath,
+            relativePath,
+            hash,
+            item.SizeBytes,
+            item.LastModifiedUtc,
+            identity?.Device,
+            identity?.Value));
     }
 
     private MoveResolution ResolveMoveCandidates(SyncRunState state)
@@ -512,13 +518,13 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var moves = new List<MoveUpdate>();
         var unmatched = new List<PotentialMoveCandidate>();
         var movedOldPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var movedPostIds = new HashSet<int>();
+        var movedPostFileIds = new HashSet<int>();
 
         foreach (var candidate in state.PotentialMoves)
         {
             var identityKey = BuildIdentityKey(candidate.FileIdentityDevice, candidate.FileIdentityValue);
             if (identityKey == null
-                || !state.ExistingPostsByIdentity.TryGetValue(identityKey, out var candidatesByIdentity)
+                || !state.ExistingFilesByIdentity.TryGetValue(identityKey, out var candidatesByIdentity)
                 || candidatesByIdentity.Count == 0)
             {
                 unmatched.Add(candidate);
@@ -528,7 +534,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             var source = candidatesByIdentity.FirstOrDefault(existing =>
                 !state.SeenPaths.ContainsKey(existing.RelativePath)
                 && !movedOldPaths.Contains(existing.RelativePath)
-                && !movedPostIds.Contains(existing.Id));
+                && !movedPostFileIds.Contains(existing.PostFileId));
 
             if (source == null)
             {
@@ -537,7 +543,8 @@ public class LibrarySyncService : ILibrarySyncProcessor
             }
 
             moves.Add(new MoveUpdate(
-                source.Id,
+                source.PostId,
+                source.PostFileId,
                 source.RelativePath,
                 candidate.RelativePath,
                 candidate.Hash,
@@ -547,7 +554,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
                 candidate.FileIdentityValue));
 
             movedOldPaths.Add(source.RelativePath);
-            movedPostIds.Add(source.Id);
+            movedPostFileIds.Add(source.PostFileId);
             state.SeenPaths.TryAdd(source.RelativePath, 0);
         }
 
@@ -566,8 +573,12 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         var newPosts = await dbContext.Posts
             .AsNoTracking()
-            .Where(p => p.LibraryId == libraryId && newRelativePaths.Contains(p.RelativePath))
-            .Select(p => new { p.Id, p.ContentHash })
+            .Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId && newRelativePaths.Contains(pf.RelativePath)))
+            .Select(p => new
+            {
+                p.Id,
+                ContentHash = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty
+            })
             .ToListAsync(cancellationToken);
 
         if (newPosts.Count == 0)
@@ -590,9 +601,15 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var donorAssignments = await dbContext.PostTags
             .AsNoTracking()
             .Where(pt => pt.Source != PostTagSource.Folder
-                && pt.Post.LibraryId == libraryId
-                && hashSet.Contains(pt.Post.ContentHash))
-            .Select(pt => new { pt.PostId, pt.Post.ContentHash, pt.TagId, pt.Source })
+                && pt.Post.PostFiles.Any(pf => pf.LibraryId == libraryId)
+                && hashSet.Contains(pt.Post.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty))
+            .Select(pt => new
+            {
+                pt.PostId,
+                ContentHash = pt.Post.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
+                pt.TagId,
+                pt.Source
+            })
             .ToListAsync(cancellationToken);
 
         if (donorAssignments.Count == 0)
@@ -657,30 +674,236 @@ public class LibrarySyncService : ILibrarySyncProcessor
         return await _hasher.ComputeContentHashAsync(filePath, cancellationToken);
     }
 
-    private async Task EnqueuePostAsync(
+    private async Task<List<int>> ApplyPostFileUpdateAsync(
+        DamebooruDbContext dbContext,
         Library library,
-        MediaSourceItem item,
-        string hash,
-        string? fileIdentityDevice,
-        string? fileIdentityValue,
+        PostFileUpdateCandidate update,
         CancellationToken cancellationToken)
     {
-        var contentType = SupportedMedia.GetMimeType(Path.GetExtension(item.RelativePath));
+        var postFile = await dbContext.PostFiles
+            .Include(pf => pf.Post)
+                .ThenInclude(p => p.PostFiles)
+            .FirstOrDefaultAsync(pf => pf.Id == update.PostFileId, cancellationToken);
 
-        var post = new Post
+        if (postFile == null)
+        {
+            return [];
+        }
+
+        var oldPostId = postFile.PostId;
+        var affectedPostIds = new HashSet<int> { oldPostId };
+        var newContentType = SupportedMedia.GetMimeType(Path.GetExtension(postFile.RelativePath));
+
+        if (update.HashChanged)
+        {
+            var canonicalPost = await FindCanonicalPostByHashAsync(dbContext, update.NewHash, cancellationToken);
+            if (canonicalPost != null && canonicalPost.Id != postFile.PostId)
+            {
+                postFile.PostId = canonicalPost.Id;
+                affectedPostIds.Add(canonicalPost.Id);
+            }
+            else if (canonicalPost == null)
+            {
+                var replacementPost = CreatePostEntity(
+                    libraryId: library.Id,
+                    relativePath: postFile.RelativePath,
+                    hash: update.NewHash,
+                    sizeBytes: update.NewSize,
+                    fileModifiedDate: update.NewMtime,
+                    fileIdentityDevice: update.FileIdentityDevice,
+                    fileIdentityValue: update.FileIdentityValue,
+                    contentType: newContentType,
+                    importDateUtc: DateTime.UtcNow);
+
+                dbContext.Posts.Add(replacementPost);
+                postFile.Post = replacementPost;
+            }
+
+            postFile.Width = 0;
+            postFile.Height = 0;
+            postFile.PdqHash256 = null;
+        }
+
+        postFile.ContentHash = update.NewHash;
+        postFile.SizeBytes = update.NewSize;
+        postFile.FileModifiedDate = update.NewMtime;
+        postFile.FileIdentityDevice = update.FileIdentityDevice;
+        postFile.FileIdentityValue = update.FileIdentityValue;
+        postFile.ContentType = newContentType;
+
+        if (postFile.PostId != 0)
+        {
+            affectedPostIds.Add(postFile.PostId);
+        }
+
+        return affectedPostIds.ToList();
+    }
+
+    private async Task<List<int>> ApplyMoveAsync(
+        DamebooruDbContext dbContext,
+        MoveUpdate move,
+        CancellationToken cancellationToken)
+    {
+        var postFile = await dbContext.PostFiles
+            .FirstOrDefaultAsync(pf => pf.Id == move.PostFileId, cancellationToken);
+
+        if (postFile == null)
+        {
+            return [];
+        }
+
+        postFile.RelativePath = move.NewRelativePath;
+        postFile.ContentHash = move.Hash;
+        postFile.SizeBytes = move.NewSize;
+        postFile.FileModifiedDate = move.NewMtime;
+        postFile.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(move.NewRelativePath));
+        postFile.FileIdentityDevice = move.FileIdentityDevice;
+        postFile.FileIdentityValue = move.FileIdentityValue;
+
+        return [move.PostId];
+    }
+
+    private async Task<int> PersistNewFileAsync(
+        DamebooruDbContext dbContext,
+        Library library,
+        NewFileCandidate candidate,
+        CancellationToken cancellationToken)
+    {
+        var canonicalPost = await FindCanonicalPostByHashAsync(dbContext, candidate.Hash, cancellationToken);
+        var contentType = SupportedMedia.GetMimeType(Path.GetExtension(candidate.RelativePath));
+
+        if (canonicalPost == null)
+        {
+            var post = CreatePostEntity(
+                library.Id,
+                candidate.RelativePath,
+                candidate.Hash,
+                candidate.SizeBytes,
+                candidate.LastModifiedUtc,
+                candidate.FileIdentityDevice,
+                candidate.FileIdentityValue,
+                contentType,
+                DateTime.UtcNow);
+
+            post.PostFiles.Add(new PostFile
+            {
+                LibraryId = library.Id,
+                RelativePath = candidate.RelativePath,
+                ContentHash = candidate.Hash,
+                SizeBytes = candidate.SizeBytes,
+                FileModifiedDate = candidate.LastModifiedUtc,
+                FileIdentityDevice = candidate.FileIdentityDevice,
+                FileIdentityValue = candidate.FileIdentityValue,
+                ContentType = contentType,
+            });
+
+            dbContext.Posts.Add(post);
+            return post.Id;
+        }
+
+        var newPostFile = new PostFile
         {
             LibraryId = library.Id,
-            RelativePath = item.RelativePath,
-            ContentHash = hash,
-            SizeBytes = item.SizeBytes,
-            FileModifiedDate = item.LastModifiedUtc,
-            FileIdentityDevice = fileIdentityDevice,
-            FileIdentityValue = fileIdentityValue,
+            RelativePath = candidate.RelativePath,
+            ContentHash = candidate.Hash,
+            SizeBytes = candidate.SizeBytes,
+            FileModifiedDate = candidate.LastModifiedUtc,
+            FileIdentityDevice = candidate.FileIdentityDevice,
+            FileIdentityValue = candidate.FileIdentityValue,
             ContentType = contentType,
-            ImportDate = DateTime.UtcNow,
         };
 
-        await _ingestionService.EnqueuePostAsync(post, cancellationToken);
+        // Newly created canonical posts can still be tracked with Id = 0 until SaveChanges.
+        // Attach through the navigation in that case so EF inserts the parent first.
+        if (canonicalPost.Id == 0)
+        {
+            canonicalPost.PostFiles.Add(newPostFile);
+        }
+        else
+        {
+            newPostFile.PostId = canonicalPost.Id;
+            dbContext.PostFiles.Add(newPostFile);
+        }
+
+        return canonicalPost.Id;
+    }
+
+    private async Task<Post?> FindCanonicalPostByHashAsync(
+        DamebooruDbContext dbContext,
+        string hash,
+        CancellationToken cancellationToken)
+    {
+        var tracked = dbContext.Posts.Local
+            .Where(p => p.PostFiles.Any(pf => string.Equals(pf.ContentHash, hash, StringComparison.OrdinalIgnoreCase)))
+            .OrderBy(p => p.ImportDate)
+            .ThenBy(p => p.Id)
+            .FirstOrDefault();
+
+        if (tracked != null)
+        {
+            return tracked;
+        }
+
+        var postId = await dbContext.Posts
+            .Where(p => p.PostFiles.Any(pf => pf.ContentHash == hash))
+            .OrderBy(p => p.ImportDate)
+            .ThenBy(p => p.Id)
+            .Select(p => p.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (postId == 0)
+        {
+            return null;
+        }
+
+        return await dbContext.Posts
+            .Include(p => p.PostFiles)
+            .FirstAsync(p => p.Id == postId, cancellationToken);
+    }
+
+    private async Task RefreshLegacyPostRecordsAsync(
+        DamebooruDbContext dbContext,
+        IReadOnlyCollection<int> postIds,
+        CancellationToken cancellationToken)
+    {
+        if (postIds.Count == 0)
+        {
+            return;
+        }
+
+        var posts = await dbContext.Posts
+            .Include(p => p.PostFiles)
+            .Where(p => postIds.Contains(p.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var post in posts)
+        {
+            var representativeFile = post.PostFiles
+                .OrderBy(pf => pf.Id)
+                .FirstOrDefault();
+
+            if (representativeFile == null)
+            {
+                dbContext.Posts.Remove(post);
+            }
+        }
+    }
+
+    private static Post CreatePostEntity(
+        int libraryId,
+        string relativePath,
+        string hash,
+        long sizeBytes,
+        DateTime fileModifiedDate,
+        string? fileIdentityDevice,
+        string? fileIdentityValue,
+        string contentType,
+        DateTime importDateUtc)
+    {
+        return new Post
+        {
+            ImportDate = importDateUtc,
+        };
     }
 
     private static string? BuildIdentityKey(string? device, string? value)

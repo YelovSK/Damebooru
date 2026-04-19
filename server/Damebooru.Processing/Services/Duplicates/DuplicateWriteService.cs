@@ -3,6 +3,7 @@ using Damebooru.Core.Entities;
 using Damebooru.Core.Paths;
 using Damebooru.Core.Results;
 using Damebooru.Data;
+using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace Damebooru.Processing.Services.Duplicates;
@@ -13,11 +14,13 @@ public class DuplicateWriteService
 
     private readonly DamebooruDbContext _context;
     private readonly DuplicateReadService _duplicateReadService;
+    private readonly FolderTaggingService _folderTaggingService;
 
-    public DuplicateWriteService(DamebooruDbContext context, DuplicateReadService duplicateReadService)
+    public DuplicateWriteService(DamebooruDbContext context, DuplicateReadService duplicateReadService, FolderTaggingService folderTaggingService)
     {
         _context = context;
         _duplicateReadService = duplicateReadService;
+        _folderTaggingService = folderTaggingService;
     }
 
     public async Task<Result> KeepAllAsync(int groupId)
@@ -81,7 +84,8 @@ public class DuplicateWriteService
         var group = await _context.DuplicateGroups
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Library)
+                    .ThenInclude(p => p.PostFiles)
+                        .ThenInclude(pf => pf.Library)
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
                     .ThenInclude(p => p.PostTags)
@@ -111,7 +115,8 @@ public class DuplicateWriteService
             .Where(g => g.Id == groupId && !g.IsResolved)
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Library)
+                    .ThenInclude(p => p.PostFiles)
+                        .ThenInclude(pf => pf.Library)
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
                     .ThenInclude(p => p.PostTags)
@@ -135,76 +140,6 @@ public class DuplicateWriteService
         var keepPostId = SelectBestQualityPostId(group.Entries.Select(e => e.Post));
         await ResolveGroupKeepingPostAsync(group, keepPostId);
         return Result.Success();
-    }
-
-    public async Task<ResolveAllExactResponseDto> ResolveAllExactAsync()
-    {
-        var exactGroups = await _context.DuplicateGroups
-            .Where(g => !g.IsResolved && g.Type == DuplicateType.Exact)
-            .Include(g => g.Entries)
-                .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Library)
-            .Include(g => g.Entries)
-                .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.PostTags)
-            .Include(g => g.Entries)
-                .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Sources)
-            .ToListAsync();
-
-        if (exactGroups.Count == 0)
-        {
-            return new ResolveAllExactResponseDto { Resolved = 0 };
-        }
-
-        var resolved = 0;
-        foreach (var group in exactGroups)
-        {
-            var keepPostId = SelectBestQualityPostId(group.Entries.Select(e => e.Post));
-            await ResolveGroupKeepingPostAsync(group, keepPostId, saveChanges: false);
-            resolved++;
-        }
-
-        await _context.SaveChangesAsync();
-        return new ResolveAllExactResponseDto { Resolved = resolved };
-    }
-
-    public async Task<ResolveAllExactResponseDto> ResolveAllAsync(CancellationToken cancellationToken = default)
-    {
-        var groups = await _context.DuplicateGroups
-            .Where(g => !g.IsResolved)
-            .Include(g => g.Entries)
-                .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Library)
-            .Include(g => g.Entries)
-                .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.PostTags)
-            .Include(g => g.Entries)
-                .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Sources)
-            .ToListAsync(cancellationToken);
-
-        if (groups.Count == 0)
-        {
-            return new ResolveAllExactResponseDto { Resolved = 0 };
-        }
-
-        var resolved = 0;
-        foreach (var group in groups)
-        {
-            if (group.Entries.Count < 2)
-            {
-                _context.DuplicateGroups.Remove(group);
-                continue;
-            }
-
-            var keepPostId = SelectBestQualityPostId(group.Entries.Select(e => e.Post));
-            await ResolveGroupKeepingPostAsync(group, keepPostId, saveChanges: false);
-            resolved++;
-        }
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return new ResolveAllExactResponseDto { Resolved = resolved };
     }
 
     public async Task<Result<ResolveSameFolderResponseDto>> ResolveSameFolderGroupAsync(
@@ -232,53 +167,112 @@ public class DuplicateWriteService
         return await ResolveSameFolderPartitionAsync(partitionResult.Value!, cancellationToken);
     }
 
-    public async Task<Result<ResolveSameFolderResponseDto>> ResolveAllSameFolderAsync(bool exactOnly = false, CancellationToken cancellationToken = default)
+    public async Task<Result> ExcludeExactDuplicateFileAsync(int postFileId, CancellationToken cancellationToken = default)
     {
-        var groups = await _duplicateReadService.GetSameFolderDuplicateGroupsAsync(cancellationToken);
-        if (exactOnly)
+        var postFile = await _context.PostFiles
+            .Include(pf => pf.Library)
+            .Include(pf => pf.Post)
+                .ThenInclude(p => p.PostFiles)
+            .FirstOrDefaultAsync(pf => pf.Id == postFileId, cancellationToken);
+
+        if (postFile == null)
         {
-            groups = groups.Where(g => g.DuplicateType == DuplicateType.Exact).ToList();
+            return Result.Failure(OperationError.NotFound, "Duplicate file not found.");
         }
 
-        if (groups.Count == 0)
+        if (postFile.Post.PostFiles.Count <= 1)
         {
-            return Result<ResolveSameFolderResponseDto>.Success(new ResolveSameFolderResponseDto());
+            return Result.Failure(OperationError.InvalidInput, "Cannot exclude the last remaining file on a post.");
         }
 
-        var summary = new ResolveSameFolderResponseDto();
-        foreach (var group in groups)
-        {
-            var partitionResult = await LoadSameFolderPartitionAsync(
-                group.ParentDuplicateGroupId,
-                group.LibraryId,
-                group.FolderPath,
-                cancellationToken);
+        await using var transaction = await _context.Database.BeginTransactionAsync(CancellationToken.None);
 
-            if (!partitionResult.IsSuccess)
+        var alreadyExcluded = await _context.ExcludedFiles.AnyAsync(
+            e => e.LibraryId == postFile.LibraryId && e.RelativePath == postFile.RelativePath,
+            cancellationToken);
+
+        if (!alreadyExcluded)
+        {
+            _context.ExcludedFiles.Add(new ExcludedFile
             {
-                if (partitionResult.Error == OperationError.NotFound || partitionResult.Error == OperationError.InvalidInput)
-                {
-                    summary.SkippedGroups++;
-                    continue;
-                }
-
-                return Result<ResolveSameFolderResponseDto>.Failure(
-                    partitionResult.Error ?? OperationError.InvalidInput,
-                    partitionResult.Message ?? "Request failed.");
-            }
-
-            var resolveResult = await ResolveSameFolderPartitionAsync(partitionResult.Value!, cancellationToken);
-            if (!resolveResult.IsSuccess)
-            {
-                return resolveResult;
-            }
-
-            summary.ResolvedGroups += resolveResult.Value!.ResolvedGroups;
-            summary.DeletedPosts += resolveResult.Value.DeletedPosts;
-            summary.SkippedGroups += resolveResult.Value.SkippedGroups;
+                LibraryId = postFile.LibraryId,
+                RelativePath = postFile.RelativePath,
+                ContentHash = postFile.ContentHash,
+                ExcludedDate = DateTime.UtcNow,
+                Reason = "duplicate_resolution"
+            });
         }
 
-        return Result<ResolveSameFolderResponseDto>.Success(summary);
+        var affectedPostId = postFile.PostId;
+        _context.PostFiles.Remove(postFile);
+        await _context.SaveChangesAsync(CancellationToken.None);
+        await _folderTaggingService.SyncPostFolderTagsAsync(_context, [affectedPostId], CancellationToken.None);
+        await _context.SaveChangesAsync(CancellationToken.None);
+        await transaction.CommitAsync(CancellationToken.None);
+
+        return Result.Success();
+    }
+
+    public async Task<Result> DeleteExactDuplicateFileAsync(int postFileId, CancellationToken cancellationToken = default)
+    {
+        var postFile = await _context.PostFiles
+            .Include(pf => pf.Library)
+            .Include(pf => pf.Post)
+                .ThenInclude(p => p.PostFiles)
+            .FirstOrDefaultAsync(pf => pf.Id == postFileId, cancellationToken);
+
+        if (postFile == null)
+        {
+            return Result.Failure(OperationError.NotFound, "Duplicate file not found.");
+        }
+
+        if (!SafeSubpathResolver.TryResolve(postFile.Library.Path, postFile.RelativePath, out var fullPath))
+        {
+            return Result.Failure(OperationError.InvalidInput, "Invalid file path.");
+        }
+
+        try
+        {
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Result.Failure(OperationError.Conflict, $"Failed to delete file from disk: {ex.Message}");
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(CancellationToken.None);
+        var affectedPostId = postFile.PostId;
+        var affectedGroupIds = await CollectAffectedGroupIdsAsync([affectedPostId], cancellationToken);
+
+        var excluded = _context.ExcludedFiles
+            .Where(e => e.LibraryId == postFile.LibraryId && e.RelativePath == postFile.RelativePath);
+        _context.ExcludedFiles.RemoveRange(excluded);
+        _context.PostFiles.Remove(postFile);
+        await _context.SaveChangesAsync(CancellationToken.None);
+
+        var hasRemainingFiles = await _context.PostFiles.AnyAsync(pf => pf.PostId == affectedPostId, CancellationToken.None);
+        if (!hasRemainingFiles)
+        {
+            var post = await _context.Posts.FindAsync([affectedPostId], CancellationToken.None);
+            if (post != null)
+            {
+                _context.Posts.Remove(post);
+                await _context.SaveChangesAsync(CancellationToken.None);
+            }
+        }
+        else
+        {
+            await _folderTaggingService.SyncPostFolderTagsAsync(_context, [affectedPostId], CancellationToken.None);
+            await _context.SaveChangesAsync(CancellationToken.None);
+        }
+
+        await ReconcileDuplicateGroupsAsync(affectedGroupIds, CancellationToken.None);
+
+        await transaction.CommitAsync(CancellationToken.None);
+        return Result.Success();
     }
 
     public async Task<Result> ExcludeDuplicatePostAsync(int groupId, int postId, CancellationToken cancellationToken = default)
@@ -286,7 +280,8 @@ public class DuplicateWriteService
         var group = await _context.DuplicateGroups
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Library)
+                    .ThenInclude(p => p.PostFiles)
+                        .ThenInclude(pf => pf.Library)
             .FirstOrDefaultAsync(g => g.Id == groupId, cancellationToken);
 
         if (group == null)
@@ -306,9 +301,19 @@ public class DuplicateWriteService
         }
 
         var postToExclude = entryToExclude.Post;
+        var representativeFile = GetRepresentativeFile(postToExclude);
+        if (representativeFile == null)
+        {
+            return Result.Failure(OperationError.InvalidInput, "Post has no files.");
+        }
+
+        if (postToExclude.PostFiles.Count != 1)
+        {
+            return Result.Failure(OperationError.Conflict, "Cannot exclude a duplicate post that spans multiple files yet.");
+        }
 
         var alreadyExcluded = await _context.ExcludedFiles.AnyAsync(
-            e => e.LibraryId == postToExclude.LibraryId && e.RelativePath == postToExclude.RelativePath,
+            e => e.LibraryId == representativeFile.LibraryId && e.RelativePath == representativeFile.RelativePath,
             cancellationToken);
 
         var affectedGroupIds = await CollectAffectedGroupIdsAsync([postId], cancellationToken);
@@ -319,9 +324,9 @@ public class DuplicateWriteService
         {
             _context.ExcludedFiles.Add(new ExcludedFile
             {
-                LibraryId = postToExclude.LibraryId,
-                RelativePath = postToExclude.RelativePath,
-                ContentHash = postToExclude.ContentHash,
+                LibraryId = representativeFile.LibraryId,
+                RelativePath = representativeFile.RelativePath,
+                ContentHash = representativeFile.ContentHash,
                 ExcludedDate = DateTime.UtcNow,
                 Reason = "duplicate_resolution"
             });
@@ -341,7 +346,8 @@ public class DuplicateWriteService
         var group = await _context.DuplicateGroups
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Library)
+                    .ThenInclude(p => p.PostFiles)
+                        .ThenInclude(pf => pf.Library)
             .FirstOrDefaultAsync(g => g.Id == groupId, cancellationToken);
 
         if (group == null)
@@ -361,6 +367,11 @@ public class DuplicateWriteService
         }
 
         var postToDelete = entryToDelete.Post;
+
+        if (postToDelete.PostFiles.Count != 1)
+        {
+            return Result.Failure(OperationError.Conflict, "Cannot delete a duplicate post that spans multiple files yet.");
+        }
 
         if (!HasSameFolderPeer(group.Entries.Select(e => e.Post), postToDelete))
         {
@@ -404,7 +415,18 @@ public class DuplicateWriteService
 
     private Result DeletePostFromDiskAndDb(Post post)
     {
-        if (!SafeSubpathResolver.TryResolve(post.Library.Path, post.RelativePath, out var fullPath))
+        var representativeFile = GetRepresentativeFile(post);
+        if (representativeFile == null)
+        {
+            return Result.Failure(OperationError.InvalidInput, "Post has no files.");
+        }
+
+        if (post.PostFiles.Count != 1)
+        {
+            return Result.Failure(OperationError.Conflict, "Cannot delete a post that spans multiple files from this workflow yet.");
+        }
+
+        if (!SafeSubpathResolver.TryResolve(representativeFile.Library.Path, representativeFile.RelativePath, out var fullPath))
         {
             return Result.Failure(OperationError.InvalidInput, "Invalid file path.");
         }
@@ -422,7 +444,7 @@ public class DuplicateWriteService
         }
 
         var excluded = _context.ExcludedFiles
-            .Where(e => e.LibraryId == post.LibraryId && e.RelativePath == post.RelativePath);
+            .Where(e => e.LibraryId == representativeFile.LibraryId && e.RelativePath == representativeFile.RelativePath);
         _context.ExcludedFiles.RemoveRange(excluded);
         _context.Posts.Remove(post);
 
@@ -476,15 +498,15 @@ public class DuplicateWriteService
             }
 
             var alreadyExcluded = await _context.ExcludedFiles.AnyAsync(
-                e => e.LibraryId == post.LibraryId && e.RelativePath == post.RelativePath);
+                e => e.LibraryId == GetRepresentativeLibraryId(post) && e.RelativePath == GetRepresentativeRelativePath(post));
 
             if (!alreadyExcluded)
             {
                 _context.ExcludedFiles.Add(new ExcludedFile
                 {
-                    LibraryId = post.LibraryId,
-                    RelativePath = post.RelativePath,
-                    ContentHash = post.ContentHash,
+                    LibraryId = GetRepresentativeLibraryId(post),
+                    RelativePath = GetRepresentativeRelativePath(post),
+                    ContentHash = GetRepresentativeContentHash(post),
                     ExcludedDate = DateTime.UtcNow,
                     Reason = "duplicate_resolution"
                 });
@@ -511,7 +533,8 @@ public class DuplicateWriteService
             .Where(g => g.Id == parentDuplicateGroupId && !g.IsResolved)
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
-                    .ThenInclude(p => p.Library)
+                    .ThenInclude(p => p.PostFiles)
+                        .ThenInclude(pf => pf.Library)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (group == null)
@@ -522,7 +545,7 @@ public class DuplicateWriteService
         var normalizedFolderPath = DuplicatePathHelper.NormalizeFolderPath(folderPath);
         var partitionPosts = group.Entries
             .Select(e => e.Post)
-            .Where(p => p.LibraryId == libraryId && DuplicatePathHelper.GetParentFolderPath(p.RelativePath) == normalizedFolderPath)
+            .Where(p => GetRepresentativeLibraryId(p) == libraryId && DuplicatePathHelper.GetParentFolderPath(GetRepresentativeRelativePath(p)) == normalizedFolderPath)
             .ToList();
 
         if (partitionPosts.Count < 2)
@@ -536,9 +559,9 @@ public class DuplicateWriteService
     private int SelectBestQualityPostId(IEnumerable<Post> posts)
     {
         return posts
-            .OrderByDescending(p => (long)p.Width * p.Height)
-            .ThenByDescending(p => p.SizeBytes)
-            .ThenByDescending(p => p.FileModifiedDate)
+            .OrderByDescending(p => (long)GetRepresentativeWidth(p) * GetRepresentativeHeight(p))
+            .ThenByDescending(GetRepresentativeSizeBytes)
+            .ThenByDescending(GetRepresentativeFileModifiedDate)
             .ThenByDescending(p => p.Id)
             .Select(p => p.Id)
             .First();
@@ -546,12 +569,36 @@ public class DuplicateWriteService
 
     private bool HasSameFolderPeer(IEnumerable<Post> posts, Post target)
     {
-        var targetFolderPath = DuplicatePathHelper.GetParentFolderPath(target.RelativePath);
+        var targetFolderPath = DuplicatePathHelper.GetParentFolderPath(GetRepresentativeRelativePath(target));
         return posts.Any(post =>
             post.Id != target.Id
-            && post.LibraryId == target.LibraryId
-            && DuplicatePathHelper.GetParentFolderPath(post.RelativePath) == targetFolderPath);
+            && GetRepresentativeLibraryId(post) == GetRepresentativeLibraryId(target)
+            && DuplicatePathHelper.GetParentFolderPath(GetRepresentativeRelativePath(post)) == targetFolderPath);
     }
+
+    private static PostFile? GetRepresentativeFile(Post post)
+        => post.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault();
+
+    private static int GetRepresentativeLibraryId(Post post)
+        => GetRepresentativeFile(post)?.LibraryId ?? 0;
+
+    private static string GetRepresentativeRelativePath(Post post)
+        => GetRepresentativeFile(post)?.RelativePath ?? string.Empty;
+
+    private static string GetRepresentativeContentHash(Post post)
+        => GetRepresentativeFile(post)?.ContentHash ?? string.Empty;
+
+    private static int GetRepresentativeWidth(Post post)
+        => GetRepresentativeFile(post)?.Width ?? 0;
+
+    private static int GetRepresentativeHeight(Post post)
+        => GetRepresentativeFile(post)?.Height ?? 0;
+
+    private static long GetRepresentativeSizeBytes(Post post)
+        => GetRepresentativeFile(post)?.SizeBytes ?? 0;
+
+    private static DateTime GetRepresentativeFileModifiedDate(Post post)
+        => GetRepresentativeFile(post)?.FileModifiedDate ?? default;
 
     private async Task<List<int>> CollectAffectedGroupIdsAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken)
     {

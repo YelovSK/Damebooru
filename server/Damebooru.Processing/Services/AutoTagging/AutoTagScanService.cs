@@ -42,7 +42,12 @@ public sealed class AutoTagScanService
         var post = await _db.Posts
             .AsNoTracking()
             .Where(p => p.Id == postId)
-            .Select(p => new PostScanTarget(p.Id, p.LibraryId, p.RelativePath, p.ContentHash, p.ContentType))
+            .Select(p => new PostScanTarget(
+                p.Id,
+                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
+                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
+                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
+                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentType).FirstOrDefault() ?? string.Empty))
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException($"Post {postId} was not found.");
 
@@ -303,11 +308,13 @@ public sealed class AutoTagScanService
     private static AutoTagExecutionDirective? HandleStepFailure(PostAutoTagScanStep step, Exception exception)
     {
         var providerException = exception as ExternalProviderException;
-        step.Status = providerException?.IsRetryable == true
+        var isRetryable = providerException?.IsRetryable == true || IsTransientException(exception);
+
+        step.Status = isRetryable
             ? AutoTagScanStepStatus.RetryableFailure
             : AutoTagScanStepStatus.PermanentFailure;
         step.LastError = exception.Message;
-        step.NextRetryAtUtc = providerException?.IsRetryable == true
+        step.NextRetryAtUtc = isRetryable
             ? DateTime.UtcNow.Add(providerException.RetryAfter ?? TimeSpan.FromMinutes(Math.Min(60, Math.Max(1, step.AttemptCount * 5))))
             : null;
 
@@ -315,6 +322,11 @@ public sealed class AutoTagScanService
             ? null
             : new AutoTagExecutionDirective(providerException.Provider, providerException.Message, providerException.RetryAfter, providerException.StopCurrentRun);
     }
+
+    private static bool IsTransientException(Exception exception)
+        => exception is HttpRequestException
+            || exception is TimeoutException
+            || exception is TaskCanceledException;
 
     private static bool CanAutoTag(PostScanTarget post)
         => post.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)

@@ -26,9 +26,18 @@ public class PostContentService
             .Where(p => p.Id == id)
             .Select(p => new
             {
-                p.RelativePath,
-                p.ContentType,
-                LibraryPath = p.Library.Path
+                RelativePath = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.RelativePath)
+                    .FirstOrDefault() ?? string.Empty,
+                ContentType = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.ContentType)
+                    .FirstOrDefault() ?? string.Empty,
+                LibraryPath = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.Library.Path)
+                    .FirstOrDefault() ?? string.Empty
             })
             .FirstOrDefaultAsync(cancellationToken);
 

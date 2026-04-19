@@ -10,6 +10,8 @@ import {
   DuplicateType,
   DamebooruPostDto,
   DuplicateGroup,
+  ExactDuplicateCluster,
+  ExactDuplicateFile,
   DuplicateLookupMatch,
   DuplicateLookupResponse,
   DuplicatePost,
@@ -26,13 +28,13 @@ import { ToastService } from '@services/toast.service';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
-import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
 import { SettingsService } from '@services/settings.service';
 import { computeLookupContentHash } from './lookup-hash';
 
 type DuplicateScope = 'all' | 'same-folder';
+type DuplicateViewFilter = 'all' | 'same-folder' | 'different-folder';
 
 interface VisibleDuplicatePost {
   id: number;
@@ -62,7 +64,7 @@ interface VisibleDuplicateGroup {
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, FormCheckboxComponent, PaginatorComponent, PostPreviewOverlayComponent],
+  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, PaginatorComponent, PostPreviewOverlayComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
 })
@@ -94,6 +96,7 @@ export class DuplicatesPageComponent {
   });
 
   groups = signal<DuplicateGroup[]>([]);
+  exactClusters = signal<ExactDuplicateCluster[]>([]);
   exactCount = signal(0);
   perceptualCount = signal(0);
 
@@ -114,12 +117,16 @@ export class DuplicatesPageComponent {
   readonly lookupPerceptualReason = computed(() => this.lookupResult()?.perceptualUnavailableReason ?? null);
   readonly lookupHasResults = computed(() => this.lookupResult() !== null);
 
-  showSameFolderOnly = signal(false);
+  exactViewFilter = signal<DuplicateViewFilter>('all');
+  perceptualViewFilter = signal<DuplicateViewFilter>('all');
   previewPost = signal<DamebooruPostDto | null>(null);
   readonly visiblePageSize = 25;
+  exactPage = signal(1);
   visiblePage = signal(1);
   readonly resolvedPageSize = 25;
   resolvedPage = signal(1);
+  private exactTabInitialized = false;
+  private perceptualTabInitialized = false;
   private groupsTabInitialized = false;
   private resolvedTabInitialized = false;
   private excludedTabInitialized = false;
@@ -131,12 +138,32 @@ export class DuplicatesPageComponent {
     this.destroyRef.onDestroy(() => this.revokeLookupPreviewUrl());
   }
 
+  onExactTabInit() {
+    if (this.exactTabInitialized) {
+      return;
+    }
+
+    this.exactTabInitialized = true;
+    this.loadExactClusters();
+  }
+
+  onPerceptualTabInit() {
+    if (this.perceptualTabInitialized) {
+      return;
+    }
+
+    this.perceptualTabInitialized = true;
+    this.loadGroups();
+    this.loadSameFolderGroups();
+  }
+
   onGroupsTabInit() {
     if (this.groupsTabInitialized) {
       return;
     }
 
     this.groupsTabInitialized = true;
+    this.loadExactClusters();
     this.loadGroups();
     this.loadSameFolderGroups();
   }
@@ -157,6 +184,16 @@ export class DuplicatesPageComponent {
 
     this.excludedTabInitialized = true;
     this.loadExcludedFiles();
+  }
+
+  onExactViewFilterChange(filter: DuplicateViewFilter) {
+    this.exactViewFilter.set(filter);
+    this.exactPage.set(1);
+  }
+
+  onPerceptualViewFilterChange(filter: DuplicateViewFilter) {
+    this.perceptualViewFilter.set(filter);
+    this.visiblePage.set(1);
   }
 
   onLookupFileInputChange(event: Event) {
@@ -248,16 +285,11 @@ export class DuplicatesPageComponent {
     return `${match.id}:${match.similarityPercent ?? 'exact'}`;
   }
 
-  onSameFolderOnlyChange(checked: boolean) {
-    this.showSameFolderOnly.set(checked);
-    this.visiblePage.set(1);
-  }
-
   readonly visibleGroups = computed<VisibleDuplicateGroup[]>(() => {
-    if (this.showSameFolderOnly()) {
+    if (this.perceptualViewFilter() === 'same-folder') {
       return this.sameFolderGroups().map(group => ({
         key: `${group.parentDuplicateGroupId}:${group.libraryId}:${group.folderPath}`,
-        scope: 'same-folder',
+        scope: 'same-folder' as const,
         duplicateGroupId: group.parentDuplicateGroupId,
         type: group.duplicateType,
         similarityPercent: group.similarityPercent,
@@ -276,15 +308,19 @@ export class DuplicatesPageComponent {
           thumbnailContentHash: post.thumbnailContentHash,
           isRecommendedKeep: post.id === group.recommendedKeepPostId,
         })),
-      }));
+      })).filter(group => group.type === DuplicateType.Perceptual);
     }
 
-    return this.groups().map(group => {
+    const filteredGroups = this.groups()
+      .filter(group => group.type === DuplicateType.Perceptual)
+      .filter(group => this.perceptualViewFilter() !== 'different-folder' || group.hasCrossFolderDuplicates);
+
+    return filteredGroups.map(group => {
       const recommendedKeepPostId = this.selectBestQualityVisiblePostId(group.posts);
 
       return {
         key: `${group.id}`,
-        scope: 'all',
+        scope: 'all' as const,
         duplicateGroupId: group.id,
         type: group.type,
         similarityPercent: group.similarityPercent,
@@ -305,6 +341,24 @@ export class DuplicatesPageComponent {
         })),
       };
     });
+  });
+
+  readonly filteredExactClusters = computed(() => this.exactClusters().filter(cluster => {
+    const filter = this.exactViewFilter();
+    return filter === 'all'
+      || (filter === 'same-folder' && cluster.hasSameFolderDuplicates)
+      || (filter === 'different-folder' && cluster.hasCrossFolderDuplicates);
+  }));
+
+  readonly exactTotalPages = computed(() =>
+    Math.max(1, Math.ceil(this.filteredExactClusters().length / this.visiblePageSize)));
+
+  readonly exactCurrentPage = computed(() =>
+    Math.min(this.exactPage(), this.exactTotalPages()));
+
+  readonly pagedExactClusters = computed(() => {
+    const start = (this.exactCurrentPage() - 1) * this.visiblePageSize;
+    return this.filteredExactClusters().slice(start, start + this.visiblePageSize);
   });
 
   readonly visibleStats = computed(() => {
@@ -372,24 +426,20 @@ export class DuplicatesPageComponent {
     return this.visibleStats().perceptualCount;
   }
 
-  canBulkResolveVisible(): boolean {
-    return this.visibleStats().groupCount > 0;
+  getExactClusterCount(): number {
+    return this.filteredExactClusters().length;
   }
 
-  getBulkResolveButtonLabel(): string {
-    return `Auto Resolve All (${this.visibleStats().groupCount} groups)`;
+  getExactFileCount(): number {
+    return this.filteredExactClusters().reduce((sum, cluster) => sum + cluster.fileCount, 0);
   }
 
-  getBulkResolveButtonClass(): string {
-    return this.showSameFolderOnly()
-      ? 'bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded transition-colors'
-      : 'bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded transition-colors';
+  getExactSameFolderCount(): number {
+    return this.exactClusters().filter(cluster => cluster.hasSameFolderDuplicates).length;
   }
 
-  getBulkResolveHint(): string {
-    return this.showSameFolderOnly()
-      ? 'Keeps highest-quality post and deletes others from disk'
-      : 'Keeps highest-quality post and removes others from booru';
+  getExactCrossFolderCount(): number {
+    return this.exactClusters().filter(cluster => cluster.hasCrossFolderDuplicates).length;
   }
 
   isSameFolderScope(group: VisibleDuplicateGroup): boolean {
@@ -397,20 +447,15 @@ export class DuplicatesPageComponent {
   }
 
   getFolderDisplayPath(group: VisibleDuplicateGroup): string {
-    if (!group.folderPath) {
+    return this.formatFolderPath(group.folderPath);
+  }
+
+  formatFolderPath(folderPath: string | null | undefined): string {
+    if (!folderPath) {
       return '(library root)';
     }
 
-    return group.folderPath;
-  }
-
-  resolveAllVisible() {
-    if (this.showSameFolderOnly()) {
-      this.resolveAllSameFolder();
-      return;
-    }
-
-    this.resolveAllGroups();
+    return this.formatPathSegments(folderPath);
   }
 
   onAutoResolveGroup(group: VisibleDuplicateGroup) {
@@ -524,6 +569,44 @@ export class DuplicatesPageComponent {
     });
   }
 
+  onExcludeExactFile(file: ExactDuplicateFile) {
+    this.confirmService.confirm({
+      title: 'Exclude File',
+      message: `Exclude "${getFileNameFromPath(file.relativePath)}" from the board? The file will remain on disk and will not be imported again.`,
+      confirmText: 'Exclude',
+      variant: 'warning',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.damebooru.excludeExactDuplicateFile(file.postFileId).subscribe({
+        next: () => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success('Exact duplicate file excluded.');
+        },
+        error: () => this.toast.error('Failed to exclude exact duplicate file.')
+      });
+    });
+  }
+
+  onDeleteExactFile(file: ExactDuplicateFile) {
+    this.confirmService.confirm({
+      title: 'Delete File',
+      message: `Delete "${getFileNameFromPath(file.relativePath)}" from disk and remove it from the board?`,
+      confirmText: 'Delete',
+      variant: 'danger',
+    }).subscribe(confirmed => {
+      if (!confirmed) return;
+
+      this.damebooru.deleteExactDuplicateFile(file.postFileId).subscribe({
+        next: () => {
+          this.reloadDuplicatesAndExcluded();
+          this.toast.success('Exact duplicate file deleted.');
+        },
+        error: () => this.toast.error('Failed to delete exact duplicate file.')
+      });
+    });
+  }
+
   getResolvedGroupCount(): number {
     return this.resolvedGroups().length;
   }
@@ -605,6 +688,10 @@ export class DuplicatesPageComponent {
     this.visiblePage.set(page);
   }
 
+  onExactPageChange(page: number) {
+    this.exactPage.set(page);
+  }
+
   onResolvedPageChange(page: number) {
     this.resolvedPage.set(page);
   }
@@ -614,8 +701,18 @@ export class DuplicatesPageComponent {
       next: (groups) => {
         this.groups.set(groups);
         this.visiblePage.set(Math.min(this.visiblePage(), this.visibleTotalPages()));
-        this.exactCount.set(groups.filter(group => group.type === DuplicateType.Exact).length);
         this.perceptualCount.set(groups.filter(group => group.type === DuplicateType.Perceptual).length);
+      },
+      error: () => void 0
+    });
+  }
+
+  loadExactClusters() {
+    this.damebooru.getExactDuplicateClusters().subscribe({
+      next: (clusters) => {
+        this.exactClusters.set(clusters);
+        this.exactCount.set(clusters.length);
+        this.exactPage.set(Math.min(this.exactPage(), this.exactTotalPages()));
       },
       error: () => void 0
     });
@@ -624,121 +721,13 @@ export class DuplicatesPageComponent {
   loadSameFolderGroups() {
     this.damebooru.getSameFolderDuplicateGroups().subscribe({
       next: (groups) => {
-        this.sameFolderGroups.set(groups);
+        this.sameFolderGroups.set(groups.filter(group => group.duplicateType === DuplicateType.Perceptual));
         this.visiblePage.set(Math.min(this.visiblePage(), this.visibleTotalPages()));
       },
       error: () => void 0
     });
   }
 
-  resolveAllExact() {
-    if (this.showSameFolderOnly()) {
-      this.resolveAllSameFolderExact();
-      return;
-    }
-
-    const count = this.exactCount();
-    this.confirmService.confirm({
-      title: 'Resolve Exact Duplicates',
-      message: `Auto-resolve all ${count} exact groups? This keeps the highest-quality post and removes the rest from booru.`,
-      confirmText: 'Resolve All',
-      variant: 'danger',
-    }).subscribe(confirmed => {
-      if (!confirmed) return;
-
-      this.damebooru.resolveAllExactDuplicates().subscribe({
-        next: (result) => {
-          this.reloadDuplicatesAndExcluded();
-          this.toast.success(`Auto-resolved ${result.resolved} exact duplicate groups.`);
-        },
-        error: (err) => this.toast.error('Failed: ' + (err?.message || 'Unknown error'))
-      });
-    });
-  }
-
-  resolveAllGroups() {
-    const count = this.getVisibleGroupCount();
-    this.confirmService.confirm({
-      title: 'Resolve Duplicate Groups',
-      message: `Auto-resolve all ${count} visible duplicate groups? This keeps the highest-quality post and removes the others from booru.`,
-      confirmText: 'Resolve All',
-      variant: 'danger',
-    }).subscribe(confirmed => {
-      if (!confirmed) return;
-
-      this.damebooru.resolveAllDuplicateGroups().subscribe({
-        next: (result) => {
-          this.reloadDuplicatesAndExcluded();
-          this.toast.success(`Auto-resolved ${result.resolved} duplicate groups.`);
-        },
-        error: (err) => this.toast.error('Failed: ' + (err?.message || 'Unknown error'))
-      });
-    });
-  }
-
-  resolveAllSameFolder() {
-    const count = this.sameFolderGroups().length;
-    this.confirmService.confirm({
-      title: 'Resolve Same-Folder Duplicates',
-      message: `Auto-resolve all ${count} same-folder groups? This keeps the highest-quality post and deletes the rest from disk.`,
-      confirmText: 'Resolve All',
-      variant: 'danger',
-    }).subscribe(confirmed => {
-      if (!confirmed) return;
-
-      this.confirmService.confirm({
-        title: 'Confirm File Deletion',
-        message: 'This will DELETE files from disk. Do you REALLY want to delete all files in the selected duplicate groups?',
-        confirmText: 'Yes, Delete Files',
-        variant: 'danger',
-        requireTypedText: 'DELETE',
-      }).subscribe(doubleConfirmed => {
-        if (!doubleConfirmed) return;
-
-        this.damebooru.resolveAllSameFolderDuplicates().subscribe({
-          next: (result) => {
-            this.reloadDuplicatesAndExcluded();
-            this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
-          },
-          error: () => this.toast.error('Failed to resolve same-folder duplicates.')
-        });
-      });
-    });
-  }
-
-  resolveAllSameFolderExact() {
-    const count = this.sameFolderGroups().filter(group => group.duplicateType === DuplicateType.Exact).length;
-    if (count === 0) {
-      return;
-    }
-
-    this.confirmService.confirm({
-      title: 'Resolve Same-Folder Exact Duplicates',
-      message: `Auto-resolve all ${count} same-folder exact groups? This keeps the highest-quality post and deletes the rest from disk.`,
-      confirmText: 'Resolve All',
-      variant: 'danger',
-    }).subscribe(confirmed => {
-      if (!confirmed) return;
-
-      this.confirmService.confirm({
-        title: 'Confirm File Deletion',
-        message: 'This will DELETE files from disk. Do you REALLY want to delete all files in the selected exact duplicate groups?',
-        confirmText: 'Yes, Delete Files',
-        variant: 'danger',
-        requireTypedText: 'DELETE',
-      }).subscribe(doubleConfirmed => {
-        if (!doubleConfirmed) return;
-
-        this.damebooru.resolveAllSameFolderDuplicates(true).subscribe({
-          next: (result) => {
-            this.reloadDuplicatesAndExcluded();
-            this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
-          },
-          error: () => this.toast.error('Failed to resolve same-folder exact duplicates.')
-        });
-      });
-    });
-  }
 
   loadExcludedFiles() {
     this.damebooru.getExcludedFiles().subscribe({
@@ -798,6 +787,22 @@ export class DuplicatesPageComponent {
 
   getThumbnailUrl(post: Pick<VisibleDuplicatePost, 'thumbnailLibraryId' | 'thumbnailContentHash'>): string {
     return this.damebooru.getThumbnailUrl(post.thumbnailLibraryId, post.thumbnailContentHash);
+  }
+
+  getExactFileThumbnailUrl(file: Pick<ExactDuplicateFile, 'thumbnailLibraryId' | 'thumbnailContentHash'>): string {
+    return this.damebooru.getThumbnailUrl(file.thumbnailLibraryId, file.thumbnailContentHash);
+  }
+
+  trackExactCluster(_: number, cluster: ExactDuplicateCluster) {
+    return cluster.contentHash;
+  }
+
+  trackExactFolder(_: number, folder: ExactDuplicateCluster['folders'][number]) {
+    return `${folder.libraryId}:${folder.folderPath}`;
+  }
+
+  trackExactFile(_: number, file: ExactDuplicateFile) {
+    return file.postFileId;
   }
 
   getLookupThumbnailUrl(match: DuplicateLookupMatch): string {
@@ -959,7 +964,16 @@ export class DuplicatesPageComponent {
   }
 
   private reloadDuplicatesAndExcluded() {
+    if (this.exactTabInitialized || this.groupsTabInitialized) {
+      this.loadExactClusters();
+    }
+
     if (this.groupsTabInitialized) {
+      this.loadGroups();
+      this.loadSameFolderGroups();
+    }
+
+    if (this.perceptualTabInitialized) {
       this.loadGroups();
       this.loadSameFolderGroups();
     }
@@ -995,6 +1009,17 @@ export class DuplicatesPageComponent {
   private isLookupImageFile(file: File): boolean {
     return file.type.startsWith('image/')
       || /\.(jpg|jpeg|png|gif|bmp|tga|webp|jxl)$/i.test(file.name);
+  }
+
+  private formatPathSegments(path: string): string {
+    if (!path) {
+      return '(library root)';
+    }
+
+    return path
+      .split('/')
+      .filter(segment => segment.length > 0)
+      .join(' / ');
   }
 
   private getLookupFileExtension(contentType: string): string {

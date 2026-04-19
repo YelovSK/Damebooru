@@ -60,32 +60,80 @@ public class LibraryBrowseService
 
         var baseQuery = _context.Posts
             .AsNoTracking()
-            .Where(p => p.LibraryId == libraryId);
+            .Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId));
 
         var scopedQuery = ApplyFolderScope(baseQuery, normalizedPath, recursive);
         var totalCount = await scopedQuery.CountAsync(cancellationToken);
 
         var posts = await scopedQuery
-            .OrderByDescending(p => p.FileModifiedDate)
+            .OrderByDescending(p => p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault())
             .ThenByDescending(p => p.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(p => new PostDto
             {
                 Id = p.Id,
-                LibraryId = p.LibraryId,
+                LibraryId = p.PostFiles
+                    .Where(pf => pf.LibraryId == libraryId)
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.LibraryId)
+                    .FirstOrDefault(),
                 LibraryName = library.Name,
-                RelativePath = p.RelativePath,
-                ContentHash = p.ContentHash,
-                SizeBytes = p.SizeBytes,
-                Width = p.Width,
-                Height = p.Height,
-                ContentType = p.ContentType,
+                RelativePath = p.PostFiles
+                    .Where(pf => pf.LibraryId == libraryId)
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.RelativePath)
+                    .FirstOrDefault() ?? p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
+                ContentHash = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.ContentHash)
+                    .FirstOrDefault() ?? string.Empty,
+                SizeBytes = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (long?)pf.SizeBytes)
+                    .FirstOrDefault() ?? 0,
+                Width = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (int?)pf.Width)
+                    .FirstOrDefault() ?? 0,
+                Height = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (int?)pf.Height)
+                    .FirstOrDefault() ?? 0,
+                ContentType = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.ContentType)
+                    .FirstOrDefault() ?? string.Empty,
                 ImportDate = p.ImportDate,
-                FileModifiedDate = p.FileModifiedDate,
+                FileModifiedDate = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (DateTime?)pf.FileModifiedDate)
+                    .FirstOrDefault() ?? default,
                 IsFavorite = p.IsFavorite,
-                ThumbnailLibraryId = p.LibraryId,
-                ThumbnailContentHash = p.ContentHash,
+                PostFiles = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => new PostFileDto
+                    {
+                        LibraryId = pf.LibraryId,
+                        LibraryName = null,
+                        RelativePath = pf.RelativePath,
+                        ContentHash = pf.ContentHash,
+                        SizeBytes = pf.SizeBytes,
+                        Width = pf.Width,
+                        Height = pf.Height,
+                        ContentType = pf.ContentType,
+                        FileModifiedDate = pf.FileModifiedDate,
+                    })
+                    .ToList(),
+                ThumbnailLibraryId = p.PostFiles
+                    .Where(pf => pf.LibraryId == libraryId)
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.LibraryId)
+                    .FirstOrDefault(),
+                ThumbnailContentHash = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.ContentHash)
+                    .FirstOrDefault() ?? string.Empty,
                 Sources = new List<string>(),
                 Tags = new List<TagDto>(),
                 SimilarPosts = new List<SimilarPostDto>(),
@@ -146,13 +194,20 @@ public class LibraryBrowseService
         var scopedQuery = ApplyFolderScope(
             _context.Posts
                 .AsNoTracking()
-                .Where(p => p.LibraryId == libraryId),
+                .Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId)),
             normalizedPath,
             recursive: false);
 
         var current = await scopedQuery
             .Where(p => p.Id == postId)
-            .Select(p => new { p.Id, p.FileModifiedDate })
+            .Select(p => new
+            {
+                p.Id,
+                FileModifiedDate = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => (DateTime?)pf.FileModifiedDate)
+                    .FirstOrDefault() ?? default(DateTime)
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (current == null)
@@ -163,8 +218,8 @@ public class LibraryBrowseService
         var prevRaw = await scopedQuery
             .Where(p => p.Id != current.Id
                 && (
-                    p.FileModifiedDate > current.FileModifiedDate
-                    || (p.FileModifiedDate == current.FileModifiedDate && p.Id > current.Id)
+                    (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) > current.FileModifiedDate
+                    || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == current.FileModifiedDate && p.Id > current.Id)
                 ))
             .OrderByOldest()
             .Select(p => new { p.Id })
@@ -173,8 +228,8 @@ public class LibraryBrowseService
         var nextRaw = await scopedQuery
             .Where(p => p.Id != current.Id
                 && (
-                    p.FileModifiedDate < current.FileModifiedDate
-                    || (p.FileModifiedDate == current.FileModifiedDate && p.Id < current.Id)
+                    (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) < current.FileModifiedDate
+                    || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == current.FileModifiedDate && p.Id < current.Id)
                 ))
             .OrderByNewest()
             .Select(p => new { p.Id })
@@ -198,7 +253,8 @@ public class LibraryBrowseService
     private async Task<PostDto?> LoadPostAsync(int id, CancellationToken cancellationToken)
     {
         var post = await _context.Posts
-            .Include(p => p.Library)
+            .Include(p => p.PostFiles)
+                .ThenInclude(pf => pf.Library)
             .Include(p => p.Sources)
             .Include(p => p.PostTags)
                 .ThenInclude(pt => pt.Tag)
@@ -206,7 +262,7 @@ public class LibraryBrowseService
                 .ThenInclude(dge => dge.DuplicateGroup)
                     .ThenInclude(g => g.Entries)
                         .ThenInclude(e => e.Post)
-                            .ThenInclude(sp => sp.Library)
+                            .ThenInclude(sp => sp.PostFiles)
             .Where(p => p.Id == id)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -214,23 +270,41 @@ public class LibraryBrowseService
     }
 
     private static PostDto MapPost(Post post)
-        => new()
+    {
+        var representativeFile = GetRepresentativeFile(post);
+
+        return new PostDto
         {
             Id = post.Id,
-            LibraryId = post.LibraryId,
-            LibraryName = post.Library.Name,
-            RelativePath = post.RelativePath,
-            ContentHash = post.ContentHash,
-            SizeBytes = post.SizeBytes,
-            Width = post.Width,
-            Height = post.Height,
-            ContentType = post.ContentType,
+            LibraryId = representativeFile?.LibraryId ?? 0,
+            LibraryName = representativeFile?.Library?.Name ?? string.Empty,
+            RelativePath = representativeFile?.RelativePath ?? string.Empty,
+            ContentHash = representativeFile?.ContentHash ?? string.Empty,
+            SizeBytes = representativeFile?.SizeBytes ?? 0,
+            Width = representativeFile?.Width ?? 0,
+            Height = representativeFile?.Height ?? 0,
+            ContentType = representativeFile?.ContentType ?? string.Empty,
             ImportDate = post.ImportDate,
-            FileModifiedDate = post.FileModifiedDate,
+            FileModifiedDate = representativeFile?.FileModifiedDate ?? default,
             IsFavorite = post.IsFavorite,
-            ThumbnailLibraryId = post.LibraryId,
-            ThumbnailContentHash = post.ContentHash,
+            ThumbnailLibraryId = representativeFile?.LibraryId ?? 0,
+            ThumbnailContentHash = representativeFile?.ContentHash ?? string.Empty,
             Sources = post.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
+            PostFiles = post.PostFiles
+                .OrderBy(pf => pf.Id)
+                .Select(pf => new PostFileDto
+                {
+                    LibraryId = pf.LibraryId,
+                    LibraryName = pf.Library?.Name,
+                    RelativePath = pf.RelativePath,
+                    ContentHash = pf.ContentHash,
+                    SizeBytes = pf.SizeBytes,
+                    Width = pf.Width,
+                    Height = pf.Height,
+                    ContentType = pf.ContentType,
+                    FileModifiedDate = pf.FileModifiedDate,
+                })
+                .ToList(),
             Tags = post.PostTags
                 .GroupBy(pt => new { pt.Tag.Id, pt.Tag.Name, pt.Tag.Category, pt.Tag.PostCount })
                 .OrderBy(group => GetTagCategoryDisplayOrder(group.Key.Category))
@@ -248,24 +322,29 @@ public class LibraryBrowseService
                 .Select(dge => dge.DuplicateGroup)
                 .SelectMany(g => g.Entries)
                 .Where(e => e.PostId != post.Id)
-                .Select(e => new SimilarPostDto
+                .Select(e =>
                 {
-                    Id = e.Post.Id,
-                    LibraryId = e.Post.LibraryId,
-                    LibraryName = e.Post.Library.Name,
-                    RelativePath = e.Post.RelativePath,
-                    Width = e.Post.Width,
-                    Height = e.Post.Height,
-                    SizeBytes = e.Post.SizeBytes,
-                    ContentType = e.Post.ContentType,
-                    ThumbnailLibraryId = e.Post.LibraryId,
-                    ThumbnailContentHash = e.Post.ContentHash,
-                    DuplicateType = e.DuplicateGroup.Type,
-                    SimilarityPercent = e.DuplicateGroup.SimilarityPercent,
-                    GroupIsResolved = e.DuplicateGroup.IsResolved,
+                    var similarFile = GetRepresentativeFile(e.Post);
+                    return new SimilarPostDto
+                    {
+                        Id = e.Post.Id,
+                        LibraryId = similarFile?.LibraryId ?? 0,
+                        LibraryName = similarFile?.Library?.Name ?? string.Empty,
+                        RelativePath = similarFile?.RelativePath ?? string.Empty,
+                        Width = similarFile?.Width ?? 0,
+                        Height = similarFile?.Height ?? 0,
+                        SizeBytes = similarFile?.SizeBytes ?? 0,
+                        ContentType = similarFile?.ContentType ?? string.Empty,
+                        ThumbnailLibraryId = similarFile?.LibraryId ?? 0,
+                        ThumbnailContentHash = similarFile?.ContentHash ?? string.Empty,
+                        DuplicateType = e.DuplicateGroup.Type,
+                        SimilarityPercent = e.DuplicateGroup.SimilarityPercent,
+                        GroupIsResolved = e.DuplicateGroup.IsResolved,
+                    };
                 })
                 .ToList(),
         };
+    }
 
     private static int GetTagCategoryDisplayOrder(TagCategoryKind category)
         => category switch
@@ -284,8 +363,10 @@ public class LibraryBrowseService
     {
         var baseQuery = _context.Posts
             .AsNoTracking()
-            .Where(p => p.LibraryId == libraryId)
-            .Select(p => p.RelativePath.Replace('\\', '/'));
+            .Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId))
+            .SelectMany(p => p.PostFiles
+                .Where(pf => pf.LibraryId == libraryId)
+                .Select(pf => pf.RelativePath.Replace('\\', '/')));
 
         if (!string.IsNullOrEmpty(currentPath))
         {
@@ -309,18 +390,25 @@ public class LibraryBrowseService
                 return query;
             }
 
-            return query.Where(p => !p.RelativePath.Replace('\\', '/').Contains('/'));
+            return query.Where(p => p.PostFiles.Any(pf => !pf.RelativePath.Replace('\\', '/').Contains('/')));
         }
 
         var prefix = currentPath + "/";
-        var scoped = query.Where(p => p.RelativePath.Replace('\\', '/').StartsWith(prefix));
+        var scoped = query.Where(p => p.PostFiles.Any(pf => pf.RelativePath.Replace('\\', '/').StartsWith(prefix)));
         if (recursive)
         {
             return scoped;
         }
 
-        return scoped.Where(p => !p.RelativePath.Replace('\\', '/').Substring(prefix.Length).Contains('/'));
+        return scoped.Where(p => p.PostFiles.Any(pf =>
+            pf.RelativePath.Replace('\\', '/').StartsWith(prefix)
+            && !pf.RelativePath.Replace('\\', '/').Substring(prefix.Length).Contains('/')));
     }
+
+    private static PostFile? GetRepresentativeFile(Post post)
+        => post.PostFiles
+            .OrderBy(pf => pf.Id)
+            .FirstOrDefault();
 
     private static List<LibraryBrowseBreadcrumbDto> BuildBreadcrumbs(string libraryName, string currentPath)
     {

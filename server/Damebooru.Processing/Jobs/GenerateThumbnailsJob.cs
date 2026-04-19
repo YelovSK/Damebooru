@@ -42,7 +42,7 @@ public class GenerateThumbnailsJob : IJob
             Directory.CreateDirectory(_thumbnailPath);
     }
 
-    public int DisplayOrder => 50;
+    public int DisplayOrder => 25;
     public JobKey Key => JobKey;
     public string Name => JobName;
     public string Description => "Generates missing (or all) thumbnails for posts.";
@@ -56,7 +56,7 @@ public class GenerateThumbnailsJob : IJob
 
         var query = db.Posts
             .AsNoTracking()
-            .Where(p => !string.IsNullOrEmpty(p.ContentHash))
+            .Where(p => p.PostFiles.Any(pf => !string.IsNullOrEmpty(pf.ContentHash)))
             .AsQueryable();
 
         var totalPosts = await query.CountAsync(context.CancellationToken);
@@ -103,7 +103,12 @@ public class GenerateThumbnailsJob : IJob
             var batch = await query
                 .Where(p => p.Id > lastId)
                 .OrderBy(p => p.Id)
-                .Select(p => new ThumbnailCandidate(p.Id, p.LibraryId, p.ContentHash!, p.RelativePath, p.Library.Path))
+                .Select(p => new ThumbnailCandidate(
+                    p.Id,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Path).FirstOrDefault() ?? string.Empty))
                 .Take(BatchSize)
                 .ToListAsync(context.CancellationToken);
 
@@ -185,7 +190,12 @@ public class GenerateThumbnailsJob : IJob
             var batch = await query
                 .Where(p => p.Id > lastId)
                 .OrderBy(p => p.Id)
-                .Select(p => new ThumbnailCandidate(p.Id, p.LibraryId, p.ContentHash!, p.RelativePath, p.Library.Path))
+                .Select(p => new ThumbnailCandidate(
+                    p.Id,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
+                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Path).FirstOrDefault() ?? string.Empty))
                 .Take(BatchSize)
                 .ToListAsync(context.CancellationToken);
 
