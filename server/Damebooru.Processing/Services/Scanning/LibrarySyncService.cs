@@ -64,6 +64,8 @@ public class LibrarySyncService : ILibrarySyncProcessor
         string? FileIdentityDevice,
         string? FileIdentityValue);
 
+    private sealed record FileEvaluationResult(string? Hash, bool ShouldSkip);
+
     private sealed class SyncRunState
     {
         public required Dictionary<string, ExistingPostFileInfo> ExistingFilesByPath { get; init; }
@@ -86,6 +88,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
     private readonly IMediaSource _mediaSource;
     private readonly IFileIdentityResolver _fileIdentityResolver;
     private readonly FolderTaggingService _folderTaggingService;
+    private readonly MediaEnrichmentService _mediaEnrichmentService;
     private readonly int _scanParallelism;
 
     public LibrarySyncService(
@@ -96,6 +99,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         IMediaSource mediaSource,
         IFileIdentityResolver fileIdentityResolver,
         FolderTaggingService folderTaggingService,
+        MediaEnrichmentService mediaEnrichmentService,
         IOptions<DamebooruConfig> options)
     {
         _logger = logger;
@@ -105,6 +109,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         _mediaSource = mediaSource;
         _fileIdentityResolver = fileIdentityResolver;
         _folderTaggingService = folderTaggingService;
+        _mediaEnrichmentService = mediaEnrichmentService;
         _scanParallelism = Math.Max(1, options.Value.Scanner.Parallelism);
     }
 
@@ -250,6 +255,9 @@ public class LibrarySyncService : ILibrarySyncProcessor
     }
 
     public async Task ProcessFileAsync(Library library, MediaSourceItem item, CancellationToken cancellationToken)
+        => await ProcessChangedFileAsync(library, item, cancellationToken);
+
+    public async Task ProcessCreatedFileAsync(Library library, MediaSourceItem item, CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
@@ -260,11 +268,12 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         if (existingPostFile != null)
         {
+            await ProcessChangedFileAsync(library, item, cancellationToken);
             return;
         }
 
-        var hash = await ComputeHashAsync(item.FullPath, cancellationToken);
-        if (string.IsNullOrEmpty(hash))
+        var evaluation = await EvaluateIncomingFileAsync(dbContext, library.Id, item, cancellationToken);
+        if (evaluation.ShouldSkip || string.IsNullOrEmpty(evaluation.Hash))
         {
             return;
         }
@@ -273,17 +282,207 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var post = await PersistNewFileAsync(dbContext, library, new NewFileCandidate(
             item.FullPath,
             item.RelativePath,
-            hash,
+            evaluation.Hash,
             item.SizeBytes,
             item.LastModifiedUtc,
             identity?.Device,
             identity?.Value), cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        if (post.Id > 0)
+
+        var affectedPostIds = post.Id > 0 ? new[] { post.Id } : Array.Empty<int>();
+        await FinalizeSingleFileMutationAsync(
+            dbContext,
+            library,
+            affectedPostIds,
+            [item.RelativePath],
+            [item.RelativePath],
+            cancellationToken);
+    }
+
+    public async Task ProcessChangedFileAsync(Library library, MediaSourceItem item, CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+
+        var existingPostFile = await dbContext.PostFiles
+            .Include(pf => pf.Post)
+                .ThenInclude(p => p.PostFiles)
+            .FirstOrDefaultAsync(pf => pf.LibraryId == library.Id && pf.RelativePath == item.RelativePath, cancellationToken);
+
+        var evaluation = await EvaluateIncomingFileAsync(dbContext, library.Id, item, cancellationToken);
+        if (evaluation.ShouldSkip || string.IsNullOrEmpty(evaluation.Hash))
         {
-            await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, [post.Id], cancellationToken);
+            if (existingPostFile != null)
+            {
+                await DeleteTrackedPostFileAsync(dbContext, library, existingPostFile, cancellationToken);
+            }
+
+            return;
         }
-        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (existingPostFile == null)
+        {
+            await ProcessCreatedFileAsync(library, item, cancellationToken);
+            return;
+        }
+
+        var identity = _fileIdentityResolver.TryResolve(item.FullPath);
+        var hashChanged = !string.Equals(existingPostFile.ContentHash, evaluation.Hash, StringComparison.OrdinalIgnoreCase);
+        var update = new PostFileUpdateCandidate(
+            existingPostFile.PostId,
+            existingPostFile.Id,
+            evaluation.Hash,
+            item.SizeBytes,
+            item.LastModifiedUtc,
+            hashChanged,
+            identity?.Device ?? existingPostFile.FileIdentityDevice,
+            identity?.Value ?? existingPostFile.FileIdentityValue);
+
+        var affectedPostIds = await ApplyTrackedPostFileUpdateAsync(dbContext, library, existingPostFile, update, cancellationToken);
+        await FinalizeSingleFileMutationAsync(
+            dbContext,
+            library,
+            affectedPostIds,
+            [],
+            [item.RelativePath],
+            cancellationToken);
+    }
+
+    public async Task ProcessDeletedFileAsync(Library library, string relativePath, CancellationToken cancellationToken)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+
+        var existingPostFile = await dbContext.PostFiles
+            .Include(pf => pf.Post)
+                .ThenInclude(p => p.PostFiles)
+            .FirstOrDefaultAsync(pf => pf.LibraryId == library.Id && pf.RelativePath == relativePath, cancellationToken);
+
+        if (existingPostFile == null)
+        {
+            return;
+        }
+
+        await DeleteTrackedPostFileAsync(dbContext, library, existingPostFile, cancellationToken);
+    }
+
+    public async Task ProcessMovedFileAsync(Library library, string oldRelativePath, MediaSourceItem item, CancellationToken cancellationToken)
+    {
+        _logger.LogDebug(
+            "Processing moved file in library {Library}: {OldPath} -> {NewPath}",
+            library.Name,
+            oldRelativePath,
+            item.RelativePath);
+
+        if (string.Equals(oldRelativePath, item.RelativePath, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogDebug(
+                "Move collapsed to same path in library {Library}: {Path}; treating as change",
+                library.Name,
+                item.RelativePath);
+            await ProcessChangedFileAsync(library, item, cancellationToken);
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+
+        var existingPostFile = await dbContext.PostFiles
+            .Include(pf => pf.Post)
+                .ThenInclude(p => p.PostFiles)
+            .FirstOrDefaultAsync(pf => pf.LibraryId == library.Id && pf.RelativePath == oldRelativePath, cancellationToken);
+
+        if (existingPostFile == null)
+        {
+            _logger.LogWarning(
+                "Move source path not found in library {Library}: {OldPath}; treating destination as change/create at {NewPath}",
+                library.Name,
+                oldRelativePath,
+                item.RelativePath);
+            await ProcessChangedFileAsync(library, item, cancellationToken);
+            return;
+        }
+
+        var conflictingTargetPath = await dbContext.PostFiles
+            .AsNoTracking()
+            .AnyAsync(
+                pf => pf.LibraryId == library.Id
+                    && pf.RelativePath == item.RelativePath
+                    && pf.RelativePath != oldRelativePath,
+                cancellationToken);
+
+        if (conflictingTargetPath)
+        {
+            _logger.LogWarning(
+                "Move destination already exists in library {Library}: {OldPath} -> {NewPath}; deleting old path and reprocessing destination",
+                library.Name,
+                oldRelativePath,
+                item.RelativePath);
+            await DeleteTrackedPostFileAsync(dbContext, library, existingPostFile, cancellationToken);
+            await ProcessChangedFileAsync(library, item, cancellationToken);
+            return;
+        }
+
+        var evaluation = await EvaluateIncomingFileAsync(dbContext, library.Id, item, cancellationToken);
+        if (evaluation.ShouldSkip || string.IsNullOrEmpty(evaluation.Hash))
+        {
+            _logger.LogWarning(
+                "Move evaluation skipped/deleted file in library {Library}: {OldPath} -> {NewPath}; removing tracked source",
+                library.Name,
+                oldRelativePath,
+                item.RelativePath);
+            await DeleteTrackedPostFileAsync(dbContext, library, existingPostFile, cancellationToken);
+            return;
+        }
+
+        var identity = _fileIdentityResolver.TryResolve(item.FullPath);
+        existingPostFile.RelativePath = item.RelativePath;
+
+        var hashChanged = !string.Equals(existingPostFile.ContentHash, evaluation.Hash, StringComparison.OrdinalIgnoreCase);
+        List<int> affectedPostIds;
+        if (hashChanged)
+        {
+            affectedPostIds = await ApplyTrackedPostFileUpdateAsync(
+                dbContext,
+                library,
+                existingPostFile,
+                new PostFileUpdateCandidate(
+                    existingPostFile.PostId,
+                    existingPostFile.Id,
+                    evaluation.Hash,
+                    item.SizeBytes,
+                    item.LastModifiedUtc,
+                    true,
+                    identity?.Device ?? existingPostFile.FileIdentityDevice,
+                    identity?.Value ?? existingPostFile.FileIdentityValue),
+                cancellationToken);
+        }
+        else
+        {
+            affectedPostIds = ApplyTrackedMove(existingPostFile, new MoveUpdate(
+                existingPostFile.PostId,
+                existingPostFile.Id,
+                oldRelativePath,
+                item.RelativePath,
+                evaluation.Hash,
+                item.SizeBytes,
+                item.LastModifiedUtc,
+                identity?.Device ?? existingPostFile.FileIdentityDevice,
+                identity?.Value ?? existingPostFile.FileIdentityValue));
+        }
+
+        _logger.LogDebug(
+            "Completed moved file processing in library {Library}: {OldPath} -> {NewPath} (hashChanged: {HashChanged})",
+            library.Name,
+            oldRelativePath,
+            item.RelativePath,
+            hashChanged);
+        await FinalizeSingleFileMutationAsync(
+            dbContext,
+            library,
+            affectedPostIds,
+            [],
+            hashChanged ? [item.RelativePath] : Array.Empty<string>(),
+            cancellationToken);
     }
 
     private async Task<SyncRunState> LoadStateAsync(int libraryId, CancellationToken cancellationToken)
@@ -680,6 +879,30 @@ public class LibrarySyncService : ILibrarySyncProcessor
             return [];
         }
 
+        return await ApplyTrackedPostFileUpdateAsync(dbContext, library, postFile, update, cancellationToken);
+    }
+
+    private async Task<List<int>> ApplyTrackedPostFileUpdateAsync(
+        DamebooruDbContext dbContext,
+        Library library,
+        PostFile postFile,
+        PostFileUpdateCandidate update,
+        CancellationToken cancellationToken)
+    {
+        if (postFile.Post == null)
+        {
+            await dbContext.Entry(postFile)
+                .Reference(pf => pf.Post)
+                .LoadAsync(cancellationToken);
+        }
+
+        if (postFile.Post != null)
+        {
+            await dbContext.Entry(postFile.Post)
+                .Collection(p => p.PostFiles)
+                .LoadAsync(cancellationToken);
+        }
+
         var oldPostId = postFile.PostId;
         var affectedPostIds = new HashSet<int> { oldPostId };
         var newContentType = SupportedMedia.GetMimeType(Path.GetExtension(postFile.RelativePath));
@@ -742,6 +965,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
             return [];
         }
 
+        return ApplyTrackedMove(postFile, move);
+    }
+
+    private static List<int> ApplyTrackedMove(PostFile postFile, MoveUpdate move)
+    {
         postFile.RelativePath = move.NewRelativePath;
         postFile.ContentHash = move.Hash;
         postFile.SizeBytes = move.NewSize;
@@ -877,6 +1105,164 @@ public class LibrarySyncService : ILibrarySyncProcessor
                 dbContext.Posts.Remove(post);
             }
         }
+    }
+
+    private async Task<FileEvaluationResult> EvaluateIncomingFileAsync(
+        DamebooruDbContext dbContext,
+        int libraryId,
+        MediaSourceItem item,
+        CancellationToken cancellationToken)
+    {
+        var normalizedRelativePath = RelativePathMatcher.NormalizePath(item.RelativePath);
+        var ignoredPathPrefixes = await dbContext.LibraryIgnoredPaths
+            .AsNoTracking()
+            .Where(p => p.LibraryId == libraryId)
+            .Select(p => p.RelativePathPrefix)
+            .ToListAsync(cancellationToken);
+
+        if (ignoredPathPrefixes
+            .Select(RelativePathMatcher.NormalizePath)
+            .Where(p => !string.IsNullOrEmpty(p))
+            .Any(prefix => RelativePathMatcher.IsWithinPrefix(normalizedRelativePath, prefix)))
+        {
+            return new FileEvaluationResult(null, true);
+        }
+
+        var hash = await ComputeHashAsync(item.FullPath, cancellationToken);
+        if (string.IsNullOrEmpty(hash))
+        {
+            return new FileEvaluationResult(null, true);
+        }
+
+        var excludedHash = await dbContext.ExcludedFiles
+            .AsNoTracking()
+            .Where(e => e.LibraryId == libraryId && e.RelativePath == item.RelativePath)
+            .Select(e => e.ContentHash)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var shouldSkip = !string.IsNullOrWhiteSpace(excludedHash)
+            && string.Equals(hash, excludedHash, StringComparison.OrdinalIgnoreCase);
+        return new FileEvaluationResult(hash, shouldSkip);
+    }
+
+    private async Task DeleteTrackedPostFileAsync(
+        DamebooruDbContext dbContext,
+        Library library,
+        PostFile postFile,
+        CancellationToken cancellationToken)
+    {
+        var affectedPostIds = new[] { postFile.PostId };
+        dbContext.PostFiles.Remove(postFile);
+        await FinalizeSingleFileMutationAsync(dbContext, library, affectedPostIds, [], [], cancellationToken);
+    }
+
+    private async Task FinalizeSingleFileMutationAsync(
+        DamebooruDbContext dbContext,
+        Library library,
+        IReadOnlyCollection<int> affectedPostIds,
+        IReadOnlyCollection<string> newRelativePaths,
+        IReadOnlyCollection<string> enrichRelativePaths,
+        CancellationToken cancellationToken)
+    {
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var resolvedAffectedPostIds = affectedPostIds.Count > 0
+            ? affectedPostIds.Distinct().ToList()
+            : await dbContext.PostFiles
+                .AsNoTracking()
+                .Where(pf => pf.LibraryId == library.Id && newRelativePaths.Contains(pf.RelativePath))
+                .Select(pf => pf.PostId)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+        if (resolvedAffectedPostIds.Count > 0)
+        {
+            await RefreshLegacyPostRecordsAsync(dbContext, resolvedAffectedPostIds, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        if (newRelativePaths.Count > 0)
+        {
+            await CopyNonFolderTagsFromHashMatchesAsync(library.Id, newRelativePaths, cancellationToken);
+        }
+
+        if (resolvedAffectedPostIds.Count > 0)
+        {
+            var existingAffectedPostIds = await dbContext.Posts
+                .AsNoTracking()
+                .Where(p => resolvedAffectedPostIds.Contains(p.Id))
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken);
+
+            if (existingAffectedPostIds.Count > 0)
+            {
+                await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, existingAffectedPostIds, cancellationToken);
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        foreach (var relativePath in enrichRelativePaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            await EnrichPostFileByPathAsync(dbContext, library.Id, relativePath, cancellationToken);
+        }
+    }
+
+    private async Task EnrichPostFileByPathAsync(
+        DamebooruDbContext dbContext,
+        int libraryId,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        var postFile = await dbContext.PostFiles
+            .Include(pf => pf.Library)
+            .FirstOrDefaultAsync(
+                pf => pf.LibraryId == libraryId && pf.RelativePath == relativePath,
+                cancellationToken);
+
+        if (postFile == null)
+        {
+            return;
+        }
+
+        var target = new PostFileEnrichmentTarget(
+            postFile.Id,
+            postFile.LibraryId,
+            postFile.ContentHash,
+            postFile.RelativePath,
+            postFile.Library.Path);
+
+        try
+        {
+            var metadata = await _mediaEnrichmentService.ExtractMetadataAsync(target, cancellationToken);
+            postFile.Width = metadata.Width;
+            postFile.Height = metadata.Height;
+            postFile.ContentType = metadata.ContentType;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to enrich metadata for post file {Id}: {Path}", postFile.Id, postFile.RelativePath);
+        }
+
+        try
+        {
+            var similarity = await _mediaEnrichmentService.ComputeSimilarityAsync(target, cancellationToken);
+            postFile.PdqHash256 = similarity?.PdqHash256;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to enrich similarity for post file {Id}: {Path}", postFile.Id, postFile.RelativePath);
+        }
+
+        try
+        {
+            await _mediaEnrichmentService.GenerateThumbnailAsync(target, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to enrich thumbnail for post file {Id}: {Path}", postFile.Id, postFile.RelativePath);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task ReconcileLibraryFolderTagsAsync(int libraryId, CancellationToken cancellationToken)

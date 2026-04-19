@@ -39,6 +39,9 @@ public class ScannerConfig
 {
     public int BatchSize { get; set; } = 100;
     public int Parallelism { get; set; } = 2;
+    public bool EnableWatcher { get; set; } = true;
+    public int WatcherDebounceMs { get; set; } = 2000;
+    public int WatcherReloadIntervalSeconds { get; set; } = 30;
 }
 
 public class ProcessingConfig

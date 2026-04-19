@@ -40,6 +40,8 @@ Before first run, verify these settings in `server/Damebooru.Server/appsettings.
 Notes:
 - Relative storage paths are resolved from `server/Damebooru.Server`.
 - Scheduler behavior is controlled by `Damebooru:Processing:RunScheduler`.
+- Full configuration reference: `docs/configuration.md`
+- Environment variables use ASP.NET Core nested binding with `__`, for example `Damebooru__Scanner__EnableWatcher=true`.
 
 ## Run Locally
 

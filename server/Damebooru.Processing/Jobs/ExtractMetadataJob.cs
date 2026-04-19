@@ -1,7 +1,7 @@
-using Damebooru.Core;
 using Damebooru.Core.Config;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
+using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,18 +15,19 @@ public class ExtractMetadataJob : IJob
     public static readonly JobKey JobKey = JobKeys.ExtractMetadata;
     public const string JobName = "Extract Metadata";
 
-    private sealed record PostMetadataCandidate(int PostId, int PostFileId, string RelativePath, string LibraryPath);
-
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly MediaEnrichmentService _mediaEnrichmentService;
     private readonly ILogger<ExtractMetadataJob> _logger;
     private readonly int _parallelism;
 
     public ExtractMetadataJob(
         IServiceScopeFactory scopeFactory,
+        MediaEnrichmentService mediaEnrichmentService,
         ILogger<ExtractMetadataJob> logger,
         IOptions<DamebooruConfig> config)
     {
         _scopeFactory = scopeFactory;
+        _mediaEnrichmentService = mediaEnrichmentService;
         _logger = logger;
         _parallelism = Math.Max(1, config.Value.Processing.MetadataParallelism);
     }
@@ -41,20 +42,18 @@ public class ExtractMetadataJob : IJob
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
-        var mediaFileProcessor = scope.ServiceProvider.GetRequiredService<IMediaFileProcessor>();
 
-        // In "missing" mode, find posts that haven't been processed yet (Width == 0)
-        var query = db.Posts.AsNoTracking().AsQueryable();
+        var query = db.PostFiles.AsNoTracking().AsQueryable();
         if (context.Mode == JobMode.Missing)
         {
-            query = query.Where(p => p.PostFiles.Any(pf => pf.Width == 0 || string.IsNullOrEmpty(pf.ContentType)));
+            query = query.Where(pf => pf.Width == 0 || string.IsNullOrEmpty(pf.ContentType));
         }
 
-        var totalPosts = await query.CountAsync(context.CancellationToken);
+        var totalFiles = await query.CountAsync(context.CancellationToken);
 
-        _logger.LogInformation("Extracting metadata for {Count} posts (mode: {Mode})", totalPosts, context.Mode);
+        _logger.LogInformation("Extracting metadata for {Count} files (mode: {Mode})", totalFiles, context.Mode);
 
-        if (totalPosts == 0)
+        if (totalFiles == 0)
         {
             context.Reporter.Update(new JobState
             {
@@ -71,25 +70,25 @@ public class ExtractMetadataJob : IJob
 
         JobState BuildLiveState() => new()
         {
-            ActivityText = $"Extracting metadata... ({Math.Min(totalPosts, processed + failed)}/{totalPosts})",
-            ProgressCurrent = Math.Min(totalPosts, processed + failed),
-            ProgressTotal = totalPosts
+            ActivityText = $"Extracting metadata... ({Math.Min(totalFiles, processed + failed)}/{totalFiles})",
+            ProgressCurrent = Math.Min(totalFiles, processed + failed),
+            ProgressTotal = totalFiles
         };
 
         var lastId = 0;
 
-        // Process in bounded batches to keep memory usage stable regardless of DB size.
         const int batchSize = 100;
         while (true)
         {
             var batch = await query
-                .Where(p => p.Id > lastId)
-                .OrderBy(p => p.Id)
-                .Select(p => new PostMetadataCandidate(
-                    p.Id,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Id).FirstOrDefault(),
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Path).FirstOrDefault() ?? string.Empty))
+                .Where(pf => pf.Id > lastId)
+                .OrderBy(pf => pf.Id)
+                .Select(pf => new PostFileEnrichmentTarget(
+                    pf.Id,
+                    pf.LibraryId,
+                    pf.ContentHash,
+                    pf.RelativePath,
+                    pf.Library.Path))
                 .Take(batchSize)
                 .ToListAsync(context.CancellationToken);
 
@@ -98,8 +97,8 @@ public class ExtractMetadataJob : IJob
                 break;
             }
 
-            lastId = batch[^1].PostId;
-            var results = new ConcurrentBag<(int PostFileId, int Width, int Height, string ContentType)>();
+            lastId = batch[^1].PostFileId;
+            var results = new ConcurrentBag<PostFileMetadataResult>();
 
             await Parallel.ForEachAsync(
                 batch,
@@ -108,34 +107,18 @@ public class ExtractMetadataJob : IJob
                     MaxDegreeOfParallelism = _parallelism,
                     CancellationToken = context.CancellationToken
                 },
-                async (post, ct) =>
+                async (postFile, ct) =>
                 {
                     try
                     {
-                        var fullPath = Path.Combine(post.LibraryPath, post.RelativePath);
-                        var metadata = await mediaFileProcessor.GetMetadataAsync(fullPath, ct);
-                        if (metadata.Width <= 0 || metadata.Height <= 0)
-                        {
-                            Interlocked.Increment(ref failed);
-                            _logger.LogWarning(
-                                "Metadata extraction produced invalid dimensions for post {Id}: {Path} ({Width}x{Height})",
-                                post.PostFileId,
-                                post.RelativePath,
-                                metadata.Width,
-                                metadata.Height);
-                            return;
-                        }
-
-                        var contentType = SupportedMedia.GetMimeType(Path.GetExtension(post.RelativePath));
-
-                        results.Add((post.PostFileId, metadata.Width, metadata.Height, contentType));
+                        results.Add(await _mediaEnrichmentService.ExtractMetadataAsync(postFile, ct));
                         Interlocked.Increment(ref processed);
                         context.Reporter.Update(BuildLiveState());
                     }
                     catch (Exception ex)
                     {
                         Interlocked.Increment(ref failed);
-                        _logger.LogWarning(ex, "Failed to extract metadata for post {Id}: {Path}", post.PostId, post.RelativePath);
+                        _logger.LogWarning(ex, "Failed to extract metadata for post file {Id}: {Path}", postFile.PostFileId, postFile.RelativePath);
                         context.Reporter.Update(BuildLiveState());
                     }
                 });
@@ -164,8 +147,8 @@ public class ExtractMetadataJob : IJob
         {
             ActivityText = "Completed",
             ProgressCurrent = processed + failed,
-            ProgressTotal = totalPosts,
-            FinalText = $"Extracted metadata for {processed} posts ({failed} failed)."
+            ProgressTotal = totalFiles,
+            FinalText = $"Extracted metadata for {processed} files ({failed} failed)."
         });
         _logger.LogInformation("Metadata extraction complete: {Processed} processed, {Failed} failed", processed, failed);
     }

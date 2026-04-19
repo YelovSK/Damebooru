@@ -48,6 +48,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IHasherService, ContentHasher>();
         services.AddSingleton<IMediaFileProcessor, MediaProcessor>();
         services.AddSingleton<ISimilarityService, ImageHashService>();
+        services.AddSingleton<MediaEnrichmentService>();
+        services.AddSingleton<LibraryWatchSessionFactory>();
         services.AddSingleton<IFileIdentityResolver, PlatformFileIdentityResolver>();
         services.AddSingleton<SauceNaoRateCoordinator>();
         services.AddHttpClient<ISauceNaoClient, SauceNaoClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.SauceNao));
@@ -71,6 +73,11 @@ public static class ServiceCollectionExtensions
         if (options.EnableScheduler)
         {
             services.AddHostedService<SchedulerService>();
+        }
+
+        if (config.Scanner.EnableWatcher)
+        {
+            services.AddHostedService<LibraryWatcherService>();
         }
 
         services.AddSingleton<IMediaSource, FileSystemMediaSource>();

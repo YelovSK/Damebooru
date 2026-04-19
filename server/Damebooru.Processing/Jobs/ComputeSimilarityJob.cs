@@ -1,7 +1,7 @@
-using Damebooru.Core;
 using Damebooru.Core.Config;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
+using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,18 +15,19 @@ public class ComputeSimilarityJob : IJob
     public static readonly JobKey JobKey = JobKeys.ComputeSimilarity;
     public const string JobName = "Compute Similarity";
 
-    private sealed record SimilarityCandidate(int PostId, int PostFileId, string RelativePath, string LibraryPath);
-
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly MediaEnrichmentService _mediaEnrichmentService;
     private readonly ILogger<ComputeSimilarityJob> _logger;
     private readonly int _parallelism;
 
     public ComputeSimilarityJob(
         IServiceScopeFactory scopeFactory,
+        MediaEnrichmentService mediaEnrichmentService,
         ILogger<ComputeSimilarityJob> logger,
         IOptions<DamebooruConfig> config)
     {
         _scopeFactory = scopeFactory;
+        _mediaEnrichmentService = mediaEnrichmentService;
         _logger = logger;
         _parallelism = Math.Max(1, config.Value.Processing.SimilarityParallelism);
     }
@@ -41,17 +42,15 @@ public class ComputeSimilarityJob : IJob
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
-        var similarityService = scope.ServiceProvider.GetRequiredService<ISimilarityService>();
 
-        // Only images have PDQ hashes
-        var query = db.Posts.AsNoTracking().AsQueryable();
+        var query = db.PostFiles.AsNoTracking().AsQueryable();
         if (context.Mode == JobMode.Missing)
         {
-            query = query.Where(p => p.PostFiles.Any(pf => string.IsNullOrEmpty(pf.PdqHash256)));
+            query = query.Where(pf => string.IsNullOrEmpty(pf.PdqHash256));
         }
 
         var totalCandidates = await query.CountAsync(context.CancellationToken);
-        _logger.LogInformation("Computing similarity hashes for {Count} candidate posts (mode: {Mode})", totalCandidates, context.Mode);
+        _logger.LogInformation("Computing similarity hashes for {Count} candidate files (mode: {Mode})", totalCandidates, context.Mode);
 
         if (totalCandidates == 0)
         {
@@ -65,7 +64,6 @@ public class ComputeSimilarityJob : IJob
             return;
         }
 
-        var scanned = 0;
         var completed = 0;
         int processed = 0;
         int failed = 0;
@@ -82,13 +80,14 @@ public class ComputeSimilarityJob : IJob
         while (true)
         {
             var batch = await query
-                .Where(p => p.Id > lastId)
-                .OrderBy(p => p.Id)
-                .Select(p => new SimilarityCandidate(
-                    p.Id,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Id).FirstOrDefault(),
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Path).FirstOrDefault() ?? string.Empty))
+                .Where(pf => pf.Id > lastId)
+                .OrderBy(pf => pf.Id)
+                .Select(pf => new PostFileEnrichmentTarget(
+                    pf.Id,
+                    pf.LibraryId,
+                    pf.ContentHash,
+                    pf.RelativePath,
+                    pf.Library.Path))
                 .Take(batchSize)
                 .ToListAsync(context.CancellationToken);
 
@@ -97,63 +96,40 @@ public class ComputeSimilarityJob : IJob
                 break;
             }
 
-            lastId = batch[^1].PostId;
-            scanned += batch.Count;
-
-            // Similarity hashing only applies to image files.
-            var imageBatch = batch
-                .Where(p => SupportedMedia.IsImage(Path.GetExtension(p.RelativePath)))
-                .ToList();
-
-            if (imageBatch.Count == 0)
-            {
-                Interlocked.Add(ref completed, batch.Count);
-                context.Reporter.Update(new JobState
-                {
-                    ActivityText = $"Scanning candidates... ({Math.Min(totalCandidates, completed)}/{totalCandidates})",
-                    ProgressCurrent = Math.Min(totalCandidates, completed),
-                    ProgressTotal = totalCandidates
-                });
-                continue;
-            }
-
-            var nonImageCount = batch.Count - imageBatch.Count;
-            if (nonImageCount > 0)
-            {
-                Interlocked.Add(ref completed, nonImageCount);
-            }
-
-            var results = new ConcurrentBag<(int PostFileId, SimilarityHashes Hashes)>();
+            lastId = batch[^1].PostFileId;
+            var results = new ConcurrentBag<PostFileSimilarityResult>();
 
             await Parallel.ForEachAsync(
-                imageBatch,
+                batch,
                 new ParallelOptions
                 {
                     MaxDegreeOfParallelism = _parallelism,
                     CancellationToken = context.CancellationToken
                 },
-                async (post, ct) =>
+                async (postFile, ct) =>
                 {
                     try
                     {
-                        var fullPath = Path.Combine(post.LibraryPath, post.RelativePath);
-                        var hashes = await similarityService.ComputeHashesAsync(fullPath, ct);
-
-                        results.Add((post.PostFileId, hashes));
-                        Interlocked.Increment(ref processed);
-                        Interlocked.Increment(ref completed);
-                        context.Reporter.Update(BuildLiveState("Computing similarity hashes..."));
+                        var result = await _mediaEnrichmentService.ComputeSimilarityAsync(postFile, ct);
+                        if (result != null)
+                        {
+                            results.Add(result);
+                            Interlocked.Increment(ref processed);
+                        }
                     }
                     catch (Exception ex)
                     {
                         Interlocked.Increment(ref failed);
+                        _logger.LogWarning(ex, "Failed to compute similarity hash for post file {Id}: {Path}", postFile.PostFileId, postFile.RelativePath);
+                    }
+                    finally
+                    {
                         Interlocked.Increment(ref completed);
-                        _logger.LogWarning(ex, "Failed to compute similarity hash for post {Id}: {Path}", post.PostId, post.RelativePath);
                         context.Reporter.Update(BuildLiveState("Computing similarity hashes..."));
                     }
                 });
 
-            var entityIds = imageBatch.Select(p => p.PostFileId).ToList();
+            var entityIds = batch.Select(p => p.PostFileId).ToList();
             var entities = await db.PostFiles
                 .Where(pf => entityIds.Contains(pf.Id))
                 .ToDictionaryAsync(pf => pf.Id, context.CancellationToken);
@@ -162,7 +138,7 @@ public class ComputeSimilarityJob : IJob
             {
                 if (entities.TryGetValue(result.PostFileId, out var entity))
                 {
-                    entity.PdqHash256 = result.Hashes.PdqHash256;
+                    entity.PdqHash256 = result.PdqHash256;
                 }
             }
 

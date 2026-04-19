@@ -2,11 +2,10 @@ using Damebooru.Core;
 using Damebooru.Core.Config;
 using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
-using Damebooru.Core.Paths;
 using Damebooru.Data;
+using Damebooru.Processing.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -18,28 +17,21 @@ public class GenerateThumbnailsJob : IJob
     public const string JobName = "Generate Thumbnails";
     private const int BatchSize = 20;
 
-    private sealed record ThumbnailCandidate(int Id, int LibraryId, string ContentHash, string RelativePath, string LibraryPath);
-
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly MediaEnrichmentService _mediaEnrichmentService;
     private readonly ILogger<GenerateThumbnailsJob> _logger;
-    private readonly string _thumbnailPath;
     private readonly int _parallelism;
 
     public GenerateThumbnailsJob(
         IServiceScopeFactory scopeFactory,
+        MediaEnrichmentService mediaEnrichmentService,
         ILogger<GenerateThumbnailsJob> logger,
-        IOptions<DamebooruConfig> options,
-        IHostEnvironment hostEnvironment)
+        IOptions<DamebooruConfig> options)
     {
         _scopeFactory = scopeFactory;
+        _mediaEnrichmentService = mediaEnrichmentService;
         _logger = logger;
         _parallelism = Math.Max(1, options.Value.Processing.ThumbnailParallelism);
-        _thumbnailPath = MediaPaths.ResolveThumbnailStoragePath(
-            hostEnvironment.ContentRootPath,
-            options.Value.Storage.ThumbnailPath);
-
-        if (!Directory.Exists(_thumbnailPath))
-            Directory.CreateDirectory(_thumbnailPath);
     }
 
     public int DisplayOrder => 25;
@@ -52,19 +44,18 @@ public class GenerateThumbnailsJob : IJob
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
-        var mediaFileProcessor = scope.ServiceProvider.GetRequiredService<IMediaFileProcessor>();
 
-        var query = db.Posts
+        var query = db.PostFiles
             .AsNoTracking()
-            .Where(p => p.PostFiles.Any(pf => !string.IsNullOrEmpty(pf.ContentHash)))
+            .Where(pf => !string.IsNullOrEmpty(pf.ContentHash))
             .AsQueryable();
 
-        var totalPosts = await query.CountAsync(context.CancellationToken);
+        var totalFiles = await query.CountAsync(context.CancellationToken);
         var totalCandidates = context.Mode == JobMode.All
-            ? totalPosts
-            : await CountMissingThumbnailCandidatesAsync(query, totalPosts, context);
+            ? totalFiles
+            : await CountMissingThumbnailCandidatesAsync(query, totalFiles, context);
         _logger.LogInformation(
-            "Generating thumbnails for up to {Count} posts (mode: {Mode})",
+            "Generating thumbnails for up to {Count} files (mode: {Mode})",
             totalCandidates,
             context.Mode);
 
@@ -101,14 +92,14 @@ public class GenerateThumbnailsJob : IJob
         while (true)
         {
             var batch = await query
-                .Where(p => p.Id > lastId)
-                .OrderBy(p => p.Id)
-                .Select(p => new ThumbnailCandidate(
-                    p.Id,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Path).FirstOrDefault() ?? string.Empty))
+                .Where(pf => pf.Id > lastId)
+                .OrderBy(pf => pf.Id)
+                .Select(pf => new PostFileEnrichmentTarget(
+                    pf.Id,
+                    pf.LibraryId,
+                    pf.ContentHash,
+                    pf.RelativePath,
+                    pf.Library.Path))
                 .Take(BatchSize)
                 .ToListAsync(context.CancellationToken);
 
@@ -117,8 +108,8 @@ public class GenerateThumbnailsJob : IJob
                 break;
             }
 
-            lastId = batch[^1].Id;
-            List<ThumbnailCandidate> toProcess;
+            lastId = batch[^1].PostFileId;
+            List<PostFileEnrichmentTarget> toProcess;
             if (context.Mode == JobMode.All)
             {
                 toProcess = batch;
@@ -126,31 +117,24 @@ public class GenerateThumbnailsJob : IJob
             else
             {
                 toProcess = batch
-                    .Where(p => !File.Exists(MediaPaths.GetThumbnailFilePath(_thumbnailPath, p.LibraryId, p.ContentHash)))
+                    .Where(target => !_mediaEnrichmentService.HasThumbnail(target))
                     .ToList();
 
                 skipped += batch.Count - toProcess.Count;
             }
 
-            await Parallel.ForEachAsync(toProcess, parallelOptions, async (post, ct) =>
+            await Parallel.ForEachAsync(toProcess, parallelOptions, async (postFile, ct) =>
             {
                 try
                 {
-                    var fullPath = Path.Combine(post.LibraryPath, post.RelativePath);
-                    var destination = MediaPaths.GetThumbnailFilePath(_thumbnailPath, post.LibraryId, post.ContentHash);
-                    var destinationDirectory = Path.GetDirectoryName(destination);
-                    if (!string.IsNullOrWhiteSpace(destinationDirectory))
-                    {
-                        Directory.CreateDirectory(destinationDirectory);
-                    }
-                    await mediaFileProcessor.GenerateThumbnailAsync(fullPath, destination, 400, ct);
+                    await _mediaEnrichmentService.GenerateThumbnailAsync(postFile, ct);
                     Interlocked.Increment(ref processed);
                     context.Reporter.Update(BuildLiveState());
                 }
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref failed);
-                    _logger.LogWarning(ex, "Failed to generate thumbnail for post {Id}: {Path}", post.Id, post.RelativePath);
+                    _logger.LogWarning(ex, "Failed to generate thumbnail for post file {Id}: {Path}", postFile.PostFileId, postFile.RelativePath);
                     context.Reporter.Update(BuildLiveState());
                 }
             });
@@ -172,13 +156,13 @@ public class GenerateThumbnailsJob : IJob
             skipped);
     }
 
-    private async Task<int> CountMissingThumbnailCandidatesAsync(IQueryable<Post> query, int totalPosts, JobContext context)
+    private async Task<int> CountMissingThumbnailCandidatesAsync(IQueryable<PostFile> query, int totalFiles, JobContext context)
     {
         context.Reporter.Update(new JobState
         {
-            ActivityText = $"Scanning posts for missing thumbnails... (0/{totalPosts})",
+            ActivityText = $"Scanning files for missing thumbnails... (0/{totalFiles})",
             ProgressCurrent = 0,
-            ProgressTotal = totalPosts,
+            ProgressTotal = totalFiles,
         });
 
         var lastId = 0;
@@ -188,14 +172,14 @@ public class GenerateThumbnailsJob : IJob
         while (true)
         {
             var batch = await query
-                .Where(p => p.Id > lastId)
-                .OrderBy(p => p.Id)
-                .Select(p => new ThumbnailCandidate(
-                    p.Id,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Path).FirstOrDefault() ?? string.Empty))
+                .Where(pf => pf.Id > lastId)
+                .OrderBy(pf => pf.Id)
+                .Select(pf => new PostFileEnrichmentTarget(
+                    pf.Id,
+                    pf.LibraryId,
+                    pf.ContentHash,
+                    pf.RelativePath,
+                    pf.Library.Path))
                 .Take(BatchSize)
                 .ToListAsync(context.CancellationToken);
 
@@ -204,15 +188,15 @@ public class GenerateThumbnailsJob : IJob
                 break;
             }
 
-            lastId = batch[^1].Id;
+            lastId = batch[^1].PostFileId;
             scanned += batch.Count;
-            missingCount += batch.Count(p => !File.Exists(MediaPaths.GetThumbnailFilePath(_thumbnailPath, p.LibraryId, p.ContentHash)));
+            missingCount += batch.Count(target => !_mediaEnrichmentService.HasThumbnail(target));
 
             context.Reporter.Update(new JobState
             {
-                ActivityText = $"Scanning posts for missing thumbnails... ({scanned}/{totalPosts})",
+                ActivityText = $"Scanning files for missing thumbnails... ({scanned}/{totalFiles})",
                 ProgressCurrent = scanned,
-                ProgressTotal = totalPosts,
+                ProgressTotal = totalFiles,
             });
         }
 
