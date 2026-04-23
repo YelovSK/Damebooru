@@ -21,27 +21,24 @@ At the moment, the project is half-baked, and will very likely stay like that.
 
 ## Features
 - External library scanning (posts are created for images and videos in the given folder)
-- Cron jobs - library scanning, thumbnail generation, metadata extraction, and so on
-- Grid with all posts using virtual scroll
+- Real-time file system tracking
+- Cron jobs - library scanning, thumbnail generation, metadata extraction, and so on)
+- Posts grid using virtual scroll
 - Similar and duplicate post detection
 - Tags and tag categories
 - Single-user optional authentication
 - Search syntax (include/exclude tags, types, tag count, sorting, filename, ..)
 - Move/zoom post with mouse
-- Auto-tag via SauceNAO + Gelbooru/Danbooru (this is kind of.. not sure if it still works, will change later)
+- Auto-tag via SauceNAO/Iqdb + Gelbooru/Danbooru
 
 ## Configuration
-Before first run, verify these settings in `server/Damebooru.Server/appsettings.json`:
-- `ConnectionStrings:DefaultConnection`
-- `Damebooru:Storage:DatabasePath`
-- `Damebooru:Storage:ThumbnailPath`
-- `Damebooru:Storage:TempPath`
+Configuration can be provided through `server/Damebooru.Server/appsettings.json`, environment variables, or Docker Compose environment blocks/secrets.
 
-Notes:
-- Relative storage paths are resolved from `server/Damebooru.Server`.
-- Scheduler behavior is controlled by `Damebooru:Processing:RunScheduler`.
-- Full configuration reference: `docs/configuration.md`
-- Environment variables use ASP.NET Core nested binding with `__`, for example `Damebooru__Scanner__EnableWatcher=true`.
+Environment variables use ASP.NET Core nested binding with `__`, for example `Damebooru__Scanner__EnableWatcher=true`.
+
+`ConnectionStrings:DefaultConnection` is configured separately from the `Damebooru` settings.
+
+See [docs/configuration.md](docs/configuration.md) for the full configuration reference.
 
 ## Run Locally
 
