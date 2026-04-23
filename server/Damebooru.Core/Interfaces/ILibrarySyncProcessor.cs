@@ -26,9 +26,19 @@ public interface ILibrarySyncProcessor
     Task ProcessDeletedFileAsync(Library library, string relativePath, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Processes a deleted directory by its prior relative path prefix.
+    /// </summary>
+    Task ProcessDeletedDirectoryAsync(Library library, string relativePathPrefix, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Processes a moved or renamed file.
     /// </summary>
     Task ProcessMovedFileAsync(Library library, string oldRelativePath, MediaSourceItem item, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Processes a moved or renamed directory within a library.
+    /// </summary>
+    Task ProcessMovedDirectoryAsync(Library library, string oldRelativePathPrefix, string newRelativePathPrefix, CancellationToken cancellationToken);
 
     /// <summary>
      /// Processes all files in a directory.

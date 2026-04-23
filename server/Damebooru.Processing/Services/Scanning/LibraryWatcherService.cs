@@ -157,8 +157,8 @@ public sealed class LibraryWatcherService : BackgroundService
             ProcessingTask = session.ProcessAsync(channel.Reader, cts.Token),
         };
 
-        watcher.Created += (_, e) => TryQueueUpsert(registration, e.FullPath);
-        watcher.Changed += (_, e) => TryQueueUpsert(registration, e.FullPath);
+        watcher.Created += (_, e) => TryQueueCreated(registration, e.FullPath);
+        watcher.Changed += (_, e) => TryQueueChanged(registration, e.FullPath);
         watcher.Deleted += (_, e) => TryQueueDelete(registration, e.FullPath);
         watcher.Renamed += (_, e) => TryQueueMove(registration, e.OldFullPath, e.FullPath);
         watcher.Error += (_, e) => TryQueueOverflow(registration, e.GetException());
@@ -201,7 +201,30 @@ public sealed class LibraryWatcherService : BackgroundService
         }
     }
 
-    private void TryQueueUpsert(LibraryWatcherRegistration registration, string fullPath)
+    private void TryQueueCreated(LibraryWatcherRegistration registration, string fullPath)
+    {
+        if (!LibraryWatchPathHelper.TryGetRelativePath(registration.Library, fullPath, out var relativePath))
+        {
+            return;
+        }
+
+        if (Directory.Exists(fullPath))
+        {
+            _logger.LogInformation("Watcher raw create event for library {Library}: {Path} (directory)", registration.Library.Name, relativePath);
+            TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Upsert, relativePath, null, true, NextSequence()));
+            return;
+        }
+
+        if (!LibraryWatchPathHelper.IsSupportedFile(fullPath))
+        {
+            return;
+        }
+
+        _logger.LogDebug("Watcher raw upsert event for library {Library}: {Path}", registration.Library.Name, relativePath);
+        TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Upsert, relativePath, null, false, NextSequence()));
+    }
+
+    private void TryQueueChanged(LibraryWatcherRegistration registration, string fullPath)
     {
         if (!LibraryWatchPathHelper.TryGetRelativePath(registration.Library, fullPath, out var relativePath)
             || !LibraryWatchPathHelper.IsSupportedFile(fullPath))
@@ -210,7 +233,7 @@ public sealed class LibraryWatcherService : BackgroundService
         }
 
         _logger.LogDebug("Watcher raw upsert event for library {Library}: {Path}", registration.Library.Name, relativePath);
-        TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Upsert, relativePath, null, NextSequence()));
+        TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Upsert, relativePath, null, false, NextSequence()));
     }
 
     private void TryQueueDelete(LibraryWatcherRegistration registration, string fullPath)
@@ -221,7 +244,7 @@ public sealed class LibraryWatcherService : BackgroundService
         }
 
         _logger.LogDebug("Watcher raw delete event for library {Library}: {Path}", registration.Library.Name, relativePath);
-        TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Delete, relativePath, null, NextSequence()));
+        TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Delete, relativePath, null, false, NextSequence()));
     }
 
     private void TryQueueMove(LibraryWatcherRegistration registration, string oldFullPath, string newFullPath)
@@ -235,6 +258,20 @@ public sealed class LibraryWatcherService : BackgroundService
             return;
         }
 
+        var isDirectoryMove = Directory.Exists(newFullPath);
+
+        if (isDirectoryMove)
+        {
+            _logger.LogInformation(
+                "Watcher raw move event for library {Library}: {OldPath} -> {NewPath} (directory)",
+                registration.Library.Name,
+                oldRelativePath,
+                newRelativePath);
+
+            TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Move, newRelativePath, oldRelativePath, true, NextSequence()));
+            return;
+        }
+
         if (oldSupported && newSupported)
         {
             _logger.LogDebug(
@@ -243,18 +280,18 @@ public sealed class LibraryWatcherService : BackgroundService
                 oldRelativePath,
                 newRelativePath);
 
-            TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Move, newRelativePath, oldRelativePath, NextSequence()));
+            TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Move, newRelativePath, oldRelativePath, false, NextSequence()));
             return;
         }
 
         if (oldSupported)
         {
-            TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Delete, oldRelativePath, null, NextSequence()));
+            TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Delete, oldRelativePath, null, false, NextSequence()));
         }
 
         if (newSupported)
         {
-            TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Upsert, newRelativePath, null, NextSequence()));
+            TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Upsert, newRelativePath, null, false, NextSequence()));
         }
     }
 
@@ -269,7 +306,7 @@ public sealed class LibraryWatcherService : BackgroundService
             _logger.LogWarning("File watcher overflow/error for library {Library}. A later scan may be needed to reconcile missed changes.", registration.Library.Name);
         }
 
-        TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Overflow, string.Empty, null, NextSequence()));
+        TryQueue(registration, new LibraryWatchEvent(LibraryWatchEventKind.Overflow, string.Empty, null, false, NextSequence()));
     }
 
     private void TryQueue(LibraryWatcherRegistration registration, LibraryWatchEvent watchEvent)

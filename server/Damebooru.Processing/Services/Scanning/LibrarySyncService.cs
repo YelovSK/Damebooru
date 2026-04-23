@@ -365,6 +365,42 @@ public class LibrarySyncService : ILibrarySyncProcessor
         await DeleteTrackedPostFileAsync(dbContext, library, existingPostFile, cancellationToken);
     }
 
+    public async Task ProcessDeletedDirectoryAsync(Library library, string relativePathPrefix, CancellationToken cancellationToken)
+    {
+        var normalizedPrefix = RelativePathMatcher.NormalizePath(relativePathPrefix);
+        if (string.IsNullOrWhiteSpace(normalizedPrefix))
+        {
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var candidates = await dbContext.PostFiles
+            .Where(pf => pf.LibraryId == library.Id)
+            .ToListAsync(cancellationToken);
+
+        candidates = candidates
+            .Where(pf => IsRelativePathWithinPrefix(pf.RelativePath, normalizedPrefix))
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+
+        var affectedPostIds = candidates
+            .Select(pf => pf.PostId)
+            .Distinct()
+            .ToList();
+
+        dbContext.PostFiles.RemoveRange(candidates);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await RefreshLegacyPostRecordsAsync(dbContext, affectedPostIds, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, affectedPostIds, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task ProcessMovedFileAsync(Library library, string oldRelativePath, MediaSourceItem item, CancellationToken cancellationToken)
     {
         _logger.LogDebug(
@@ -483,6 +519,81 @@ public class LibrarySyncService : ILibrarySyncProcessor
             [],
             hashChanged ? [item.RelativePath] : Array.Empty<string>(),
             cancellationToken);
+    }
+
+    public async Task ProcessMovedDirectoryAsync(
+        Library library,
+        string oldRelativePathPrefix,
+        string newRelativePathPrefix,
+        CancellationToken cancellationToken)
+    {
+        var normalizedOldPrefix = RelativePathMatcher.NormalizePath(oldRelativePathPrefix);
+        var normalizedNewPrefix = RelativePathMatcher.NormalizePath(newRelativePathPrefix);
+        _logger.LogInformation(
+            "Processing moved directory in library {Library}: {OldPath} -> {NewPath}",
+            library.Name,
+            normalizedOldPrefix,
+            normalizedNewPrefix);
+        if (string.IsNullOrWhiteSpace(normalizedOldPrefix)
+            || string.IsNullOrWhiteSpace(normalizedNewPrefix)
+            || string.Equals(normalizedOldPrefix, normalizedNewPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation(
+                "Skipping moved directory processing in library {Library} due to invalid/no-op prefixes: {OldPath} -> {NewPath}",
+                library.Name,
+                normalizedOldPrefix,
+                normalizedNewPrefix);
+            return;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var candidates = await dbContext.PostFiles
+            .Where(pf => pf.LibraryId == library.Id)
+            .ToListAsync(cancellationToken);
+
+        candidates = candidates
+            .Where(pf => IsRelativePathWithinPrefix(pf.RelativePath, normalizedOldPrefix))
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            _logger.LogInformation(
+                "Moved directory processing found no matching post files in library {Library}: {OldPath} -> {NewPath}",
+                library.Name,
+                normalizedOldPrefix,
+                normalizedNewPrefix);
+            return;
+        }
+
+        _logger.LogInformation(
+            "Moved directory processing matched {Count} post files in library {Library}: {OldPath} -> {NewPath}",
+            candidates.Count,
+            library.Name,
+            normalizedOldPrefix,
+            normalizedNewPrefix);
+
+        var affectedPostIds = candidates
+            .Select(pf => pf.PostId)
+            .Distinct()
+            .ToList();
+
+        foreach (var postFile in candidates)
+        {
+            postFile.RelativePath = ReplaceRelativePathPrefix(postFile.RelativePath, normalizedOldPrefix, normalizedNewPrefix);
+            postFile.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(postFile.RelativePath));
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await RefreshLegacyPostRecordsAsync(dbContext, affectedPostIds, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, affectedPostIds, cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation(
+            "Completed moved directory processing in library {Library}: {OldPath} -> {NewPath}",
+            library.Name,
+            normalizedOldPrefix,
+            normalizedNewPrefix);
     }
 
     private async Task<SyncRunState> LoadStateAsync(int libraryId, CancellationToken cancellationToken)
@@ -1320,5 +1431,24 @@ public class LibrarySyncService : ILibrarySyncProcessor
         }
 
         return $"{device.Trim()}|{value.Trim()}";
+    }
+
+    private static string ReplaceRelativePathPrefix(string relativePath, string oldPrefix, string newPrefix)
+    {
+        var normalizedPath = RelativePathMatcher.NormalizePath(relativePath);
+        if (normalizedPath.Equals(oldPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return newPrefix;
+        }
+
+        var suffix = normalizedPath.Substring(oldPrefix.Length).TrimStart('/');
+        return string.IsNullOrEmpty(suffix) ? newPrefix : $"{newPrefix}/{suffix}";
+    }
+
+    private static bool IsRelativePathWithinPrefix(string relativePath, string normalizedPrefix)
+    {
+        var normalizedPath = RelativePathMatcher.NormalizePath(relativePath);
+        return normalizedPath.Equals(normalizedPrefix, StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.StartsWith(normalizedPrefix + "/", StringComparison.OrdinalIgnoreCase);
     }
 }

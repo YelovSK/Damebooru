@@ -3,6 +3,7 @@ using Damebooru.Core;
 using Damebooru.Core.Config;
 using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
+using Damebooru.Core.Paths;
 using Damebooru.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +26,7 @@ internal sealed record LibraryWatchEvent(
     LibraryWatchEventKind Kind,
     string RelativePath,
     string? OldRelativePath,
+    bool IsDirectory,
     long Sequence);
 
 internal static class LibraryWatchPathHelper
@@ -110,6 +112,12 @@ internal sealed class LibraryWatchSession
     private sealed record PendingDeleteCandidate(
         string RelativePath,
         FileIdentity? Identity,
+        bool IsDirectory,
+        DateTime ExpiresAtUtc,
+        long Sequence);
+
+    private sealed record PendingDirectoryCreateCandidate(
+        string RelativePath,
         DateTime ExpiresAtUtc,
         long Sequence);
 
@@ -117,6 +125,7 @@ internal sealed class LibraryWatchSession
         LibraryWatchEventKind Kind,
         string RelativePath,
         string? OldRelativePath,
+        bool IsDirectory,
         long Sequence);
 
     private readonly LibraryWatchTarget _library;
@@ -148,18 +157,20 @@ internal sealed class LibraryWatchSession
     public async Task ProcessAsync(ChannelReader<LibraryWatchEvent> reader, CancellationToken cancellationToken)
     {
         var pendingDeletes = new List<PendingDeleteCandidate>();
+        var pendingDirectoryCreates = new List<PendingDirectoryCreateCandidate>();
 
         while (!cancellationToken.IsCancellationRequested)
         {
             var waitTask = reader.WaitToReadAsync(cancellationToken).AsTask();
-            var expiryTask = pendingDeletes.Count > 0
-                ? Task.Delay(GetNextFlushDelay(pendingDeletes), cancellationToken)
+            var expiryTask = HasPendingExpirations(pendingDeletes, pendingDirectoryCreates)
+                ? Task.Delay(GetNextFlushDelay(pendingDeletes, pendingDirectoryCreates), cancellationToken)
                 : Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
 
             var completedTask = await Task.WhenAny(waitTask, expiryTask);
             if (completedTask == expiryTask)
             {
                 await FlushExpiredDeletesAsync(pendingDeletes, cancellationToken);
+                FlushExpiredDirectoryCreates(pendingDirectoryCreates);
                 continue;
             }
 
@@ -199,24 +210,37 @@ internal sealed class LibraryWatchSession
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 await FlushExpiredDeletesAsync(pendingDeletes, cancellationToken);
+                FlushExpiredDirectoryCreates(pendingDirectoryCreates);
                 _logger.LogDebug(
-                    "Watcher compacted operation for library {Library}: {Kind} {OldPath} -> {Path}",
+                    "Watcher compacted operation for library {Library}: {Kind} {EntryType} {OldPath} -> {Path}",
                     _library.Name,
                     operation.Kind,
+                    operation.IsDirectory ? "directory" : "file",
                     operation.OldRelativePath ?? "-",
                     operation.RelativePath);
-                await ProcessOperationAsync(operation, pendingDeletes, cancellationToken);
+                if (operation.IsDirectory && operation.Kind == LibraryWatchEventKind.Move)
+                {
+                    _logger.LogInformation(
+                        "Watcher compacted directory move for library {Library}: {OldPath} -> {NewPath}",
+                        _library.Name,
+                        operation.OldRelativePath,
+                        operation.RelativePath);
+                }
+                await ProcessOperationAsync(operation, pendingDeletes, pendingDirectoryCreates, cancellationToken);
             }
 
             await FlushExpiredDeletesAsync(pendingDeletes, cancellationToken);
+            FlushExpiredDirectoryCreates(pendingDirectoryCreates);
         }
 
         await FlushAllDeletesAsync(pendingDeletes, cancellationToken);
+        pendingDirectoryCreates.Clear();
     }
 
     private async Task ProcessOperationAsync(
         PendingLibraryOperation operation,
         List<PendingDeleteCandidate> pendingDeletes,
+        List<PendingDirectoryCreateCandidate> pendingDirectoryCreates,
         CancellationToken cancellationToken)
     {
         var libraryEntity = ToLibraryEntity();
@@ -225,6 +249,30 @@ internal sealed class LibraryWatchSession
         {
             case LibraryWatchEventKind.Upsert:
             {
+                if (operation.IsDirectory)
+                {
+                    var pendingDirectoryDelete = TryMatchPendingDirectoryDelete(pendingDeletes, operation.RelativePath);
+                    if (pendingDirectoryDelete != null)
+                    {
+                        _logger.LogInformation(
+                            "Watcher inferred directory move for library {Library}: {OldPath} -> {NewPath}",
+                            _library.Name,
+                            pendingDirectoryDelete.RelativePath,
+                            operation.RelativePath);
+                        await _librarySyncProcessor.ProcessMovedDirectoryAsync(
+                            libraryEntity,
+                            pendingDirectoryDelete.RelativePath,
+                            operation.RelativePath,
+                            cancellationToken);
+                    }
+                    else
+                    {
+                        StagePendingDirectoryCreate(operation.RelativePath, operation.Sequence, pendingDirectoryCreates);
+                    }
+
+                    return;
+                }
+
                 var item = await CreateMediaSourceItemAsync(operation.RelativePath, cancellationToken);
                 if (item == null)
                 {
@@ -253,13 +301,52 @@ internal sealed class LibraryWatchSession
                 break;
             }
             case LibraryWatchEventKind.Delete:
-                await StagePendingDeleteAsync(operation, pendingDeletes, cancellationToken);
+                if (operation.IsDirectory || await IsTrackedDirectoryPrefixAsync(operation.RelativePath, cancellationToken))
+                {
+                    var pendingDirectoryCreate = TryMatchPendingDirectoryCreate(pendingDirectoryCreates, operation.RelativePath);
+                    if (pendingDirectoryCreate != null)
+                    {
+                        _logger.LogInformation(
+                            "Watcher inferred directory move for library {Library}: {OldPath} -> {NewPath}",
+                            _library.Name,
+                            operation.RelativePath,
+                            pendingDirectoryCreate.RelativePath);
+                        await _librarySyncProcessor.ProcessMovedDirectoryAsync(
+                            libraryEntity,
+                            operation.RelativePath,
+                            pendingDirectoryCreate.RelativePath,
+                            cancellationToken);
+                        break;
+                    }
+
+                    await StagePendingDeleteAsync(operation, pendingDeletes, isDirectory: true, cancellationToken);
+                    break;
+                }
+
+                await StagePendingDeleteAsync(operation, pendingDeletes, isDirectory: false, cancellationToken);
                 break;
             case LibraryWatchEventKind.Move:
             {
                 if (string.IsNullOrWhiteSpace(operation.OldRelativePath))
                 {
                     return;
+                }
+
+                if (operation.IsDirectory)
+                {
+                    RemovePendingDirectoryCreate(pendingDirectoryCreates, operation.OldRelativePath);
+                    RemovePendingDirectoryCreate(pendingDirectoryCreates, operation.RelativePath);
+                    _logger.LogInformation(
+                        "Watcher invoking moved-directory processing for library {Library}: {OldPath} -> {NewPath}",
+                        _library.Name,
+                        operation.OldRelativePath,
+                        operation.RelativePath);
+                    await _librarySyncProcessor.ProcessMovedDirectoryAsync(
+                        libraryEntity,
+                        operation.OldRelativePath,
+                        operation.RelativePath,
+                        cancellationToken);
+                    break;
                 }
 
                 var item = await CreateMediaSourceItemAsync(operation.RelativePath, cancellationToken);
@@ -304,6 +391,7 @@ internal sealed class LibraryWatchSession
                             LibraryWatchEventKind.Upsert,
                             watchEvent.RelativePath,
                             null,
+                            watchEvent.IsDirectory,
                             watchEvent.Sequence);
                     }
                     break;
@@ -318,6 +406,7 @@ internal sealed class LibraryWatchSession
                             LibraryWatchEventKind.Delete,
                             deleteExisting.OldRelativePath,
                             null,
+                            deleteExisting.IsDirectory,
                             watchEvent.Sequence);
                     }
                     else
@@ -326,6 +415,7 @@ internal sealed class LibraryWatchSession
                             LibraryWatchEventKind.Delete,
                             watchEvent.RelativePath,
                             null,
+                            watchEvent.IsDirectory,
                             watchEvent.Sequence);
                     }
                     break;
@@ -346,6 +436,7 @@ internal sealed class LibraryWatchSession
                                 LibraryWatchEventKind.Move,
                                 watchEvent.RelativePath,
                                 oldExisting.OldRelativePath,
+                                watchEvent.IsDirectory,
                                 oldExisting.Sequence);
                             break;
                         }
@@ -356,6 +447,7 @@ internal sealed class LibraryWatchSession
                                 LibraryWatchEventKind.Upsert,
                                 watchEvent.RelativePath,
                                 null,
+                                watchEvent.IsDirectory,
                                 oldExisting.Sequence);
                             break;
                         }
@@ -366,6 +458,7 @@ internal sealed class LibraryWatchSession
                         LibraryWatchEventKind.Move,
                         watchEvent.RelativePath,
                         watchEvent.OldRelativePath,
+                        watchEvent.IsDirectory,
                         watchEvent.Sequence);
                     break;
 
@@ -374,6 +467,7 @@ internal sealed class LibraryWatchSession
                         LibraryWatchEventKind.Overflow,
                         string.Empty,
                         null,
+                        false,
                         watchEvent.Sequence);
                     break;
             }
@@ -387,22 +481,60 @@ internal sealed class LibraryWatchSession
     private async Task StagePendingDeleteAsync(
         PendingLibraryOperation operation,
         List<PendingDeleteCandidate> pendingDeletes,
+        bool isDirectory,
         CancellationToken cancellationToken)
     {
         RemovePendingDelete(pendingDeletes, operation.RelativePath);
 
-        var identity = await LoadTrackedIdentityAsync(operation.RelativePath, cancellationToken);
+        var identity = isDirectory ? null : await LoadTrackedIdentityAsync(operation.RelativePath, cancellationToken);
         pendingDeletes.Add(new PendingDeleteCandidate(
             operation.RelativePath,
             identity,
+            isDirectory,
             DateTime.UtcNow.Add(_deleteGracePeriod),
             operation.Sequence));
 
         _logger.LogDebug(
-            "Watcher staging delete for library {Library}: {Path} (identity: {Identity})",
+            "Watcher staging {EntryType} delete for library {Library}: {Path} (identity: {Identity})",
+            isDirectory ? "directory" : "file",
             _library.Name,
             operation.RelativePath,
             FormatIdentity(identity));
+    }
+
+    private void StagePendingDirectoryCreate(
+        string relativePath,
+        long sequence,
+        List<PendingDirectoryCreateCandidate> pendingDirectoryCreates)
+    {
+        RemovePendingDirectoryCreate(pendingDirectoryCreates, relativePath);
+        pendingDirectoryCreates.Add(new PendingDirectoryCreateCandidate(
+            relativePath,
+            DateTime.UtcNow.Add(_deleteGracePeriod),
+            sequence));
+        _logger.LogDebug(
+            "Watcher staging directory create for library {Library}: {Path}",
+            _library.Name,
+            relativePath);
+    }
+
+    private async Task<bool> IsTrackedDirectoryPrefixAsync(string relativePath, CancellationToken cancellationToken)
+    {
+        var normalizedPrefix = RelativePathMatcher.NormalizePath(relativePath);
+        if (string.IsNullOrWhiteSpace(normalizedPrefix))
+        {
+            return false;
+        }
+
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var paths = await dbContext.PostFiles
+            .AsNoTracking()
+            .Where(pf => pf.LibraryId == _library.Id)
+            .Select(pf => pf.RelativePath)
+            .ToListAsync(cancellationToken);
+
+        return paths.Any(path => IsPathWithinPrefix(path, normalizedPrefix));
     }
 
     private async Task<FileIdentity?> LoadTrackedIdentityAsync(string relativePath, CancellationToken cancellationToken)
@@ -439,7 +571,7 @@ internal sealed class LibraryWatchSession
         foreach (var pendingDelete in expired)
         {
             pendingDeletes.Remove(pendingDelete);
-            await ProcessDeleteAsync(pendingDelete.RelativePath, cancellationToken);
+            await ProcessDeleteAsync(pendingDelete, cancellationToken);
         }
     }
 
@@ -448,14 +580,21 @@ internal sealed class LibraryWatchSession
         foreach (var pendingDelete in pendingDeletes.OrderBy(p => p.Sequence).ToList())
         {
             pendingDeletes.Remove(pendingDelete);
-            await ProcessDeleteAsync(pendingDelete.RelativePath, cancellationToken);
+            await ProcessDeleteAsync(pendingDelete, cancellationToken);
         }
     }
 
-    private async Task ProcessDeleteAsync(string relativePath, CancellationToken cancellationToken)
+    private async Task ProcessDeleteAsync(PendingDeleteCandidate pendingDelete, CancellationToken cancellationToken)
     {
-        _logger.LogDebug("Watcher invoking deleted-file processing for library {Library}: {Path}", _library.Name, relativePath);
-        await _librarySyncProcessor.ProcessDeletedFileAsync(ToLibraryEntity(), relativePath, cancellationToken);
+        if (pendingDelete.IsDirectory)
+        {
+            _logger.LogInformation("Watcher invoking deleted-directory processing for library {Library}: {Path}", _library.Name, pendingDelete.RelativePath);
+            await _librarySyncProcessor.ProcessDeletedDirectoryAsync(ToLibraryEntity(), pendingDelete.RelativePath, cancellationToken);
+            return;
+        }
+
+        _logger.LogDebug("Watcher invoking deleted-file processing for library {Library}: {Path}", _library.Name, pendingDelete.RelativePath);
+        await _librarySyncProcessor.ProcessDeletedFileAsync(ToLibraryEntity(), pendingDelete.RelativePath, cancellationToken);
     }
 
     private static PendingDeleteCandidate? TryMatchPendingDelete(List<PendingDeleteCandidate> pendingDeletes, FileIdentity? identity)
@@ -466,6 +605,7 @@ internal sealed class LibraryWatchSession
         }
 
         var match = pendingDeletes
+            .Where(p => !p.IsDirectory)
             .Where(p => IdentityEquals(p.Identity, identity))
             .OrderBy(p => p.Sequence)
             .FirstOrDefault();
@@ -478,9 +618,83 @@ internal sealed class LibraryWatchSession
         return match;
     }
 
+    private static PendingDeleteCandidate? TryMatchPendingDirectoryDelete(List<PendingDeleteCandidate> pendingDeletes, string newRelativePath)
+    {
+        var normalizedLeaf = GetLeafName(newRelativePath);
+        if (string.IsNullOrWhiteSpace(normalizedLeaf))
+        {
+            return null;
+        }
+
+        var matches = pendingDeletes
+            .Where(p => p.IsDirectory)
+            .Where(p => string.Equals(GetLeafName(p.RelativePath), normalizedLeaf, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.Sequence)
+            .Take(2)
+            .ToList();
+
+        if (matches.Count != 1)
+        {
+            return null;
+        }
+
+        var match = matches[0];
+        pendingDeletes.Remove(match);
+        return match;
+    }
+
+    private static PendingDirectoryCreateCandidate? TryMatchPendingDirectoryCreate(
+        List<PendingDirectoryCreateCandidate> pendingDirectoryCreates,
+        string oldRelativePath)
+    {
+        var normalizedLeaf = GetLeafName(oldRelativePath);
+        if (string.IsNullOrWhiteSpace(normalizedLeaf))
+        {
+            return null;
+        }
+
+        var matches = pendingDirectoryCreates
+            .Where(p => string.Equals(GetLeafName(p.RelativePath), normalizedLeaf, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(p => p.Sequence)
+            .Take(2)
+            .ToList();
+
+        if (matches.Count != 1)
+        {
+            return null;
+        }
+
+        var match = matches[0];
+        pendingDirectoryCreates.Remove(match);
+        return match;
+    }
+
     private static void RemovePendingDelete(List<PendingDeleteCandidate> pendingDeletes, string relativePath)
     {
         pendingDeletes.RemoveAll(p => string.Equals(p.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void RemovePendingDirectoryCreate(List<PendingDirectoryCreateCandidate> pendingDirectoryCreates, string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return;
+        }
+
+        pendingDirectoryCreates.RemoveAll(p => string.Equals(p.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string GetLeafName(string relativePath)
+    {
+        var normalizedPath = RelativePathMatcher.NormalizePath(relativePath);
+        return Path.GetFileName(normalizedPath);
+    }
+
+    private static bool IsPathWithinPrefix(string relativePath, string normalizedPrefix)
+    {
+        var normalizedPath = RelativePathMatcher.NormalizePath(relativePath);
+        return normalizedPath.Equals(normalizedPrefix, StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.StartsWith(normalizedPrefix + "/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IdentityEquals(FileIdentity? left, FileIdentity? right)
@@ -492,12 +706,42 @@ internal sealed class LibraryWatchSession
     private static string FormatIdentity(FileIdentity? identity)
         => identity == null ? "missing" : $"{identity.Device}|{identity.Value}";
 
-    private static TimeSpan GetNextFlushDelay(List<PendingDeleteCandidate> pendingDeletes)
+    private static bool HasPendingExpirations(
+        List<PendingDeleteCandidate> pendingDeletes,
+        List<PendingDirectoryCreateCandidate> pendingDirectoryCreates)
+        => pendingDeletes.Count > 0 || pendingDirectoryCreates.Count > 0;
+
+    private static TimeSpan GetNextFlushDelay(
+        List<PendingDeleteCandidate> pendingDeletes,
+        List<PendingDirectoryCreateCandidate> pendingDirectoryCreates)
     {
         var now = DateTime.UtcNow;
-        var nextExpiry = pendingDeletes.Min(p => p.ExpiresAtUtc);
+        var nextExpiry = DateTime.MaxValue;
+        if (pendingDeletes.Count > 0)
+        {
+            nextExpiry = pendingDeletes.Min(p => p.ExpiresAtUtc);
+        }
+
+        if (pendingDirectoryCreates.Count > 0)
+        {
+            nextExpiry = DateTime.Compare(nextExpiry, pendingDirectoryCreates.Min(p => p.ExpiresAtUtc)) < 0
+                ? nextExpiry
+                : pendingDirectoryCreates.Min(p => p.ExpiresAtUtc);
+        }
+
         var delay = nextExpiry - now;
         return delay > TimeSpan.Zero ? delay : TimeSpan.Zero;
+    }
+
+    private static void FlushExpiredDirectoryCreates(List<PendingDirectoryCreateCandidate> pendingDirectoryCreates)
+    {
+        if (pendingDirectoryCreates.Count == 0)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        pendingDirectoryCreates.RemoveAll(p => p.ExpiresAtUtc <= now);
     }
 
     private async Task<MediaSourceItem?> CreateMediaSourceItemAsync(string relativePath, CancellationToken cancellationToken)
