@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMediaFileProcessor, MediaProcessor>();
         services.AddSingleton<ISimilarityService, ImageHashService>();
         services.AddSingleton<MediaEnrichmentService>();
+        services.AddSingleton<LibraryWatchTrackedStateReader>();
         services.AddSingleton<LibraryWatchSessionFactory>();
         services.AddSingleton<IFileIdentityResolver, PlatformFileIdentityResolver>();
         services.AddSingleton<SauceNaoRateCoordinator>();

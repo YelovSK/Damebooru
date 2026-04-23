@@ -29,4 +29,19 @@ public static class RelativePathMatcher
         return normalizedPath.Equals(normalizedPrefix, StringComparison.OrdinalIgnoreCase)
             || normalizedPath.StartsWith($"{normalizedPrefix}/", StringComparison.OrdinalIgnoreCase);
     }
+
+    public static string ReplacePrefix(string relativePath, string oldNormalizedPrefix, string newNormalizedPrefix)
+    {
+        var normalizedPath = NormalizePath(relativePath);
+        if (normalizedPath.Equals(oldNormalizedPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return newNormalizedPrefix;
+        }
+
+        var suffix = normalizedPath.Substring(oldNormalizedPrefix.Length).TrimStart('/');
+        return string.IsNullOrEmpty(suffix) ? newNormalizedPrefix : $"{newNormalizedPrefix}/{suffix}";
+    }
+
+    public static string ToSqlComparablePath(string path)
+        => NormalizePath(path);
 }

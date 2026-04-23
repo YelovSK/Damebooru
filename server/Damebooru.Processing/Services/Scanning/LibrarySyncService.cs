@@ -261,10 +261,13 @@ public class LibrarySyncService : ILibrarySyncProcessor
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var normalizedItemPath = RelativePathMatcher.NormalizePath(item.RelativePath);
 
         var existingPostFile = await dbContext.PostFiles
             .AsNoTracking()
-            .FirstOrDefaultAsync(pf => pf.LibraryId == library.Id && pf.RelativePath == item.RelativePath, cancellationToken);
+            .FirstOrDefaultAsync(
+                pf => pf.LibraryId == library.Id && pf.RelativePath.Replace("\\", "/") == normalizedItemPath,
+                cancellationToken);
 
         if (existingPostFile != null)
         {
@@ -302,11 +305,14 @@ public class LibrarySyncService : ILibrarySyncProcessor
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var normalizedItemPath = RelativePathMatcher.NormalizePath(item.RelativePath);
 
         var existingPostFile = await dbContext.PostFiles
             .Include(pf => pf.Post)
                 .ThenInclude(p => p.PostFiles)
-            .FirstOrDefaultAsync(pf => pf.LibraryId == library.Id && pf.RelativePath == item.RelativePath, cancellationToken);
+            .FirstOrDefaultAsync(
+                pf => pf.LibraryId == library.Id && pf.RelativePath.Replace("\\", "/") == normalizedItemPath,
+                cancellationToken);
 
         var evaluation = await EvaluateIncomingFileAsync(dbContext, library.Id, item, cancellationToken);
         if (evaluation.ShouldSkip || string.IsNullOrEmpty(evaluation.Hash))
@@ -351,11 +357,14 @@ public class LibrarySyncService : ILibrarySyncProcessor
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var normalizedRelativePath = RelativePathMatcher.NormalizePath(relativePath);
 
         var existingPostFile = await dbContext.PostFiles
             .Include(pf => pf.Post)
                 .ThenInclude(p => p.PostFiles)
-            .FirstOrDefaultAsync(pf => pf.LibraryId == library.Id && pf.RelativePath == relativePath, cancellationToken);
+            .FirstOrDefaultAsync(
+                pf => pf.LibraryId == library.Id && pf.RelativePath.Replace("\\", "/") == normalizedRelativePath,
+                cancellationToken);
 
         if (existingPostFile == null)
         {
@@ -375,13 +384,12 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var prefixWithSlash = normalizedPrefix + "/";
         var candidates = await dbContext.PostFiles
             .Where(pf => pf.LibraryId == library.Id)
+            .Where(pf => pf.RelativePath.Replace("\\", "/") == normalizedPrefix
+                || pf.RelativePath.Replace("\\", "/").StartsWith(prefixWithSlash))
             .ToListAsync(cancellationToken);
-
-        candidates = candidates
-            .Where(pf => IsRelativePathWithinPrefix(pf.RelativePath, normalizedPrefix))
-            .ToList();
 
         if (candidates.Count == 0)
         {
@@ -421,11 +429,15 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var normalizedOldRelativePath = RelativePathMatcher.NormalizePath(oldRelativePath);
+        var normalizedNewRelativePath = RelativePathMatcher.NormalizePath(item.RelativePath);
 
         var existingPostFile = await dbContext.PostFiles
             .Include(pf => pf.Post)
                 .ThenInclude(p => p.PostFiles)
-            .FirstOrDefaultAsync(pf => pf.LibraryId == library.Id && pf.RelativePath == oldRelativePath, cancellationToken);
+            .FirstOrDefaultAsync(
+                pf => pf.LibraryId == library.Id && pf.RelativePath.Replace("\\", "/") == normalizedOldRelativePath,
+                cancellationToken);
 
         if (existingPostFile == null)
         {
@@ -442,8 +454,8 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .AsNoTracking()
             .AnyAsync(
                 pf => pf.LibraryId == library.Id
-                    && pf.RelativePath == item.RelativePath
-                    && pf.RelativePath != oldRelativePath,
+                    && pf.RelativePath.Replace("\\", "/") == normalizedNewRelativePath
+                    && pf.RelativePath.Replace("\\", "/") != normalizedOldRelativePath,
                 cancellationToken);
 
         if (conflictingTargetPath)
@@ -548,13 +560,12 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var oldPrefixWithSlash = normalizedOldPrefix + "/";
         var candidates = await dbContext.PostFiles
             .Where(pf => pf.LibraryId == library.Id)
+            .Where(pf => pf.RelativePath.Replace("\\", "/") == normalizedOldPrefix
+                || pf.RelativePath.Replace("\\", "/").StartsWith(oldPrefixWithSlash))
             .ToListAsync(cancellationToken);
-
-        candidates = candidates
-            .Where(pf => IsRelativePathWithinPrefix(pf.RelativePath, normalizedOldPrefix))
-            .ToList();
 
         if (candidates.Count == 0)
         {
@@ -580,7 +591,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         foreach (var postFile in candidates)
         {
-            postFile.RelativePath = ReplaceRelativePathPrefix(postFile.RelativePath, normalizedOldPrefix, normalizedNewPrefix);
+            postFile.RelativePath = RelativePathMatcher.ReplacePrefix(postFile.RelativePath, normalizedOldPrefix, normalizedNewPrefix);
             postFile.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(postFile.RelativePath));
         }
 
@@ -1247,7 +1258,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         var excludedHash = await dbContext.ExcludedFiles
             .AsNoTracking()
-            .Where(e => e.LibraryId == libraryId && e.RelativePath == item.RelativePath)
+            .Where(e => e.LibraryId == libraryId && e.RelativePath.Replace("\\", "/") == normalizedRelativePath)
             .Select(e => e.ContentHash)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -1324,10 +1335,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
         string relativePath,
         CancellationToken cancellationToken)
     {
+        var normalizedRelativePath = RelativePathMatcher.NormalizePath(relativePath);
         var postFile = await dbContext.PostFiles
             .Include(pf => pf.Library)
             .FirstOrDefaultAsync(
-                pf => pf.LibraryId == libraryId && pf.RelativePath == relativePath,
+                pf => pf.LibraryId == libraryId && pf.RelativePath.Replace("\\", "/") == normalizedRelativePath,
                 cancellationToken);
 
         if (postFile == null)
@@ -1433,22 +1445,4 @@ public class LibrarySyncService : ILibrarySyncProcessor
         return $"{device.Trim()}|{value.Trim()}";
     }
 
-    private static string ReplaceRelativePathPrefix(string relativePath, string oldPrefix, string newPrefix)
-    {
-        var normalizedPath = RelativePathMatcher.NormalizePath(relativePath);
-        if (normalizedPath.Equals(oldPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return newPrefix;
-        }
-
-        var suffix = normalizedPath.Substring(oldPrefix.Length).TrimStart('/');
-        return string.IsNullOrEmpty(suffix) ? newPrefix : $"{newPrefix}/{suffix}";
-    }
-
-    private static bool IsRelativePathWithinPrefix(string relativePath, string normalizedPrefix)
-    {
-        var normalizedPath = RelativePathMatcher.NormalizePath(relativePath);
-        return normalizedPath.Equals(normalizedPrefix, StringComparison.OrdinalIgnoreCase)
-            || normalizedPath.StartsWith(normalizedPrefix + "/", StringComparison.OrdinalIgnoreCase);
-    }
 }
