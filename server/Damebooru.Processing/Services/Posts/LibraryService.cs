@@ -59,10 +59,30 @@ public class LibraryService
                     })
                     .ToList());
 
+        var autoTagExcludedPathsRaw = await _context.LibraryAutoTagExcludedPaths
+            .AsNoTracking()
+            .Select(p => new { p.LibraryId, p.Id, p.RelativePathPrefix, p.CreatedDate })
+            .ToListAsync(cancellationToken);
+
+        var autoTagExcludedPathsByLibrary = autoTagExcludedPathsRaw
+            .GroupBy(p => p.LibraryId)
+            .ToDictionary(
+                g => g.Key,
+                g => g
+                    .OrderBy(p => p.RelativePathPrefix)
+                    .Select(p => new LibraryAutoTagExcludedPathDto
+                    {
+                        Id = p.Id,
+                        Path = p.RelativePathPrefix,
+                        CreatedDate = p.CreatedDate
+                    })
+                    .ToList());
+
         return libraries.Select(l =>
         {
             stats.TryGetValue(l.Id, out var s);
             ignoredPathsByLibrary.TryGetValue(l.Id, out var ignoredPaths);
+            autoTagExcludedPathsByLibrary.TryGetValue(l.Id, out var autoTagExcludedPaths);
             return new LibraryDto
             {
                 Id = l.Id,
@@ -72,7 +92,8 @@ public class LibraryService
                 PostCount = s?.PostCount ?? 0,
                 TotalSizeBytes = s?.TotalSizeBytes ?? 0,
                 LastImportDate = s?.LastImportDate,
-                IgnoredPaths = ignoredPaths ?? []
+                IgnoredPaths = ignoredPaths ?? [],
+                AutoTagExcludedPaths = autoTagExcludedPaths ?? []
             };
         }).ToList();
     }
@@ -116,7 +137,8 @@ public class LibraryService
             PostCount = 0,
             TotalSizeBytes = 0,
             LastImportDate = null,
-            IgnoredPaths = []
+            IgnoredPaths = [],
+            AutoTagExcludedPaths = []
         });
     }
 
@@ -143,6 +165,31 @@ public class LibraryService
             .ToListAsync(cancellationToken);
 
         return Result<List<LibraryIgnoredPathDto>>.Success(ignoredPaths);
+    }
+
+    public async Task<Result<List<LibraryAutoTagExcludedPathDto>>> GetAutoTagExcludedPathsAsync(int libraryId, CancellationToken cancellationToken = default)
+    {
+        var libraryExists = await _context.Libraries
+            .AsNoTracking()
+            .AnyAsync(l => l.Id == libraryId, cancellationToken);
+        if (!libraryExists)
+        {
+            return Result<List<LibraryAutoTagExcludedPathDto>>.Failure(OperationError.NotFound, "Library not found.");
+        }
+
+        var excludedPaths = await _context.LibraryAutoTagExcludedPaths
+            .AsNoTracking()
+            .Where(p => p.LibraryId == libraryId)
+            .OrderBy(p => p.RelativePathPrefix)
+            .Select(p => new LibraryAutoTagExcludedPathDto
+            {
+                Id = p.Id,
+                Path = p.RelativePathPrefix,
+                CreatedDate = p.CreatedDate
+            })
+            .ToListAsync(cancellationToken);
+
+        return Result<List<LibraryAutoTagExcludedPathDto>>.Success(excludedPaths);
     }
 
     public async Task<Result<AddLibraryIgnoredPathResultDto>> AddIgnoredPathAsync(int libraryId, AddLibraryIgnoredPathDto dto)
@@ -192,6 +239,50 @@ public class LibraryService
         });
     }
 
+    public async Task<Result<AddLibraryAutoTagExcludedPathResultDto>> AddAutoTagExcludedPathAsync(int libraryId, AddLibraryAutoTagExcludedPathDto dto)
+    {
+        var libraryExists = await _context.Libraries.AnyAsync(l => l.Id == libraryId);
+        if (!libraryExists)
+        {
+            return Result<AddLibraryAutoTagExcludedPathResultDto>.Failure(OperationError.NotFound, "Library not found.");
+        }
+
+        var normalizedPath = RelativePathMatcher.NormalizePath(dto.Path);
+        if (string.IsNullOrEmpty(normalizedPath))
+        {
+            return Result<AddLibraryAutoTagExcludedPathResultDto>.Failure(OperationError.InvalidInput, "Path cannot be empty.");
+        }
+
+        var existingExcludedPaths = await _context.LibraryAutoTagExcludedPaths
+            .Where(p => p.LibraryId == libraryId)
+            .ToListAsync();
+
+        var excludedPath = existingExcludedPaths.FirstOrDefault(p =>
+            string.Equals(p.RelativePathPrefix, normalizedPath, StringComparison.OrdinalIgnoreCase));
+
+        if (excludedPath == null)
+        {
+            excludedPath = new LibraryAutoTagExcludedPath
+            {
+                LibraryId = libraryId,
+                RelativePathPrefix = normalizedPath,
+                CreatedDate = DateTime.UtcNow
+            };
+            _context.LibraryAutoTagExcludedPaths.Add(excludedPath);
+            await _context.SaveChangesAsync();
+        }
+
+        return Result<AddLibraryAutoTagExcludedPathResultDto>.Success(new AddLibraryAutoTagExcludedPathResultDto
+        {
+            ExcludedPath = new LibraryAutoTagExcludedPathDto
+            {
+                Id = excludedPath.Id,
+                Path = excludedPath.RelativePathPrefix,
+                CreatedDate = excludedPath.CreatedDate
+            }
+        });
+    }
+
     public async Task<Result> DeleteIgnoredPathAsync(int libraryId, int ignoredPathId)
     {
         var ignoredPath = await _context.LibraryIgnoredPaths
@@ -202,6 +293,20 @@ public class LibraryService
         }
 
         _context.LibraryIgnoredPaths.Remove(ignoredPath);
+        await _context.SaveChangesAsync();
+        return Result.Success();
+    }
+
+    public async Task<Result> DeleteAutoTagExcludedPathAsync(int libraryId, int excludedPathId)
+    {
+        var excludedPath = await _context.LibraryAutoTagExcludedPaths
+            .FirstOrDefaultAsync(p => p.Id == excludedPathId && p.LibraryId == libraryId);
+        if (excludedPath == null)
+        {
+            return Result.Failure(OperationError.NotFound, "Auto-tag excluded path not found.");
+        }
+
+        _context.LibraryAutoTagExcludedPaths.Remove(excludedPath);
         await _context.SaveChangesAsync();
         return Result.Success();
     }
@@ -276,6 +381,18 @@ public class LibraryService
             })
             .ToListAsync(cancellationToken);
 
+        var autoTagExcludedPaths = await _context.LibraryAutoTagExcludedPaths
+            .AsNoTracking()
+            .Where(p => p.LibraryId == library.Id)
+            .OrderBy(p => p.RelativePathPrefix)
+            .Select(p => new LibraryAutoTagExcludedPathDto
+            {
+                Id = p.Id,
+                Path = p.RelativePathPrefix,
+                CreatedDate = p.CreatedDate
+            })
+            .ToListAsync(cancellationToken);
+
         return new LibraryDto
         {
             Id = library.Id,
@@ -290,7 +407,8 @@ public class LibraryService
             LastImportDate = await _context.Posts
                 .Where(p => p.PostFiles.Any(pf => pf.LibraryId == library.Id))
                 .MaxAsync(p => (DateTime?)p.ImportDate, cancellationToken),
-            IgnoredPaths = ignoredPaths
+            IgnoredPaths = ignoredPaths,
+            AutoTagExcludedPaths = autoTagExcludedPaths
         };
     }
 

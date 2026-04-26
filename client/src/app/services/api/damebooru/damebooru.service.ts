@@ -4,9 +4,11 @@ import { Observable, of } from "rxjs";
 import { catchError, finalize, map, shareReplay } from "rxjs/operators";
 import { environment } from "@env/environment";
 import {
+  AddLibraryAutoTagExcludedPathResult,
   AddLibraryIgnoredPathResult,
   AuthSessionResponse,
   Library,
+  LibraryAutoTagExcludedPath,
   LibraryIgnoredPath,
   LibraryBrowseResponse,
   LibraryFolderNode,
@@ -170,6 +172,31 @@ export class DamebooruService {
   ): Observable<void> {
     return this.http.delete<void>(
       `${this.baseUrl}/libraries/${libraryId}/ignored-paths/${ignoredPathId}`,
+    );
+  }
+
+  getLibraryAutoTagExcludedPaths(libraryId: number): Observable<LibraryAutoTagExcludedPath[]> {
+    return this.http.get<LibraryAutoTagExcludedPath[]>(
+      `${this.baseUrl}/libraries/${libraryId}/auto-tag-excluded-paths`,
+    );
+  }
+
+  addLibraryAutoTagExcludedPath(
+    libraryId: number,
+    path: string,
+  ): Observable<AddLibraryAutoTagExcludedPathResult> {
+    return this.http.post<AddLibraryAutoTagExcludedPathResult>(
+      `${this.baseUrl}/libraries/${libraryId}/auto-tag-excluded-paths`,
+      { path },
+    );
+  }
+
+  removeLibraryAutoTagExcludedPath(
+    libraryId: number,
+    excludedPathId: number,
+  ): Observable<void> {
+    return this.http.delete<void>(
+      `${this.baseUrl}/libraries/${libraryId}/auto-tag-excluded-paths/${excludedPathId}`,
     );
   }
 

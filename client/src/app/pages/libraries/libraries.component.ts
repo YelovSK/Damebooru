@@ -35,7 +35,10 @@ export class LibrariesComponent {
     editingLibraryId = signal<number | null>(null);
     addingIgnoredPathLibraryId = signal<number | null>(null);
     removingIgnoredPathId = signal<number | null>(null);
+    addingAutoTagExcludedPathLibraryId = signal<number | null>(null);
+    removingAutoTagExcludedPathId = signal<number | null>(null);
     ignoredPathDrafts = signal<Record<number, string>>({});
+    autoTagExcludedPathDrafts = signal<Record<number, string>>({});
     editingName = signal('');
     private refreshTrigger = signal(0);
 
@@ -180,6 +183,48 @@ export class LibrariesComponent {
             error: (err) => {
                 this.toast.error(err.error?.description || 'Failed to remove ignored path');
                 this.removingIgnoredPathId.set(null);
+            }
+        });
+    }
+
+    getAutoTagExcludedPathDraft(libraryId: number): string {
+        return this.autoTagExcludedPathDrafts()[libraryId] || '';
+    }
+
+    setAutoTagExcludedPathDraft(libraryId: number, value: string) {
+        this.autoTagExcludedPathDrafts.update(drafts => ({ ...drafts, [libraryId]: value }));
+    }
+
+    addAutoTagExcludedPath(lib: Library) {
+        const path = this.getAutoTagExcludedPathDraft(lib.id).trim();
+        if (!path) return;
+
+        this.addingAutoTagExcludedPathLibraryId.set(lib.id);
+        this.damebooru.addLibraryAutoTagExcludedPath(lib.id, path).subscribe({
+            next: (result) => {
+                this.toast.success(`Auto-tag excluded path "${result.excludedPath.path}" saved`);
+                this.setAutoTagExcludedPathDraft(lib.id, '');
+                this.refreshTrigger.update(v => v + 1);
+                this.addingAutoTagExcludedPathLibraryId.set(null);
+            },
+            error: (err) => {
+                this.toast.error(err.error?.description || 'Failed to add auto-tag excluded path');
+                this.addingAutoTagExcludedPathLibraryId.set(null);
+            }
+        });
+    }
+
+    removeAutoTagExcludedPath(lib: Library, excludedPathId: number, path: string) {
+        this.removingAutoTagExcludedPathId.set(excludedPathId);
+        this.damebooru.removeLibraryAutoTagExcludedPath(lib.id, excludedPathId).subscribe({
+            next: () => {
+                this.toast.success(`Removed auto-tag excluded path "${path}"`);
+                this.refreshTrigger.update(v => v + 1);
+                this.removingAutoTagExcludedPathId.set(null);
+            },
+            error: (err) => {
+                this.toast.error(err.error?.description || 'Failed to remove auto-tag excluded path');
+                this.removingAutoTagExcludedPathId.set(null);
             }
         });
     }

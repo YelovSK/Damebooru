@@ -27,6 +27,7 @@ public class DamebooruDbContext : DbContext
 
     public DbSet<ExcludedFile> ExcludedFiles { get; set; } = null!;
     public DbSet<LibraryIgnoredPath> LibraryIgnoredPaths { get; set; } = null!;
+    public DbSet<LibraryAutoTagExcludedPath> LibraryAutoTagExcludedPaths { get; set; } = null!;
     public DbSet<DuplicateGroup> DuplicateGroups { get; set; } = null!;
     public DbSet<DuplicateGroupEntry> DuplicateGroupEntries { get; set; } = null!;
     public DbSet<AppLogEntry> AppLogEntries { get; set; } = null!;
@@ -220,6 +221,16 @@ public class DamebooruDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<LibraryIgnoredPath>()
+            .HasIndex(p => new { p.LibraryId, p.RelativePathPrefix })
+            .IsUnique();
+
+        modelBuilder.Entity<LibraryAutoTagExcludedPath>()
+            .HasOne(p => p.Library)
+            .WithMany()
+            .HasForeignKey(p => p.LibraryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<LibraryAutoTagExcludedPath>()
             .HasIndex(p => new { p.LibraryId, p.RelativePathPrefix })
             .IsUnique();
 

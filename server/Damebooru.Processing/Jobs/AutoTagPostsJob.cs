@@ -1,6 +1,7 @@
 using Damebooru.Core;
 using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
+using Damebooru.Core.Paths;
 using Damebooru.Data;
 using Damebooru.Processing.Services.AutoTagging;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,8 @@ namespace Damebooru.Processing.Jobs;
 
 public sealed class AutoTagPostsJob : IJob
 {
+    private sealed record AutoTagCandidatePath(int PostId, int LibraryId, string RelativePath);
+
     public static readonly JobKey JobKey = JobKeys.AutoTagPosts;
 
     private readonly IServiceScopeFactory _scopeFactory;
@@ -164,14 +167,16 @@ public sealed class AutoTagPostsJob : IJob
 
         if (mode == JobMode.All)
         {
-            return await imagePosts
+            var allPostIds = await imagePosts
                 .OrderBy(p => p.Id)
                 .Select(p => p.Id)
                 .ToListAsync(cancellationToken);
+
+            return await FilterAutoTagExcludedPostIdsAsync(db, allPostIds, cancellationToken);
         }
 
         var now = DateTime.UtcNow;
-        return await imagePosts
+        var missingPostIds = await imagePosts
             .GroupJoin(
                 db.PostAutoTagScans.AsNoTracking(),
                 post => post.Id,
@@ -195,5 +200,54 @@ public sealed class AutoTagPostsJob : IJob
             .OrderBy(x => x.Post.Id)
             .Select(x => x.Post.Id)
             .ToListAsync(cancellationToken);
+
+        return await FilterAutoTagExcludedPostIdsAsync(db, missingPostIds, cancellationToken);
+    }
+
+    private static async Task<List<int>> FilterAutoTagExcludedPostIdsAsync(DamebooruDbContext db, List<int> candidatePostIds, CancellationToken cancellationToken)
+    {
+        if (candidatePostIds.Count == 0)
+        {
+            return candidatePostIds;
+        }
+
+        var excludedPrefixesByLibrary = (await db.LibraryAutoTagExcludedPaths
+            .AsNoTracking()
+            .Select(p => new { p.LibraryId, p.RelativePathPrefix })
+            .ToListAsync(cancellationToken))
+            .GroupBy(p => p.LibraryId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(p => p.RelativePathPrefix).ToList());
+
+        if (excludedPrefixesByLibrary.Count == 0)
+        {
+            return candidatePostIds;
+        }
+
+        var excludedPostIds = new HashSet<int>();
+        const int batchSize = 500;
+        for (var i = 0; i < candidatePostIds.Count; i += batchSize)
+        {
+            var batchIds = candidatePostIds.Skip(i).Take(batchSize).ToList();
+            var candidatePaths = await db.PostFiles
+                .AsNoTracking()
+                .Where(pf => batchIds.Contains(pf.PostId) && EF.Functions.Like(pf.ContentType, "image/%"))
+                .Select(pf => new AutoTagCandidatePath(pf.PostId, pf.LibraryId, pf.RelativePath))
+                .ToListAsync(cancellationToken);
+
+            foreach (var candidatePath in candidatePaths)
+            {
+                if (excludedPrefixesByLibrary.TryGetValue(candidatePath.LibraryId, out var prefixes)
+                    && prefixes.Any(prefix => RelativePathMatcher.IsWithinPrefix(candidatePath.RelativePath, prefix)))
+                {
+                    excludedPostIds.Add(candidatePath.PostId);
+                }
+            }
+        }
+
+        return candidatePostIds
+            .Where(id => !excludedPostIds.Contains(id))
+            .ToList();
     }
 }

@@ -20,6 +20,12 @@ export interface LibraryIgnoredPath {
   createdDate: string;
 }
 
+export interface LibraryAutoTagExcludedPath {
+  id: number;
+  path: string;
+  createdDate: string;
+}
+
 export interface Library {
   id: number;
   name: string;
@@ -29,11 +35,16 @@ export interface Library {
   totalSizeBytes: number;
   lastImportDate: string | null;
   ignoredPaths: LibraryIgnoredPath[];
+  autoTagExcludedPaths: LibraryAutoTagExcludedPath[];
 }
 
 export interface AddLibraryIgnoredPathResult {
   ignoredPath: LibraryIgnoredPath;
   removedPostCount: number;
+}
+
+export interface AddLibraryAutoTagExcludedPathResult {
+  excludedPath: LibraryAutoTagExcludedPath;
 }
 
 export interface LibraryBrowseBreadcrumb {

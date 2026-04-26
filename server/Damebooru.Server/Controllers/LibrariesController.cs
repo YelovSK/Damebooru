@@ -56,6 +56,24 @@ public class LibrariesController : ControllerBase
         return await _libraryService.DeleteIgnoredPathAsync(id, ignoredPathId).ToHttpResult();
     }
 
+    [HttpGet("{id}/auto-tag-excluded-paths")]
+    public async Task<IActionResult> GetAutoTagExcludedPaths(int id, CancellationToken cancellationToken = default)
+    {
+        return await _libraryService.GetAutoTagExcludedPathsAsync(id, cancellationToken).ToHttpResult();
+    }
+
+    [HttpPost("{id}/auto-tag-excluded-paths")]
+    public async Task<IActionResult> AddAutoTagExcludedPath(int id, [FromBody] AddLibraryAutoTagExcludedPathDto dto)
+    {
+        return await _libraryService.AddAutoTagExcludedPathAsync(id, dto).ToHttpResult();
+    }
+
+    [HttpDelete("{id}/auto-tag-excluded-paths/{excludedPathId:int}")]
+    public async Task<IActionResult> DeleteAutoTagExcludedPath(int id, int excludedPathId)
+    {
+        return await _libraryService.DeleteAutoTagExcludedPathAsync(id, excludedPathId).ToHttpResult();
+    }
+
     [HttpGet("{id}/browse")]
     public async Task<IActionResult> BrowseLibrary(
         int id,

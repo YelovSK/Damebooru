@@ -11,8 +11,9 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-                <label class="block text-sm text-text-dim mb-1">Name</label>
+                <label for="new-library-name" class="block text-sm text-text-dim mb-1">Name</label>
                 <input
+                    id="new-library-name"
                     type="text"
                     [ngModel]="newLibraryName()"
                     (ngModelChange)="newLibraryName.set($event)"
@@ -20,8 +21,9 @@
                     class="w-full px-4 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary" />
             </div>
             <div>
-                <label class="block text-sm text-text-dim mb-1">Server Path</label>
+                <label for="new-library-path" class="block text-sm text-text-dim mb-1">Server Path</label>
                 <input
+                    id="new-library-path"
                     type="text"
                     [ngModel]="newLibraryPath()"
                     (ngModelChange)="newLibraryPath.set($event)"
@@ -50,14 +52,15 @@
             Existing Libraries
         </h2>
 
-        <div *ngIf="libraries().length === 0" class="text-text-dim italic">
+        @if (libraries().length === 0) {
+        <div class="text-text-dim italic">
             No libraries found.
         </div>
+        }
 
         <div class="grid grid-cols-1 gap-4">
-            <article
-                *ngFor="let lib of libraries()"
-                class="p-4 bg-glass-bg rounded border border-glass-border">
+            @for (lib of libraries(); track lib.id) {
+            <article class="p-4 bg-glass-bg rounded border border-glass-border">
                 <div class="flex justify-between items-start gap-3">
                     <div class="flex-1">
                         @if (editingLibraryId() === lib.id) {
@@ -127,6 +130,9 @@
 
                 <div class="mt-4 pt-4 border-t border-white/10 space-y-3">
                     <div class="text-sm font-semibold text-text-primary">Ignored Paths</div>
+                    <p class="text-xs text-text-dim">
+                        Files under these paths are removed from the board and skipped by library scans.
+                    </p>
 
                     <div class="flex flex-wrap gap-2 items-center">
                         <input
@@ -144,14 +150,16 @@
                         </app-button>
                     </div>
 
-                    <div *ngIf="lib.ignoredPaths.length === 0" class="text-sm text-text-dim italic">
+                    @if (lib.ignoredPaths.length === 0) {
+                    <div class="text-sm text-text-dim italic">
                         No ignored paths.
                     </div>
+                    }
 
-                    <div *ngIf="lib.ignoredPaths.length > 0" class="space-y-2">
-                        <div
-                            *ngFor="let ignored of lib.ignoredPaths"
-                            class="flex items-center justify-between gap-2 px-3 py-2 bg-black/15 rounded border border-white/10">
+                    @if (lib.ignoredPaths.length > 0) {
+                    <div class="space-y-2">
+                        @for (ignored of lib.ignoredPaths; track ignored.id) {
+                        <div class="flex items-center justify-between gap-2 px-3 py-2 bg-black/15 rounded border border-white/10">
                             <span class="text-sm break-all">{{ ignored.path }}</span>
                             <app-button
                                 variant="danger"
@@ -161,9 +169,58 @@
                                 {{ removingIgnoredPathId() === ignored.id ? 'Removing...' : 'Remove' }}
                             </app-button>
                         </div>
+                        }
                     </div>
+                    }
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-white/10 space-y-3">
+                    <div class="text-sm font-semibold text-text-primary">Auto-Tag Excluded Paths</div>
+                    <p class="text-xs text-text-dim">
+                        Files stay indexed, but posts with image files under these paths are skipped by the auto-tagging job.
+                    </p>
+
+                    <div class="flex flex-wrap gap-2 items-center">
+                        <input
+                            type="text"
+                            [ngModel]="getAutoTagExcludedPathDraft(lib.id)"
+                            (ngModelChange)="setAutoTagExcludedPathDraft(lib.id, $event)"
+                            placeholder="e.g. private or finished/no-auto-tag"
+                            class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
+                            (keyup.enter)="addAutoTagExcludedPath(lib)" />
+                        <app-button
+                            size="sm"
+                            [disabled]="addingAutoTagExcludedPathLibraryId() === lib.id || !getAutoTagExcludedPathDraft(lib.id).trim()"
+                            (click)="addAutoTagExcludedPath(lib)">
+                            {{ addingAutoTagExcludedPathLibraryId() === lib.id ? 'Adding...' : 'Add' }}
+                        </app-button>
+                    </div>
+
+                    @if (lib.autoTagExcludedPaths.length === 0) {
+                    <div class="text-sm text-text-dim italic">
+                        No auto-tag excluded paths.
+                    </div>
+                    }
+
+                    @if (lib.autoTagExcludedPaths.length > 0) {
+                    <div class="space-y-2">
+                        @for (excluded of lib.autoTagExcludedPaths; track excluded.id) {
+                        <div class="flex items-center justify-between gap-2 px-3 py-2 bg-black/15 rounded border border-white/10">
+                            <span class="text-sm break-all">{{ excluded.path }}</span>
+                            <app-button
+                                variant="danger"
+                                size="sm"
+                                [disabled]="removingAutoTagExcludedPathId() === excluded.id"
+                                (click)="removeAutoTagExcludedPath(lib, excluded.id, excluded.path)">
+                                {{ removingAutoTagExcludedPathId() === excluded.id ? 'Removing...' : 'Remove' }}
+                            </app-button>
+                        </div>
+                        }
+                    </div>
+                    }
                 </div>
             </article>
+            }
         </div>
     </section>
 </div>
