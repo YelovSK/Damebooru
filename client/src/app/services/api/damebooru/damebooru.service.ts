@@ -44,6 +44,7 @@ import {
   PostAuditList,
   AutoTagPostResult,
   AutoTagDiscoverySettings,
+  PostAutoTagStatus,
 } from "./models";
 
 @Injectable({
@@ -434,6 +435,10 @@ export class DamebooruService {
 
   autoTagPost(id: number): Observable<AutoTagPostResult> {
     return this.http.post<AutoTagPostResult>(`${this.baseUrl}/posts/${id}/auto-tag`, {});
+  }
+
+  getPostAutoTagStatus(id: number): Observable<PostAutoTagStatus> {
+    return this.http.get<PostAutoTagStatus>(`${this.baseUrl}/posts/${id}/auto-tag/status`);
   }
 
   favoritePost(id: number): Observable<void> {

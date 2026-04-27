@@ -334,6 +334,67 @@ export interface AutoTagPostResult {
   post: DamebooruPostDto;
 }
 
+export enum AutoTagProvider {
+  SauceNao = 0,
+  Danbooru = 1,
+  Gelbooru = 2,
+  Iqdb = 3,
+}
+
+export enum AutoTagScanStatus {
+  Pending = 0,
+  InProgress = 1,
+  Partial = 2,
+  Completed = 3,
+  Failed = 4,
+}
+
+export enum AutoTagScanStepKind {
+  Discovery = 0,
+  Metadata = 1,
+}
+
+export enum AutoTagScanStepStatus {
+  Pending = 0,
+  Running = 1,
+  Succeeded = 2,
+  RetryableFailure = 3,
+  PermanentFailure = 4,
+  Skipped = 5,
+}
+
+export interface PostAutoTagStatus {
+  hasScan: boolean;
+  scanStatus: AutoTagScanStatus | null;
+  lastStartedAtUtc: string | null;
+  lastCompletedAtUtc: string | null;
+  discoveryProviders: PostAutoTagProviderStatus[];
+  metadataProviders: PostAutoTagProviderStatus[];
+  candidates: PostAutoTagCandidate[];
+}
+
+export interface PostAutoTagProviderStatus {
+  provider: AutoTagProvider;
+  kind: AutoTagScanStepKind;
+  status: AutoTagScanStepStatus | null;
+  isEnabled: boolean;
+  attemptCount: number;
+  lastAttemptAtUtc: string | null;
+  nextRetryAtUtc: string | null;
+  lastError: string | null;
+  externalPostId: number | null;
+  tagCount: number;
+  sourceCount: number;
+}
+
+export interface PostAutoTagCandidate {
+  discoveryProvider: AutoTagProvider;
+  provider: AutoTagProvider;
+  externalPostId: number;
+  similarity: number;
+  canonicalUrl: string;
+}
+
 export interface AutoTagDiscoverySettings {
   sauceNaoEnabled: boolean;
   iqdbEnabled: boolean;

@@ -40,6 +40,12 @@ import {
   SimilarPost,
   PostAuditEntry,
   TagCategoryKind,
+  AutoTagProvider,
+  AutoTagScanStatus,
+  AutoTagScanStepStatus,
+  PostAutoTagCandidate,
+  PostAutoTagProviderStatus,
+  PostAutoTagStatus,
 } from "@models";
 import { ButtonComponent } from "@shared/components/button/button.component";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
@@ -130,6 +136,8 @@ export class PostDetailComponent {
   private readonly postCache = signal(new Map<number, DamebooruPostDto>());
 
   isAutoTagging = signal(false);
+  isAutoTagStatusLoading = signal(false);
+  autoTagStatus = signal<PostAutoTagStatus | null>(null);
 
   // Tag autocomplete for edit mode
   private tagQuery$ = new Subject<string>();
@@ -241,6 +249,16 @@ export class PostDetailComponent {
       }
 
       untracked(() => this.loadAudit(id, false));
+    });
+
+    effect(() => {
+      const id = Number(this.id());
+      if (!Number.isInteger(id) || id < 1) {
+        this.autoTagStatus.set(null);
+        return;
+      }
+
+      untracked(() => this.loadAutoTagStatus(id));
     });
   }
 
@@ -457,6 +475,7 @@ export class PostDetailComponent {
           this.setCachedPost(result.post);
           this.refreshTrigger.update((n) => n + 1);
           this.reloadAuditForCurrentPost();
+          this.loadAutoTagStatus(result.post.id);
 
           const parts: string[] = [];
           if (result.addedTags > 0) parts.push(`added ${result.addedTags} tag${result.addedTags === 1 ? '' : 's'}`);
@@ -560,6 +579,108 @@ export class PostDetailComponent {
     return `${field} changed`;
   }
 
+  getAutoTagStatusLabel(status: PostAutoTagStatus | null): string {
+    if (!status || !status.hasScan || status.scanStatus === null) {
+      return 'Not scanned';
+    }
+
+    switch (status.scanStatus) {
+      case AutoTagScanStatus.Pending:
+        return 'Pending';
+      case AutoTagScanStatus.InProgress:
+        return 'In progress';
+      case AutoTagScanStatus.Partial:
+        return 'Partial';
+      case AutoTagScanStatus.Completed:
+        return 'Completed';
+      case AutoTagScanStatus.Failed:
+        return 'Failed';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  getAutoTagStatusClass(status: PostAutoTagStatus | null): string {
+    if (!status || !status.hasScan || status.scanStatus === null) {
+      return 'bg-white/10 text-text-muted border-white/15';
+    }
+
+    switch (status.scanStatus) {
+      case AutoTagScanStatus.Completed:
+        return 'bg-status-success/15 text-status-success border-status-success/30';
+      case AutoTagScanStatus.Partial:
+        return 'bg-status-warning/15 text-status-warning border-status-warning/30';
+      case AutoTagScanStatus.Failed:
+        return 'bg-status-error/15 text-status-error border-status-error/30';
+      case AutoTagScanStatus.InProgress:
+        return 'bg-accent-primary/15 text-accent-primary border-accent-primary/30';
+      default:
+        return 'bg-white/10 text-text-muted border-white/15';
+    }
+  }
+
+  getProviderLabel(provider: AutoTagProvider): string {
+    switch (provider) {
+      case AutoTagProvider.SauceNao:
+        return 'SauceNAO';
+      case AutoTagProvider.Iqdb:
+        return 'IQDB';
+      case AutoTagProvider.Danbooru:
+        return 'Danbooru';
+      case AutoTagProvider.Gelbooru:
+        return 'Gelbooru';
+      default:
+        return 'Unknown';
+    }
+  }
+
+  getProviderStatusLabel(providerStatus: PostAutoTagProviderStatus): string {
+    if (!providerStatus.isEnabled) {
+      return 'Disabled';
+    }
+
+    switch (providerStatus.status) {
+      case AutoTagScanStepStatus.Succeeded:
+        return providerStatus.tagCount > 0 || providerStatus.sourceCount > 0 || providerStatus.externalPostId !== null
+          ? 'Succeeded'
+          : 'No match';
+      case AutoTagScanStepStatus.Skipped:
+        return 'Skipped';
+      case AutoTagScanStepStatus.RetryableFailure:
+        return 'Retry later';
+      case AutoTagScanStepStatus.PermanentFailure:
+        return 'Failed';
+      case AutoTagScanStepStatus.Running:
+        return 'Running';
+      case AutoTagScanStepStatus.Pending:
+        return 'Pending';
+      default:
+        return 'Not run';
+    }
+  }
+
+  getProviderStatusClass(providerStatus: PostAutoTagProviderStatus): string {
+    if (!providerStatus.isEnabled) {
+      return 'text-text-muted';
+    }
+
+    switch (providerStatus.status) {
+      case AutoTagScanStepStatus.Succeeded:
+        return 'text-status-success';
+      case AutoTagScanStepStatus.RetryableFailure:
+      case AutoTagScanStepStatus.PermanentFailure:
+        return 'text-status-error';
+      case AutoTagScanStepStatus.Running:
+        return 'text-accent-primary';
+      default:
+        return 'text-text-muted';
+    }
+  }
+
+  getDiscoveryCandidate(provider: AutoTagProvider): PostAutoTagCandidate | null {
+    return this.autoTagStatus()?.candidates.find(candidate => candidate.discoveryProvider === provider) ?? null;
+  }
+
   private reloadAuditForCurrentPost() {
     const id = Number(this.id());
     if (!Number.isInteger(id) || id < 1) {
@@ -596,6 +717,23 @@ export class PostDetailComponent {
         },
         error: () => {
           this.auditRequestInFlight = false;
+        },
+      });
+  }
+
+  private loadAutoTagStatus(postId: number) {
+    this.isAutoTagStatusLoading.set(true);
+    this.damebooru
+      .getPostAutoTagStatus(postId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: status => {
+          this.autoTagStatus.set(status);
+          this.isAutoTagStatusLoading.set(false);
+        },
+        error: () => {
+          this.autoTagStatus.set(null);
+          this.isAutoTagStatusLoading.set(false);
         },
       });
   }

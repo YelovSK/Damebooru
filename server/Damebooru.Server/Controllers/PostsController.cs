@@ -110,4 +110,10 @@ public class PostsController : ControllerBase
     {
         return await _postAutoTaggingService.AutoTagAsync(id, cancellationToken).ToHttpResult();
     }
+
+    [HttpGet("{id}/auto-tag/status")]
+    public async Task<IActionResult> GetAutoTagStatus(int id, CancellationToken cancellationToken = default)
+    {
+        return await _postAutoTaggingService.GetStatusAsync(id, cancellationToken).ToHttpResult();
+    }
 }

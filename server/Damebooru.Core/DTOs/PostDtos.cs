@@ -75,6 +75,41 @@ public class AutoTagPostResultDto
     public PostDto Post { get; set; } = null!;
 }
 
+public sealed class PostAutoTagStatusDto
+{
+    public bool HasScan { get; set; }
+    public AutoTagScanStatus? ScanStatus { get; set; }
+    public DateTime? LastStartedAtUtc { get; set; }
+    public DateTime? LastCompletedAtUtc { get; set; }
+    public List<PostAutoTagProviderStatusDto> DiscoveryProviders { get; set; } = [];
+    public List<PostAutoTagProviderStatusDto> MetadataProviders { get; set; } = [];
+    public List<PostAutoTagCandidateDto> Candidates { get; set; } = [];
+}
+
+public sealed class PostAutoTagProviderStatusDto
+{
+    public AutoTagProvider Provider { get; set; }
+    public AutoTagScanStepKind Kind { get; set; }
+    public AutoTagScanStepStatus? Status { get; set; }
+    public bool IsEnabled { get; set; } = true;
+    public int AttemptCount { get; set; }
+    public DateTime? LastAttemptAtUtc { get; set; }
+    public DateTime? NextRetryAtUtc { get; set; }
+    public string? LastError { get; set; }
+    public long? ExternalPostId { get; set; }
+    public int TagCount { get; set; }
+    public int SourceCount { get; set; }
+}
+
+public sealed class PostAutoTagCandidateDto
+{
+    public AutoTagProvider DiscoveryProvider { get; set; }
+    public AutoTagProvider Provider { get; set; }
+    public long ExternalPostId { get; set; }
+    public decimal Similarity { get; set; }
+    public string CanonicalUrl { get; set; } = string.Empty;
+}
+
 public class PostAuditEntryDto
 {
     public long Id { get; set; }
