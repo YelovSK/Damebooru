@@ -677,8 +677,8 @@ export class PostDetailComponent {
     }
   }
 
-  getDiscoveryCandidate(provider: AutoTagProvider): PostAutoTagCandidate | null {
-    return this.autoTagStatus()?.candidates.find(candidate => candidate.discoveryProvider === provider) ?? null;
+  getDiscoveryCandidates(provider: AutoTagProvider): PostAutoTagCandidate[] {
+    return this.autoTagStatus()?.candidates.filter(candidate => candidate.discoveryProvider === provider) ?? [];
   }
 
   private reloadAuditForCurrentPost() {

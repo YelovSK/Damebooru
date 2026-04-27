@@ -186,16 +186,16 @@
                             <div class="flex items-start justify-between gap-3 text-[0.78rem]">
                                 <span class="text-text-muted">{{ getProviderLabel(providerStatus.provider) }}</span>
                                 <div class="min-w-0 text-right">
-                                    @if (getDiscoveryCandidate(providerStatus.provider); as candidate) {
-                                    <a class="text-text-link hover:text-text-link-hover hover:underline" [href]="candidate.canonicalUrl"
-                                        target="_blank" rel="noopener noreferrer">
-                                        Found {{ getProviderLabel(candidate.provider) }} #{{ candidate.externalPostId }}
-                                    </a>
-                                    <div class="text-[0.68rem] text-text-muted">{{ candidate.similarity | number:'1.0-1' }}%</div>
+                                    @if (getDiscoveryCandidates(providerStatus.provider); as candidates) {
+                                    @if (candidates.length > 0) {
+                                    <span class="text-status-success">
+                                        {{ candidates.length }} candidate{{ candidates.length === 1 ? '' : 's' }}
+                                    </span>
                                     } @else {
                                     <span [ngClass]="getProviderStatusClass(providerStatus)">
                                         {{ getProviderStatusLabel(providerStatus) }}
                                     </span>
+                                    }
                                     }
 
                                     @if (providerStatus.lastError) {
