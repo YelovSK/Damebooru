@@ -27,9 +27,11 @@ public sealed class PostAutoTaggingService
     {
         try
         {
-            _configurationValidator.EnsureConfigured();
+            await _configurationValidator.EnsureConfiguredAsync(cancellationToken);
             var scanResult = await _scanService.ScanPostAsync(postId, forceRefresh: true, cancellationToken);
-            var applyResult = await _applyService.ApplyScanAsync(postId, cancellationToken);
+            var applyResult = scanResult.ShouldApply
+                ? await _applyService.ApplyScanAsync(postId, cancellationToken)
+                : AutoTagApplyResult.Empty;
             var postResult = await _postReadService.GetPostAsync(postId, cancellationToken);
             if (!postResult.IsSuccess || postResult.Value == null)
             {

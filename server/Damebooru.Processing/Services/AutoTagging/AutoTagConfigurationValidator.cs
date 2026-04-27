@@ -5,17 +5,25 @@ namespace Damebooru.Processing.Services.AutoTagging;
 public sealed class AutoTagConfigurationValidator
 {
     private readonly DamebooruConfig _config;
+    private readonly AutoTagDiscoverySettingsService _discoverySettingsService;
 
-    public AutoTagConfigurationValidator(DamebooruConfig config)
+    public AutoTagConfigurationValidator(DamebooruConfig config, AutoTagDiscoverySettingsService discoverySettingsService)
     {
         _config = config;
+        _discoverySettingsService = discoverySettingsService;
     }
 
-    public void EnsureConfigured()
+    public async Task EnsureConfiguredAsync(CancellationToken cancellationToken = default)
     {
         var missing = new List<string>();
+        var enabledDiscoveryProviders = await _discoverySettingsService.GetEnabledDiscoveryProvidersAsync(cancellationToken);
+        if (enabledDiscoveryProviders.Length == 0)
+        {
+            return;
+        }
 
-        if (string.IsNullOrWhiteSpace(_config.ExternalApis.SauceNao.ApiKey))
+        if (enabledDiscoveryProviders.Contains(Damebooru.Core.Entities.AutoTagProvider.SauceNao)
+            && string.IsNullOrWhiteSpace(_config.ExternalApis.SauceNao.ApiKey))
         {
             missing.Add("Damebooru:ExternalApis:SauceNao:ApiKey");
         }

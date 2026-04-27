@@ -31,6 +31,7 @@ public class DamebooruDbContext : DbContext
     public DbSet<DuplicateGroup> DuplicateGroups { get; set; } = null!;
     public DbSet<DuplicateGroupEntry> DuplicateGroupEntries { get; set; } = null!;
     public DbSet<AppLogEntry> AppLogEntries { get; set; } = null!;
+    public DbSet<AutoTagDiscoverySettings> AutoTagDiscoverySettings { get; set; } = null!;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -242,5 +243,15 @@ public class DamebooruDbContext : DbContext
 
         modelBuilder.Entity<AppLogEntry>()
             .HasIndex(e => new { e.Category, e.TimestampUtc });
+
+        modelBuilder.Entity<AutoTagDiscoverySettings>()
+            .HasData(new AutoTagDiscoverySettings
+            {
+                Id = 1,
+                SauceNaoEnabled = true,
+                IqdbEnabled = true,
+                DanbooruEnabled = true,
+                GelbooruEnabled = true
+            });
     }
 }

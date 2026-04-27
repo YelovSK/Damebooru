@@ -4,11 +4,12 @@ import { CommonModule } from '@angular/common';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
 import { PostSettingsComponent } from './post/post-settings.component';
+import { AutoTaggingSettingsComponent } from './auto-tagging/auto-tagging-settings.component';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, TabsComponent, TabComponent, PostSettingsComponent],
+  imports: [CommonModule, TabsComponent, TabComponent, PostSettingsComponent, AutoTaggingSettingsComponent],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush

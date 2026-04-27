@@ -1,0 +1,72 @@
+<h2 class="text-2xl font-bold text-text-secondary mb-2">Auto-tagging Settings</h2>
+<p class="text-text-muted mb-6">Choose which external services are used to discover matching posts during auto-tagging.</p>
+
+<div class="bg-bg-secondary border border-glass-border rounded-lg p-6 space-y-6">
+@if (isLoading()) {
+  <p class="text-text-muted">Loading auto-tagging settings...</p>
+  } @else {
+  @if (settings(); as current) {
+  <div class="flex items-start gap-4">
+    <app-form-checkbox
+      [ngModel]="current.sauceNaoEnabled"
+      (ngModelChange)="updateProvider('sauceNaoEnabled', $event)"
+      label="SauceNAO"
+    />
+    <div class="flex-1">
+      <p class="text-text-muted text-sm mt-0.5">
+        Use SauceNAO image search to find matching Danbooru or Gelbooru posts.
+      </p>
+    </div>
+  </div>
+
+  <div class="border-t border-glass-border/50"></div>
+
+  <div class="flex items-start gap-4">
+    <app-form-checkbox
+      [ngModel]="current.iqdbEnabled"
+      (ngModelChange)="updateProvider('iqdbEnabled', $event)"
+      label="IQDB"
+    />
+    <div class="flex-1">
+      <p class="text-text-muted text-sm mt-0.5">
+        Use IQDB reverse image search for discovery.
+      </p>
+    </div>
+  </div>
+
+  <div class="border-t border-glass-border/50"></div>
+
+  <div class="flex items-start gap-4">
+    <app-form-checkbox
+      [ngModel]="current.danbooruEnabled"
+      (ngModelChange)="updateProvider('danbooruEnabled', $event)"
+      label="Danbooru discovery"
+    />
+    <div class="flex-1">
+      <p class="text-text-muted text-sm mt-0.5">
+        Use Danbooru MD5 lookup as a discovery source. Danbooru can still provide tags for matches found elsewhere.
+      </p>
+    </div>
+  </div>
+
+  <div class="border-t border-glass-border/50"></div>
+
+  <div class="flex items-start gap-4">
+    <app-form-checkbox
+      [ngModel]="current.gelbooruEnabled"
+      (ngModelChange)="updateProvider('gelbooruEnabled', $event)"
+      label="Gelbooru discovery"
+    />
+    <div class="flex-1">
+      <p class="text-text-muted text-sm mt-0.5">
+        Use Gelbooru MD5 lookup as a discovery source. Gelbooru can still provide tags for matches found elsewhere.
+      </p>
+    </div>
+  </div>
+  }
+  }
+
+  @if (error()) {
+  <p class="text-sm text-danger">{{ error() }}</p>
+  }
+</div>

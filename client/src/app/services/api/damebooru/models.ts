@@ -334,6 +334,13 @@ export interface AutoTagPostResult {
   post: DamebooruPostDto;
 }
 
+export interface AutoTagDiscoverySettings {
+  sauceNaoEnabled: boolean;
+  iqdbEnabled: boolean;
+  danbooruEnabled: boolean;
+  gelbooruEnabled: boolean;
+}
+
 export interface UpdatePostTagInput {
   tagId?: number;
   name: string;

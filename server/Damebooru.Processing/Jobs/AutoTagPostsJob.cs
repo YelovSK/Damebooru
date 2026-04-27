@@ -39,7 +39,7 @@ public sealed class AutoTagPostsJob : IJob
 
         try
         {
-            configValidator.EnsureConfigured();
+            await configValidator.EnsureConfiguredAsync(context.CancellationToken);
         }
         catch (InvalidOperationException ex)
         {
@@ -53,7 +53,21 @@ public sealed class AutoTagPostsJob : IJob
             return;
         }
 
-        var candidatePostIds = await GetCandidatePostIdsAsync(db, context.Mode, context.CancellationToken);
+        var discoverySettingsService = scope.ServiceProvider.GetRequiredService<AutoTagDiscoverySettingsService>();
+        var enabledDiscoveryProviders = await discoverySettingsService.GetEnabledDiscoveryProvidersAsync(context.CancellationToken);
+        if (enabledDiscoveryProviders.Length == 0)
+        {
+            context.Reporter.Update(new JobState
+            {
+                ActivityText = "Completed",
+                ProgressCurrent = 0,
+                ProgressTotal = 0,
+                FinalText = "No auto-tag discovery sources are enabled."
+            });
+            return;
+        }
+
+        var candidatePostIds = await GetCandidatePostIdsAsync(db, context.Mode, enabledDiscoveryProviders, context.CancellationToken);
         var total = candidatePostIds.Count;
         if (total == 0)
         {
@@ -158,9 +172,13 @@ public sealed class AutoTagPostsJob : IJob
         });
     }
 
-    private static async Task<List<int>> GetCandidatePostIdsAsync(DamebooruDbContext db, JobMode mode, CancellationToken cancellationToken)
+    private static async Task<List<int>> GetCandidatePostIdsAsync(
+        DamebooruDbContext db,
+        JobMode mode,
+        IReadOnlyCollection<AutoTagProvider> currentDiscoveryProviders,
+        CancellationToken cancellationToken)
     {
-        var currentDiscoveryProviders = AutoTagDiscoveryPlan.OrderedDiscoveryProviders;
+        var currentDiscoveryProviderArray = currentDiscoveryProviders.ToArray();
         var imagePosts = db.Posts
             .AsNoTracking()
             .Where(p => p.PostFiles.Any(pf => EF.Functions.Like(pf.ContentType, "image/%")));
@@ -195,7 +213,7 @@ public sealed class AutoTagPostsJob : IJob
                     && !db.PostAutoTagScanCandidates.Any(candidate => candidate.ScanId == x.Scan.Id)
                     && db.PostAutoTagScanSteps.Count(step => step.ScanId == x.Scan.Id
                         && step.Kind == AutoTagScanStepKind.Discovery
-                        && currentDiscoveryProviders.Contains(step.Provider)) < currentDiscoveryProviders.Length)
+                        && currentDiscoveryProviderArray.Contains(step.Provider)) < currentDiscoveryProviderArray.Length)
                 || db.PostAutoTagScanSteps.Any(step => step.ScanId == x.Scan!.Id && step.Status == AutoTagScanStepStatus.RetryableFailure && step.NextRetryAtUtc <= now))
             .OrderBy(x => x.Post.Id)
             .Select(x => x.Post.Id)

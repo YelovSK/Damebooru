@@ -17,6 +17,7 @@ public sealed class AutoTagScanService
     private readonly DamebooruDbContext _db;
     private readonly IReadOnlyDictionary<AutoTagProvider, IExternalPostDiscoveryClient> _discoveryClients;
     private readonly IReadOnlyDictionary<AutoTagProvider, IExternalPostMetadataClient> _metadataClients;
+    private readonly AutoTagDiscoverySettingsService _discoverySettingsService;
     private readonly decimal _minimumSauceNaoSimilarity;
     private readonly ILogger<AutoTagScanService> _logger;
 
@@ -24,12 +25,14 @@ public sealed class AutoTagScanService
         DamebooruDbContext db,
         IEnumerable<IExternalPostDiscoveryClient> discoveryClients,
         IEnumerable<IExternalPostMetadataClient> metadataClients,
+        AutoTagDiscoverySettingsService discoverySettingsService,
         DamebooruConfig config,
         ILogger<AutoTagScanService> logger)
     {
         _db = db;
         _discoveryClients = discoveryClients.ToDictionary(client => client.Provider);
         _metadataClients = metadataClients.ToDictionary(client => client.Provider);
+        _discoverySettingsService = discoverySettingsService;
         _minimumSauceNaoSimilarity = Math.Max(0m, config.ExternalApis.SauceNao.MinimumSimilarity);
         _logger = logger;
     }
@@ -86,9 +89,18 @@ public sealed class AutoTagScanService
         scan.LastStartedAtUtc = DateTime.UtcNow;
         scan.LastError = null;
 
+        var enabledDiscoveryProviders = await _discoverySettingsService.GetEnabledDiscoveryProvidersAsync(cancellationToken);
+        var enabledDiscoveryProviderSet = enabledDiscoveryProviders.ToHashSet();
+
+        RemoveDisabledDiscoveryCandidates(scan, enabledDiscoveryProviderSet);
+
         foreach (var provider in AutoTagDiscoveryPlan.OrderedDiscoveryProviders)
         {
-            EnsureStep(scan, provider, AutoTagScanStepKind.Discovery);
+            var step = EnsureStep(scan, provider, AutoTagScanStepKind.Discovery);
+            if (!enabledDiscoveryProviderSet.Contains(provider))
+            {
+                MarkStepSkipped(step);
+            }
         }
 
         foreach (var provider in AutoTagDiscoveryPlan.MetadataProviders)
@@ -109,7 +121,7 @@ public sealed class AutoTagScanService
         var md5Hash = await EnsureMd5HashAsync(scan, filePath, cancellationToken);
         var discoveryContext = new PostDiscoveryContext(post.Id, post.RelativePath, post.ContentType, filePath, post.ContentHash, md5Hash);
 
-        directive = await RunDiscoveryPipelineAsync(scan, discoveryContext, cancellationToken);
+        directive = await RunDiscoveryPipelineAsync(scan, discoveryContext, enabledDiscoveryProviders, cancellationToken);
 
         if (directive == null)
         {
@@ -119,23 +131,27 @@ public sealed class AutoTagScanService
             }
         }
 
-        scan.Status = CalculateOverallStatus(scan);
+        scan.Status = CalculateOverallStatus(scan, enabledDiscoveryProviderSet);
         scan.LastCompletedAtUtc = DateTime.UtcNow;
         scan.LastError = scan.Status == AutoTagScanStatus.Completed
             ? null
             : string.Join(" | ", scan.Steps.Where(step => !string.IsNullOrWhiteSpace(step.LastError)).Select(step => $"{step.Provider}: {step.LastError}"));
 
         await _db.SaveChangesAsync(cancellationToken);
-        return new AutoTagScanResult(postId, scan.Status, isStaleContentReset, ShouldApply(scan, directive), directive);
+        return new AutoTagScanResult(postId, scan.Status, isStaleContentReset, ShouldApply(scan, directive, enabledDiscoveryProviders), directive);
     }
 
-    private async Task<AutoTagExecutionDirective?> RunDiscoveryPipelineAsync(PostAutoTagScan scan, PostDiscoveryContext context, CancellationToken cancellationToken)
+    private async Task<AutoTagExecutionDirective?> RunDiscoveryPipelineAsync(
+        PostAutoTagScan scan,
+        PostDiscoveryContext context,
+        IReadOnlyList<AutoTagProvider> enabledDiscoveryProviders,
+        CancellationToken cancellationToken)
     {
-        foreach (var provider in AutoTagDiscoveryPlan.OrderedDiscoveryProviders)
+        foreach (var provider in enabledDiscoveryProviders)
         {
             if (scan.Candidates.Count > 0)
             {
-                MarkRemainingDiscoveryStepsSkipped(scan, provider);
+                MarkRemainingDiscoveryStepsSkipped(scan, provider, enabledDiscoveryProviders);
                 return null;
             }
 
@@ -163,7 +179,7 @@ public sealed class AutoTagScanService
 
                 if (scan.Candidates.Count > 0)
                 {
-                    MarkRemainingDiscoveryStepsSkipped(scan, provider);
+                    MarkRemainingDiscoveryStepsSkipped(scan, provider, enabledDiscoveryProviders);
                     return null;
                 }
             }
@@ -315,7 +331,7 @@ public sealed class AutoTagScanService
             : AutoTagScanStepStatus.PermanentFailure;
         step.LastError = exception.Message;
         step.NextRetryAtUtc = isRetryable
-            ? DateTime.UtcNow.Add(providerException.RetryAfter ?? TimeSpan.FromMinutes(Math.Min(60, Math.Max(1, step.AttemptCount * 5))))
+            ? DateTime.UtcNow.Add(providerException?.RetryAfter ?? TimeSpan.FromMinutes(Math.Min(60, Math.Max(1, step.AttemptCount * 5))))
             : null;
 
         return providerException == null || (!providerException.StopCurrentRun && providerException.RetryAfter == null)
@@ -363,10 +379,13 @@ public sealed class AutoTagScanService
         }
     }
 
-    private static void MarkRemainingDiscoveryStepsSkipped(PostAutoTagScan scan, AutoTagProvider lastAttemptedProvider)
+    private static void MarkRemainingDiscoveryStepsSkipped(
+        PostAutoTagScan scan,
+        AutoTagProvider lastAttemptedProvider,
+        IReadOnlyList<AutoTagProvider> enabledDiscoveryProviders)
     {
         var seenProvider = false;
-        foreach (var provider in AutoTagDiscoveryPlan.OrderedDiscoveryProviders)
+        foreach (var provider in enabledDiscoveryProviders)
         {
             if (provider == lastAttemptedProvider)
             {
@@ -382,11 +401,24 @@ public sealed class AutoTagScanService
             var step = EnsureStep(scan, provider, AutoTagScanStepKind.Discovery);
             if (step.Status == AutoTagScanStepStatus.Pending)
             {
-                step.Status = AutoTagScanStepStatus.Skipped;
-                step.NextRetryAtUtc = null;
-                step.LastError = null;
+                MarkStepSkipped(step);
             }
         }
+    }
+
+    private static void RemoveDisabledDiscoveryCandidates(PostAutoTagScan scan, IReadOnlySet<AutoTagProvider> enabledDiscoveryProviders)
+    {
+        foreach (var candidate in scan.Candidates.Where(candidate => !enabledDiscoveryProviders.Contains(candidate.DiscoveryProvider)).ToList())
+        {
+            scan.Candidates.Remove(candidate);
+        }
+    }
+
+    private static void MarkStepSkipped(PostAutoTagScanStep step)
+    {
+        step.Status = AutoTagScanStepStatus.Skipped;
+        step.NextRetryAtUtc = null;
+        step.LastError = null;
     }
 
     private async Task<string> EnsureMd5HashAsync(PostAutoTagScan scan, string filePath, CancellationToken cancellationToken)
@@ -483,13 +515,23 @@ public sealed class AutoTagScanService
         return TagCategoryKind.General;
     }
 
-    private static AutoTagScanStatus CalculateOverallStatus(PostAutoTagScan scan)
+    private static AutoTagScanStatus CalculateOverallStatus(PostAutoTagScan scan, IReadOnlySet<AutoTagProvider> enabledDiscoveryProviders)
     {
-        var hasRetryableFailure = scan.Steps.Any(step => step.Status == AutoTagScanStepStatus.RetryableFailure);
-        var hasPermanentFailure = scan.Steps.Any(step => step.Status == AutoTagScanStepStatus.PermanentFailure);
-        var hasSuccessOrSkip = scan.Steps.Any(step => step.Status is AutoTagScanStepStatus.Succeeded or AutoTagScanStepStatus.Skipped);
+        var relevantSteps = scan.Steps
+            .Where(step => step.Kind == AutoTagScanStepKind.Metadata
+                || (step.Kind == AutoTagScanStepKind.Discovery && enabledDiscoveryProviders.Contains(step.Provider)))
+            .ToList();
 
-        if (!hasRetryableFailure && !hasPermanentFailure && scan.Steps.All(step => step.Status is AutoTagScanStepStatus.Succeeded or AutoTagScanStepStatus.Skipped))
+        if (relevantSteps.Count == 0)
+        {
+            return AutoTagScanStatus.Completed;
+        }
+
+        var hasRetryableFailure = relevantSteps.Any(step => step.Status == AutoTagScanStepStatus.RetryableFailure);
+        var hasPermanentFailure = relevantSteps.Any(step => step.Status == AutoTagScanStepStatus.PermanentFailure);
+        var hasSuccessOrSkip = relevantSteps.Any(step => step.Status is AutoTagScanStepStatus.Succeeded or AutoTagScanStepStatus.Skipped);
+
+        if (!hasRetryableFailure && !hasPermanentFailure && relevantSteps.All(step => step.Status is AutoTagScanStepStatus.Succeeded or AutoTagScanStepStatus.Skipped))
         {
             return AutoTagScanStatus.Completed;
         }
@@ -502,6 +544,10 @@ public sealed class AutoTagScanService
         return AutoTagScanStatus.Failed;
     }
 
-    private static bool ShouldApply(PostAutoTagScan scan, AutoTagExecutionDirective? directive)
-        => directive == null && scan.Steps.Any(step => step.Status is AutoTagScanStepStatus.Succeeded or AutoTagScanStepStatus.Skipped);
+    private static bool ShouldApply(PostAutoTagScan scan, AutoTagExecutionDirective? directive, IReadOnlyList<AutoTagProvider> enabledDiscoveryProviders)
+        => directive == null
+           && enabledDiscoveryProviders.Count > 0
+           && scan.Steps.Any(step => (step.Kind == AutoTagScanStepKind.Metadata
+                   || (step.Kind == AutoTagScanStepKind.Discovery && enabledDiscoveryProviders.Contains(step.Provider)))
+               && step.Status is AutoTagScanStepStatus.Succeeded or AutoTagScanStepStatus.Skipped);
 }

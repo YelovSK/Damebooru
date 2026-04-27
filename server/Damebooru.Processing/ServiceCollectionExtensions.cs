@@ -84,7 +84,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IMediaSource, FileSystemMediaSource>();
         services.AddSingleton<IHardLinkService, Services.Files.PlatformHardLinkService>();
         services.AddTransient<FolderTaggingService>();
-        services.AddSingleton<AutoTagConfigurationValidator>();
+        services.AddScoped<AutoTagConfigurationValidator>();
+        services.AddScoped<AutoTagDiscoverySettingsService>();
         services.AddScoped<AutoTagScanService>();
         services.AddScoped<AutoTagApplyService>();
 

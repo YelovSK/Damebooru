@@ -43,6 +43,7 @@ import {
   AppLogList,
   PostAuditList,
   AutoTagPostResult,
+  AutoTagDiscoverySettings,
 } from "./models";
 
 @Injectable({
@@ -355,6 +356,14 @@ export class DamebooruService {
   // --- System ---
   getGlobalInfo(): Observable<DamebooruSystemInfoDto> {
     return this.http.get<DamebooruSystemInfoDto>(`${this.baseUrl}/system/info`);
+  }
+
+  getAutoTagDiscoverySettings(): Observable<AutoTagDiscoverySettings> {
+    return this.http.get<AutoTagDiscoverySettings>(`${this.baseUrl}/settings/auto-tagging`);
+  }
+
+  updateAutoTagDiscoverySettings(settings: AutoTagDiscoverySettings): Observable<AutoTagDiscoverySettings> {
+    return this.http.put<AutoTagDiscoverySettings>(`${this.baseUrl}/settings/auto-tagging`, settings);
   }
 
   getTags(
