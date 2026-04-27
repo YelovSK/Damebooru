@@ -32,6 +32,7 @@ export class HelpComponent {
     { key: 'ArrowLeft', context: 'Post details', action: 'Go to previous post in current query' },
     { key: 'ArrowRight', context: 'Post details', action: 'Go to next post in current query' },
     { key: 'E', context: 'Post details', action: 'Toggle edit mode' },
+    { key: 'F', context: 'Post details', action: 'Toggle fullscreen media view' },
   ];
 
   searchSyntax: SearchSyntaxItem[] = [

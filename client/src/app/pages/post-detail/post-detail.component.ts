@@ -9,8 +9,9 @@ import {
   computed,
   viewChild,
   untracked,
+  ElementRef,
 } from "@angular/core";
-import { CommonModule } from "@angular/common";
+import { CommonModule, DOCUMENT } from "@angular/common";
 import { RouterLink, Router } from "@angular/router";
 import {
   Subject,
@@ -90,6 +91,7 @@ export class PostDetailComponent {
   private readonly router = inject(Router);
   private readonly hotkeys = inject(HotkeysService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly document = inject(DOCUMENT);
   private readonly settingsService = inject(SettingsService);
   private readonly toastService = inject(ToastService);
   readonly editService = inject(PostEditService);
@@ -122,6 +124,7 @@ export class PostDetailComponent {
   sidebarCollapsed = signal(false);
 
   private readonly zoomPan = viewChild<ZoomPanContainerComponent>("zoomPan");
+  private readonly mediaContainer = viewChild<ElementRef<HTMLElement>>("mediaContainer");
 
   private swipePointerId: number | null = null;
   private swipeStartX: number | null = null;
@@ -309,6 +312,29 @@ export class PostDetailComponent {
           this.startEditing();
         }
       });
+
+    this.hotkeys
+      .on("f", { preventDefault: true })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.toggleFullscreen();
+      });
+  }
+
+  toggleFullscreen(): void {
+    if (this.editService.isEditing()) {
+      return;
+    }
+
+    if (this.document.fullscreenElement) {
+      void this.document.exitFullscreen();
+      return;
+    }
+
+    const element = this.mediaContainer()?.nativeElement;
+    if (element) {
+      void element.requestFullscreen();
+    }
   }
 
   getTagCategoryLabel(tag: DamebooruTagDto): string {
