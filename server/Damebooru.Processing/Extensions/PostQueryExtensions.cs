@@ -32,10 +32,10 @@ public static class PostQueryExtensions
                 .ThenByDescending(p => p.Id),
 
             (SearchSortField.TagCount, SearchSortDirection.Asc) => query
-                .OrderBy(p => p.PostTags.Count())
+                .OrderBy(p => p.PostTags.Select(pt => pt.TagId).Distinct().Count())
                 .ThenBy(p => p.Id),
             (SearchSortField.TagCount, SearchSortDirection.Desc) => query
-                .OrderByDescending(p => p.PostTags.Count())
+                .OrderByDescending(p => p.PostTags.Select(pt => pt.TagId).Distinct().Count())
                 .ThenByDescending(p => p.Id),
 
             (SearchSortField.Width, SearchSortDirection.Asc) => query

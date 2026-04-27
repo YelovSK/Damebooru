@@ -402,11 +402,11 @@ public class PostReadService
             var count = parsedQuery.TagCountFilter.Value;
             query = parsedQuery.TagCountFilter.Operator switch
             {
-                NumericComparisonOperator.Equal => query.Where(p => p.PostTags.Count() == count),
-                NumericComparisonOperator.GreaterThan => query.Where(p => p.PostTags.Count() > count),
-                NumericComparisonOperator.GreaterThanOrEqual => query.Where(p => p.PostTags.Count() >= count),
-                NumericComparisonOperator.LessThan => query.Where(p => p.PostTags.Count() < count),
-                NumericComparisonOperator.LessThanOrEqual => query.Where(p => p.PostTags.Count() <= count),
+                NumericComparisonOperator.Equal => query.Where(p => p.PostTags.Select(pt => pt.TagId).Distinct().Count() == count),
+                NumericComparisonOperator.GreaterThan => query.Where(p => p.PostTags.Select(pt => pt.TagId).Distinct().Count() > count),
+                NumericComparisonOperator.GreaterThanOrEqual => query.Where(p => p.PostTags.Select(pt => pt.TagId).Distinct().Count() >= count),
+                NumericComparisonOperator.LessThan => query.Where(p => p.PostTags.Select(pt => pt.TagId).Distinct().Count() < count),
+                NumericComparisonOperator.LessThanOrEqual => query.Where(p => p.PostTags.Select(pt => pt.TagId).Distinct().Count() <= count),
                 _ => query
             };
         }
