@@ -26,6 +26,7 @@
                 "input": "public"
               }
             ],
+            "serviceWorker": "ngsw-config.json",
             "styles": [
               "src/styles.css"
             ],
