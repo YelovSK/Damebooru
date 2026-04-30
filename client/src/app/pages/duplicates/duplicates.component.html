@@ -69,7 +69,8 @@
                             <div class="flex flex-wrap gap-3">
                                 @for (file of folder.files; track trackExactFile($index, file)) {
                                 <div class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors hover:border-accent-primary">
-                                    <div class="relative aspect-square overflow-hidden" (mouseenter)="onPostCardMouseEnter(file.postId)"
+                                    <div class="relative aspect-square overflow-hidden"
+                                        (mouseenter)="onPostCardMouseEnter(file.postId)" (mousemove)="onPostCardMouseMove(file.postId)"
                                         (mouseleave)="onPostCardMouseLeave($event)">
                                         <img [src]="getExactFileThumbnailUrl(file)" [alt]="file.relativePath"
                                             class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
@@ -174,7 +175,8 @@
                             class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors"
                             [class.hover:border-red-500]="isSameFolderScope(group)"
                             [class.hover:border-accent-primary]="!isSameFolderScope(group)">
-                            <div class="relative aspect-square overflow-hidden" (mouseenter)="onPostCardMouseEnter(post.id)"
+                            <div class="relative aspect-square overflow-hidden"
+                                (mouseenter)="onPostCardMouseEnter(post.id)" (mousemove)="onPostCardMouseMove(post.id)"
                                 (mouseleave)="onPostCardMouseLeave($event)">
                                 <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
                                     class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
@@ -451,7 +453,8 @@
                         @for (post of group.posts; track post.id) {
                         <div
                             class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-amber-500 transition-colors">
-                            <div class="relative aspect-square overflow-hidden" (mouseenter)="onPostCardMouseEnter(post.id)"
+                            <div class="relative aspect-square overflow-hidden"
+                                (mouseenter)="onPostCardMouseEnter(post.id)" (mousemove)="onPostCardMouseMove(post.id)"
                                 (mouseleave)="onPostCardMouseLeave($event)">
                                 <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
                                     class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">

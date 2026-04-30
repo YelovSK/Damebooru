@@ -30,6 +30,7 @@ import { TabComponent } from '@shared/components/tabs/tab.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
+import { PostPreviewHoverGateService } from '@shared/components/post-preview-overlay/post-preview-hover-gate.service';
 import { SettingsService } from '@services/settings.service';
 import { computeLookupContentHash } from './lookup-hash';
 
@@ -75,6 +76,7 @@ export class DuplicatesPageComponent {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly settingsService = inject(SettingsService);
+  private readonly previewHoverGate = inject(PostPreviewHoverGateService);
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd),
@@ -822,12 +824,24 @@ export class DuplicatesPageComponent {
       return;
     }
 
+    if (this.previewHoverGate.isSuppressed()) {
+      return;
+    }
+
     this.hoveredPostId = postId;
     this.clearHoverPreviewTimer();
     this.hoverPreviewTimer = setTimeout(() => {
       this.hoverPreviewTimer = null;
       this.showPostPreview(postId);
     }, this.hoverPreviewDelayMs());
+  }
+
+  onPostCardMouseMove(postId: number) {
+    if (!this.hoverPreviewEnabled() || !this.previewHoverGate.resumeIfSuppressed()) {
+      return;
+    }
+
+    this.onPostCardMouseEnter(postId);
   }
 
   onPostCardMouseLeave(event: MouseEvent) {
@@ -845,6 +859,7 @@ export class DuplicatesPageComponent {
   closePreview() {
     this.hoveredPostId = null;
     this.clearHoverPreviewTimer();
+    this.previewHoverGate.suppressUntilPointerMove();
     this.previewPost.set(null);
   }
 

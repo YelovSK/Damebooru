@@ -45,6 +45,7 @@ import { AppLinks, AppPaths } from "@app/app.paths";
 import { StorageService, STORAGE_KEYS } from "@services/storage.service";
 import { SettingsService } from "@services/settings.service";
 import { PostPreviewOverlayComponent } from "@shared/components/post-preview-overlay/post-preview-overlay.component";
+import { PostPreviewHoverGateService } from "@shared/components/post-preview-overlay/post-preview-hover-gate.service";
 import { PostTileComponent } from "@shared/components/post-tile/post-tile.component";
 import {
   offsetToPage,
@@ -125,6 +126,7 @@ export class PostsComponent implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly pageCacheStore = inject(PostsPageCacheStore);
   private readonly fastScroller = inject(PostsFastScrollerController);
+  private readonly previewHoverGate = inject(PostPreviewHoverGateService);
   private readonly zone = inject(NgZone);
 
   readonly appLinks = AppLinks;
@@ -381,6 +383,9 @@ export class PostsComponent implements AfterViewInit {
         fromEvent<MouseEvent>(el, "mouseout")
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe((e) => this.handleViewportMouseOut(e));
+        fromEvent<MouseEvent>(el, "mousemove")
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe((e) => this.handleViewportMouseMove(e));
       });
     }
 
@@ -583,8 +588,24 @@ export class PostsComponent implements AfterViewInit {
       return;
     }
 
-    const target = event.target as HTMLElement | null;
-    const tile = target?.closest(".post-tile");
+    if (this.previewHoverGate.isSuppressed()) {
+      return;
+    }
+
+    this.schedulePreviewForEventTarget(event.target);
+  }
+
+  private handleViewportMouseMove(event: MouseEvent): void {
+    if (!this.hoverPreviewEnabled() || !this.previewHoverGate.resumeIfSuppressed()) {
+      return;
+    }
+
+    this.schedulePreviewForEventTarget(event.target);
+  }
+
+  private schedulePreviewForEventTarget(target: EventTarget | null): void {
+    const element = target as HTMLElement | null;
+    const tile = element?.closest(".post-tile");
     if (!tile) return;
 
     const idStr = tile.getAttribute("data-post-id");
@@ -616,7 +637,12 @@ export class PostsComponent implements AfterViewInit {
   @HostListener("document:keydown.escape")
   dismissPreview(): void {
     this.clearHoverPreviewTimer();
+    this.previewHoverGate.suppressUntilPointerMove();
     this.previewPost.set(null);
+  }
+
+  closePreview(): void {
+    this.dismissPreview();
   }
 
   onFastScrollerPointerDown(event: PointerEvent): void {

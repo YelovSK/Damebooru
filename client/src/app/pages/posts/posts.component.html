@@ -103,6 +103,6 @@
     </div>
 
     @if (previewPost(); as preview) {
-    <app-post-preview-overlay [post]="preview" (closed)="previewPost.set(null)" />
+    <app-post-preview-overlay [post]="preview" (closed)="closePreview()" />
     }
 </section>
