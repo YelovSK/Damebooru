@@ -392,15 +392,23 @@ export class PostDetailComponent {
     this.swipeStartX = event.clientX;
     this.swipeStartY = event.clientY;
     this.swipeStartTime = performance.now();
+
+    if (event.currentTarget instanceof HTMLElement) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
   }
 
   onMediaPointerUp(event: PointerEvent) {
     if (this.swipePointerId !== event.pointerId) return;
-    if (this.swipeStartX === null || this.swipeStartY === null) return;
+    if (this.swipeStartX === null || this.swipeStartY === null) {
+      this.releaseMediaPointer(event);
+      return;
+    }
 
     const deltaX = event.clientX - this.swipeStartX;
     const deltaY = event.clientY - this.swipeStartY;
     const elapsedMs = performance.now() - this.swipeStartTime;
+    this.releaseMediaPointer(event);
     this.resetSwipeState();
 
     if (elapsedMs > this.swipeMaxDurationMs) return;
@@ -415,8 +423,20 @@ export class PostDetailComponent {
     this.goToPrevPost();
   }
 
-  onMediaPointerCancel() {
+  onMediaPointerCancel(event?: PointerEvent) {
+    if (event) {
+      this.releaseMediaPointer(event);
+    }
     this.resetSwipeState();
+  }
+
+  private releaseMediaPointer(event: PointerEvent) {
+    if (
+      event.currentTarget instanceof HTMLElement &&
+      event.currentTarget.hasPointerCapture(event.pointerId)
+    ) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   private resetSwipeState() {
