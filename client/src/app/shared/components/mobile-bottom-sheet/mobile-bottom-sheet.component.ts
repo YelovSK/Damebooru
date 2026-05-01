@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -20,14 +19,17 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AppOverlayService } from '@services/app-overlay.service';
 
 @Component({
-  selector: 'app-modal',
+  selector: 'app-mobile-bottom-sheet',
   standalone: true,
-  imports: [CommonModule],
-  templateUrl: './modal.component.html',
+  templateUrl: './mobile-bottom-sheet.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ModalComponent implements AfterViewInit {
-  @ViewChild('modalOverlay') private modalOverlayTemplate?: TemplateRef<unknown>;
+export class MobileBottomSheetComponent implements AfterViewInit {
+  @ViewChild('bottomSheetOverlay')
+  private bottomSheetOverlayTemplate?: TemplateRef<unknown>;
+
+  open = input(false);
+  openChange = output<boolean>();
 
   private readonly appOverlay = inject(AppOverlayService);
   private readonly destroyRef = inject(DestroyRef);
@@ -35,14 +37,6 @@ export class ModalComponent implements AfterViewInit {
   private overlayRef?: OverlayRef;
   private portal?: TemplatePortal;
   private viewReady = signal(false);
-
-  open = input(false);
-  title = input('');
-  maxWidthClass = input('max-w-xl');
-  closeOnBackdrop = input(true);
-  showCloseButton = input(true);
-
-  closed = output<void>();
 
   constructor() {
     effect(() => {
@@ -65,18 +59,18 @@ export class ModalComponent implements AfterViewInit {
   }
 
   close(): void {
-    this.closed.emit();
+    this.openChange.emit(false);
   }
 
   private attachOverlay(): void {
-    if (!this.modalOverlayTemplate) {
+    if (!this.bottomSheetOverlayTemplate) {
       return;
     }
 
     const overlayRef = this.ensureOverlay();
     if (!this.portal) {
       this.portal = new TemplatePortal(
-        this.modalOverlayTemplate,
+        this.bottomSheetOverlayTemplate,
         this.viewContainerRef,
       );
     }
@@ -91,15 +85,15 @@ export class ModalComponent implements AfterViewInit {
       return this.overlayRef;
     }
 
-    const overlayRef = this.appOverlay.createCenteredModal();
+    const overlayRef = this.appOverlay.createBottomSheet();
     overlayRef
       .backdropClick()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        if (this.closeOnBackdrop()) {
-          this.close();
-        }
-      });
+      .subscribe(() => this.close());
+    overlayRef
+      .detachments()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.openChange.emit(false));
 
     this.overlayRef = overlayRef;
     return overlayRef;

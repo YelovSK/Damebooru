@@ -1,0 +1,9 @@
+<ng-template #bottomSheetOverlay>
+  <div
+    class="max-h-[82dvh] w-screen overflow-y-auto overscroll-contain rounded-t-lg border-t border-glass-border bg-bg-secondary px-4 pt-3 shadow-glass md:hidden"
+    role="dialog"
+    aria-modal="true"
+    [style.paddingBottom]="'max(env(safe-area-inset-bottom),1rem)'">
+    <ng-content></ng-content>
+  </div>
+</ng-template>

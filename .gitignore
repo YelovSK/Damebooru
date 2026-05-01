@@ -44,4 +44,4 @@ __pycache__/
 *.pyc
 *.pyo
 
-TODO.md
+*.lscache

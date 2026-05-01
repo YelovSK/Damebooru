@@ -47,6 +47,7 @@ import { SettingsService } from "@services/settings.service";
 import { PostPreviewOverlayComponent } from "@shared/components/post-preview-overlay/post-preview-overlay.component";
 import { PostPreviewHoverGateService } from "@shared/components/post-preview-overlay/post-preview-hover-gate.service";
 import { PostTileComponent } from "@shared/components/post-tile/post-tile.component";
+import { MobileBottomSheetComponent } from "@shared/components/mobile-bottom-sheet/mobile-bottom-sheet.component";
 import {
   offsetToPage,
 } from "./posts-row-math";
@@ -69,6 +70,7 @@ import {
     ScrollingModule,
     PostPreviewOverlayComponent,
     PostTileComponent,
+    MobileBottomSheetComponent,
   ],
   providers: [PostsPageCacheStore, PostsFastScrollerController],
   templateUrl: "./posts.component.html",
@@ -600,26 +602,47 @@ export class PostsComponent implements AfterViewInit {
       return;
     }
 
-    this.clearHoverPreviewTimer();
-    this.previewHoverGate.suppressUntilPointerMove();
-    this.previewPost.set(null);
+    this.dismissHoverPreview();
   }
 
   closePreview(): void {
-    this.dismissPreview();
+    this.dismissHoverPreview();
+  }
+
+  private dismissHoverPreview(): void {
+    this.clearHoverPreviewTimer();
+    this.previewHoverGate.suppressUntilPointerMove();
+    this.previewPost.set(null);
   }
 
   openMobileControls(): void {
     this.mobileControlsOpen.set(true);
   }
 
-  closeMobileControls(): void {
-    this.mobileControlsOpen.set(false);
+  onMobileControlsButtonPointerDown(event: PointerEvent): void {
+    if (!event.isPrimary || event.button !== 0) {
+      return;
+    }
+
+    event.preventDefault();
+    if (event.currentTarget instanceof HTMLElement) {
+      // Keep this tap owned by the opener after the sheet appears.
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    this.openMobileControls();
   }
 
-  clearSearch(): void {
-    this.currentSearchValue.set("");
-    this.onSearch("");
+  onMobileControlsButtonKeydown(event: KeyboardEvent): void {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    this.openMobileControls();
+  }
+
+  closeMobileControls(): void {
+    this.mobileControlsOpen.set(false);
   }
 
   onFastScrollerPointerDown(event: PointerEvent): void {
@@ -765,7 +788,7 @@ export class PostsComponent implements AfterViewInit {
     this.markScrollingActive();
     this.fastScroller.onScrollActivity();
     this.updateScrollDerivedState();
-    this.dismissPreview();
+    this.dismissHoverPreview();
   }
 
   private updateScrollDerivedState(): void {

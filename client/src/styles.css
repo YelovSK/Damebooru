@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@angular/cdk/overlay-prebuilt.css";
 
 @theme {
   /* Color Palette */
@@ -161,4 +162,22 @@ summary {
 
 .app-tooltip-right {
   transform-origin: center left;
+}
+
+/* CDK overlay hooks for app-owned overlays. */
+.app-overlay-backdrop {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.app-centered-modal-panel {
+  max-width: calc(100vw - 2rem);
+}
+
+.app-bottom-sheet-backdrop {
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.app-bottom-sheet-panel {
+  max-width: 100vw;
+  width: 100vw;
 }

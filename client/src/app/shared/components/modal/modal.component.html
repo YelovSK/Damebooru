@@ -1,23 +1,20 @@
-@if (open()) {
-  <div class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/55 p-4" (click)="onBackdropClick()">
-    <div
-      class="w-full rounded-xl border border-glass-border bg-bg-secondary p-4 shadow-xl"
-      [ngClass]="maxWidthClass()"
-      (click)="$event.stopPropagation()">
-      <div class="mb-4 flex items-start justify-between gap-3">
-        <h2 class="text-xl font-semibold text-text-primary">{{ title() }}</h2>
-        @if (showCloseButton()) {
-          <button
-            type="button"
-            class="rounded px-2 py-1 text-text-muted transition-colors hover:text-text-primary"
-            aria-label="Close modal"
-            (click)="close()">
-            ×
-          </button>
-        }
-      </div>
-
-      <ng-content></ng-content>
+<ng-template #modalOverlay>
+  <div
+    class="w-full rounded-xl border border-glass-border bg-bg-secondary p-4 shadow-xl"
+    [ngClass]="maxWidthClass()">
+    <div class="mb-4 flex items-start justify-between gap-3">
+      <h2 class="text-xl font-semibold text-text-primary">{{ title() }}</h2>
+      @if (showCloseButton()) {
+        <button
+          type="button"
+          class="rounded px-2 py-1 text-text-muted transition-colors hover:text-text-primary"
+          aria-label="Close modal"
+          (click)="close()">
+          ×
+        </button>
+      }
     </div>
+
+    <ng-content></ng-content>
   </div>
-}
+</ng-template>

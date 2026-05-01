@@ -1,11 +1,10 @@
-@if (confirmService.options(); as options) {
-<div
-    class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 animate-fade-in"
-    (click)="onBackdropClick($event)"
-    tabindex="-1"
-    role="dialog"
-    (keydown.esc)="cancel()">
-    <div class="bg-bg-secondary border border-accent-primary/20 rounded-xl shadow-[0_0_30px_rgba(56,189,248,0.15)] p-6 max-w-md w-full mx-4 flex flex-col gap-4 animate-scale-in">
+<ng-template #confirmDialogOverlay>
+  @if (confirmService.options(); as options) {
+    <div class="bg-bg-secondary border border-accent-primary/20 rounded-xl shadow-[0_0_30px_rgba(56,189,248,0.15)] p-6 max-w-md w-[calc(100vw-2rem)] flex flex-col gap-4 animate-scale-in"
+      tabindex="-1"
+      role="dialog"
+      aria-modal="true"
+      (keydown.esc)="cancel()">
       <h3 class="text-lg font-bold text-text-primary m-0">{{ options.title }}</h3>
       <p class="text-text-muted text-[0.9rem] m-0">{{ options.message }}</p>
       @if (requiresTypedText(); as requiredText) {
@@ -33,5 +32,5 @@
         </app-button>
       </div>
     </div>
-  </div>
-}
+  }
+</ng-template>
