@@ -7,30 +7,48 @@ import {
   input,
 } from "@angular/core";
 
-type ScheduledImageJob = {
+import { SettingsService } from "@services/settings.service";
+
+interface ScheduledImageJob {
   token: symbol;
   element: HTMLImageElement;
   url: string;
-};
+  near: boolean;
+  farNotBeforeMs: number;
+}
 
-/**
- * Used for throttling DOM manipulation, specifically setting the img src attribute.
- * When using CDK and scrolling very quickly, the performance goes to shit due to the
- * many img.src assignments, so this directive is used for throttling it to some number
- * of assignments per frame.
- * Or in other words, prioritizes smoothness over the speed of loading.
- */
 class ImageSrcScheduler {
-  private static readonly jobs: ScheduledImageJob[] = [];
+  private static readonly jobs: (ScheduledImageJob | null)[] = [];
   private static readonly pendingByToken = new Map<symbol, ScheduledImageJob>();
+  private static readonly nearByToken = new Map<symbol, boolean>();
   private static rafId: number | null = null;
-  private static readonly maxAssignmentsPerFrame = 10;
+  private static headIndex = 0;
+  private static pendingCount = 0;
+  private static maxAssignmentsPerFrame = 10;
+  private static readonly maxFarAssignmentsPerFrame = 1;
+  private static readonly farAssignmentSettleMs = 16;
 
   static enqueue(job: ScheduledImageJob): void {
     this.cancel(job.token);
+    job.near = this.nearByToken.get(job.token) ?? job.near;
+    job.farNotBeforeMs = job.near
+      ? 0
+      : performance.now() + this.farAssignmentSettleMs;
     this.jobs.push(job);
     this.pendingByToken.set(job.token, job);
+    this.pendingCount += 1;
     this.requestDrain();
+  }
+
+  static setMaxAssignmentsPerFrame(value: number): void {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
+    this.maxAssignmentsPerFrame = Math.max(1, Math.min(16, Math.floor(value)));
+    if (this.pendingCount > 0) {
+      this.requestDrain();
+    }
   }
 
   static cancel(token: symbol): void {
@@ -40,12 +58,27 @@ class ImageSrcScheduler {
     }
 
     this.pendingByToken.delete(token);
-    const index = this.jobs.indexOf(existing);
-    if (index >= 0) {
-      this.jobs.splice(index, 1);
+    this.pendingCount = Math.max(0, this.pendingCount - 1);
+    this.clearPendingState(existing.element);
+  }
+
+  static markNear(token: symbol, near: boolean): void {
+    this.nearByToken.set(token, near);
+    const existing = this.pendingByToken.get(token);
+    if (!existing) {
+      return;
     }
 
-    this.clearPendingState(existing.element);
+    existing.near = near;
+    if (near) {
+      existing.farNotBeforeMs = 0;
+      this.requestDrain();
+    }
+  }
+
+  static forget(token: symbol): void {
+    this.cancel(token);
+    this.nearByToken.delete(token);
   }
 
   private static requestDrain(): void {
@@ -61,12 +94,25 @@ class ImageSrcScheduler {
 
   private static drain(): void {
     let remaining = this.maxAssignmentsPerFrame;
+    let remainingFar = this.maxFarAssignmentsPerFrame;
+    let blockedByFarLimit = false;
 
-    while (remaining > 0 && this.jobs.length > 0) {
-      const nextIndex = this.pickNextJobIndex();
-      const [job] = this.jobs.splice(nextIndex, 1);
-      if (!job) {
+    while (remaining > 0 && this.headIndex < this.jobs.length) {
+      const nextIndex = this.pickNextJobIndex(
+        remainingFar > 0,
+        performance.now(),
+      );
+      if (nextIndex < 0) {
+        this.advanceHead();
+        blockedByFarLimit = this.pendingCount > 0 && remainingFar <= 0;
         break;
+      }
+
+      const job = this.jobs[nextIndex];
+      this.jobs[nextIndex] = null;
+      this.advanceHead();
+      if (!job) {
+        continue;
       }
 
       const current = this.pendingByToken.get(job.token);
@@ -75,6 +121,7 @@ class ImageSrcScheduler {
       }
 
       this.pendingByToken.delete(job.token);
+      this.pendingCount = Math.max(0, this.pendingCount - 1);
 
       if (!job.element.isConnected) {
         continue;
@@ -87,54 +134,67 @@ class ImageSrcScheduler {
 
       job.element.src = job.url;
       this.clearPendingState(job.element);
+      if (!job.near) {
+        remainingFar -= 1;
+      }
       remaining -= 1;
     }
 
-    if (this.jobs.length > 0) {
+    this.compactQueue();
+
+    if (
+      this.pendingCount > 0 &&
+      (!blockedByFarLimit || this.maxFarAssignmentsPerFrame > 0)
+    ) {
       this.requestDrain();
     }
   }
 
-  private static pickNextJobIndex(): number {
-    for (let index = 0; index < this.jobs.length; index += 1) {
+  private static pickNextJobIndex(allowFar: boolean, nowMs: number): number {
+    for (let index = this.headIndex; index < this.jobs.length; index += 1) {
       const job = this.jobs[index];
-      if (this.pendingByToken.get(job.token) !== job) {
-        continue;
-      }
-
-      if (job.element.getAttribute("data-scheduled-near") === "true") {
+      if (job && this.pendingByToken.get(job.token) === job && job.near) {
         return index;
       }
     }
 
-    for (let index = 0; index < this.jobs.length; index += 1) {
-      const job = this.jobs[index];
-      if (this.pendingByToken.get(job.token) !== job) {
-        continue;
-      }
+    if (!allowFar) {
+      return -1;
+    }
 
-      if (this.isLikelyVisible(job.element)) {
+    for (let index = this.headIndex; index < this.jobs.length; index += 1) {
+      const job = this.jobs[index];
+      if (
+        job &&
+        this.pendingByToken.get(job.token) === job &&
+        job.farNotBeforeMs <= nowMs
+      ) {
         return index;
       }
     }
 
-    return 0;
+    return -1;
   }
 
-  private static isLikelyVisible(element: HTMLImageElement): boolean {
-    if (!element.isConnected) {
-      return false;
+  private static advanceHead(): void {
+    while (this.headIndex < this.jobs.length) {
+      const job = this.jobs[this.headIndex];
+      if (job && this.pendingByToken.get(job.token) === job) {
+        return;
+      }
+
+      this.jobs[this.headIndex] = null;
+      this.headIndex += 1;
+    }
+  }
+
+  private static compactQueue(): void {
+    if (this.headIndex < 128 || this.headIndex * 2 < this.jobs.length) {
+      return;
     }
 
-    const rect = element.getBoundingClientRect();
-    const margin = 160;
-
-    return (
-      rect.bottom >= -margin &&
-      rect.top <= window.innerHeight + margin &&
-      rect.right >= -margin &&
-      rect.left <= window.innerWidth + margin
-    );
+    this.jobs.splice(0, this.headIndex);
+    this.headIndex = 0;
   }
 
   private static clearPendingState(element: HTMLImageElement): void {
@@ -151,8 +211,10 @@ export class ScheduledSrcDirective implements OnDestroy {
   private static readonly observerRootMargin = "180px 0px 180px 0px";
 
   private readonly elementRef = inject(ElementRef<HTMLImageElement>);
+  private readonly settings = inject(SettingsService);
   private readonly token = Symbol("scheduled-image");
   private intersectionObserver?: IntersectionObserver;
+  private isNear = false;
 
   scheduledSrc = input<string | null | undefined>(null);
 
@@ -160,41 +222,60 @@ export class ScheduledSrcDirective implements OnDestroy {
     this.setupIntersectionObserver();
 
     effect(() => {
-      const url = this.scheduledSrc()?.trim();
-      const element = this.elementRef.nativeElement;
-      if (!url) {
-        ImageSrcScheduler.cancel(this.token);
-        return;
-      }
-
-      if (element.getAttribute("src") === url) {
-        ImageSrcScheduler.cancel(this.token);
-        return;
-      }
-
-      ImageSrcScheduler.cancel(this.token);
-      element.setAttribute("data-scheduled-pending", "true");
-      element.style.opacity = "0";
-
-      ImageSrcScheduler.enqueue({
-        token: this.token,
-        element,
-        url,
-      });
+      ImageSrcScheduler.setMaxAssignmentsPerFrame(
+        this.settings.performanceSettings().scheduledImageAssignmentsPerFrame,
+      );
     });
+
+    effect(() => this.applyScheduledSrc());
   }
 
   ngOnDestroy(): void {
-    ImageSrcScheduler.cancel(this.token);
+    ImageSrcScheduler.forget(this.token);
     this.intersectionObserver?.disconnect();
     this.intersectionObserver = undefined;
+  }
+
+  private applyScheduledSrc(): void {
+    const url = this.scheduledSrc()?.trim();
+    const element = this.elementRef.nativeElement;
+
+    if (!url) {
+      ImageSrcScheduler.cancel(this.token);
+      return;
+    }
+
+    if (element.getAttribute("src") === url) {
+      ImageSrcScheduler.cancel(this.token);
+      return;
+    }
+
+    if (!this.settings.useScheduledImageSrc()) {
+      ImageSrcScheduler.cancel(this.token);
+      element.src = url;
+      element.removeAttribute("data-scheduled-pending");
+      element.style.opacity = "";
+      return;
+    }
+
+    ImageSrcScheduler.cancel(this.token);
+    element.setAttribute("data-scheduled-pending", "true");
+    element.style.opacity = "0";
+
+    ImageSrcScheduler.enqueue({
+      token: this.token,
+      element,
+      url,
+      near: this.isNear,
+      farNotBeforeMs: 0,
+    });
   }
 
   private setupIntersectionObserver(): void {
     const element = this.elementRef.nativeElement;
 
     if (typeof IntersectionObserver === "undefined") {
-      element.setAttribute("data-scheduled-near", "true");
+      this.setNear(true);
       return;
     }
 
@@ -203,10 +284,7 @@ export class ScheduledSrcDirective implements OnDestroy {
     this.intersectionObserver = new IntersectionObserver(
       (entries) => {
         const entry = entries[entries.length - 1];
-        element.setAttribute(
-          "data-scheduled-near",
-          entry?.isIntersecting ? "true" : "false",
-        );
+        this.setNear(entry?.isIntersecting ?? false);
       },
       {
         root,
@@ -216,5 +294,14 @@ export class ScheduledSrcDirective implements OnDestroy {
     );
 
     this.intersectionObserver.observe(element);
+  }
+
+  private setNear(near: boolean): void {
+    this.isNear = near;
+    this.elementRef.nativeElement.setAttribute(
+      "data-scheduled-near",
+      near ? "true" : "false",
+    );
+    ImageSrcScheduler.markNear(this.token, near);
   }
 }

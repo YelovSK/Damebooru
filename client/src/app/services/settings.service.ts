@@ -9,11 +9,21 @@ export interface PostSettings {
   postPreviewDelayMs: number;
 }
 
+export interface PerformanceSettings {
+  useScheduledImageSrc: boolean;
+  scheduledImageAssignmentsPerFrame: number;
+}
+
 const DEFAULT_POST_SETTINGS: PostSettings = {
   autoPlayVideos: true,
   startVideosMuted: false,
   enablePostPreviewOnHover: true,
   postPreviewDelayMs: 700,
+};
+
+const DEFAULT_PERFORMANCE_SETTINGS: PerformanceSettings = {
+  useScheduledImageSrc: true,
+  scheduledImageAssignmentsPerFrame: 10,
 };
 
 @Injectable({
@@ -23,9 +33,13 @@ export class SettingsService {
   private readonly storage = inject(StorageService);
 
   private readonly _postSettings = signal<PostSettings>(this.loadPostSettings());
+  private readonly _performanceSettings = signal<PerformanceSettings>(
+    this.loadPerformanceSettings(),
+  );
 
   /** Reactive post settings */
   readonly postSettings = this._postSettings.asReadonly();
+  readonly performanceSettings = this._performanceSettings.asReadonly();
 
   /** Convenience computed for auto-play videos */
   readonly autoPlayVideos = computed(() => this._postSettings().autoPlayVideos);
@@ -39,6 +53,10 @@ export class SettingsService {
   /** Convenience computed for hover preview delay */
   readonly postPreviewDelayMs = computed(() => this._postSettings().postPreviewDelayMs);
 
+  readonly useScheduledImageSrc = computed(
+    () => this._performanceSettings().useScheduledImageSrc,
+  );
+
   private loadPostSettings(): PostSettings {
     const saved = this.storage.getJson<PostSettings>(STORAGE_KEYS.POST_SETTINGS);
     return { ...DEFAULT_POST_SETTINGS, ...saved };
@@ -48,6 +66,21 @@ export class SettingsService {
     this._postSettings.update(current => {
       const updated = { ...current, ...settings };
       this.storage.setJson(STORAGE_KEYS.POST_SETTINGS, updated);
+      return updated;
+    });
+  }
+
+  private loadPerformanceSettings(): PerformanceSettings {
+    const saved = this.storage.getJson<PerformanceSettings>(
+      STORAGE_KEYS.PERFORMANCE_SETTINGS,
+    );
+    return { ...DEFAULT_PERFORMANCE_SETTINGS, ...saved };
+  }
+
+  updatePerformanceSettings(settings: Partial<PerformanceSettings>): void {
+    this._performanceSettings.update(current => {
+      const updated = { ...current, ...settings };
+      this.storage.setJson(STORAGE_KEYS.PERFORMANCE_SETTINGS, updated);
       return updated;
     });
   }

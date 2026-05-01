@@ -6,6 +6,10 @@
     width: 100%;
 }
 
+.virtual-row {
+    content-visibility: auto;
+}
+
 .posts-scrolling .post-tile {
     transition: none;
 }

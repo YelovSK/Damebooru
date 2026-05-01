@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
 
     // Settings
     POST_SETTINGS: 'damebooru_post_settings',
+    PERFORMANCE_SETTINGS: 'damebooru_performance_settings',
 
     // Prefixes
     AUTO_TAGGING_SETTINGS: 'damebooru_at_settings_',

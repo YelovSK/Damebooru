@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, inject, input } from "@angular/core";
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+} from "@angular/core";
 import { RouterLink, Params } from "@angular/router";
 
 import { AppPaths } from "@app/app.paths";
@@ -22,15 +28,14 @@ export class PostTileComponent {
   post = input.required<DamebooruPostDto>();
   queryParams = input<Params | null>(null);
 
-  getThumbnailUrl(): string {
+  readonly postId = computed(() => this.post().id);
+  readonly isFavorite = computed(() => this.post().isFavorite);
+  readonly thumbnailUrl = computed(() => {
     const post = this.post();
     return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );
-  }
-
-  getMediaType(contentType: string): "image" | "animation" | "video" {
-    return getMediaType(contentType);
-  }
+  });
+  readonly mediaType = computed(() => getMediaType(this.post().contentType));
 }

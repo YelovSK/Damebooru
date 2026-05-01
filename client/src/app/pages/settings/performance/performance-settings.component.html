@@ -1,0 +1,39 @@
+<h2 class="text-2xl font-bold text-text-secondary mb-2">Performance Settings</h2>
+<p class="text-text-muted mb-6">Tune experimental rendering behavior.</p>
+
+<div class="bg-bg-secondary border border-glass-border rounded-lg p-6 space-y-6">
+  <div class="flex items-start gap-4">
+    <app-form-checkbox
+      [ngModel]="settings().useScheduledImageSrc"
+      (ngModelChange)="onScheduledImageSrcChange($event)"
+      label="Use scheduled thumbnail loading"
+    />
+    <div class="flex-1">
+      <p class="text-text-muted text-sm mt-0.5">
+        Spread thumbnail source assignment across animation frames in the posts grid.
+      </p>
+    </div>
+  </div>
+
+  @if (settings().useScheduledImageSrc) {
+  <div class="border-t border-glass-border/50"></div>
+
+  <div class="flex items-start gap-4">
+    <div class="w-72">
+      <app-form-number-input
+        [ngModel]="settings().scheduledImageAssignmentsPerFrame"
+        (ngModelChange)="onScheduledImageAssignmentsPerFrameChange($event)"
+        label="Image assignments per frame"
+        [min]="1"
+        [max]="16"
+        [step]="1"
+      />
+    </div>
+    <div class="flex-1">
+      <p class="text-text-muted text-sm mt-7">
+        Maximum thumbnail source assignments the scheduler may start during one animation frame.
+      </p>
+    </div>
+  </div>
+  }
+</div>

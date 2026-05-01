@@ -231,8 +231,8 @@ export class PostsComponent implements AfterViewInit {
   readonly showFastScrollerBubble = computed(
     () => this.fastScrollerVisible() && this.totalPages() > 1,
   );
-  readonly virtualMinBufferRows = 12;
-  readonly virtualMaxBufferRows = 24;
+  readonly virtualMinBufferRows = 8;
+  readonly virtualMaxBufferRows = 16;
 
   private tagQuery$ = new Subject<string>();
   tagSuggestions = toSignal(
@@ -434,15 +434,7 @@ export class PostsComponent implements AfterViewInit {
     updateToolbarHeight();
   }
 
-  trackVirtualRow = (index: number): string => this.getRowIdByIndex(index);
-
-  isSeparatorRow(rowIndex: number): boolean {
-    return false;
-  }
-
-  getRowHeightPx(rowIndex: number): number {
-    return this.rowItemHeightPx();
-  }
+  trackVirtualRow = (_index: number, rowIndex: number): number => rowIndex;
 
   onQueryChange(word: string): void {
     const cleanWord = word.startsWith("-") ? word.substring(1) : word;
@@ -802,7 +794,6 @@ export class PostsComponent implements AfterViewInit {
 
     const scrollTop = viewport.measureScrollOffset("top");
     const rowIndex = this.getRowIndexForScrollTop(scrollTop);
-
     const absoluteOffset = this.getFirstVisiblePostOffsetFromRowIndex(rowIndex);
     const visiblePage = this.getPageForRowIndex(rowIndex);
     this.pageCacheStore.setCurrentPageHint(visiblePage);

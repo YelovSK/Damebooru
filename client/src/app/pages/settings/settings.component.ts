@@ -5,11 +5,19 @@ import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
 import { PostSettingsComponent } from './post/post-settings.component';
 import { AutoTaggingSettingsComponent } from './auto-tagging/auto-tagging-settings.component';
+import { PerformanceSettingsComponent } from './performance/performance-settings.component';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
-  imports: [CommonModule, TabsComponent, TabComponent, PostSettingsComponent, AutoTaggingSettingsComponent],
+  imports: [
+    CommonModule,
+    TabsComponent,
+    TabComponent,
+    PostSettingsComponent,
+    AutoTaggingSettingsComponent,
+    PerformanceSettingsComponent,
+  ],
   templateUrl: './settings.component.html',
   styleUrl: './settings.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush

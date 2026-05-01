@@ -1,9 +1,9 @@
 <a class="post-tile group relative block aspect-square overflow-hidden rounded-xl border border-slate-400/12 bg-bg-secondary transition-[transform,box-shadow,border-color] duration-200 hover:z-[2] hover:-translate-y-[1px] hover:scale-[1.012] hover:border-sky-400/50 hover:shadow-[0_10px_22px_rgba(15,23,42,0.36)]"
-  [routerLink]="['/', appPaths.post, post().id]" [queryParams]="queryParams()" [attr.data-post-id]="post().id">
-  <img [scheduledSrc]="getThumbnailUrl()" [alt]="'Post ' + post().id" class="block h-full w-full object-cover"
+  [routerLink]="['/', appPaths.post, postId()]" [queryParams]="queryParams()" [attr.data-post-id]="postId()">
+  <img [scheduledSrc]="thumbnailUrl()" [alt]="'Post ' + postId()" class="block h-full w-full object-cover"
     decoding="async" loading="lazy" fetchpriority="low" />
 
-  @if (post().isFavorite) {
+  @if (isFavorite()) {
   <div
     class="pointer-events-none absolute top-2 left-2 z-[5] inline-flex h-[1.78rem] w-[1.78rem] items-center justify-center rounded-[0.45rem] border border-white/18 bg-slate-900/90 text-status-error">
     <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
@@ -13,7 +13,7 @@
   </div>
   }
 
-  @switch (getMediaType(post().contentType)) {
+  @switch (mediaType()) {
   @case ('video') {
   <div
     class="pointer-events-none absolute bottom-2 right-2 z-[5] inline-flex h-[1.78rem] w-[1.78rem] items-center justify-center rounded-[0.45rem] border border-white/18 bg-slate-900/90 text-accent-primary">
@@ -34,6 +34,6 @@
 
   <div
     class="post-overlay pointer-events-none absolute inset-x-0 bottom-0 z-[4] flex min-h-[2.35rem] items-end bg-gradient-to-t from-black/82 to-transparent px-[0.58rem] py-2 text-[0.74rem] font-bold text-slate-50 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-    <span>#{{ post().id }}</span>
+    <span>#{{ postId() }}</span>
   </div>
 </a>

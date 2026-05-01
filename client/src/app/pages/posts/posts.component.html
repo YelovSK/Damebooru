@@ -63,7 +63,7 @@
 
             <div class="virtual-row relative flex w-full items-stretch box-border contain-strict"
                 *cdkVirtualFor="let _rowItem of virtualRowDataSource; let rowIndex = index; trackBy: trackVirtualRow"
-                [style.height.px]="getRowHeightPx(rowIndex)" [class.items-center]="isSeparatorRow(rowIndex)">
+                [style.height.px]="rowItemHeightPx()">
                 <div class="grid h-full w-full box-border content-start"
                     [style.gridTemplateColumns]="gridTemplateColumns()" [style.columnGap.px]="gridGapPx"
                     [style.paddingTop.px]="gridGapPx / 2" [style.paddingBottom.px]="gridGapPx / 2">
