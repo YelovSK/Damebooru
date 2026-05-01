@@ -1,7 +1,6 @@
 <section class="relative w-full">
-    <header #toolbar
-        class="posts-toolbar absolute top-0 right-0 left-0 z-40 m-3 mb-0 overflow-visible rounded-[0.8rem] border border-glass-border bg-bg-secondary px-[0.6rem] py-2 shadow-none transition-[transform,opacity,border-color] duration-200 md:sticky md:top-0 md:z-30 md:mb-3 md:rounded-xl md:px-3 md:py-3 lg:px-4"
-        [class.posts-toolbar-hidden]="toolbarHidden()">
+    <header
+        class="posts-toolbar sticky top-0 z-30 mb-3 hidden overflow-visible rounded-xl border border-glass-border bg-bg-secondary px-3 py-3 shadow-none md:block lg:px-4">
         <div class="flex flex-col gap-[0.55rem] md:gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="relative z-20 w-full lg:max-w-[560px]">
                 <app-autocomplete [value]="currentSearchValue()" [suggestions]="tagSuggestions()" [multi]="true"
@@ -53,8 +52,7 @@
     }
 
     <div #viewportShell class="posts-viewport-shell relative min-h-[260px] px-3"
-        [class.posts-scrolling]="isScrolling() || fastScrollerDragging()" [class.hidden]="hasNoResults()"
-        [style.paddingTop.px]="mobileToolbarInsetPx()">
+        [class.posts-scrolling]="isScrolling() || fastScrollerDragging()" [class.hidden]="hasNoResults()">
 
         <cdk-virtual-scroll-viewport #postsViewport
             class="posts-virtual-viewport h-full w-full overflow-auto overscroll-contain pr-[0.2rem] [overflow-anchor:none] [scrollbar-width:none]"
@@ -105,4 +103,93 @@
     @if (previewPost(); as preview) {
     <app-post-preview-overlay [post]="preview" (closed)="closePreview()" />
     }
+
+    <button type="button"
+        class="fixed right-4 z-[70] inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-bg-secondary/95 text-text-secondary shadow-glass backdrop-blur-sm transition-[opacity,translate,background-color] duration-200 will-change-[opacity,translate] hover:bg-bg-secondary md:hidden"
+        aria-label="Open post controls" [attr.aria-expanded]="mobileControlsOpen()"
+        [class.pointer-events-none]="!scrollControlsVisible() && !mobileControlsOpen()"
+        [class.opacity-0]="!scrollControlsVisible() && !mobileControlsOpen()"
+        [class.translate-x-6]="!scrollControlsVisible() && !mobileControlsOpen()"
+        [style.bottom]="'max(env(safe-area-inset-bottom),1rem)'" (click)="openMobileControls()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-5 w-5 shrink-0" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+        </svg>
+    </button>
+
+    <div class="fixed inset-0 z-[80] md:hidden" [class.pointer-events-none]="!mobileControlsOpen()"
+        [attr.inert]="mobileControlsOpen() ? null : ''">
+        <button type="button" class="absolute inset-0 bg-black/55 transition-opacity duration-200"
+            [class.opacity-0]="!mobileControlsOpen()" [class.opacity-100]="mobileControlsOpen()"
+            aria-label="Close post controls" (click)="closeMobileControls()">
+        </button>
+
+        <div class="absolute right-0 bottom-0 left-0 max-h-[82dvh] overflow-y-auto overscroll-contain rounded-t-lg border-t border-glass-border bg-bg-secondary px-4 pt-3 shadow-glass transition-transform duration-200 ease-out"
+            role="dialog" aria-modal="true" aria-label="Post controls"
+            [class.translate-y-full]="!mobileControlsOpen()" [style.paddingBottom]="'max(env(safe-area-inset-bottom),1rem)'">
+            <div class="mb-3 flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="truncate text-sm font-semibold text-text-secondary">{{ mobileControlsLabel() }}</div>
+                    <div class="text-xs font-medium text-text-muted">
+                        @if (totalCount() !== null) {
+                        {{ totalCount()! | number }} posts
+                        } @else {
+                        Loading...
+                        }
+                    </div>
+                </div>
+
+                <button type="button"
+                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-text-muted transition-colors hover:bg-white/5 hover:text-text-secondary"
+                    aria-label="Close post controls" (click)="closeMobileControls()">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        aria-hidden="true">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="relative z-20">
+                <app-autocomplete [value]="currentSearchValue()" [suggestions]="tagSuggestions()" [multi]="true"
+                    [focusShortcut]="{ modifier: null, key: '/' }" placeholder="Search posts..."
+                    (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
+                    (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
+                    <ng-template let-tag>
+                        <div class="flex w-full items-center justify-between gap-3">
+                            <span class="truncate text-accent-primary">{{ tag.name }}</span>
+                            <span class="badge">{{ tag.usages | number }}</span>
+                        </div>
+                    </ng-template>
+                </app-autocomplete>
+            </div>
+
+            <div class="mt-3 flex items-center justify-between gap-3">
+                <div
+                    class="inline-flex h-10 min-h-10 flex-1 items-center gap-1 rounded-md border border-glass-border bg-bg-primary p-1">
+                    @for (densityOption of densityOptions; track densityOption.value) {
+                    <button type="button"
+                        class="inline-flex h-full flex-1 items-center justify-center whitespace-nowrap rounded-sm border border-transparent bg-transparent px-2 text-xs font-semibold text-text-muted transition-all duration-150 hover:bg-white/5 hover:text-text-primary"
+                        [style.backgroundColor]="isDensitySelected(densityOption.value) ? 'rgba(56, 189, 248, 0.22)' : null"
+                        [style.borderColor]="isDensitySelected(densityOption.value) ? 'rgba(56, 189, 248, 0.52)' : null"
+                        [style.color]="isDensitySelected(densityOption.value) ? 'var(--color-accent-primary)' : null"
+                        [style.boxShadow]="isDensitySelected(densityOption.value) ? '0 0 0 1px rgba(56, 189, 248, 0.18) inset' : null"
+                        (click)="onDensitySelect(densityOption.value)">
+                        {{ densityOption.label }}
+                    </button>
+                    }
+                </div>
+
+                @if (activeQuery()) {
+                <button type="button"
+                    class="inline-flex h-10 shrink-0 items-center justify-center rounded-md border border-white/10 px-3 text-xs font-semibold text-text-muted transition-colors hover:bg-white/5 hover:text-text-secondary"
+                    (click)="clearSearch()">
+                    Clear
+                </button>
+                }
+            </div>
+        </div>
+    </div>
 </section>

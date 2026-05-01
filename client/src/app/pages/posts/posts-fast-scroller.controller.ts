@@ -21,7 +21,7 @@ interface PostsFastScrollerBindings {
 @Injectable()
 export class PostsFastScrollerController {
     private static readonly FAST_SCROLLER_MIN_THUMB_PX = 44;
-    private static readonly FAST_SCROLLER_HIDE_DELAY_MS = 250;
+    private static readonly FAST_SCROLLER_HIDE_DELAY_MS = 1250;
     private static readonly FAST_SCROLLER_BUBBLE_HEIGHT_PX = 36;
     private static readonly DRAG_SAMPLE_MIN_INTERVAL_MS = 33;
 
@@ -38,6 +38,7 @@ export class PostsFastScrollerController {
     private lastDragSamplePage = -1;
 
     readonly visible = signal(false);
+    readonly scrollControlsVisible = signal(true);
     readonly dragging = signal(false);
     readonly thumbTopPx = signal(0);
     readonly thumbHeightPx = signal(56);
@@ -235,13 +236,13 @@ export class PostsFastScrollerController {
     }
 
     private reveal(): void {
-        const totalPages = this.bindings?.getTotalPages() ?? 0;
-        if (totalPages <= 1) {
-            return;
-        }
-
-        this.visible.set(true);
+        this.scrollControlsVisible.set(true);
         this.clearFastScrollerHideTimer();
+
+        const totalPages = this.bindings?.getTotalPages() ?? 0;
+        if (totalPages > 1) {
+            this.visible.set(true);
+        }
 
         if (!this.dragging()) {
             this.scheduleFastScrollerHide();
@@ -257,6 +258,7 @@ export class PostsFastScrollerController {
 
         this.fastScrollerHideTimer = setTimeout(() => {
             this.visible.set(false);
+            this.scrollControlsVisible.set(false);
             this.fastScrollerHideTimer = null;
         }, PostsFastScrollerController.FAST_SCROLLER_HIDE_DELAY_MS);
     }

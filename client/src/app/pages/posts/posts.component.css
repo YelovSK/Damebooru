@@ -93,13 +93,6 @@
 }
 
 @media (max-width: 768px) {
-    .posts-toolbar.posts-toolbar-hidden {
-        border-color: transparent;
-        opacity: 0;
-        pointer-events: none;
-        transform: translateY(-110%);
-    }
-
     .fast-scroller-rail {
         width: 24px;
     }
