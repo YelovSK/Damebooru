@@ -25,6 +25,7 @@ export class MainLayoutComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly pageWidth = signal<PageWidth>('content');
+  readonly mobileNavOpen = signal(false);
 
   readonly navLinks: NavbarLink[] = [
     { route: AppLinks.posts(), icon: 'icon-posts', label: 'Posts' },

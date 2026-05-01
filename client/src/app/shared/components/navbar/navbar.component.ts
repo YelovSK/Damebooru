@@ -26,6 +26,7 @@ export class NavbarComponent {
 
   logout = output<void>();
   navigated = output<void>();
+  drawerOpenChange = output<boolean>();
 
   readonly drawerOpen = signal(false);
 
@@ -42,11 +43,11 @@ export class NavbarComponent {
   }
 
   toggleDrawer(): void {
-    this.drawerOpen.update(open => !open);
+    this.setDrawerOpen(!this.drawerOpen());
   }
 
   closeDrawer(): void {
-    this.drawerOpen.set(false);
+    this.setDrawerOpen(false);
   }
 
   onLogout(): void {
@@ -62,5 +63,14 @@ export class NavbarComponent {
   @HostListener('document:keydown.escape')
   onEscape(): void {
     this.closeDrawer();
+  }
+
+  private setDrawerOpen(open: boolean): void {
+    if (this.drawerOpen() === open) {
+      return;
+    }
+
+    this.drawerOpen.set(open);
+    this.drawerOpenChange.emit(open);
   }
 }

@@ -45,16 +45,18 @@
   </div>
 </header>
 
-<div
-  class="fixed inset-0 z-[900] bg-black/60 transition-opacity duration-200 lg:hidden"
+<button
+  type="button"
+  class="fixed inset-0 z-[900] touch-none bg-black/60 transition-opacity duration-200 lg:hidden"
+  aria-label="Close navigation menu"
   [class.pointer-events-none]="!drawerOpen()"
   [class.opacity-0]="!drawerOpen()"
   [class.opacity-100]="drawerOpen()"
   (click)="closeDrawer()">
-</div>
+</button>
 
 <aside
-  class="fixed inset-y-0 right-0 z-[950] flex w-[min(84vw,22rem)] flex-col border-l border-glass-border bg-bg-secondary p-4 shadow-glass transition-transform duration-300 ease-out lg:hidden"
+  class="fixed inset-y-0 right-0 z-[950] flex w-[min(84vw,22rem)] overscroll-contain flex-col border-l border-glass-border bg-bg-secondary p-4 shadow-glass transition-transform duration-300 ease-out lg:hidden"
   [class.pointer-events-none]="!drawerOpen()"
   [class.translate-x-full]="!drawerOpen()"
   [style.paddingBottom]="'max(env(safe-area-inset-bottom),1rem)'">
@@ -72,7 +74,7 @@
     </button>
   </div>
 
-  <nav class="flex flex-1 flex-col gap-1 overflow-y-auto">
+  <nav class="flex flex-1 overscroll-contain flex-col gap-1 overflow-y-auto">
     @for (link of links(); track link.label) {
       <a
         [routerLink]="link.route"

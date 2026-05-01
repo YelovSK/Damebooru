@@ -1,10 +1,15 @@
 <app-toasts></app-toasts>
 <app-confirm-dialog></app-confirm-dialog>
 
-<div class="flex min-h-dvh flex-col bg-bg-primary">
-    <app-navbar [links]="navLinks" [currentUser]="currentUser" [authEnabled]="authEnabled" (logout)="onLogout()"></app-navbar>
+<div class="flex h-dvh overflow-hidden flex-col bg-bg-primary">
+    <app-navbar
+        [links]="navLinks"
+        [currentUser]="currentUser"
+        [authEnabled]="authEnabled"
+        (drawerOpenChange)="mobileNavOpen.set($event)"
+        (logout)="onLogout()"></app-navbar>
 
-    <main class="flex-1 min-h-0 overflow-y-auto">
+    <main class="flex-1 min-h-0" [class.overflow-hidden]="mobileNavOpen()" [class.overflow-y-auto]="!mobileNavOpen()">
         <div [class]="pageContainerClasses()">
             <router-outlet></router-outlet>
         </div>
