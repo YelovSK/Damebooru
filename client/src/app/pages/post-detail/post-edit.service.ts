@@ -3,13 +3,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, of, catchError, tap, switchMap } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ToastService } from '@services/toast.service';
-import { DamebooruPostDto, UpdatePostMetadata, PostTagSource } from '@models';
+import { DamebooruPostDto, UpdatePostMetadata, PostTagSource, TagCategoryKind } from '@models';
 import { areArraysEqual } from '@shared/utils/utils';
 
 export interface PostEditTag {
   tagId?: number;
   name: string;
   sources: PostTagSource[];
+  category?: TagCategoryKind;
 }
 
 export interface PostEditState {
@@ -57,6 +58,7 @@ export class PostEditService {
         tagId: t.id,
         name: t.name,
         sources: [...t.sources],
+        category: t.category,
       })),
     });
     this.isEditing.set(true);
@@ -111,7 +113,7 @@ export class PostEditService {
     });
   }
 
-  addTag(tag: string, tagId?: number) {
+  addTag(tag: string, tagId?: number, category?: TagCategoryKind) {
     const normalized = this.normalizeTagName(tag);
     if (!normalized) return;
 
@@ -143,6 +145,7 @@ export class PostEditService {
               tagId,
               name: normalized,
               sources: [PostTagSource.Manual],
+              category,
             },
           ];
         })(),

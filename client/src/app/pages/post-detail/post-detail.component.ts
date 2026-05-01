@@ -337,7 +337,7 @@ export class PostDetailComponent {
     }
   }
 
-  getTagCategoryLabel(tag: DamebooruTagDto): string {
+  getTagCategoryLabel(tag: { category?: TagCategoryKind | null }): string {
     switch (tag.category) {
       case TagCategoryKind.General:
         return 'General';
@@ -354,7 +354,7 @@ export class PostDetailComponent {
     }
   }
 
-  getTagCategoryColor(tag: DamebooruTagDto): string {
+  getTagCategoryColor(tag: { category?: TagCategoryKind | null }): string {
     switch (tag.category) {
       case TagCategoryKind.General:
         return '#7dd3fc';
@@ -486,7 +486,7 @@ export class PostDetailComponent {
   }
 
   onTagSelection(tag: DamebooruTagDto) {
-    this.editService.addTag(tag.name, tag.id);
+    this.editService.addTag(tag.name, tag.id, tag.category);
     this.tagSearchValue.set("");
     this.tagQuery$.next("");
   }

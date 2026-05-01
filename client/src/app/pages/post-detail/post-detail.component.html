@@ -124,7 +124,9 @@
                         <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                             @for (tag of state.tags; track trackByEditTag(tag)) {
                             <div
-                                class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-glass-bg rounded-sm border-l-3 border-l-text-dim">
+                                class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-glass-bg rounded-sm border-l-3"
+                                [style.border-left-color]="getTagCategoryColor(tag)"
+                                [appTooltip]="getTagCategoryLabel(tag)" tooltipPosition="right">
                                 <span
                                     class="text-text-link flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{
                                     tag.name }}</span>
