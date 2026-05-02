@@ -619,19 +619,6 @@ export class PostsComponent implements AfterViewInit {
     this.mobileControlsOpen.set(true);
   }
 
-  onMobileControlsButtonPointerDown(event: PointerEvent): void {
-    if (!event.isPrimary || event.button !== 0) {
-      return;
-    }
-
-    event.preventDefault();
-    if (event.currentTarget instanceof HTMLElement) {
-      // Keep this tap owned by the opener after the sheet appears.
-      event.currentTarget.setPointerCapture(event.pointerId);
-    }
-    this.openMobileControls();
-  }
-
   onMobileControlsButtonKeydown(event: KeyboardEvent): void {
     if (event.key !== "Enter" && event.key !== " ") {
       return;
