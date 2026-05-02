@@ -346,6 +346,22 @@
         </app-zoom-pan-container>
         }
     </div>
+
+    @if (mobileImageViewerOpen()) {
+    <div class="fixed inset-0 z-[100] bg-black min-[1101px]:hidden" role="dialog" aria-modal="true">
+        <button type="button"
+            class="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-black/55 text-text-secondary backdrop-blur-sm transition-colors hover:bg-black/75"
+            aria-label="Close image viewer" (click)="closeMobileImageViewer()">
+            <span class="text-2xl leading-none">×</span>
+        </button>
+
+        <app-zoom-pan-container [touchEnabled]="true">
+            <app-progressive-image [thumbnailSrc]="getThumbnailUrl(pd)"
+                [fullSrc]="getPostContentUrl(pd)" [alt]="'' + pd.id" [width]="pd.width"
+                [height]="pd.height" />
+        </app-zoom-pan-container>
+    </div>
+    }
 </div>
 } @else {
 <div class="flex flex-col items-center justify-center h-full text-text-muted">

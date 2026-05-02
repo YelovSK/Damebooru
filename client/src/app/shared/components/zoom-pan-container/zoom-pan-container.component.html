@@ -1,6 +1,9 @@
 <div #container class="w-full h-full overflow-hidden flex items-center justify-center" (wheel)="onWheel($event)"
     (mousedown)="onMouseDown($event)" (mousemove)="onMouseMove($event)" (mouseup)="onMouseUp()"
     (mouseleave)="onMouseUp()" (dblclick)="onDoubleClick()"
+    (pointerdown)="onPointerDown($event)" (pointermove)="onPointerMove($event)"
+    (pointerup)="onPointerUp($event)" (pointercancel)="onPointerUp($event)"
+    [class.touch-none]="touchEnabled()"
     [style.cursor]="isDragging ? 'grabbing' : 'grab'">
     <div class="w-full h-full flex items-center justify-center will-change-transform" [style.transform]="transform()">
         <ng-content />

@@ -122,6 +122,7 @@ export class PostDetailComponent {
 
   // Sidebar collapsed state
   sidebarCollapsed = signal(false);
+  mobileImageViewerOpen = signal(false);
 
   private readonly zoomPan = viewChild<ZoomPanContainerComponent>("zoomPan");
   private readonly mediaContainer = viewChild<ElementRef<HTMLElement>>("mediaContainer");
@@ -133,6 +134,8 @@ export class PostDetailComponent {
   private readonly swipeMinDistancePx = 60;
   private readonly swipeMaxDurationMs = 700;
   private readonly swipeDirectionRatio = 1.3;
+  private readonly tapMaxDistancePx = 14;
+  private readonly tapMaxDurationMs = 500;
 
   // Triggers a local post stream refresh after in-place edits.
   private refreshTrigger = signal(0);
@@ -227,6 +230,7 @@ export class PostDetailComponent {
     effect(() => {
       this.post();
       this.imageLoading.set(true);
+      this.mobileImageViewerOpen.set(false);
     });
 
     // Initialize sources value when entering edit mode
@@ -411,6 +415,11 @@ export class PostDetailComponent {
     this.releaseMediaPointer(event);
     this.resetSwipeState();
 
+    if (this.isMobileImageViewerTap(deltaX, deltaY, elapsedMs)) {
+      this.openMobileImageViewer();
+      return;
+    }
+
     if (elapsedMs > this.swipeMaxDurationMs) return;
     if (Math.abs(deltaX) < this.swipeMinDistancePx) return;
     if (Math.abs(deltaX) < Math.abs(deltaY) * this.swipeDirectionRatio) return;
@@ -421,6 +430,22 @@ export class PostDetailComponent {
     }
 
     this.goToPrevPost();
+  }
+
+  openMobileImageViewer() {
+    const post = this.post();
+    if (!post || this.editService.isEditing()) {
+      return;
+    }
+
+    const mediaType = this.getMediaType(post.contentType);
+    if ((mediaType === 'image' || mediaType === 'animation') && this.isMobileViewport()) {
+      this.mobileImageViewerOpen.set(true);
+    }
+  }
+
+  closeMobileImageViewer() {
+    this.mobileImageViewerOpen.set(false);
   }
 
   onMediaPointerCancel(event?: PointerEvent) {
@@ -444,6 +469,15 @@ export class PostDetailComponent {
     this.swipeStartX = null;
     this.swipeStartY = null;
     this.swipeStartTime = 0;
+  }
+
+  private isMobileImageViewerTap(deltaX: number, deltaY: number, elapsedMs: number): boolean {
+    return elapsedMs <= this.tapMaxDurationMs
+      && Math.hypot(deltaX, deltaY) <= this.tapMaxDistancePx;
+  }
+
+  private isMobileViewport(): boolean {
+    return window.matchMedia('(max-width: 1100px)').matches;
   }
 
   // Edit mode methods
@@ -595,6 +629,7 @@ export class PostDetailComponent {
     }
 
     this.zoomPan()?.resetZoom();
+    this.closeMobileImageViewer();
 
     this.router.navigate(AppLinks.post(post.id), {
       queryParams: this.detailQueryParams(),
