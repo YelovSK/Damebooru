@@ -38,13 +38,13 @@
           </a>
 
           <div class="mt-auto flex flex-col gap-1">
-            <app-button variant="warning" size="xs" (click)="excludeItem.emit(item)">
+            <button appButton type="button" variant="warning" size="xs" (click)="excludeItem.emit(item)">
               Exclude
-            </app-button>
+            </button>
             @if (item.canDelete) {
-            <app-button variant="danger" size="xs" (click)="deleteItem.emit(item)">
+            <button appButton type="button" variant="danger" size="xs" (click)="deleteItem.emit(item)">
               Delete
-            </app-button>
+            </button>
             }
           </div>
         </div>

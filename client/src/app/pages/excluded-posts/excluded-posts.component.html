@@ -49,7 +49,7 @@
                     </td>
                     <td class="px-4 py-3 text-gray-400 whitespace-nowrap">{{ file.excludedDate | date:'short' }}</td>
                     <td class="px-4 py-3 text-right">
-                        <app-button variant="secondary" size="sm" (click)="restore(file)">Restore</app-button>
+                        <button appButton type="button" variant="secondary" size="sm" (click)="restore(file)">Restore</button>
                     </td>
                 </tr>
                 }

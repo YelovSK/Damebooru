@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ButtonComponent } from '@shared/components/button/button.component';
+import { ButtonDirective } from '@shared/directives';
 import { DisplayPathPipe } from '@shared/pipes/display-path.pipe';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
@@ -33,7 +33,7 @@ export interface DuplicateFolderBucketView {
 @Component({
   selector: 'app-duplicate-folder-buckets',
   standalone: true,
-  imports: [CommonModule, RouterLink, ButtonComponent, DisplayPathPipe, FileNamePipe, FileSizePipe],
+  imports: [CommonModule, RouterLink, ButtonDirective, DisplayPathPipe, FileNamePipe, FileSizePipe],
   templateUrl: './duplicate-folder-buckets.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

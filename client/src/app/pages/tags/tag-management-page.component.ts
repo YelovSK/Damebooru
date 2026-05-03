@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ManagedTag, TagCategoryKind } from '@services/api/damebooru/models';
 import { ToastService } from '@services/toast.service';
-import { ButtonComponent } from '@shared/components/button/button.component';
+import { ButtonDirective } from '@shared/directives';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { SearchInputComponent } from '@shared/components/search-input/search-input.component';
 import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
@@ -37,7 +37,7 @@ const CATEGORY_OPTIONS: FormDropdownOption<TagCategoryKind>[] = [
   imports: [
     CommonModule,
     FormsModule,
-    ButtonComponent,
+    ButtonDirective,
     PaginatorComponent,
     SearchInputComponent,
     FormDropdownComponent,

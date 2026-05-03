@@ -29,9 +29,9 @@
                 </div>
 
                 <div class="mb-6 flex flex-wrap gap-2">
-                    <app-button [variant]="exactViewFilter() === 'all' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('all')">All</app-button>
-                    <app-button [variant]="exactViewFilter() === 'same-folder' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('same-folder')">Same Folder</app-button>
-                    <app-button [variant]="exactViewFilter() === 'different-folder' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('different-folder')">Different Folder</app-button>
+                    <button appButton type="button" [variant]="exactViewFilter() === 'all' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('all')">All</button>
+                    <button appButton type="button" [variant]="exactViewFilter() === 'same-folder' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('same-folder')">Same Folder</button>
+                    <button appButton type="button" [variant]="exactViewFilter() === 'different-folder' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('different-folder')">Different Folder</button>
                 </div>
 
                 @if (getExactClusterCount() === 0) {
@@ -116,15 +116,15 @@
                             }
                         </div>
                         <div class="flex items-center gap-2">
-                            <app-button (click)="openCompareGroup(group)" variant="secondary" size="sm">
+                            <button appButton type="button" (click)="openCompareGroup(group)" variant="secondary" size="sm">
                                 Compare
-                            </app-button>
-                            <app-button (click)="onAutoResolveGroup(group)" variant="secondary" size="sm">
+                            </button>
+                            <button appButton type="button" (click)="onAutoResolveGroup(group)" variant="secondary" size="sm">
                                 Auto Resolve
-                            </app-button>
-                            <app-button (click)="onDismissGroup(group)" variant="secondary" size="sm">
+                            </button>
+                            <button appButton type="button" (click)="onDismissGroup(group)" variant="secondary" size="sm">
                                 Dismiss
-                            </app-button>
+                            </button>
                         </div>
                     </div>
 
@@ -177,12 +177,12 @@
                                 </div>
 
                                 <div class="mt-auto grid gap-1">
-                                    <app-button variant="warning" size="xs" [fullWidth]="true" (click)="onExcludePost(group, post)">
+                                    <button appButton type="button" variant="warning" size="xs" [fullWidth]="true" (click)="onExcludePost(group, post)">
                                         Exclude
-                                    </app-button>
-                                    <app-button variant="danger" size="xs" [fullWidth]="true" (click)="onDeletePost(group, post)">
+                                    </button>
+                                    <button appButton type="button" variant="danger" size="xs" [fullWidth]="true" (click)="onDeletePost(group, post)">
                                         Delete
-                                    </app-button>
+                                    </button>
                                 </div>
                             </div>
 
@@ -259,13 +259,13 @@
                     </label>
 
                     <div class="flex flex-wrap gap-3">
-                        <app-button variant="primary" size="md" [disabled]="!lookupSelectedFile() || lookupLoading()" (click)="runLookup()">
+                        <button appButton type="button" variant="primary" size="md" [disabled]="!lookupSelectedFile() || lookupLoading()" (click)="runLookup()">
                             {{ lookupLoading() ? lookupLoadingText() : 'Find Matches' }}
-                        </app-button>
-                        <app-button variant="secondary" size="md" [disabled]="!lookupSelectedFile() && !lookupHasResults()"
+                        </button>
+                        <button appButton type="button" variant="secondary" size="md" [disabled]="!lookupSelectedFile() && !lookupHasResults()"
                             (click)="clearLookup()">
                             Clear
-                        </app-button>
+                        </button>
                     </div>
 
                     @if (lookupError()) {
@@ -399,9 +399,9 @@
 
                 @if (getResolvedGroupCount() > 0) {
                 <div class="mb-6">
-                    <app-button variant="primary" size="md" (click)="unresolveAllGroups()">
+                    <button appButton type="button" variant="primary" size="md" (click)="unresolveAllGroups()">
                         Unresolve All Groups ({{ getResolvedGroupCount() }})
-                    </app-button>
+                    </button>
                 </div>
                 }
 
@@ -427,9 +427,9 @@
                             <span class="text-sm text-gray-500">{{ group.posts.length }} posts</span>
                             <span class="text-sm text-gray-500">resolved {{ group.detectedDate | date:'short' }}</span>
                         </div>
-                        <app-button variant="secondary" size="sm" (click)="unresolveGroup(group)">
+                        <button appButton type="button" variant="secondary" size="sm" (click)="unresolveGroup(group)">
                             Mark Unresolved
-                        </app-button>
+                        </button>
                     </div>
 
                     <div class="flex flex-wrap gap-3">
@@ -483,9 +483,9 @@
                 } @else {
                 <div class="mb-3 flex items-center justify-between gap-3">
                     <div class="text-sm text-text-muted">{{ excludedFiles().length }} excluded file(s)</div>
-                    <app-button variant="danger" size="sm" (click)="clearAllExcludedFiles()">
+                    <button appButton type="button" variant="danger" size="sm" (click)="clearAllExcludedFiles()">
                         Remove All Exclusions
-                    </app-button>
+                    </button>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     @for (file of excludedFiles(); track file.id) {
@@ -503,9 +503,9 @@
                             <div class="text-xs text-gray-500 mb-2">
                                 {{ file.libraryName }} · {{ file.excludedDate | date:'short' }}
                             </div>
-                            <app-button variant="secondary" size="sm" (click)="onExcludedRowClick(file)" [fullWidth]="true">
+                            <button appButton type="button" variant="secondary" size="sm" (click)="onExcludedRowClick(file)" [fullWidth]="true">
                                 Restore
-                            </app-button>
+                            </button>
                         </div>
                     </div>
                     }

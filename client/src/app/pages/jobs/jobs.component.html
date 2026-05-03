@@ -36,15 +36,15 @@
         <div class="flex gap-2 mt-auto">
           @if (!job.isRunning) {
             @if (job.supportsAllMode) {
-              <app-button variant="primary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'missing')">Missing</app-button>
-              <app-button variant="secondary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'all')">All</app-button>
+              <button appButton type="button" variant="primary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'missing')">Missing</button>
+              <button appButton type="button" variant="secondary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'all')">All</button>
             } @else {
-              <app-button variant="primary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'missing')">Run</app-button>
+              <button appButton type="button" variant="primary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'missing')">Run</button>
             }
           }
 
           @if (job.isRunning && job.activeJobInfo) {
-            <app-button variant="danger" size="sm" [fullWidth]="true" (click)="cancelJob(job.activeJobInfo.id)">Cancel</app-button>
+            <button appButton type="button" variant="danger" size="sm" [fullWidth]="true" (click)="cancelJob(job.activeJobInfo.id)">Cancel</button>
           }
         </div>
       </div>
@@ -120,7 +120,7 @@
                   id="schedule-enabled-{{schedule.id}}"></app-form-checkbox>
               </td>
               <td class="py-2">
-                <app-button variant="secondary" size="xs" (click)="updateSchedule(schedule)">Save</app-button>
+                <button appButton type="button" variant="secondary" size="xs" (click)="updateSchedule(schedule)">Save</button>
               </td>
             </tr>
           }

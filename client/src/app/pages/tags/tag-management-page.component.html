@@ -8,7 +8,7 @@
         <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (search)="onTagsSearch($event)">
         </app-search-input>
       </div>
-      <app-button (click)="openCreateTagModal()">New Tag</app-button>
+      <button appButton type="button" (click)="openCreateTagModal()">New Tag</button>
     </div>
 
     <div class="mb-3 text-sm text-text-muted">Showing {{ tags().length }} of {{ tagsTotal() }} tags</div>
@@ -35,8 +35,8 @@
   </div>
 
   <div class="mt-4 flex justify-end gap-2">
-    <app-button variant="ghost" (click)="closeCreateTagModal()">Cancel</app-button>
-    <app-button (click)="createTag()">Create</app-button>
+    <button appButton type="button" variant="ghost" (click)="closeCreateTagModal()">Cancel</button>
+    <button appButton type="button" (click)="createTag()">Create</button>
   </div>
 </app-modal>
 
@@ -64,15 +64,15 @@
           </ng-template>
         </app-autocomplete>
       </div>
-      <app-button variant="warning" (click)="mergeTag()">Merge</app-button>
+      <button appButton type="button" variant="warning" (click)="mergeTag()">Merge</button>
     </div>
   </div>
 
   <div class="mt-4 flex justify-between gap-2">
-    <app-button variant="danger" (click)="deleteTagFromEdit()">Delete</app-button>
+    <button appButton type="button" variant="danger" (click)="deleteTagFromEdit()">Delete</button>
     <div class="flex gap-2">
-      <app-button variant="ghost" (click)="closeEditTagModal()">Cancel</app-button>
-      <app-button variant="secondary" (click)="saveTag()">Save</app-button>
+      <button appButton type="button" variant="ghost" (click)="closeEditTagModal()">Cancel</button>
+      <button appButton type="button" variant="secondary" (click)="saveTag()">Save</button>
     </div>
   </div>
 </app-modal>

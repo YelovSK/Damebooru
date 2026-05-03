@@ -1,7 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { Observable, Subscriber } from 'rxjs';
 
-import { ButtonVariant } from '@shared/components/button/button.component';
+import type { ButtonVariant } from '@shared/directives';
 
 export interface ConfirmOptions {
   title: string;

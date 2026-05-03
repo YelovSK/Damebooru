@@ -1,12 +1,13 @@
 import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { toSignal, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap } from 'rxjs';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { Library } from '@services/api/damebooru/models';
-import { ButtonComponent } from '@shared/components/button/button.component';
+import { ButtonDirective } from '@shared/directives';
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
@@ -15,7 +16,7 @@ import { AppPaths } from '@app/app.paths';
 @Component({
     selector: 'app-libraries',
     standalone: true,
-    imports: [CommonModule, FormsModule, ButtonComponent, FileSizePipe],
+    imports: [CommonModule, FormsModule, RouterLink, ButtonDirective, FileSizePipe],
     templateUrl: './libraries.component.html',
     styleUrl: './libraries.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,

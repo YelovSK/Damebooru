@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
 import { AppLogEntry } from '../../services/api/damebooru/models';
 import { DateTimePipe } from '../../shared/pipes/date-time.pipe';
-import { ButtonComponent } from '../../shared/components/button/button.component';
+import { ButtonDirective } from '@shared/directives';
 import { FormDropdownComponent, FormDropdownOption } from '../../shared/components/dropdown/form-dropdown.component';
 import { SearchInputComponent } from '../../shared/components/search-input/search-input.component';
 import { ToastService } from '../../services/toast.service';
@@ -14,7 +14,7 @@ type LogLevelFilter = 'warning' | 'error' | 'critical' | 'information' | 'debug'
 @Component({
   selector: 'app-logs-page',
   standalone: true,
-  imports: [CommonModule, DateTimePipe, ButtonComponent, FormDropdownComponent, SearchInputComponent],
+  imports: [CommonModule, DateTimePipe, ButtonDirective, FormDropdownComponent, SearchInputComponent],
   templateUrl: './logs.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

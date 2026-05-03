@@ -26,9 +26,9 @@
             </div>
             }
 
-            <app-button type="submit" [loading]="loading()" variant="primary" [fullWidth]="true">
-                Login
-            </app-button>
+            <button appButton type="submit" [disabled]="loading()" variant="primary" [fullWidth]="true">
+                {{ loading() ? 'Logging in...' : 'Login' }}
+            </button>
         </form>
     </div>
 </div>

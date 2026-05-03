@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, HostListener, computed, effect, inj
 import { RouterLink } from '@angular/router';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { DuplicatePostFile } from '@models';
-import { ButtonComponent } from '@shared/components/button/button.component';
+import { ButtonDirective } from '@shared/directives';
 import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
 import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ZoomPanContainerComponent, ZoomPanViewport } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
@@ -40,7 +40,7 @@ export interface DuplicateCompareGroup {
   imports: [
     CommonModule,
     RouterLink,
-    ButtonComponent,
+    ButtonDirective,
     FormDropdownComponent,
     ModalComponent,
     ZoomPanContainerComponent,

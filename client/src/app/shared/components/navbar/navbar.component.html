@@ -26,7 +26,7 @@
         <span class="block text-[0.85rem] font-semibold text-text-secondary">{{ currentUser() || 'Unknown user' }}</span>
       </div>
       @if (authEnabled()) {
-      <app-button variant="danger" size="sm" (click)="onLogout()">Logout</app-button>
+      <button appButton type="button" variant="danger" size="sm" (click)="onLogout()">Logout</button>
       }
     </div>
 
@@ -89,7 +89,7 @@
   <div class="mt-4 border-t border-glass-border pt-4">
     <div class="mb-3 text-sm text-text-secondary">Signed in as {{ currentUser() || 'Unknown user' }}</div>
     @if (authEnabled()) {
-    <app-button variant="danger" size="md" [fullWidth]="true" (click)="onLogout()">Logout</app-button>
+    <button appButton type="button" variant="danger" size="md" [fullWidth]="true" (click)="onLogout()">Logout</button>
     }
   </div>
 </aside>

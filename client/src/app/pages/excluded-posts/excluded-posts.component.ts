@@ -2,12 +2,12 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ExcludedFile } from '@models';
-import { ButtonComponent } from '@shared/components/button/button.component';
+import { ButtonDirective } from '@shared/directives';
 
 @Component({
     selector: 'app-excluded-posts-page',
     standalone: true,
-    imports: [CommonModule, ButtonComponent],
+    imports: [CommonModule, ButtonDirective],
     templateUrl: './excluded-posts.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })

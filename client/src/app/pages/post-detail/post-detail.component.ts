@@ -48,7 +48,6 @@ import {
   PostAutoTagProviderStatus,
   PostAutoTagStatus,
 } from "@models";
-import { ButtonComponent } from "@shared/components/button/button.component";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
 import { ProgressiveImageComponent } from "@shared/components/progressive-image/progressive-image.component";
 import { PostTagSourcesComponent } from '@shared/components/post-tag-sources/post-tag-sources.component';
@@ -57,7 +56,7 @@ import {
   SimpleTabsComponent,
   SimpleTabComponent,
 } from "@shared/components/simple-tabs";
-import { TooltipDirective } from "@shared/directives";
+import { ButtonDirective, TooltipDirective } from "@shared/directives";
 import { HotkeysService } from "@services/hotkeys.service";
 import { AppLinks } from "@app/app.paths";
 import { PostEditService, PostEditTag } from "./post-edit.service";
@@ -70,13 +69,13 @@ import { FileNamePipe } from "@shared/pipes/file-name.pipe";
     CommonModule,
     RouterLink,
     TagPipe,
-    ButtonComponent,
     AutocompleteComponent,
     ProgressiveImageComponent,
     PostTagSourcesComponent,
     ZoomPanContainerComponent,
     SimpleTabsComponent,
     SimpleTabComponent,
+    ButtonDirective,
     TooltipDirective,
     FileSizePipe,
     FileNamePipe,

@@ -34,11 +34,11 @@
         </div>
 
         <div class="flex gap-3 items-center">
-            <app-button
+            <button appButton type="button"
                 (click)="createLibrary()"
                 [disabled]="!newLibraryName().trim() || !newLibraryPath().trim() || isCreating()">
                 {{ isCreating() ? 'Creating...' : 'Create Library' }}
-            </app-button>
+            </button>
         </div>
 
         <p class="text-sm text-text-dim mt-3">
@@ -71,10 +71,10 @@
                                     (ngModelChange)="editingName.set($event)"
                                     class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
                                     (keyup.enter)="saveRename(lib)" />
-                                <app-button size="sm" [disabled]="renamingLibraryId() === lib.id" (click)="saveRename(lib)">
+                                <button appButton type="button" size="sm" [disabled]="renamingLibraryId() === lib.id" (click)="saveRename(lib)">
                                     Save
-                                </app-button>
-                                <app-button size="sm" variant="secondary" (click)="cancelRename()">Cancel</app-button>
+                                </button>
+                                <button appButton type="button" size="sm" variant="secondary" (click)="cancelRename()">Cancel</button>
                             </div>
                         } @else {
                             <h3 class="text-lg font-semibold text-text-primary">{{ lib.name }}</h3>
@@ -82,34 +82,35 @@
                         <p class="text-sm text-text-dim break-all">{{ lib.path }}</p>
                     </div>
                     <div class="flex flex-wrap justify-end gap-2">
-                        <app-button
+                        <a appButton
                             variant="secondary"
                             size="sm"
                             [routerLink]="['/', appPaths.libraries, lib.id, appPaths.libraryExplorer]"
-                            [disabled]="editingLibraryId() === lib.id">
+                            [attr.aria-disabled]="editingLibraryId() === lib.id ? 'true' : null"
+                            [class.pointer-events-none]="editingLibraryId() === lib.id">
                             Browse
-                        </app-button>
-                        <app-button
+                        </a>
+                        <button appButton type="button"
                             variant="secondary"
                             size="sm"
                             [disabled]="editingLibraryId() === lib.id"
                             (click)="startRename(lib)">
                             Rename
-                        </app-button>
-                        <app-button
+                        </button>
+                        <button appButton type="button"
                             variant="secondary"
                             size="sm"
                             [disabled]="scanningLibraryId() === lib.id || editingLibraryId() === lib.id"
                             (click)="scanLibrary(lib)">
                             {{ scanningLibraryId() === lib.id ? 'Queueing...' : 'Scan' }}
-                        </app-button>
-                        <app-button
+                        </button>
+                        <button appButton type="button"
                             variant="danger"
                             size="sm"
                             (click)="deleteLibrary(lib)"
                             [disabled]="isLoading() || editingLibraryId() === lib.id">
                             Delete
-                        </app-button>
+                        </button>
                     </div>
                 </div>
 
@@ -142,12 +143,12 @@
                             placeholder="e.g. _trash or folders/temporary"
                             class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
                             (keyup.enter)="addIgnoredPath(lib)" />
-                        <app-button
+                        <button appButton type="button"
                             size="sm"
                             [disabled]="addingIgnoredPathLibraryId() === lib.id || !getIgnoredPathDraft(lib.id).trim()"
                             (click)="addIgnoredPath(lib)">
                             {{ addingIgnoredPathLibraryId() === lib.id ? 'Adding...' : 'Add' }}
-                        </app-button>
+                        </button>
                     </div>
 
                     @if (lib.ignoredPaths.length === 0) {
@@ -161,13 +162,13 @@
                         @for (ignored of lib.ignoredPaths; track ignored.id) {
                         <div class="flex items-center justify-between gap-2 px-3 py-2 bg-black/15 rounded border border-white/10">
                             <span class="text-sm break-all">{{ ignored.path }}</span>
-                            <app-button
+                            <button appButton type="button"
                                 variant="danger"
                                 size="sm"
                                 [disabled]="removingIgnoredPathId() === ignored.id"
                                 (click)="removeIgnoredPath(lib, ignored.id, ignored.path)">
                                 {{ removingIgnoredPathId() === ignored.id ? 'Removing...' : 'Remove' }}
-                            </app-button>
+                            </button>
                         </div>
                         }
                     </div>
@@ -188,12 +189,12 @@
                             placeholder="e.g. private or finished/no-auto-tag"
                             class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
                             (keyup.enter)="addAutoTagExcludedPath(lib)" />
-                        <app-button
+                        <button appButton type="button"
                             size="sm"
                             [disabled]="addingAutoTagExcludedPathLibraryId() === lib.id || !getAutoTagExcludedPathDraft(lib.id).trim()"
                             (click)="addAutoTagExcludedPath(lib)">
                             {{ addingAutoTagExcludedPathLibraryId() === lib.id ? 'Adding...' : 'Add' }}
-                        </app-button>
+                        </button>
                     </div>
 
                     @if (lib.autoTagExcludedPaths.length === 0) {
@@ -207,13 +208,13 @@
                         @for (excluded of lib.autoTagExcludedPaths; track excluded.id) {
                         <div class="flex items-center justify-between gap-2 px-3 py-2 bg-black/15 rounded border border-white/10">
                             <span class="text-sm break-all">{{ excluded.path }}</span>
-                            <app-button
+                            <button appButton type="button"
                                 variant="danger"
                                 size="sm"
                                 [disabled]="removingAutoTagExcludedPathId() === excluded.id"
                                 (click)="removeAutoTagExcludedPath(lib, excluded.id, excluded.path)">
                                 {{ removingAutoTagExcludedPathId() === excluded.id ? 'Removing...' : 'Remove' }}
-                            </app-button>
+                            </button>
                         </div>
                         }
                     </div>

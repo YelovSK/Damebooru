@@ -24,12 +24,12 @@
       </div>
       }
       <div class="flex gap-3 justify-end mt-2">
-        <app-button variant="secondary" (click)="cancel()">
+        <button appButton type="button" variant="secondary" (click)="cancel()">
           {{ options.cancelText || 'Cancel' }}
-        </app-button>
-        <app-button [variant]="options.variant || 'danger'" [disabled]="!canConfirm()" (click)="confirm()">
+        </button>
+        <button appButton type="button" [variant]="options.variant || 'danger'" [disabled]="!canConfirm()" (click)="confirm()">
           {{ options.confirmText || 'Confirm' }}
-        </app-button>
+        </button>
       </div>
     </div>
   }

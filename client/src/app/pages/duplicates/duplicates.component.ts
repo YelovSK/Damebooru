@@ -25,7 +25,7 @@ import { ConfirmService } from '@services/confirm.service';
 import { ToastService } from '@services/toast.service';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
-import { ButtonComponent } from '@shared/components/button/button.component';
+import { ButtonDirective } from '@shared/directives';
 import { DisplayPathPipe } from '@shared/pipes/display-path.pipe';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
@@ -65,7 +65,7 @@ interface VisibleDuplicateGroup {
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
+  imports: [CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonDirective, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
 })

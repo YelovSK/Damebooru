@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 
 import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
 import { CronPreview, JobExecution, JobKey, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob } from '../../services/api/damebooru/models';
-import { ButtonComponent } from '../../shared/components/button/button.component';
+import { ButtonDirective } from '@shared/directives';
 import { FormCheckboxComponent } from '../../shared/components/form-checkbox/form-checkbox.component';
 import { CollapsibleComponent } from '../../shared/components/collapsible/collapsible.component';
 import { FormInputComponent } from '../../shared/components/form-input/form-input.component';
@@ -34,7 +34,7 @@ const JOB_STATUS_LABELS: Record<JobStatus, string> = {
 @Component({
   selector: 'app-jobs-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonComponent, FormCheckboxComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, DataTableComponent, TooltipDirective, DateTimePipe, RelativeDurationPipe],
+  imports: [CommonModule, FormsModule, ButtonDirective, FormCheckboxComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, DataTableComponent, TooltipDirective, DateTimePipe, RelativeDurationPipe],
   templateUrl: './jobs.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -257,7 +257,7 @@ export class JobsPageComponent {
     return `${mins}m ${secs}s`;
   }
 
-  private refreshLiveJobs(refreshHistoryOnFinished: boolean = true): void {
+  private refreshLiveJobs(refreshHistoryOnFinished = true): void {
     this.damebooru.getJobs().pipe(
       takeUntilDestroyed(this.destroyRef),
       catchError(() => of([]))

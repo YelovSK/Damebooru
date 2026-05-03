@@ -13,12 +13,12 @@
       </div>
 
       <div class="hidden flex-wrap items-center gap-2 md:flex">
-        <app-button [variant]="mode() === 'side-by-side' ? 'primary' : 'secondary'" size="sm" (click)="setMode('side-by-side')">
+        <button appButton type="button" [variant]="mode() === 'side-by-side' ? 'primary' : 'secondary'" size="sm" (click)="setMode('side-by-side')">
           Side by Side
-        </app-button>
-        <app-button [variant]="mode() === 'flip' ? 'primary' : 'secondary'" size="sm" (click)="setMode('flip')">
+        </button>
+        <button appButton type="button" [variant]="mode() === 'flip' ? 'primary' : 'secondary'" size="sm" (click)="setMode('flip')">
           A/B Flip
-        </app-button>
+        </button>
       </div>
     </div>
 
@@ -70,12 +70,12 @@
               <span class="truncate sm:col-span-2" [title]="leftPost.relativePath">{{ leftPost.relativePath }}</span>
             </div>
             <div class="shrink-0 grid gap-2 border-t border-gray-800 px-3 py-3 sm:grid-cols-2">
-              <app-button variant="warning" size="sm" (click)="excludePost.emit(leftPost)">
+              <button appButton type="button" variant="warning" size="sm" (click)="excludePost.emit(leftPost)">
                 Exclude
-              </app-button>
-              <app-button variant="danger" size="sm" (click)="deletePost.emit(leftPost)">
+              </button>
+              <button appButton type="button" variant="danger" size="sm" (click)="deletePost.emit(leftPost)">
                 Delete
-              </app-button>
+              </button>
             </div>
           </section>
           }
@@ -105,12 +105,12 @@
               <span class="truncate sm:col-span-2" [title]="rightPost.relativePath">{{ rightPost.relativePath }}</span>
             </div>
             <div class="shrink-0 grid gap-2 border-t border-gray-800 px-3 py-3 sm:grid-cols-2">
-              <app-button variant="warning" size="sm" (click)="excludePost.emit(rightPost)">
+              <button appButton type="button" variant="warning" size="sm" (click)="excludePost.emit(rightPost)">
                 Exclude
-              </app-button>
-              <app-button variant="danger" size="sm" (click)="deletePost.emit(rightPost)">
+              </button>
+              <button appButton type="button" variant="danger" size="sm" (click)="deletePost.emit(rightPost)">
                 Delete
-              </app-button>
+              </button>
             </div>
           </section>
           }
@@ -123,9 +123,9 @@
               {{ flipShowingRight() ? 'B' : 'A' }} · {{ activePost.relativePath | fileName }}
             </div>
             <div class="flex shrink-0 items-center gap-2">
-              <app-button variant="secondary" size="sm" (click)="toggleFlipPost()">
+              <button appButton type="button" variant="secondary" size="sm" (click)="toggleFlipPost()">
                 Show {{ flipShowingRight() ? 'A' : 'B' }}
-              </app-button>
+              </button>
               <a [routerLink]="['/post', activePost.id]" class="text-xs font-semibold text-accent-primary hover:text-white">
                 Open
               </a>
@@ -146,12 +146,12 @@
             <span class="truncate" [title]="activePost.relativePath">{{ activePost.relativePath }}</span>
           </div>
           <div class="shrink-0 grid gap-2 border-t border-gray-800 px-3 py-3 sm:grid-cols-2">
-            <app-button variant="warning" size="sm" (click)="excludePost.emit(activePost)">
+            <button appButton type="button" variant="warning" size="sm" (click)="excludePost.emit(activePost)">
               Exclude
-            </app-button>
-            <app-button variant="danger" size="sm" (click)="deletePost.emit(activePost)">
+            </button>
+            <button appButton type="button" variant="danger" size="sm" (click)="deletePost.emit(activePost)">
               Delete
-            </app-button>
+            </button>
           </div>
         </section>
         }

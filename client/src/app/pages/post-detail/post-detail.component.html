@@ -11,32 +11,32 @@
         <section class="glass-card p-3 shrink-0">
             @if (around(); as nav) {
             <div class="mb-2 flex gap-2">
-                <app-button variant="secondary" size="sm" class="flex-1" [disabled]="!nav.prev"
+                <button appButton type="button" variant="secondary" size="sm" class="flex-1" [disabled]="!nav.prev"
                     (click)="goToPrevPost()">
                     Previous
-                </app-button>
-                <app-button variant="secondary" size="sm" class="flex-1" [disabled]="!nav.next"
+                </button>
+                <button appButton type="button" variant="secondary" size="sm" class="flex-1" [disabled]="!nav.next"
                     (click)="goToNextPost()">
                     Next
-                </app-button>
+                </button>
             </div>
             }
 
             @if (editService.isEditing()) {
             <div class="flex gap-2">
-                <app-button variant="secondary" size="sm" (click)="cancelEditing()" [disabled]="editService.isSaving()"
-                    class="flex-1">Cancel</app-button>
-                <app-button variant="primary" size="sm" (click)="saveChanges()"
+                <button appButton type="button" variant="secondary" size="sm" (click)="cancelEditing()" [disabled]="editService.isSaving()"
+                    class="flex-1">Cancel</button>
+                <button appButton type="button" variant="primary" size="sm" (click)="saveChanges()"
                     [disabled]="editService.isSaving() || !editService.isDirty()" class="flex-1">
                     {{ editService.isSaving() ? 'Saving...' : 'Save Changes' }}
-                </app-button>
+                </button>
             </div>
             } @else {
             <div class="flex gap-2">
-                <app-button variant="secondary" size="sm" (click)="startEditing()" class="flex-1">Edit</app-button>
-                <app-button variant="primary" size="sm" (click)="autoTagPost()" [disabled]="isAutoTagging()" class="flex-1">
+                <button appButton type="button" variant="secondary" size="sm" (click)="startEditing()" class="flex-1">Edit</button>
+                <button appButton type="button" variant="primary" size="sm" (click)="autoTagPost()" [disabled]="isAutoTagging()" class="flex-1">
                     {{ isAutoTagging() ? 'Auto-Tagging...' : 'Auto-Tag' }}
-                </app-button>
+                </button>
             </div>
             }
         </section>
@@ -63,9 +63,9 @@
                         <span class="text-text-muted">Files</span>
                         <div class="flex min-w-0 items-center justify-between gap-2">
                             <span class="text-text-primary font-medium">{{ pd.postFiles.length }} linked files</span>
-                            <app-button variant="secondary" size="xs" (click)="togglePostFiles()">
+                            <button appButton variant="secondary" size="xs" type="button" (click)="togglePostFiles()">
                                 {{ postFilesExpanded() ? 'Hide' : 'Show all' }}
-                            </app-button>
+                            </button>
                         </div>
 
                         @if (postFilesExpanded()) {
@@ -102,14 +102,14 @@
 
                     @if (!editService.isEditing()) {
                     <div class="flex flex-row gap-2 mb-4">
-                        <app-button [href]="getPostContentUrl(pd)" variant="primary" class="flex-1">
+                        <a appButton [href]="getPostContentUrl(pd)" variant="primary" class="flex-1">
                             Original File
-                        </app-button>
-                        <app-button variant="secondary" class="flex-1" [class.!bg-status-error/10]="pd.isFavorite"
+                        </a>
+                        <button appButton type="button" variant="secondary" class="flex-1" [class.!bg-status-error/10]="pd.isFavorite"
                             [class.!text-status-error]="pd.isFavorite" [class.!border-status-error/30]="pd.isFavorite"
                             (click)="toggleFavorite()">
                             {{ pd.isFavorite ? 'Unfavorite' : 'Favorite' }}
-                        </app-button>
+                        </button>
                     </div>
                     }
 
@@ -141,8 +141,8 @@
                                     class="text-text-link flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{
                                     tag.name }}</span>
                                 <app-post-tag-sources [sources]="tag.sources"></app-post-tag-sources>
-                                <app-button variant="ghost" size="xs" (click)="removeTag(tag)"
-                                    class="text-status-error">×</app-button>
+                                <button appButton type="button" variant="ghost" size="xs" (click)="removeTag(tag)"
+                                    class="text-status-error">×</button>
                             </div>
                             }
                         </div>
@@ -280,9 +280,9 @@
 
                     <div class="mt-3">
                         @if (auditHasMore()) {
-                        <app-button variant="secondary" size="sm" (click)="loadMoreAudit()" class="w-full">
+                        <button appButton type="button" variant="secondary" size="sm" (click)="loadMoreAudit()" class="w-full">
                             Load More
-                        </app-button>
+                        </button>
                         }
                     </div>
                     } @else {
