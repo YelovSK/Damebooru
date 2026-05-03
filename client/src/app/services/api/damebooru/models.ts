@@ -411,6 +411,7 @@ export interface UpdatePostTagInput {
 export interface DuplicatePost {
   id: number;
   libraryId: number;
+  libraryName: string;
   relativePath: string;
   contentHash: string;
   width: number;

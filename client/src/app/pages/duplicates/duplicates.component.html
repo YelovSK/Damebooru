@@ -56,48 +56,15 @@
                         <span class="truncate text-sm text-gray-400" [title]="cluster.contentHash">{{ cluster.contentHash }}</span>
                     </div>
 
-                    <div class="space-y-4">
-                        @for (folder of cluster.folders; track trackExactFolder($index, folder)) {
-                        <div class="rounded-lg border border-gray-800 bg-gray-950/50 p-3">
-                            <div class="mb-3 flex flex-wrap items-center gap-3">
-                                <div class="text-sm font-semibold text-white">{{ folder.libraryName }} / {{ formatFolderPath(folder.folderPath) }}</div>
-                                @if (folder.files.length > 1) {
-                                <span class="rounded bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-200">{{ folder.files.length }} files in this folder</span>
-                                }
-                            </div>
-
-                            <div class="flex flex-wrap gap-3">
-                                @for (file of folder.files; track trackExactFile($index, file)) {
-                                <div class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors hover:border-accent-primary">
-                                    <div class="relative aspect-square overflow-hidden"
-                                        (mouseenter)="onPostCardMouseEnter(file.postId)" (mousemove)="onPostCardMouseMove(file.postId)"
-                                        (mouseleave)="onPostCardMouseLeave($event)">
-                                        <img [src]="getExactFileThumbnailUrl(file)" [alt]="file.relativePath"
-                                            class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
-                                    </div>
-
-                                    <a [routerLink]="['/post', file.postId]" class="block p-2 hover:bg-gray-700/50 transition-colors">
-                                        <div class="text-xs text-gray-400 truncate mb-1" [title]="file.relativePath">{{ file.relativePath | fileName }}</div>
-                                        <div class="flex justify-between text-xs text-gray-500">
-                                            <span>{{ file.width }}×{{ file.height }}</span>
-                                            <span>{{ file.sizeBytes | fileSize }}</span>
-                                        </div>
-                                    </a>
-
-                                    <div class="px-2 pb-2 flex flex-col gap-1">
-                                        <app-button variant="warning" size="xs" (click)="onExcludeExactFile(file)">
-                                            <span class="text-sm leading-none">🚫</span> Exclude
-                                        </app-button>
-                                        <app-button variant="danger" size="xs" (click)="onDeleteExactFile(file)">
-                                            <span class="text-sm leading-none">🗑️</span> Delete
-                                        </app-button>
-                                    </div>
-                                </div>
-                                }
-                            </div>
-                        </div>
-                        }
-                    </div>
+                    <app-duplicate-folder-buckets
+                        [buckets]="getExactFolderBucketViews(cluster)"
+                        hoverTone="accent"
+                        (itemMouseEnter)="onPostCardMouseEnter($event)"
+                        (itemMouseMove)="onPostCardMouseMove($event)"
+                        (itemMouseLeave)="onPostCardMouseLeave($event)"
+                        (imageError)="onImageError($event)"
+                        (excludeItem)="onExcludeExactFolderItem($event)"
+                        (deleteItem)="onDeleteExactFolderItem($event)" />
                 </div>
                 }
                 @if (exactTotalPages() > 1) {
@@ -172,48 +139,15 @@
                         </div>
                     </div>
 
-                    <div class="flex flex-wrap gap-3">
-                        @for (post of group.posts; track trackVisiblePost($index, post)) {
-                        <div
-                            class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors"
-                            [class.hover:border-red-500]="isSameFolderScope(group)"
-                            [class.hover:border-accent-primary]="!isSameFolderScope(group)">
-                            <div class="relative aspect-square overflow-hidden"
-                                (mouseenter)="onPostCardMouseEnter(post.id)" (mousemove)="onPostCardMouseMove(post.id)"
-                                (mouseleave)="onPostCardMouseLeave($event)">
-                                <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
-                                    class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
-                            </div>
-
-                            <div class="p-2 space-y-2">
-                                <a [routerLink]="['/post', post.id]" class="block hover:bg-gray-700/50 transition-colors rounded px-1 py-1">
-                                    <div class="text-xs text-gray-400 truncate mb-1" [title]="post.relativePath">{{ post.relativePath | fileName }}</div>
-                                    <div class="flex justify-between text-xs text-gray-500">
-                                        <span>{{ post.width }}×{{ post.height }}</span>
-                                        <span>{{ post.sizeBytes | fileSize }}</span>
-                                    </div>
-                                </a>
-
-                                <div class="flex flex-col gap-1">
-                                    <app-button variant="warning" size="xs" (click)="onExcludePost(group, post)">
-                                        <span class="text-sm leading-none">🚫</span> Exclude
-                                    </app-button>
-                                    @if (isSameFolderScope(group)) {
-                                    <app-button variant="danger" size="xs" (click)="onDeletePost(group, post)">
-                                        <span class="text-sm leading-none">🗑️</span> Delete
-                                    </app-button>
-                                    }
-                                </div>
-                            </div>
-
-                            @if (post.isRecommendedKeep) {
-                            <div class="pointer-events-none absolute left-2 top-2 rounded bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">
-                                KEEP (AUTO)
-                            </div>
-                            }
-                        </div>
-                        }
-                    </div>
+                    <app-duplicate-folder-buckets
+                        [buckets]="getVisibleFolderBucketViews(group)"
+                        [hoverTone]="isSameFolderScope(group) ? 'danger' : 'accent'"
+                        (itemMouseEnter)="onPostCardMouseEnter($event)"
+                        (itemMouseMove)="onPostCardMouseMove($event)"
+                        (itemMouseLeave)="onPostCardMouseLeave($event)"
+                        (imageError)="onImageError($event)"
+                        (excludeItem)="onExcludeVisibleFolderItem(group, $event)"
+                        (deleteItem)="onDeleteVisibleFolderItem(group, $event)" />
                 </div>
                 }
                 @if (visibleTotalPages() > 1) {

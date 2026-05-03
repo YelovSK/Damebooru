@@ -34,12 +34,15 @@ import { PostPreviewHoverGateService } from '@shared/components/post-preview-ove
 import { SettingsService } from '@services/settings.service';
 import { computeLookupContentHash } from './lookup-hash';
 import { DuplicateCompareGroup, DuplicateCompareOverlayComponent, DuplicateComparePost } from './duplicate-compare-overlay.component';
+import { DuplicateFolderBucketsComponent, DuplicateFolderBucketView, DuplicateFolderItemView } from './duplicate-folder-buckets.component';
 
 type DuplicateScope = 'all' | 'same-folder';
 type DuplicateViewFilter = 'all' | 'same-folder' | 'different-folder';
 
 interface VisibleDuplicatePost {
   id: number;
+  libraryId: number;
+  libraryName: string;
   relativePath: string;
   width: number;
   height: number;
@@ -64,10 +67,18 @@ interface VisibleDuplicateGroup {
   posts: VisibleDuplicatePost[];
 }
 
+interface VisibleDuplicateFolderBucket {
+  key: string;
+  libraryId: number;
+  libraryName: string;
+  folderPath: string;
+  posts: VisibleDuplicatePost[];
+}
+
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent],
+  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
 })
@@ -304,6 +315,8 @@ export class DuplicatesPageComponent {
         sameFolderLibraryId: group.libraryId,
         posts: group.posts.map(post => ({
           id: post.id,
+          libraryId: post.libraryId,
+          libraryName: group.libraryName,
           relativePath: post.relativePath,
           width: post.width,
           height: post.height,
@@ -335,6 +348,8 @@ export class DuplicatesPageComponent {
         sameFolderLibraryId: null,
         posts: group.posts.map(post => ({
           id: post.id,
+          libraryId: post.libraryId,
+          libraryName: post.libraryName,
           relativePath: post.relativePath,
           width: post.width,
           height: post.height,
@@ -461,6 +476,80 @@ export class DuplicatesPageComponent {
     return group.scope === 'same-folder';
   }
 
+  getVisibleGroupFolders(group: VisibleDuplicateGroup): VisibleDuplicateFolderBucket[] {
+    const buckets = new Map<string, VisibleDuplicateFolderBucket>();
+
+    for (const post of group.posts) {
+      const folderPath = this.getParentFolderPath(post.relativePath);
+      const key = `${post.libraryId}:${folderPath}`;
+      const bucket = buckets.get(key);
+      if (bucket) {
+        bucket.posts.push(post);
+        continue;
+      }
+
+      buckets.set(key, {
+        key,
+        libraryId: post.libraryId,
+        libraryName: post.libraryName || `Library #${post.libraryId}`,
+        folderPath,
+        posts: [post],
+      });
+    }
+
+    return Array.from(buckets.values())
+      .sort((left, right) => {
+        const libraryCompare = left.libraryName.localeCompare(right.libraryName, undefined, { sensitivity: 'base' });
+        if (libraryCompare !== 0) {
+          return libraryCompare;
+        }
+
+        return left.folderPath.localeCompare(right.folderPath, undefined, { sensitivity: 'base' });
+      });
+  }
+
+  getExactFolderBucketViews(cluster: ExactDuplicateCluster): DuplicateFolderBucketView[] {
+    return cluster.folders.map(folder => ({
+      key: `${folder.libraryId}:${folder.folderPath}`,
+      libraryName: folder.libraryName,
+      folderPath: folder.folderPath,
+      items: folder.files.map(file => ({
+        key: `exact:${file.postFileId}`,
+        kind: 'exact-file' as const,
+        postId: file.postId,
+        actionTargetId: file.postFileId,
+        relativePath: file.relativePath,
+        width: file.width,
+        height: file.height,
+        sizeBytes: file.sizeBytes,
+        thumbnailUrl: this.getExactFileThumbnailUrl(file),
+        canDelete: true,
+        isRecommendedKeep: false,
+      })),
+    }));
+  }
+
+  getVisibleFolderBucketViews(group: VisibleDuplicateGroup): DuplicateFolderBucketView[] {
+    return this.getVisibleGroupFolders(group).map(folder => ({
+      key: folder.key,
+      libraryName: folder.libraryName,
+      folderPath: folder.folderPath,
+      items: folder.posts.map(post => ({
+        key: `perceptual:${post.id}`,
+        kind: 'perceptual-post' as const,
+        postId: post.id,
+        actionTargetId: post.id,
+        relativePath: post.relativePath,
+        width: post.width,
+        height: post.height,
+        sizeBytes: post.sizeBytes,
+        thumbnailUrl: this.getThumbnailUrl(post),
+        canDelete: this.isSameFolderScope(group),
+        isRecommendedKeep: post.isRecommendedKeep,
+      })),
+    }));
+  }
+
   openCompareGroup(group: VisibleDuplicateGroup): void {
     this.closePreview();
     this.compareGroupKey.set(group.key);
@@ -476,6 +565,70 @@ export class DuplicatesPageComponent {
 
   onCompareDeletePost(group: DuplicateCompareGroup, post: DuplicateComparePost): void {
     this.onDeletePost(group, post);
+  }
+
+  onExcludeExactFolderItem(item: DuplicateFolderItemView): void {
+    this.onExcludeExactFile({
+      postId: item.postId,
+      postFileId: item.actionTargetId,
+      libraryId: 0,
+      libraryName: '',
+      relativePath: item.relativePath,
+      contentHash: '',
+      width: item.width,
+      height: item.height,
+      contentType: '',
+      sizeBytes: item.sizeBytes,
+      fileModifiedDate: '',
+      thumbnailLibraryId: 0,
+      thumbnailContentHash: '',
+    });
+  }
+
+  onDeleteExactFolderItem(item: DuplicateFolderItemView): void {
+    this.onDeleteExactFile({
+      postId: item.postId,
+      postFileId: item.actionTargetId,
+      libraryId: 0,
+      libraryName: '',
+      relativePath: item.relativePath,
+      contentHash: '',
+      width: item.width,
+      height: item.height,
+      contentType: '',
+      sizeBytes: item.sizeBytes,
+      fileModifiedDate: '',
+      thumbnailLibraryId: 0,
+      thumbnailContentHash: '',
+    });
+  }
+
+  onExcludeVisibleFolderItem(group: VisibleDuplicateGroup, item: DuplicateFolderItemView): void {
+    this.onExcludePost(group, {
+      id: item.actionTargetId,
+      relativePath: item.relativePath,
+      width: item.width,
+      height: item.height,
+      sizeBytes: item.sizeBytes,
+      fileModifiedDate: '',
+      thumbnailLibraryId: 0,
+      thumbnailContentHash: '',
+      isRecommendedKeep: item.isRecommendedKeep,
+    });
+  }
+
+  onDeleteVisibleFolderItem(group: VisibleDuplicateGroup, item: DuplicateFolderItemView): void {
+    this.onDeletePost(group, {
+      id: item.actionTargetId,
+      relativePath: item.relativePath,
+      width: item.width,
+      height: item.height,
+      sizeBytes: item.sizeBytes,
+      fileModifiedDate: '',
+      thumbnailLibraryId: 0,
+      thumbnailContentHash: '',
+      isRecommendedKeep: item.isRecommendedKeep,
+    });
   }
 
   getFolderDisplayPath(group: VisibleDuplicateGroup): string {
@@ -833,6 +986,10 @@ export class DuplicatesPageComponent {
     return `${folder.libraryId}:${folder.folderPath}`;
   }
 
+  trackVisibleFolder(_: number, folder: VisibleDuplicateFolderBucket) {
+    return folder.key;
+  }
+
   trackExactFile(_: number, file: ExactDuplicateFile) {
     return file.postFileId;
   }
@@ -1065,6 +1222,12 @@ export class DuplicatesPageComponent {
       .split('/')
       .filter(segment => segment.length > 0)
       .join(' / ');
+  }
+
+  private getParentFolderPath(path: string): string {
+    const normalized = path.replace(/\\/g, '/');
+    const index = normalized.lastIndexOf('/');
+    return index <= 0 ? '' : normalized.slice(0, index);
   }
 
   private getLookupFileExtension(contentType: string): string {

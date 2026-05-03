@@ -1,0 +1,62 @@
+<div class="space-y-4">
+  @for (bucket of buckets(); track trackBucket($index, bucket)) {
+  <div class="rounded-lg border border-gray-800 bg-gray-950/50 p-3">
+    <div class="mb-3 flex flex-wrap items-center gap-3">
+      <div class="text-sm font-semibold text-white">
+        {{ bucket.libraryName }} / {{ formatFolderPath(bucket.folderPath) }}
+      </div>
+    </div>
+
+    <div class="flex flex-wrap gap-3">
+      @for (item of bucket.items; track trackItem($index, item)) {
+      <div
+        class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 transition-colors"
+        [class.hover:border-accent-primary]="hoverTone() === 'accent'"
+        [class.hover:border-red-500]="hoverTone() === 'danger'">
+        <div
+          class="relative aspect-square overflow-hidden"
+          (mouseenter)="itemMouseEnter.emit(item.postId)"
+          (mousemove)="itemMouseMove.emit(item.postId)"
+          (mouseleave)="itemMouseLeave.emit($event)">
+          <img
+            [src]="item.thumbnailUrl"
+            [alt]="item.relativePath"
+            class="w-full h-full object-cover"
+            loading="lazy"
+            (error)="imageError.emit($event)">
+        </div>
+
+        <div class="p-2 space-y-2">
+          <a [routerLink]="['/post', item.postId]" class="block hover:bg-gray-700/50 transition-colors rounded px-1 py-1">
+            <div class="text-xs text-gray-400 truncate mb-1" [title]="item.relativePath">
+              {{ item.relativePath | fileName }}
+            </div>
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>{{ item.width }}x{{ item.height }}</span>
+              <span>{{ item.sizeBytes | fileSize }}</span>
+            </div>
+          </a>
+
+          <div class="flex flex-col gap-1">
+            <app-button variant="warning" size="xs" (click)="excludeItem.emit(item)">
+              Exclude
+            </app-button>
+            @if (item.canDelete) {
+            <app-button variant="danger" size="xs" (click)="deleteItem.emit(item)">
+              Delete
+            </app-button>
+            }
+          </div>
+        </div>
+
+        @if (item.isRecommendedKeep) {
+        <div class="pointer-events-none absolute left-2 top-2 rounded bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">
+          KEEP (AUTO)
+        </div>
+        }
+      </div>
+      }
+    </div>
+  </div>
+  }
+</div>

@@ -66,6 +66,7 @@ public class DuplicatePostDto
 {
     public int Id { get; set; }
     public int LibraryId { get; set; }
+    public string LibraryName { get; set; } = string.Empty;
     public string RelativePath { get; set; } = string.Empty;
     public string ContentHash { get; set; } = string.Empty;
     public int Width { get; set; }

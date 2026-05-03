@@ -61,6 +61,7 @@ public class DuplicateReadService
                     {
                         Id = p.Id,
                         LibraryId = GetRepresentativeLibraryId(p),
+                        LibraryName = GetRepresentativeLibraryName(p),
                         RelativePath = GetRepresentativeRelativePath(p),
                         ContentHash = GetRepresentativeContentHash(p),
                         Width = GetRepresentativeWidth(p),
@@ -227,6 +228,9 @@ public class DuplicateReadService
 
     private static int GetRepresentativeLibraryId(Post post)
         => GetRepresentativeFile(post)?.LibraryId ?? 0;
+
+    private static string GetRepresentativeLibraryName(Post post)
+        => GetRepresentativeFile(post)?.Library.Name ?? string.Empty;
 
     private static string GetRepresentativeRelativePath(Post post)
         => GetRepresentativeFile(post)?.RelativePath ?? string.Empty;
