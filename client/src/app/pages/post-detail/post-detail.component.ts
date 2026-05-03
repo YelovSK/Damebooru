@@ -123,6 +123,7 @@ export class PostDetailComponent {
   // Sidebar collapsed state
   sidebarCollapsed = signal(false);
   mobileImageViewerOpen = signal(false);
+  postFilesExpanded = signal(false);
 
   private readonly zoomPan = viewChild<ZoomPanContainerComponent>("zoomPan");
   private readonly mediaContainer = viewChild<ElementRef<HTMLElement>>("mediaContainer");
@@ -231,6 +232,7 @@ export class PostDetailComponent {
       this.post();
       this.imageLoading.set(true);
       this.mobileImageViewerOpen.set(false);
+      this.postFilesExpanded.set(false);
     });
 
     // Initialize sources value when entering edit mode
@@ -378,6 +380,10 @@ export class PostDetailComponent {
   // Sidebar toggle
   toggleSidebar() {
     this.sidebarCollapsed.update((v) => !v);
+  }
+
+  togglePostFiles(): void {
+    this.postFilesExpanded.update((v) => !v);
   }
 
   goToPrevPost() {
