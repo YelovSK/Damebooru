@@ -422,6 +422,14 @@ export interface DuplicatePost {
   fileModifiedDate: string;
   thumbnailLibraryId: number;
   thumbnailContentHash: string;
+  files: DuplicatePostFile[];
+}
+
+export interface DuplicatePostFile {
+  postFileId: number;
+  libraryId: number;
+  libraryName: string;
+  relativePath: string;
 }
 
 export interface DuplicateGroup {
@@ -429,8 +437,6 @@ export interface DuplicateGroup {
   type: DuplicateType;
   similarityPercent: number | null;
   detectedDate: string;
-  hasSameFolderDuplicates: boolean;
-  hasCrossFolderDuplicates: boolean;
   posts: DuplicatePost[];
 }
 
@@ -478,50 +484,6 @@ export interface ExcludedFile {
 
 export interface ClearExcludedFilesResponse {
   removed: number;
-}
-
-export interface SameFolderDuplicatePost {
-  id: number;
-  libraryId: number;
-  relativePath: string;
-  contentHash: string;
-  width: number;
-  height: number;
-  sizeBytes: number;
-  importDate: string;
-  fileModifiedDate: string;
-  thumbnailLibraryId: number;
-  thumbnailContentHash: string;
-}
-
-export interface SameFolderDuplicateGroup {
-  parentDuplicateGroupId: number;
-  duplicateType: DuplicateType;
-  similarityPercent: number | null;
-  libraryId: number;
-  libraryName: string;
-  folderPath: string;
-  recommendedKeepPostId: number;
-  posts: SameFolderDuplicatePost[];
-}
-
-export interface DeleteSameFolderDuplicateRequest {
-  parentDuplicateGroupId: number;
-  libraryId: number;
-  folderPath: string;
-  postId: number;
-}
-
-export interface ResolveSameFolderGroupRequest {
-  parentDuplicateGroupId: number;
-  libraryId: number;
-  folderPath: string;
-}
-
-export interface ResolveSameFolderResponse {
-  resolvedGroups: number;
-  deletedPosts: number;
-  skippedGroups: number;
 }
 
 export interface AppLogEntry {

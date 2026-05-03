@@ -47,15 +47,6 @@ public class DuplicatesController : ControllerBase
         return Ok(await _duplicateReadService.GetResolvedDuplicateGroupsAsync(cancellationToken));
     }
 
-    /// <summary>
-    /// Returns unresolved duplicate candidates grouped by same library+folder partitions.
-    /// </summary>
-    [HttpGet("same-folder")]
-    public async Task<ActionResult<IEnumerable<SameFolderDuplicateGroupDto>>> GetSameFolderDuplicateGroups(CancellationToken cancellationToken)
-    {
-        return Ok(await _duplicateReadService.GetSameFolderDuplicateGroupsAsync(cancellationToken));
-    }
-
     [HttpPost("lookup")]
     public async Task<IActionResult> LookupDuplicates([FromForm] IFormFile? file, CancellationToken cancellationToken)
     {
@@ -126,9 +117,7 @@ public class DuplicatesController : ControllerBase
     }
 
     /// <summary>
-    /// Explicitly delete one post from a duplicate group.
-    /// Removed posts are deleted from the booru AND the file is deleted from disk.
-    /// Only allowed when the group contains at least one duplicate in the same folder as the target post.
+    /// Explicitly delete one post from a duplicate group, including every physical file attached to that post.
     /// </summary>
     [HttpPost("{groupId}/delete/{postId}")]
     public async Task<IActionResult> DeletePost(int groupId, int postId, CancellationToken cancellationToken)
@@ -146,17 +135,6 @@ public class DuplicatesController : ControllerBase
     public async Task<IActionResult> DeleteExactFile(int postFileId, CancellationToken cancellationToken)
     {
         return await _duplicateWriteService.DeleteExactDuplicateFileAsync(postFileId, cancellationToken).ToHttpResult();
-    }
-
-    /// <summary>
-    /// Resolve one same-folder duplicate partition by keeping the best quality post.
-    /// </summary>
-    [HttpPost("same-folder/resolve-group")]
-    public async Task<IActionResult> ResolveSameFolderGroup(
-        [FromBody] ResolveSameFolderGroupRequestDto request,
-        CancellationToken cancellationToken)
-    {
-        return await _duplicateWriteService.ResolveSameFolderGroupAsync(request, cancellationToken).ToHttpResult();
     }
 
     /// <summary>

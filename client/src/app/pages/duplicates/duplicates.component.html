@@ -80,12 +80,6 @@
 
         <app-tab id="perceptual" label="Perceptual Duplicates" (init)="onPerceptualTabInit()">
             <ng-template>
-                <div class="mb-6 flex flex-wrap gap-2">
-                    <app-button [variant]="perceptualViewFilter() === 'all' ? 'primary' : 'secondary'" size="sm" (click)="onPerceptualViewFilterChange('all')">All</app-button>
-                    <app-button [variant]="perceptualViewFilter() === 'same-folder' ? 'primary' : 'secondary'" size="sm" (click)="onPerceptualViewFilterChange('same-folder')">Same Folder</app-button>
-                    <app-button [variant]="perceptualViewFilter() === 'different-folder' ? 'primary' : 'secondary'" size="sm" (click)="onPerceptualViewFilterChange('different-folder')">Different Folder</app-button>
-                </div>
-
                 <div class="mb-6 flex flex-wrap gap-3">
                     <div class="flex-1 min-w-[12rem] rounded-lg border border-gray-700 bg-gray-900 px-6 py-4">
                         <div class="text-3xl font-bold text-white">{{ getVisibleGroupCount() }}</div>
@@ -120,34 +114,86 @@
                             @if (group.detectedDate) {
                             <span class="text-sm text-gray-500">detected {{ group.detectedDate | date:'short' }}</span>
                             }
-                            @if (group.libraryName) {
-                            <span class="text-sm text-gray-300">{{ group.libraryName }} / {{ getFolderDisplayPath(group) }}</span>
-                            }
                         </div>
                         <div class="flex items-center gap-2">
                             <app-button (click)="openCompareGroup(group)" variant="secondary" size="sm">
                                 Compare
                             </app-button>
-                            <app-button (click)="onAutoResolveGroup(group)" variant="primary" size="sm">
+                            <app-button (click)="onAutoResolveGroup(group)" variant="secondary" size="sm">
                                 Auto Resolve
                             </app-button>
-                            @if (!isSameFolderScope(group)) {
                             <app-button (click)="onDismissGroup(group)" variant="secondary" size="sm">
                                 Dismiss
                             </app-button>
-                            }
                         </div>
                     </div>
 
-                    <app-duplicate-folder-buckets
-                        [buckets]="getVisibleFolderBucketViews(group)"
-                        [hoverTone]="isSameFolderScope(group) ? 'danger' : 'accent'"
-                        (itemMouseEnter)="onPostCardMouseEnter($event)"
-                        (itemMouseMove)="onPostCardMouseMove($event)"
-                        (itemMouseLeave)="onPostCardMouseLeave($event)"
-                        (imageError)="onImageError($event)"
-                        (excludeItem)="onExcludeVisibleFolderItem(group, $event)"
-                        (deleteItem)="onDeleteVisibleFolderItem(group, $event)" />
+                    <div class="flex flex-wrap gap-3">
+                        @for (post of group.posts; track trackVisiblePost($index, post)) {
+                        <div
+                            class="relative flex w-full flex-col overflow-hidden rounded-lg border border-gray-700 bg-gray-800 transition-colors hover:border-accent-primary sm:w-56 md:w-60">
+                            <div
+                                class="relative aspect-square overflow-hidden"
+                                (mouseenter)="onPostCardMouseEnter(post.id)"
+                                (mousemove)="onPostCardMouseMove(post.id)"
+                                (mouseleave)="onPostCardMouseLeave($event)">
+                                <img
+                                    [src]="getThumbnailUrl(post)"
+                                    [alt]="post.relativePath"
+                                    class="w-full h-full object-cover"
+                                    loading="lazy"
+                                    (error)="onImageError($event)">
+                            </div>
+
+                            <div class="flex flex-1 flex-col gap-2 p-2">
+                                <a [routerLink]="['/post', post.id]" class="block hover:bg-gray-700/50 transition-colors rounded px-1 py-1">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <div class="truncate text-xs font-semibold text-white" [title]="post.relativePath">
+                                            {{ post.relativePath | fileName }}
+                                        </div>
+                                        @if (post.files.length > 1) {
+                                        <span class="shrink-0 rounded bg-gray-700 px-1.5 py-0.5 text-[10px] font-semibold text-gray-200">
+                                            {{ post.files.length }} files
+                                        </span>
+                                        }
+                                    </div>
+                                    <div class="mt-1 flex justify-between text-xs text-gray-500">
+                                        <span>{{ post.width }}x{{ post.height }}</span>
+                                        <span>{{ post.sizeBytes | fileSize }}</span>
+                                    </div>
+                                </a>
+
+                                <div class="space-y-1">
+                                    @for (file of getDisplayedPostFiles(post); track trackPostFile($index, file)) {
+                                    <div class="truncate text-[11px] text-text-muted" [title]="getPostFilePlacementLabel(file)">
+                                        {{ file.libraryName || ('Library #' + file.libraryId) }} / {{ file.relativePath | displayPath }}
+                                    </div>
+                                    }
+                                    @if (getHiddenPostFileCount(post) > 0) {
+                                    <div class="text-[11px] font-medium text-gray-400">
+                                        +{{ getHiddenPostFileCount(post) }} more
+                                    </div>
+                                    }
+                                </div>
+
+                                <div class="mt-auto grid gap-1">
+                                    <app-button variant="warning" size="xs" [fullWidth]="true" (click)="onExcludePost(group, post)">
+                                        Exclude
+                                    </app-button>
+                                    <app-button variant="danger" size="xs" [fullWidth]="true" (click)="onDeletePost(group, post)">
+                                        Delete
+                                    </app-button>
+                                </div>
+                            </div>
+
+                            @if (post.isRecommendedKeep) {
+                            <div class="pointer-events-none absolute left-2 top-2 rounded bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                                KEEP (AUTO)
+                            </div>
+                            }
+                        </div>
+                        }
+                    </div>
                 </div>
                 }
                 @if (visibleTotalPages() > 1) {

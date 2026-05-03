@@ -33,10 +33,6 @@ import {
   ExactDuplicateCluster,
   ExcludedFile,
   ClearExcludedFilesResponse,
-  SameFolderDuplicateGroup,
-  DeleteSameFolderDuplicateRequest,
-  ResolveSameFolderGroupRequest,
-  ResolveSameFolderResponse,
   SimilarPost,
   DuplicateLookupResponse,
   DuplicateHashLookupRequest,
@@ -607,12 +603,6 @@ export class DamebooruService {
     );
   }
 
-  getSameFolderDuplicateGroups(): Observable<SameFolderDuplicateGroup[]> {
-    return this.http.get<SameFolderDuplicateGroup[]>(
-      `${this.baseUrl}/duplicates/same-folder`,
-    );
-  }
-
   lookupDuplicates(file: File): Observable<DuplicateLookupResponse> {
     const formData = new FormData();
     formData.append("file", file);
@@ -626,15 +616,6 @@ export class DamebooruService {
   lookupDuplicatesByHash(request: DuplicateHashLookupRequest): Observable<DuplicateLookupResponse> {
     return this.http.post<DuplicateLookupResponse>(
       `${this.baseUrl}/duplicates/lookup/exact`,
-      request,
-    );
-  }
-
-  resolveSameFolderGroup(
-    request: ResolveSameFolderGroupRequest,
-  ): Observable<ResolveSameFolderResponse> {
-    return this.http.post<ResolveSameFolderResponse>(
-      `${this.baseUrl}/duplicates/same-folder/resolve-group`,
       request,
     );
   }

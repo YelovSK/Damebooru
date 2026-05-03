@@ -6,7 +6,7 @@
       aria-modal="true"
       (keydown.esc)="cancel()">
       <h3 class="text-lg font-bold text-text-primary m-0">{{ options.title }}</h3>
-      <p class="text-text-muted text-[0.9rem] m-0">{{ options.message }}</p>
+      <p class="whitespace-pre-line text-text-muted text-[0.9rem] m-0">{{ options.message }}</p>
       @if (requiresTypedText(); as requiredText) {
       <div class="flex flex-col gap-2">
         <label class="text-[0.8rem] text-text-muted" for="confirm-typed-input">

@@ -10,9 +10,6 @@
         @if (group().similarityPercent) {
         <span> · ~{{ group().similarityPercent }}% similar</span>
         }
-        @if (group().libraryName) {
-        <span> · {{ group().libraryName }}</span>
-        }
       </div>
 
       <div class="hidden flex-wrap items-center gap-2 md:flex">
@@ -76,11 +73,9 @@
               <app-button variant="warning" size="sm" (click)="excludePost.emit(leftPost)">
                 Exclude
               </app-button>
-              @if (canDeletePosts()) {
               <app-button variant="danger" size="sm" (click)="deletePost.emit(leftPost)">
                 Delete
               </app-button>
-              }
             </div>
           </section>
           }
@@ -113,11 +108,9 @@
               <app-button variant="warning" size="sm" (click)="excludePost.emit(rightPost)">
                 Exclude
               </app-button>
-              @if (canDeletePosts()) {
               <app-button variant="danger" size="sm" (click)="deletePost.emit(rightPost)">
                 Delete
               </app-button>
-              }
             </div>
           </section>
           }
@@ -156,11 +149,9 @@
             <app-button variant="warning" size="sm" (click)="excludePost.emit(activePost)">
               Exclude
             </app-button>
-            @if (canDeletePosts()) {
             <app-button variant="danger" size="sm" (click)="deletePost.emit(activePost)">
               Delete
             </app-button>
-            }
           </div>
         </section>
         }

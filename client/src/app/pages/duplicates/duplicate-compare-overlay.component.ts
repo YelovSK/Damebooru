@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, HostListener, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
+import { DuplicatePostFile } from '@models';
 import { ButtonComponent } from '@shared/components/button/button.component';
 import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
 import { ModalComponent } from '@shared/components/modal/modal.component';
@@ -10,7 +11,6 @@ import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
 import { getFileNameFromPath } from '@shared/utils/utils';
 
-export type DuplicateCompareScope = 'all' | 'same-folder';
 export type DuplicateCompareMode = 'side-by-side' | 'flip';
 
 export interface DuplicateComparePost {
@@ -23,17 +23,14 @@ export interface DuplicateComparePost {
   thumbnailLibraryId: number;
   thumbnailContentHash: string;
   isRecommendedKeep: boolean;
+  files: DuplicatePostFile[];
   contentType?: string;
 }
 
 export interface DuplicateCompareGroup {
   key: string;
-  scope: DuplicateCompareScope;
   duplicateGroupId: number;
   similarityPercent: number | null;
-  libraryName: string | null;
-  folderPath: string | null;
-  sameFolderLibraryId: number | null;
   posts: DuplicateComparePost[];
 }
 
@@ -69,7 +66,6 @@ export class DuplicateCompareOverlayComponent {
   readonly flipShowingRight = signal(false);
   readonly viewport = signal<ZoomPanViewport>({ zoomLevel: 1, panX: 0, panY: 0 });
 
-  readonly canDeletePosts = computed(() => this.group().scope === 'same-folder');
   readonly activeMode = computed<DuplicateCompareMode>(() => this.isCompactViewport() ? 'flip' : this.mode());
 
   readonly selectedLeftPost = computed(() => {

@@ -25,6 +25,13 @@ export function getFileNameFromPath(path: string): string {
     return path.split(/[/\\]/).pop() || path;
 }
 
+export function formatPathForDisplay(path: string): string {
+    return path
+        .split(/[/\\]/)
+        .filter(segment => segment.length > 0)
+        .join(' / ');
+}
+
 export function areArraysEqual<T>(
     left: readonly T[],
     right: readonly T[],

@@ -14,20 +14,19 @@ import {
   ExactDuplicateFile,
   DuplicateLookupMatch,
   DuplicateLookupResponse,
+  DuplicatePostFile,
   DuplicatePost,
   ExcludedFile,
-  ResolveSameFolderGroupRequest,
-  SameFolderDuplicateGroup,
-  SameFolderDuplicatePost
 } from '@models';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
-import { getFileNameFromPath } from '@shared/utils/utils';
+import { formatPathForDisplay, getFileNameFromPath } from '@shared/utils/utils';
 import { ConfirmService } from '@services/confirm.service';
 import { ToastService } from '@services/toast.service';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
 import { ButtonComponent } from '@shared/components/button/button.component';
+import { DisplayPathPipe } from '@shared/pipes/display-path.pipe';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
 import { PostPreviewHoverGateService } from '@shared/components/post-preview-overlay/post-preview-hover-gate.service';
@@ -36,7 +35,6 @@ import { computeLookupContentHash } from './lookup-hash';
 import { DuplicateCompareGroup, DuplicateCompareOverlayComponent, DuplicateComparePost } from './duplicate-compare-overlay.component';
 import { DuplicateFolderBucketsComponent, DuplicateFolderBucketView, DuplicateFolderItemView } from './duplicate-folder-buckets.component';
 
-type DuplicateScope = 'all' | 'same-folder';
 type DuplicateViewFilter = 'all' | 'same-folder' | 'different-folder';
 
 interface VisibleDuplicatePost {
@@ -51,34 +49,23 @@ interface VisibleDuplicatePost {
   thumbnailLibraryId: number;
   thumbnailContentHash: string;
   isRecommendedKeep: boolean;
+  files: DuplicatePostFile[];
   contentType?: string;
 }
 
 interface VisibleDuplicateGroup {
   key: string;
-  scope: DuplicateScope;
   duplicateGroupId: number;
   type: DuplicateType;
   similarityPercent: number | null;
   detectedDate: string | null;
-  libraryName: string | null;
-  folderPath: string | null;
-  sameFolderLibraryId: number | null;
-  posts: VisibleDuplicatePost[];
-}
-
-interface VisibleDuplicateFolderBucket {
-  key: string;
-  libraryId: number;
-  libraryName: string;
-  folderPath: string;
   posts: VisibleDuplicatePost[];
 }
 
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
+  imports: [CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
 })
@@ -119,7 +106,6 @@ export class DuplicatesPageComponent {
 
   excludedFiles = signal<ExcludedFile[]>([]);
 
-  sameFolderGroups = signal<SameFolderDuplicateGroup[]>([]);
   lookupSelectedFile = signal<File | null>(null);
   lookupPreviewUrl = signal<string | null>(null);
   lookupResult = signal<DuplicateLookupResponse | null>(null);
@@ -133,7 +119,6 @@ export class DuplicatesPageComponent {
   readonly lookupHasResults = computed(() => this.lookupResult() !== null);
 
   exactViewFilter = signal<DuplicateViewFilter>('all');
-  perceptualViewFilter = signal<DuplicateViewFilter>('all');
   previewPost = signal<DamebooruPostDto | null>(null);
   compareGroupKey = signal<string | null>(null);
   readonly visiblePageSize = 25;
@@ -170,7 +155,6 @@ export class DuplicatesPageComponent {
 
     this.perceptualTabInitialized = true;
     this.loadGroups();
-    this.loadSameFolderGroups();
   }
 
   onGroupsTabInit() {
@@ -181,7 +165,6 @@ export class DuplicatesPageComponent {
     this.groupsTabInitialized = true;
     this.loadExactClusters();
     this.loadGroups();
-    this.loadSameFolderGroups();
   }
 
   onResolvedTabInit() {
@@ -205,11 +188,6 @@ export class DuplicatesPageComponent {
   onExactViewFilterChange(filter: DuplicateViewFilter) {
     this.exactViewFilter.set(filter);
     this.exactPage.set(1);
-  }
-
-  onPerceptualViewFilterChange(filter: DuplicateViewFilter) {
-    this.perceptualViewFilter.set(filter);
-    this.visiblePage.set(1);
   }
 
   onLookupFileInputChange(event: Event) {
@@ -302,50 +280,17 @@ export class DuplicatesPageComponent {
   }
 
   readonly visibleGroups = computed<VisibleDuplicateGroup[]>(() => {
-    if (this.perceptualViewFilter() === 'same-folder') {
-      return this.sameFolderGroups().map(group => ({
-        key: `${group.parentDuplicateGroupId}:${group.libraryId}:${group.folderPath}`,
-        scope: 'same-folder' as const,
-        duplicateGroupId: group.parentDuplicateGroupId,
-        type: group.duplicateType,
-        similarityPercent: group.similarityPercent,
-        detectedDate: null,
-        libraryName: group.libraryName,
-        folderPath: group.folderPath,
-        sameFolderLibraryId: group.libraryId,
-        posts: group.posts.map(post => ({
-          id: post.id,
-          libraryId: post.libraryId,
-          libraryName: group.libraryName,
-          relativePath: post.relativePath,
-          width: post.width,
-          height: post.height,
-          sizeBytes: post.sizeBytes,
-          fileModifiedDate: post.fileModifiedDate,
-          thumbnailLibraryId: post.thumbnailLibraryId,
-          thumbnailContentHash: post.thumbnailContentHash,
-          isRecommendedKeep: post.id === group.recommendedKeepPostId,
-        })),
-      })).filter(group => group.type === DuplicateType.Perceptual);
-    }
-
-    const filteredGroups = this.groups()
+    return this.groups()
       .filter(group => group.type === DuplicateType.Perceptual)
-      .filter(group => this.perceptualViewFilter() !== 'different-folder' || group.hasCrossFolderDuplicates);
-
-    return filteredGroups.map(group => {
+      .map(group => {
       const recommendedKeepPostId = this.selectBestQualityVisiblePostId(group.posts);
 
       return {
         key: `${group.id}`,
-        scope: 'all' as const,
         duplicateGroupId: group.id,
         type: group.type,
         similarityPercent: group.similarityPercent,
         detectedDate: group.detectedDate,
-        libraryName: null,
-        folderPath: null,
-        sameFolderLibraryId: null,
         posts: group.posts.map(post => ({
           id: post.id,
           libraryId: post.libraryId,
@@ -358,6 +303,7 @@ export class DuplicatesPageComponent {
           thumbnailLibraryId: post.thumbnailLibraryId,
           thumbnailContentHash: post.thumbnailContentHash,
           isRecommendedKeep: recommendedKeepPostId !== null && post.id === recommendedKeepPostId,
+          files: this.getDuplicatePostFiles(post),
           contentType: post.contentType,
         })),
       };
@@ -472,42 +418,6 @@ export class DuplicatesPageComponent {
     return this.exactClusters().filter(cluster => cluster.hasCrossFolderDuplicates).length;
   }
 
-  isSameFolderScope(group: VisibleDuplicateGroup): boolean {
-    return group.scope === 'same-folder';
-  }
-
-  getVisibleGroupFolders(group: VisibleDuplicateGroup): VisibleDuplicateFolderBucket[] {
-    const buckets = new Map<string, VisibleDuplicateFolderBucket>();
-
-    for (const post of group.posts) {
-      const folderPath = this.getParentFolderPath(post.relativePath);
-      const key = `${post.libraryId}:${folderPath}`;
-      const bucket = buckets.get(key);
-      if (bucket) {
-        bucket.posts.push(post);
-        continue;
-      }
-
-      buckets.set(key, {
-        key,
-        libraryId: post.libraryId,
-        libraryName: post.libraryName || `Library #${post.libraryId}`,
-        folderPath,
-        posts: [post],
-      });
-    }
-
-    return Array.from(buckets.values())
-      .sort((left, right) => {
-        const libraryCompare = left.libraryName.localeCompare(right.libraryName, undefined, { sensitivity: 'base' });
-        if (libraryCompare !== 0) {
-          return libraryCompare;
-        }
-
-        return left.folderPath.localeCompare(right.folderPath, undefined, { sensitivity: 'base' });
-      });
-  }
-
   getExactFolderBucketViews(cluster: ExactDuplicateCluster): DuplicateFolderBucketView[] {
     return cluster.folders.map(folder => ({
       key: `${folder.libraryId}:${folder.folderPath}`,
@@ -525,27 +435,6 @@ export class DuplicatesPageComponent {
         thumbnailUrl: this.getExactFileThumbnailUrl(file),
         canDelete: true,
         isRecommendedKeep: false,
-      })),
-    }));
-  }
-
-  getVisibleFolderBucketViews(group: VisibleDuplicateGroup): DuplicateFolderBucketView[] {
-    return this.getVisibleGroupFolders(group).map(folder => ({
-      key: folder.key,
-      libraryName: folder.libraryName,
-      folderPath: folder.folderPath,
-      items: folder.posts.map(post => ({
-        key: `perceptual:${post.id}`,
-        kind: 'perceptual-post' as const,
-        postId: post.id,
-        actionTargetId: post.id,
-        relativePath: post.relativePath,
-        width: post.width,
-        height: post.height,
-        sizeBytes: post.sizeBytes,
-        thumbnailUrl: this.getThumbnailUrl(post),
-        canDelete: this.isSameFolderScope(group),
-        isRecommendedKeep: post.isRecommendedKeep,
       })),
     }));
   }
@@ -603,74 +492,7 @@ export class DuplicatesPageComponent {
     });
   }
 
-  onExcludeVisibleFolderItem(group: VisibleDuplicateGroup, item: DuplicateFolderItemView): void {
-    this.onExcludePost(group, {
-      id: item.actionTargetId,
-      relativePath: item.relativePath,
-      width: item.width,
-      height: item.height,
-      sizeBytes: item.sizeBytes,
-      fileModifiedDate: '',
-      thumbnailLibraryId: 0,
-      thumbnailContentHash: '',
-      isRecommendedKeep: item.isRecommendedKeep,
-    });
-  }
-
-  onDeleteVisibleFolderItem(group: VisibleDuplicateGroup, item: DuplicateFolderItemView): void {
-    this.onDeletePost(group, {
-      id: item.actionTargetId,
-      relativePath: item.relativePath,
-      width: item.width,
-      height: item.height,
-      sizeBytes: item.sizeBytes,
-      fileModifiedDate: '',
-      thumbnailLibraryId: 0,
-      thumbnailContentHash: '',
-      isRecommendedKeep: item.isRecommendedKeep,
-    });
-  }
-
-  getFolderDisplayPath(group: VisibleDuplicateGroup): string {
-    return this.formatFolderPath(group.folderPath);
-  }
-
-  formatFolderPath(folderPath: string | null | undefined): string {
-    if (!folderPath) {
-      return '(library root)';
-    }
-
-    return this.formatPathSegments(folderPath);
-  }
-
   onAutoResolveGroup(group: DuplicateCompareGroup) {
-    if (group.scope === 'same-folder') {
-      const request: ResolveSameFolderGroupRequest = {
-        parentDuplicateGroupId: group.duplicateGroupId,
-        libraryId: group.sameFolderLibraryId!,
-        folderPath: group.folderPath ?? '',
-      };
-
-      this.confirmService.confirm({
-        title: 'Auto Resolve Group',
-        message: `Auto-resolve this same-folder group by keeping the highest-quality post and deleting the rest from disk?`,
-        confirmText: 'Auto Resolve',
-        variant: 'danger',
-      }).subscribe(confirmed => {
-        if (!confirmed) return;
-
-        this.damebooru.resolveSameFolderGroup(request).subscribe({
-          next: (result) => {
-            this.reloadDuplicatesAndExcluded();
-            this.toast.success(`Resolved ${result.resolvedGroups} group(s), deleted ${result.deletedPosts} post(s), skipped ${result.skippedGroups}.`);
-          },
-          error: () => this.toast.error('Failed to auto-resolve same-folder group.')
-        });
-      });
-
-      return;
-    }
-
     this.confirmService.confirm({
       title: 'Auto Resolve Group',
       message: `Auto-resolve this group by keeping the highest-quality post and removing the others from the booru?`,
@@ -690,10 +512,6 @@ export class DuplicatesPageComponent {
   }
 
   onDismissGroup(group: DuplicateCompareGroup) {
-    if (group.scope === 'same-folder') {
-      return;
-    }
-
     this.confirmService.confirm({
       title: 'Dismiss Group',
       message: `Dismiss this group? All ${group.posts.length} posts will remain in the booru and on disk.`,
@@ -713,9 +531,20 @@ export class DuplicatesPageComponent {
   }
 
   onExcludePost(group: DuplicateCompareGroup, post: DuplicateComparePost) {
+    const fileCount = post.files.length;
+    const placementList = post.files
+      .map(file => `- ${this.getPostFilePlacementLabel(file)}`)
+      .join('\n');
+    const message = [
+      `Exclude "${getFileNameFromPath(post.relativePath)}" from the booru?`,
+      '',
+      `The physical ${fileCount === 1 ? 'file will remain' : 'files will remain'} on disk, but ${fileCount === 1 ? 'it' : 'they'} will not be imported again:`,
+      placementList,
+    ].join('\n');
+
     this.confirmService.confirm({
       title: 'Exclude Post',
-      message: `Exclude "${getFileNameFromPath(post.relativePath)}" from the booru? The file will remain on disk and will not be imported again.`,
+      message,
       confirmText: 'Exclude',
       variant: 'warning',
     }).subscribe(confirmed => {
@@ -732,13 +561,20 @@ export class DuplicatesPageComponent {
   }
 
   onDeletePost(group: DuplicateCompareGroup, post: DuplicateComparePost) {
-    if (group.scope !== 'same-folder') {
-      return;
-    }
+    const fileCount = post.files.length;
+    const placementList = post.files
+      .map(file => `- ${this.getPostFilePlacementLabel(file)}`)
+      .join('\n');
+    const message = [
+      `Delete "${getFileNameFromPath(post.relativePath)}" from disk and remove it from the booru?`,
+      '',
+      `This will permanently delete ${fileCount} file${fileCount === 1 ? '' : 's'} attached to this post:`,
+      placementList,
+    ].join('\n');
 
     this.confirmService.confirm({
-      title: 'Delete Post',
-      message: `Delete "${getFileNameFromPath(post.relativePath)}" from disk and remove it from the booru?`,
+      title: 'Delete Post and Files',
+      message,
       confirmText: 'Delete',
       variant: 'danger',
     }).subscribe(confirmed => {
@@ -747,7 +583,7 @@ export class DuplicatesPageComponent {
       this.damebooru.deletePostFromGroup(group.duplicateGroupId, post.id).subscribe({
         next: () => {
           this.reloadDuplicatesAndExcluded();
-          this.toast.success('Duplicate post deleted.');
+          this.toast.success('Duplicate post and files deleted.');
         },
         error: () => this.toast.error('Failed to delete duplicate post.')
       });
@@ -903,17 +739,6 @@ export class DuplicatesPageComponent {
     });
   }
 
-  loadSameFolderGroups() {
-    this.damebooru.getSameFolderDuplicateGroups().subscribe({
-      next: (groups) => {
-        this.sameFolderGroups.set(groups.filter(group => group.duplicateType === DuplicateType.Perceptual));
-        this.visiblePage.set(Math.min(this.visiblePage(), this.visibleTotalPages()));
-      },
-      error: () => void 0
-    });
-  }
-
-
   loadExcludedFiles() {
     this.damebooru.getExcludedFiles().subscribe({
       next: (files) => {
@@ -986,12 +811,25 @@ export class DuplicatesPageComponent {
     return `${folder.libraryId}:${folder.folderPath}`;
   }
 
-  trackVisibleFolder(_: number, folder: VisibleDuplicateFolderBucket) {
-    return folder.key;
-  }
-
   trackExactFile(_: number, file: ExactDuplicateFile) {
     return file.postFileId;
+  }
+
+  trackPostFile(_: number, file: DuplicatePostFile): string {
+    return file.postFileId > 0 ? `${file.postFileId}` : `${file.libraryId}:${file.relativePath}`;
+  }
+
+  getDisplayedPostFiles(post: VisibleDuplicatePost): DuplicatePostFile[] {
+    return post.files.slice(0, 3);
+  }
+
+  getHiddenPostFileCount(post: VisibleDuplicatePost): number {
+    return Math.max(0, post.files.length - 3);
+  }
+
+  getPostFilePlacementLabel(file: DuplicatePostFile): string {
+    const libraryName = file.libraryName || `Library #${file.libraryId}`;
+    return `${libraryName} / ${formatPathForDisplay(file.relativePath)}`;
   }
 
   getLookupThumbnailUrl(match: DuplicateLookupMatch): string {
@@ -1165,6 +1003,19 @@ export class DuplicatesPageComponent {
     return best.id;
   }
 
+  private getDuplicatePostFiles(post: DuplicatePost): DuplicatePostFile[] {
+    if (post.files?.length > 0) {
+      return post.files;
+    }
+
+    return [{
+      postFileId: 0,
+      libraryId: post.libraryId,
+      libraryName: post.libraryName,
+      relativePath: post.relativePath,
+    }];
+  }
+
   private reloadDuplicatesAndExcluded() {
     if (this.exactTabInitialized || this.groupsTabInitialized) {
       this.loadExactClusters();
@@ -1172,12 +1023,10 @@ export class DuplicatesPageComponent {
 
     if (this.groupsTabInitialized) {
       this.loadGroups();
-      this.loadSameFolderGroups();
     }
 
     if (this.perceptualTabInitialized) {
       this.loadGroups();
-      this.loadSameFolderGroups();
     }
 
     if (this.resolvedTabInitialized) {
@@ -1211,23 +1060,6 @@ export class DuplicatesPageComponent {
   private isLookupImageFile(file: File): boolean {
     return file.type.startsWith('image/')
       || /\.(jpg|jpeg|png|gif|bmp|tga|webp|jxl)$/i.test(file.name);
-  }
-
-  private formatPathSegments(path: string): string {
-    if (!path) {
-      return '(library root)';
-    }
-
-    return path
-      .split('/')
-      .filter(segment => segment.length > 0)
-      .join(' / ');
-  }
-
-  private getParentFolderPath(path: string): string {
-    const normalized = path.replace(/\\/g, '/');
-    const index = normalized.lastIndexOf('/');
-    return index <= 0 ? '' : normalized.slice(0, index);
   }
 
   private getLookupFileExtension(contentType: string): string {

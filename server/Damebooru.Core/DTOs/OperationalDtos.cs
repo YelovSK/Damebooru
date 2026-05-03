@@ -62,6 +62,14 @@ public class CronPreviewDto
     public List<DateTime> NextRuns { get; set; } = [];
 }
 
+public class DuplicatePostFileDto
+{
+    public int PostFileId { get; set; }
+    public int LibraryId { get; set; }
+    public string LibraryName { get; set; } = string.Empty;
+    public string RelativePath { get; set; } = string.Empty;
+}
+
 public class DuplicatePostDto
 {
     public int Id { get; set; }
@@ -77,6 +85,7 @@ public class DuplicatePostDto
     public DateTime FileModifiedDate { get; set; }
     public int ThumbnailLibraryId { get; set; }
     public string ThumbnailContentHash { get; set; } = string.Empty;
+    public List<DuplicatePostFileDto> Files { get; set; } = [];
 }
 
 public class DuplicateGroupDto
@@ -85,8 +94,6 @@ public class DuplicateGroupDto
     public DuplicateType Type { get; set; }
     public int? SimilarityPercent { get; set; }
     public DateTime DetectedDate { get; set; }
-    public bool HasSameFolderDuplicates { get; set; }
-    public bool HasCrossFolderDuplicates { get; set; }
     public List<DuplicatePostDto> Posts { get; set; } = [];
 }
 
@@ -128,21 +135,6 @@ public class ExactDuplicateClusterDto
 public class MarkAllUnresolvedResponseDto
 {
     public int Unresolved { get; set; }
-}
-
-public class SameFolderDuplicatePostDto
-{
-    public int Id { get; set; }
-    public int LibraryId { get; set; }
-    public string RelativePath { get; set; } = string.Empty;
-    public string ContentHash { get; set; } = string.Empty;
-    public int Width { get; set; }
-    public int Height { get; set; }
-    public long SizeBytes { get; set; }
-    public DateTime ImportDate { get; set; }
-    public DateTime FileModifiedDate { get; set; }
-    public int ThumbnailLibraryId { get; set; }
-    public string ThumbnailContentHash { get; set; } = string.Empty;
 }
 
 public class SimilarPostDto
@@ -198,40 +190,6 @@ public class DuplicateHashLookupRequestDto
     public string ContentType { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
     public string ContentHash { get; set; } = string.Empty;
-}
-
-public class SameFolderDuplicateGroupDto
-{
-    public int ParentDuplicateGroupId { get; set; }
-    public DuplicateType DuplicateType { get; set; }
-    public int? SimilarityPercent { get; set; }
-    public int LibraryId { get; set; }
-    public string LibraryName { get; set; } = string.Empty;
-    public string FolderPath { get; set; } = string.Empty;
-    public int RecommendedKeepPostId { get; set; }
-    public List<SameFolderDuplicatePostDto> Posts { get; set; } = [];
-}
-
-public class DeleteSameFolderDuplicateRequestDto
-{
-    public int ParentDuplicateGroupId { get; set; }
-    public int LibraryId { get; set; }
-    public string FolderPath { get; set; } = string.Empty;
-    public int PostId { get; set; }
-}
-
-public class ResolveSameFolderGroupRequestDto
-{
-    public int ParentDuplicateGroupId { get; set; }
-    public int LibraryId { get; set; }
-    public string FolderPath { get; set; } = string.Empty;
-}
-
-public class ResolveSameFolderResponseDto
-{
-    public int ResolvedGroups { get; set; }
-    public int DeletedPosts { get; set; }
-    public int SkippedGroups { get; set; }
 }
 
 public class SystemInfoDto
