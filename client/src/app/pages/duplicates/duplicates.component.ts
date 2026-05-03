@@ -33,6 +33,7 @@ import { PostPreviewOverlayComponent } from '@shared/components/post-preview-ove
 import { PostPreviewHoverGateService } from '@shared/components/post-preview-overlay/post-preview-hover-gate.service';
 import { SettingsService } from '@services/settings.service';
 import { computeLookupContentHash } from './lookup-hash';
+import { DuplicateCompareGroup, DuplicateCompareOverlayComponent, DuplicateComparePost } from './duplicate-compare-overlay.component';
 
 type DuplicateScope = 'all' | 'same-folder';
 type DuplicateViewFilter = 'all' | 'same-folder' | 'different-folder';
@@ -47,6 +48,7 @@ interface VisibleDuplicatePost {
   thumbnailLibraryId: number;
   thumbnailContentHash: string;
   isRecommendedKeep: boolean;
+  contentType?: string;
 }
 
 interface VisibleDuplicateGroup {
@@ -65,7 +67,7 @@ interface VisibleDuplicateGroup {
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, PaginatorComponent, PostPreviewOverlayComponent],
+  imports: [CommonModule, FormsModule, RouterLink, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonComponent, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
 })
@@ -122,6 +124,7 @@ export class DuplicatesPageComponent {
   exactViewFilter = signal<DuplicateViewFilter>('all');
   perceptualViewFilter = signal<DuplicateViewFilter>('all');
   previewPost = signal<DamebooruPostDto | null>(null);
+  compareGroupKey = signal<string | null>(null);
   readonly visiblePageSize = 25;
   exactPage = signal(1);
   visiblePage = signal(1);
@@ -340,6 +343,7 @@ export class DuplicatesPageComponent {
           thumbnailLibraryId: post.thumbnailLibraryId,
           thumbnailContentHash: post.thumbnailContentHash,
           isRecommendedKeep: recommendedKeepPostId !== null && post.id === recommendedKeepPostId,
+          contentType: post.contentType,
         })),
       };
     });
@@ -397,6 +401,15 @@ export class DuplicatesPageComponent {
     return this.visibleGroups().slice(start, start + this.visiblePageSize);
   });
 
+  readonly compareGroup = computed<DuplicateCompareGroup | null>(() => {
+    const key = this.compareGroupKey();
+    if (!key) {
+      return null;
+    }
+
+    return this.visibleGroups().find(group => group.key === key) ?? null;
+  });
+
   readonly resolvedTotalPages = computed(() =>
     Math.max(1, Math.ceil(this.resolvedGroups().length / this.resolvedPageSize)));
 
@@ -448,6 +461,23 @@ export class DuplicatesPageComponent {
     return group.scope === 'same-folder';
   }
 
+  openCompareGroup(group: VisibleDuplicateGroup): void {
+    this.closePreview();
+    this.compareGroupKey.set(group.key);
+  }
+
+  closeCompareGroup(): void {
+    this.compareGroupKey.set(null);
+  }
+
+  onCompareExcludePost(group: DuplicateCompareGroup, post: DuplicateComparePost): void {
+    this.onExcludePost(group, post);
+  }
+
+  onCompareDeletePost(group: DuplicateCompareGroup, post: DuplicateComparePost): void {
+    this.onDeletePost(group, post);
+  }
+
   getFolderDisplayPath(group: VisibleDuplicateGroup): string {
     return this.formatFolderPath(group.folderPath);
   }
@@ -460,7 +490,7 @@ export class DuplicatesPageComponent {
     return this.formatPathSegments(folderPath);
   }
 
-  onAutoResolveGroup(group: VisibleDuplicateGroup) {
+  onAutoResolveGroup(group: DuplicateCompareGroup) {
     if (group.scope === 'same-folder') {
       const request: ResolveSameFolderGroupRequest = {
         parentDuplicateGroupId: group.duplicateGroupId,
@@ -506,7 +536,7 @@ export class DuplicatesPageComponent {
     });
   }
 
-  onDismissGroup(group: VisibleDuplicateGroup) {
+  onDismissGroup(group: DuplicateCompareGroup) {
     if (group.scope === 'same-folder') {
       return;
     }
@@ -529,7 +559,7 @@ export class DuplicatesPageComponent {
     });
   }
 
-  onExcludePost(group: VisibleDuplicateGroup, post: VisibleDuplicatePost) {
+  onExcludePost(group: DuplicateCompareGroup, post: DuplicateComparePost) {
     this.confirmService.confirm({
       title: 'Exclude Post',
       message: `Exclude "${getFileNameFromPath(post.relativePath)}" from the booru? The file will remain on disk and will not be imported again.`,
@@ -548,7 +578,7 @@ export class DuplicatesPageComponent {
     });
   }
 
-  onDeletePost(group: VisibleDuplicateGroup, post: VisibleDuplicatePost) {
+  onDeletePost(group: DuplicateCompareGroup, post: DuplicateComparePost) {
     if (group.scope !== 'same-folder') {
       return;
     }

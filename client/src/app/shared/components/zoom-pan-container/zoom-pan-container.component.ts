@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, input, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, input, output, signal, viewChild } from '@angular/core';
+
+export interface ZoomPanViewport {
+  zoomLevel: number;
+  panX: number;
+  panY: number;
+}
 
 @Component({
   selector: 'app-zoom-pan-container',
@@ -12,12 +18,18 @@ export class ZoomPanContainerComponent {
   private readonly maxZoom = 10;
   private readonly container = viewChild<ElementRef<HTMLElement>>('container');
 
-  readonly zoomLevel = signal(1);
-  readonly panX = signal(0);
-  readonly panY = signal(0);
+  private readonly internalZoomLevel = signal(1);
+  private readonly internalPanX = signal(0);
+  private readonly internalPanY = signal(0);
 
   readonly zoomDelta = input<number>(0.15);
   readonly touchEnabled = input(false);
+  readonly viewport = input<ZoomPanViewport | null>(null);
+  readonly viewportChange = output<ZoomPanViewport>();
+
+  readonly zoomLevel = computed(() => this.internalZoomLevel());
+  readonly panX = computed(() => this.internalPanX());
+  readonly panY = computed(() => this.internalPanY());
 
   isDragging = false;
   private dragStartX = 0;
@@ -29,6 +41,30 @@ export class ZoomPanContainerComponent {
   private pinchStartZoom = 1;
   private pinchContentX = 0;
   private pinchContentY = 0;
+  private applyingExternalViewport = false;
+
+  constructor() {
+    effect(() => {
+      const viewport = this.viewport();
+      if (!viewport) {
+        return;
+      }
+
+      if (
+        viewport.zoomLevel === this.internalZoomLevel()
+        && viewport.panX === this.internalPanX()
+        && viewport.panY === this.internalPanY()
+      ) {
+        return;
+      }
+
+      this.applyingExternalViewport = true;
+      this.internalZoomLevel.set(this.clampZoom(viewport.zoomLevel));
+      this.internalPanX.set(viewport.panX);
+      this.internalPanY.set(viewport.panY);
+      this.applyingExternalViewport = false;
+    });
+  }
 
   readonly transform = computed(() => {
     const scale = this.zoomLevel();
@@ -43,15 +79,11 @@ export class ZoomPanContainerComponent {
   onDoubleClick(): void {
     const isDefault = this.zoomLevel() === 1 && this.panX() === 0 && this.panY() === 0;
     const newZoom = isDefault ? 2 : 1;
-    this.zoomLevel.set(newZoom);
-    this.panX.set(0);
-    this.panY.set(0);
+    this.setViewport(newZoom, 0, 0);
   }
 
   resetZoom(): void {
-    this.zoomLevel.set(1);
-    this.panX.set(0);
-    this.panY.set(0);
+    this.setViewport(1, 0, 0);
   }
 
   onWheel(event: WheelEvent): void {
@@ -70,9 +102,7 @@ export class ZoomPanContainerComponent {
     const nextPanY = cursorY - scaleFactor * (cursorY - this.panY());
     const clamped = this.clampPan(nextPanX, nextPanY, newZoom);
 
-    this.panX.set(clamped.x);
-    this.panY.set(clamped.y);
-    this.zoomLevel.set(newZoom);
+    this.setViewport(newZoom, clamped.x, clamped.y);
   }
 
   onMouseDown(event: MouseEvent): void {
@@ -94,8 +124,7 @@ export class ZoomPanContainerComponent {
       this.zoomLevel(),
     );
 
-    this.panX.set(clamped.x);
-    this.panY.set(clamped.y);
+    this.setViewport(this.zoomLevel(), clamped.x, clamped.y);
   }
 
   onMouseUp(): void {
@@ -148,8 +177,7 @@ export class ZoomPanContainerComponent {
       this.dragStartPanY + event.clientY - this.dragStartY,
       this.zoomLevel(),
     );
-    this.panX.set(clamped.x);
-    this.panY.set(clamped.y);
+    this.setViewport(this.zoomLevel(), clamped.x, clamped.y);
   }
 
   onPointerUp(event: PointerEvent): void {
@@ -216,9 +244,27 @@ export class ZoomPanContainerComponent {
       nextZoom,
     );
 
-    this.zoomLevel.set(nextZoom);
-    this.panX.set(clamped.x);
-    this.panY.set(clamped.y);
+    this.setViewport(nextZoom, clamped.x, clamped.y);
+  }
+
+  private setViewport(zoomLevel: number, panX: number, panY: number): void {
+    const next: ZoomPanViewport = {
+      zoomLevel: this.clampZoom(zoomLevel),
+      panX,
+      panY,
+    };
+
+    this.internalZoomLevel.set(next.zoomLevel);
+    this.internalPanX.set(next.panX);
+    this.internalPanY.set(next.panY);
+
+    if (!this.applyingExternalViewport) {
+      this.viewportChange.emit(next);
+    }
+  }
+
+  private clampZoom(zoomLevel: number): number {
+    return Math.min(this.maxZoom, Math.max(this.minZoom, zoomLevel));
   }
 
   private getMidpoint(left: { x: number; y: number }, right: { x: number; y: number }): { x: number; y: number } {

@@ -1,16 +1,16 @@
-<div class="relative w-full">
+<div class="relative w-full min-w-0">
   @if (label()) {
-    <label class="mb-1.5 ml-1 block text-[0.85rem] font-medium text-text-muted">{{ label() }}</label>
+    <div class="mb-1.5 ml-1 text-[0.85rem] font-medium text-text-muted">{{ label() }}</div>
   }
 
   <button
     type="button"
     (click)="toggle()"
-    class="group flex w-full items-center justify-between rounded-xl border border-glass-border bg-glass-bg px-4 py-2.5 text-left transition-all hover:bg-glass-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+    class="group flex w-full min-w-0 items-center justify-between rounded-xl border border-glass-border bg-glass-bg px-4 py-2.5 text-left transition-all hover:bg-glass-bg-hover disabled:cursor-not-allowed disabled:opacity-60"
     [disabled]="isDisabled()"
     [class.border-accent-primary]="isOpen()"
     [class.shadow-[0_0_15px_rgba(56,189,248,0.1)]]="isOpen()">
-    <span class="truncate text-[0.9rem] font-medium text-text-primary">
+    <span class="min-w-0 truncate text-[0.9rem] font-medium text-text-primary">
       {{ selectedOption()?.label || placeholder() }}
     </span>
 
@@ -24,7 +24,7 @@
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"
-      class="text-text-muted transition-transform duration-200 group-hover:text-text-secondary"
+      class="shrink-0 text-text-muted transition-transform duration-200 group-hover:text-text-secondary"
       [class.rotate-180]="isOpen()">
       <polyline points="6 9 12 15 18 9"></polyline>
     </svg>
@@ -34,8 +34,18 @@
     <ul class="box-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-[1000] m-0 max-h-[300px] list-none overflow-y-auto rounded-xl border border-white/10 bg-bg-secondary p-2 shadow-glass">
       @for (option of options(); track $index) {
         <li
+          tabindex="0"
+          role="option"
+          [attr.aria-selected]="option.value === selectedOption()?.value"
+          [attr.aria-disabled]="option.disabled === true"
           (click)="select(option)"
-          class="mb-0.5 cursor-pointer rounded-lg px-4 py-2.5 text-[0.85rem] font-medium text-text-secondary last:mb-0 hover:bg-accent-primary/15 hover:text-white"
+          (keydown)="onOptionKeydown($event, option)"
+          class="mb-0.5 truncate rounded-lg px-4 py-2.5 text-[0.85rem] font-medium text-text-secondary last:mb-0"
+          [class.cursor-pointer]="!option.disabled"
+          [class.cursor-not-allowed]="option.disabled"
+          [class.opacity-40]="option.disabled"
+          [class.hover:bg-accent-primary\/15]="!option.disabled"
+          [class.hover:text-white]="!option.disabled"
           [class.bg-accent-primary/10]="option.value === selectedOption()?.value"
           [class.text-accent-primary]="option.value === selectedOption()?.value">
           {{ option.label }}

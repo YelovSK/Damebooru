@@ -17,6 +17,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 export interface FormDropdownOption<T = unknown> {
   label: string;
   value: T;
+  disabled?: boolean;
 }
 
 @Component({
@@ -54,8 +55,8 @@ export class FormDropdownComponent<T = unknown> implements ControlValueAccessor 
   );
   readonly isDisabled = computed(() => this.disabled() || this.cvaDisabled());
 
-  private onChange: (value: T | null) => void = () => {};
-  private onTouched: () => void = () => {};
+  private onChange: (value: T | null) => void = () => undefined;
+  private onTouched: () => void = () => undefined;
 
   constructor() {
     effect(() => {
@@ -75,13 +76,22 @@ export class FormDropdownComponent<T = unknown> implements ControlValueAccessor 
   }
 
   select(option: FormDropdownOption<T>): void {
-    if (this.isDisabled()) {
+    if (this.isDisabled() || option.disabled) {
       return;
     }
 
     this.setValue(option.value, true);
     this.isOpen.set(false);
     this.markTouched();
+  }
+
+  onOptionKeydown(event: KeyboardEvent, option: FormDropdownOption<T>): void {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    this.select(option);
   }
 
   @HostListener('document:pointerdown', ['$event'])

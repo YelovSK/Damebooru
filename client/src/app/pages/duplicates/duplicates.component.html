@@ -158,6 +158,9 @@
                             }
                         </div>
                         <div class="flex items-center gap-2">
+                            <app-button (click)="openCompareGroup(group)" variant="secondary" size="sm">
+                                Compare
+                            </app-button>
                             <app-button (click)="onAutoResolveGroup(group)" variant="primary" size="sm">
                                 Auto Resolve
                             </app-button>
@@ -534,5 +537,13 @@
 
     @if (previewPost(); as preview) {
     <app-post-preview-overlay [post]="preview" (closed)="closePreview()" />
+    }
+
+    @if (compareGroup(); as group) {
+    <app-duplicate-compare-overlay
+        [group]="group"
+        (closed)="closeCompareGroup()"
+        (excludePost)="onCompareExcludePost(group, $event)"
+        (deletePost)="onCompareDeletePost(group, $event)" />
     }
 </div>
