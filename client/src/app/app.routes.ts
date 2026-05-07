@@ -29,7 +29,7 @@ export const routes: Routes = [
             { path: `${AppPaths.tags}/:tab`, loadComponent: () => import('./pages/tags/tag-management-page.component').then(m => m.TagManagementPageComponent), data: { pageWidth: 'wide' } },
             { path: AppPaths.tagCategories, redirectTo: `${AppPaths.tags}/categories`, pathMatch: 'full' },
             { path: AppPaths.help, loadComponent: () => import('./pages/help/help.component').then(m => m.HelpComponent), data: { pageWidth: 'content' } },
-            { path: AppPaths.info, loadComponent: () => import('@pages/info/info.component').then(m => m.InfoComponent), data: { pageWidth: 'content' } },
+            { path: AppPaths.stats, loadComponent: () => import('./pages/stats/stats.component').then(m => m.StatsComponent), data: { pageWidth: 'wide' } },
             { path: AppPaths.settings.root, component: SettingsComponent, data: { pageWidth: 'content' } },
             { path: `${AppPaths.settings.root}/:tab`, component: SettingsComponent, data: { pageWidth: 'content' } },
         ]

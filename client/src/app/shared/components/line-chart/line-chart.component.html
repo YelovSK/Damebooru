@@ -1,0 +1,132 @@
+<figure class="rounded-xl border border-white/10 bg-surface-card/35 p-4">
+  @if (title() || description()) {
+    <figcaption class="mb-4 flex flex-col gap-1">
+      @if (title()) {
+        <h3 class="text-sm font-semibold text-text-primary">{{ title() }}</h3>
+      }
+      @if (description()) {
+        <p class="text-xs text-text-muted">{{ description() }}</p>
+      }
+    </figcaption>
+  }
+
+  <div #chartSurface class="relative overflow-hidden rounded-lg">
+    @if (hasData()) {
+      <svg
+        class="block h-auto w-full overflow-visible text-accent-primary"
+        [attr.viewBox]="viewBox()"
+        [attr.height]="height()"
+        role="img"
+        [attr.aria-label]="title() || 'Line chart'"
+        preserveAspectRatio="xMidYMid meet"
+        (pointermove)="onPointerMove($event)"
+        (pointerleave)="onPointerLeave()">
+        <defs>
+          <linearGradient [attr.id]="gradientId" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="currentColor" stop-opacity="0.28" />
+            <stop offset="100%" stop-color="currentColor" stop-opacity="0.02" />
+          </linearGradient>
+          <filter [attr.id]="glowId" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        <g class="text-text-muted">
+          @for (tick of yTicks(); track tick.index) {
+            <line
+              [attr.x1]="padding.left"
+              [attr.x2]="width() - padding.right"
+              [attr.y1]="tick.y"
+              [attr.y2]="tick.y"
+              stroke="currentColor"
+              stroke-opacity="0.13"
+              stroke-width="1" />
+            <text
+              [attr.x]="padding.left - 10"
+              [attr.y]="tick.y + 4"
+              text-anchor="end"
+              class="fill-current text-[11px]">
+              {{ tick.label }}
+            </text>
+          }
+        </g>
+
+        @if (showArea()) {
+          <path [attr.d]="areaPath()" [attr.fill]="'url(#' + gradientId + ')'" />
+        }
+
+        <path
+          [attr.d]="linePath()"
+          fill="none"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="3"
+          [attr.filter]="'url(#' + glowId + ')'" />
+
+        @if (activePoint(); as active) {
+          <line
+            [attr.x1]="active.x"
+            [attr.x2]="active.x"
+            [attr.y1]="padding.top"
+            [attr.y2]="baselineY()"
+            stroke="currentColor"
+            stroke-opacity="0.45"
+            stroke-width="1.5"
+            stroke-dasharray="4 5" />
+        }
+
+        @for (point of chartPoints(); track point.label + ':' + $index) {
+          <circle
+            [attr.cx]="point.x"
+            [attr.cy]="point.y"
+            r="3.5"
+            class="fill-surface-card stroke-accent-primary"
+            stroke-width="2" />
+        }
+
+        @if (activePoint(); as active) {
+          <circle
+            [attr.cx]="active.x"
+            [attr.cy]="active.y"
+            r="6"
+            class="fill-bg-primary stroke-accent-primary"
+            stroke-width="3" />
+        }
+
+        <g class="text-text-muted">
+          @for (label of xLabels(); track label.index) {
+            <text
+              [attr.x]="label.x"
+              [attr.y]="height() - 8"
+              text-anchor="middle"
+              class="fill-current text-[11px]">
+              {{ label.label }}
+            </text>
+          }
+        </g>
+      </svg>
+
+      @if (activePoint(); as active) {
+        <div
+          class="pointer-events-none absolute z-10 rounded-lg border border-accent-primary/30 bg-bg-primary/95 px-3 py-2 text-xs shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur"
+          [style.transform]="active.tooltipTransform"
+          [style.left.%]="active.tooltipXPercent"
+          [style.top.%]="active.tooltipYPercent">
+          <p class="font-semibold text-text-primary">{{ active.formattedValue }}</p>
+          <p class="mt-0.5 whitespace-nowrap text-text-muted">{{ active.label }}</p>
+        </div>
+      }
+    } @else {
+      <div
+        class="flex items-center justify-center rounded-lg border border-dashed border-white/10 text-sm text-text-muted"
+        [style.height.px]="height()">
+        {{ emptyLabel() }}
+      </div>
+    }
+  </div>
+</figure>

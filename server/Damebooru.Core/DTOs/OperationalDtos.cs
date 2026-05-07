@@ -192,15 +192,6 @@ public class DuplicateHashLookupRequestDto
     public string ContentHash { get; set; } = string.Empty;
 }
 
-public class SystemInfoDto
-{
-    public int PostCount { get; set; }
-    public long TotalSizeBytes { get; set; }
-    public int TagCount { get; set; }
-    public int LibraryCount { get; set; }
-    public DateTime ServerTime { get; set; }
-}
-
 public class LoginRequestDto
 {
     [Required]

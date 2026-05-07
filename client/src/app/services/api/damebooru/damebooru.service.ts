@@ -17,7 +17,6 @@ import {
   DamebooruPostDto,
   DamebooruPostListDto,
   DamebooruTagDto,
-  DamebooruSystemInfoDto,
   UpdatePostMetadata,
   ManagedTag,
   TagCategoryKind,
@@ -41,6 +40,12 @@ import {
   AutoTagPostResult,
   AutoTagDiscoverySettings,
   PostAutoTagStatus,
+  StatsGrowthDateKind,
+  StatsGrowthDto,
+  StatsMaintenanceDto,
+  StatsOverviewDto,
+  StatsStorageDto,
+  StatsTagsDto,
 } from "./models";
 
 @Injectable({
@@ -350,9 +355,25 @@ export class DamebooruService {
     return this.joinMediaUrl(`${this.baseUrl}/posts/${postId}/content`);
   }
 
-  // --- System ---
-  getGlobalInfo(): Observable<DamebooruSystemInfoDto> {
-    return this.http.get<DamebooruSystemInfoDto>(`${this.baseUrl}/system/info`);
+  getStatsOverview(): Observable<StatsOverviewDto> {
+    return this.http.get<StatsOverviewDto>(`${this.baseUrl}/stats/overview`);
+  }
+
+  getStatsGrowth(dateKind: StatsGrowthDateKind = 'Imported'): Observable<StatsGrowthDto> {
+    const params = new HttpParams().set('dateKind', dateKind);
+    return this.http.get<StatsGrowthDto>(`${this.baseUrl}/stats/growth`, { params });
+  }
+
+  getStatsStorage(): Observable<StatsStorageDto> {
+    return this.http.get<StatsStorageDto>(`${this.baseUrl}/stats/storage`);
+  }
+
+  getStatsTags(): Observable<StatsTagsDto> {
+    return this.http.get<StatsTagsDto>(`${this.baseUrl}/stats/tags`);
+  }
+
+  getStatsMaintenance(): Observable<StatsMaintenanceDto> {
+    return this.http.get<StatsMaintenanceDto>(`${this.baseUrl}/stats/maintenance`);
   }
 
   getAutoTagDiscoverySettings(): Observable<AutoTagDiscoverySettings> {

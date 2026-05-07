@@ -171,12 +171,99 @@ export interface DamebooruPostsAroundDto {
   next: DamebooruPostDto | null;
 }
 
-export interface DamebooruSystemInfoDto {
+export interface StatsOverviewDto {
   postCount: number;
+  fileCount: number;
   totalSizeBytes: number;
   tagCount: number;
-  libraryCount: number;
+  favoritePostCount: number;
+  untaggedPostCount: number;
+  sourceCount: number;
+  duplicateGroupCount: number;
+  unresolvedDuplicateGroupCount: number;
+  missingMetadataFileCount: number;
+  missingPerceptualHashFileCount: number;
   serverTime: string;
+}
+
+export interface StatsGrowthDto {
+  cumulativePosts: StatsSeriesPointDto[];
+  cumulativeSizeBytes: StatsSeriesPointDto[];
+}
+
+export type StatsGrowthDateKind = 'Imported' | 'FileModified';
+
+export interface StatsStorageDto {
+  fileCount: number;
+  totalSizeBytes: number;
+  averageFileSizeBytes: number;
+  imageFileCount: number;
+  videoFileCount: number;
+  contentTypes: StatsStorageBreakdownDto[];
+  sizeBuckets: StatsStorageBreakdownDto[];
+}
+
+export interface StatsStorageBreakdownDto {
+  label: string;
+  fileCount: number;
+  sizeBytes: number;
+}
+
+export interface StatsTagsDto {
+  totalTags: number;
+  taggedPostCount: number;
+  untaggedPostCount: number;
+  averageTagsPerPost: number;
+  categories: StatsTagCategoryDto[];
+  densityBuckets: StatsTagDensityBucketDto[];
+}
+
+export interface StatsTagCategoryDto {
+  category: TagCategoryKind;
+  tagCount: number;
+  postCount: number;
+}
+
+export interface StatsTagDensityBucketDto {
+  label: string;
+  postCount: number;
+}
+
+export interface StatsMaintenanceDto {
+  missingMetadataFileCount: number;
+  missingPerceptualHashFileCount: number;
+  unknownContentTypeFileCount: number;
+  untaggedPostCount: number;
+  sourcelessPostCount: number;
+  duplicates: StatsDuplicateHealthDto;
+  failedJobsLast7Days: number;
+  recentFailedJobs: StatsRecentFailedJobDto[];
+}
+
+export interface StatsDuplicateHealthDto {
+  totalGroups: number;
+  unresolvedGroups: number;
+  exactResolvedGroups: number;
+  exactUnresolvedGroups: number;
+  perceptualResolvedGroups: number;
+  perceptualUnresolvedGroups: number;
+  unresolvedPostCount: number;
+}
+
+export interface StatsRecentFailedJobDto {
+  id: number;
+  jobKey: JobKey;
+  jobName: string;
+  status: JobStatus;
+  startTime: string;
+  endTime?: string;
+  errorMessage?: string;
+}
+
+export interface StatsSeriesPointDto {
+  periodStart: string;
+  label: string;
+  value: number;
 }
 
 export enum JobStatus {

@@ -1,4 +1,4 @@
-<div class="flex gap-1 p-1 bg-black/20 rounded-lg mb-3 shrink-0" role="tablist">
+<div class="flex gap-1 p-1 bg-black/20 rounded-lg mb-3 shrink-0 overflow-auto" role="tablist">
   @for (tab of tabs(); track tab.id()) {
     @if (!tab.hidden()) {
       <button

@@ -6,7 +6,7 @@ export const AppPaths = {
     tags: 'tags',
     help: 'help',
     tagCategories: 'tag-categories',
-    info: 'info',
+    stats: 'stats',
     settings: {
         root: 'settings'
     },
@@ -25,7 +25,7 @@ export const AppLinks = {
     tags: () => ['/', AppPaths.tags],
     help: () => ['/', AppPaths.help],
     tagCategories: () => ['/', AppPaths.tags, 'categories'],
-    info: () => ['/', AppPaths.info],
+    stats: () => ['/', AppPaths.stats],
     settings: () => ['/', AppPaths.settings.root],
     jobs: () => ['/', AppPaths.jobs],
     logs: () => ['/', AppPaths.logs],

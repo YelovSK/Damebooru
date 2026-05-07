@@ -35,7 +35,7 @@ export class MainLayoutComponent {
     { route: AppLinks.logs(), icon: 'icon-settings', label: 'Logs' },
     { route: AppLinks.duplicates(), icon: 'icon-settings', label: 'Duplicates' },
     { route: AppLinks.settings(), icon: 'icon-settings', label: 'Settings' },
-    { route: AppLinks.info(), icon: 'icon-info', label: 'Info' },
+    { route: AppLinks.stats(), icon: 'icon-info', label: 'Stats' },
     { route: AppLinks.help(), icon: 'icon-info', label: 'Help' },
   ];
 

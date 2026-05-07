@@ -146,7 +146,7 @@ builder.Services.AddScoped<DuplicateWriteService>();
 builder.Services.AddScoped<DuplicateReadService>();
 builder.Services.AddScoped<DuplicateLookupService>();
 builder.Services.AddScoped<JobScheduleService>();
-builder.Services.AddScoped<SystemReadService>();
+builder.Services.AddScoped<StatsReadService>();
 
 if (damebooruConfig.Logging.Db.Enabled)
 {
