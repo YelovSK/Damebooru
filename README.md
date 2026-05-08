@@ -61,6 +61,8 @@ pnpm start
 ### Database Migrations
 Migrations are auto-applied when `Damebooru.Server` starts.
 
+Before applying pending migrations, the server creates a SQLite online backup in a `backups/` folder next to the configured database file, then runs `PRAGMA integrity_check` against the backup. In the Docker example this resolves to `./data/server/backups/`.
+
 ## Deploy with Docker
 
 ### Option A: Use Published Images from GHCR

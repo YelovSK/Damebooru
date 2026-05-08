@@ -37,6 +37,8 @@ Examples:
 | `Damebooru:Storage:ThumbnailPath` | `Damebooru__Storage__ThumbnailPath` | `data/thumbnails` | Thumbnail storage root |
 | `Damebooru:Storage:TempPath` | `Damebooru__Storage__TempPath` | `data/temp` | Temporary processing files |
 
+When startup detects pending EF Core migrations, Damebooru creates a pre-migration SQLite backup under a `backups/` directory next to the configured database file. For the default Docker mount, that means `./data/server/backups/` on the host.
+
 ### Scanner
 
 | Path | Env var | Default | Notes |

@@ -7,12 +7,11 @@ using Damebooru.Processing.Logging;
 using Damebooru.Processing.Services;
 using Damebooru.Processing.Services.AutoTagging;
 using Damebooru.Processing.Services.Duplicates;
-using Microsoft.Extensions.Logging;
+using Damebooru.Server.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 
@@ -172,8 +171,7 @@ using (var scope = app.Services.CreateScope())
         var sqliteDbPath = db.Database.GetDbConnection().DataSource;
         if (!string.IsNullOrWhiteSpace(sqliteDbPath) && File.Exists(sqliteDbPath))
         {
-            var backupPath = sqliteDbPath + ".bak-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
-            File.Copy(sqliteDbPath, backupPath, overwrite: false);
+            var backupPath = SqliteDatabaseBackup.CreatePreMigrationBackup(db, sqliteDbPath);
             app.Logger.LogInformation("Backed up SQLite database before applying migrations: {BackupPath}", backupPath);
         }
 
