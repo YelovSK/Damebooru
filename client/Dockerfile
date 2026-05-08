@@ -5,9 +5,10 @@ ENV PATH="$PNPM_HOME:$PATH"
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm fetch --frozen-lockfile
 COPY . .
-RUN pnpm run build -- --configuration production
+RUN pnpm install --offline --frozen-lockfile
+RUN pnpm run build --configuration production
 
 # Runner
 FROM nginx:alpine
