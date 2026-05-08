@@ -149,7 +149,7 @@ public sealed class AutoTagScanService
     {
         foreach (var provider in enabledDiscoveryProviders)
         {
-            if (scan.Candidates.Count > 0)
+            if (HasDiscoveryStoppingCandidate(scan))
             {
                 MarkRemainingDiscoveryStepsSkipped(scan, provider, enabledDiscoveryProviders);
                 return null;
@@ -177,7 +177,7 @@ public sealed class AutoTagScanService
                 step.NextRetryAtUtc = null;
                 step.LastError = null;
 
-                if (scan.Candidates.Count > 0)
+                if (AutoTagDiscoveryPlan.StopsDiscoveryAfterMatch(provider) && scan.Candidates.Count > 0)
                 {
                     MarkRemainingDiscoveryStepsSkipped(scan, provider, enabledDiscoveryProviders);
                     return null;
@@ -192,6 +192,9 @@ public sealed class AutoTagScanService
 
         return null;
     }
+
+    private static bool HasDiscoveryStoppingCandidate(PostAutoTagScan scan)
+        => scan.Candidates.Any(candidate => AutoTagDiscoveryPlan.StopsDiscoveryAfterMatch(candidate.DiscoveryProvider));
 
     private async Task RunMetadataStepAsync(PostAutoTagScan scan, AutoTagProvider provider, CancellationToken cancellationToken)
     {

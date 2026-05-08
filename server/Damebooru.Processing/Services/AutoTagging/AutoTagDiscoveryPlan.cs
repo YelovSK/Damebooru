@@ -17,4 +17,7 @@ internal static class AutoTagDiscoveryPlan
         AutoTagProvider.Danbooru,
         AutoTagProvider.Gelbooru,
     ];
+
+    public static bool StopsDiscoveryAfterMatch(AutoTagProvider provider)
+        => provider is AutoTagProvider.SauceNao or AutoTagProvider.Iqdb;
 }
