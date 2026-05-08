@@ -1,9 +1,10 @@
 <div class="relative w-full">
   @if (label()) {
-    <label class="mb-1.5 ml-1 block text-[0.85rem] font-medium text-text-muted">{{ label() }}</label>
+    <label [for]="inputId" class="mb-1.5 ml-1 block text-[0.85rem] font-medium text-text-muted">{{ label() }}</label>
   }
 
   <input
+    [id]="inputId"
     type="text"
     [value]="query()"
     (input)="onInput($event)"

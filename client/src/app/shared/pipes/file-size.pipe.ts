@@ -6,7 +6,7 @@ import { formatBytes } from '@shared/utils/utils';
     standalone: true,
 })
 export class FileSizePipe implements PipeTransform {
-    transform(value: number | null | undefined, decimals: number = 1): string {
+    transform(value: number | null | undefined, decimals = 1): string {
         return formatBytes(value ?? 0, decimals);
     }
 }

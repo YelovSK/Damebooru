@@ -9,6 +9,7 @@ import { debounceTime, distinctUntilChanged, skip } from 'rxjs';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SearchInputComponent {
+  private static nextId = 0;
   private readonly destroyRef = inject(DestroyRef);
 
   label = input('');
@@ -16,8 +17,9 @@ export class SearchInputComponent {
   debounceMs = input(250);
   value = input('');
 
-  search = output<string>();
+  searchChange = output<string>();
 
+  readonly inputId = `app-search-input-${SearchInputComponent.nextId++}`;
   query = signal('');
 
   constructor() {
@@ -33,7 +35,7 @@ export class SearchInputComponent {
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(v => this.search.emit(v.trim()));
+      .subscribe(v => this.searchChange.emit(v.trim()));
   }
 
   onInput(event: Event): void {
@@ -42,6 +44,6 @@ export class SearchInputComponent {
 
   clear(): void {
     this.query.set('');
-    this.search.emit('');
+    this.searchChange.emit('');
   }
 }

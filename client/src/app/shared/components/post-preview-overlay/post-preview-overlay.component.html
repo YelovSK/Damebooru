@@ -1,6 +1,8 @@
 <div class="hover-preview-overlay pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
     <div class="hover-preview-card pointer-events-auto relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/95 shadow-[0_32px_64px_rgba(0,0,0,0.6)]"
-        data-preview-card (mouseleave)="onCardLeave()" (click)="onClick()" (wheel)="onCardLeave()">
+        data-preview-card role="button" tabindex="0" [attr.aria-label]="'Dismiss preview for post ' + post().id"
+        (mouseleave)="onCardLeave()" (click)="onClick()" (keydown.enter)="onClick()" (keydown.space)="onKeydownSpace($event)"
+        (wheel)="onCardLeave()">
 
         @switch (getMediaType(post().contentType)) {
         @case ('video') {

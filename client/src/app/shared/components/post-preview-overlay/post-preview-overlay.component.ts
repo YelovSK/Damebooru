@@ -68,6 +68,11 @@ export class PostPreviewOverlayComponent {
     this.closed.emit();
   }
 
+  onKeydownSpace(event: Event): void {
+    event.preventDefault();
+    this.closed.emit();
+  }
+
   private clampedSizePercent(): number {
     return Math.min(100, Math.max(10, this.size()));
   }

@@ -204,7 +204,7 @@ class ImageSrcScheduler {
 }
 
 @Directive({
-  selector: "img[scheduledSrc]",
+  selector: "img[appScheduledSrc]",
   standalone: true,
 })
 export class ScheduledSrcDirective implements OnDestroy {
@@ -216,7 +216,7 @@ export class ScheduledSrcDirective implements OnDestroy {
   private intersectionObserver?: IntersectionObserver;
   private isNear = false;
 
-  scheduledSrc = input<string | null | undefined>(null);
+  appScheduledSrc = input<string | null | undefined>(null);
 
   constructor() {
     this.setupIntersectionObserver();
@@ -237,7 +237,7 @@ export class ScheduledSrcDirective implements OnDestroy {
   }
 
   private applyScheduledSrc(): void {
-    const url = this.scheduledSrc()?.trim();
+    const url = this.appScheduledSrc()?.trim();
     const element = this.elementRef.nativeElement;
 
     if (!url) {

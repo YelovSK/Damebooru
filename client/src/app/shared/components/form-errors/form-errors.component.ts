@@ -5,10 +5,10 @@ import { toObservable } from '@angular/core/rxjs-interop';
 import { EMPTY, merge, of } from 'rxjs';
 import { map, shareReplay, startWith, switchMap } from 'rxjs/operators';
 
-type FormErrorsVm = {
+interface FormErrorsVm {
   show: boolean;
-  errors: Array<{ key: string; value: unknown }>;
-};
+  errors: { key: string; value: unknown }[];
+}
 
 @Component({
   selector: 'app-form-errors',

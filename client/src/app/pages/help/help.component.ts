@@ -1,22 +1,22 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
-type ShortcutItem = {
+interface ShortcutItem {
   key: string;
   context: string;
   action: string;
-};
+}
 
-type SearchSyntaxItem = {
+interface SearchSyntaxItem {
   syntax: string;
   description: string;
   example: string;
-};
+}
 
-type SortFieldItem = {
+interface SortFieldItem {
   field: string;
   aliases?: string[];
-};
+}
 
 @Component({
   selector: 'app-help',

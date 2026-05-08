@@ -4,12 +4,12 @@ import { CommonModule } from '@angular/common';
 import { PostTagSource } from '@models';
 import { TooltipDirective } from '@shared/directives/tooltip.directive';
 
-type SourceBadgeViewModel = {
+interface SourceBadgeViewModel {
   source: PostTagSource;
   label: string;
   icon: string;
   className: string;
-};
+}
 
 const SOURCE_BADGES: Record<PostTagSource, Omit<SourceBadgeViewModel, 'source'>> = {
   [PostTagSource.Manual]: { label: 'Manual', icon: 'M', className: 'border-emerald-500/35 bg-emerald-500/12 text-emerald-200' },

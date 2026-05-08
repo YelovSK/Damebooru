@@ -18,11 +18,13 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr *ngFor="let item of shortcuts" class="border-b border-white/5">
+                    @for (item of shortcuts; track item.key + item.context + item.action) {
+                    <tr class="border-b border-white/5">
                         <td class="py-2 pr-4"><code>{{ item.key }}</code></td>
                         <td class="py-2 pr-4">{{ item.context }}</td>
                         <td class="py-2">{{ item.action }}</td>
                     </tr>
+                    }
                 </tbody>
             </table>
         </div>
@@ -43,11 +45,13 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr *ngFor="let item of searchSyntax" class="border-b border-white/5 align-top">
+                    @for (item of searchSyntax; track item.syntax) {
+                    <tr class="border-b border-white/5 align-top">
                         <td class="py-2 pr-4"><code>{{ item.syntax }}</code></td>
                         <td class="py-2 pr-4">{{ item.description }}</td>
                         <td class="py-2"><code>{{ item.example }}</code></td>
                     </tr>
+                    }
                 </tbody>
             </table>
         </div>
@@ -55,10 +59,14 @@
         <div class="mt-5 rounded-xl border border-glass-border bg-glass-bg p-4">
             <h3 class="text-base font-semibold text-text-secondary mb-2">Available sort fields</h3>
             <ul class="list-disc pl-5 space-y-1 text-sm text-text-dim">
-                <li *ngFor="let item of sortFields">
+                @for (item of sortFields; track item.field) {
+                <li>
                     <code>{{ item.field }}</code>
-                    <span *ngIf="item.aliases?.length"> (aliases: <code>{{ item.aliases!.join(', ') }}</code>)</span>
+                    @if (item.aliases?.length) {
+                    <span> (aliases: <code>{{ item.aliases?.join(', ') }}</code>)</span>
+                    }
                 </li>
+                }
             </ul>
         </div>
     </section>

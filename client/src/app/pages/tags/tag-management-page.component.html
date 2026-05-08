@@ -5,7 +5,7 @@
   <section class="glass-card p-4">
     <div class="mb-4 flex flex-wrap items-center gap-3">
       <div class="min-w-[280px] grow">
-        <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (search)="onTagsSearch($event)">
+        <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (searchChange)="onTagsSearch($event)">
         </app-search-input>
       </div>
       <button appButton type="button" (click)="openCreateTagModal()">New Tag</button>

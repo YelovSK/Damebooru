@@ -8,7 +8,7 @@ const DEFAULT_DATE_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
   standalone: true
 })
 export class DateTimePipe implements PipeTransform {
-  transform(value?: string | null, format: string = DEFAULT_DATE_TIME_FORMAT, fallback: string = '-'): string {
+  transform(value?: string | null, format: string = DEFAULT_DATE_TIME_FORMAT, fallback = '-'): string {
     if (!value) return fallback;
 
     const parsed = dayjs(value);

@@ -15,7 +15,7 @@
       [value]="categoryQuery()"
       [debounceMs]="300"
       placeholder="Category contains..."
-      (search)="onCategorySearch($event)">
+      (searchChange)="onCategorySearch($event)">
     </app-search-input>
 
     <app-search-input
@@ -23,7 +23,7 @@
       [value]="textQuery()"
       [debounceMs]="300"
       placeholder="Message/exception contains..."
-      (search)="onTextSearch($event)">
+      (searchChange)="onTextSearch($event)">
     </app-search-input>
   </div>
 

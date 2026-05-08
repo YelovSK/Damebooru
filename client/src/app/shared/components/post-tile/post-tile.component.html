@@ -1,6 +1,6 @@
 <a class="post-tile group relative block aspect-square overflow-hidden rounded-xl border border-slate-400/12 bg-bg-secondary transition-[transform,box-shadow,border-color] duration-200 hover:z-[2] hover:-translate-y-[1px] hover:scale-[1.012] hover:border-sky-400/50 hover:shadow-[0_10px_22px_rgba(15,23,42,0.36)]"
   [routerLink]="['/', appPaths.post, postId()]" [queryParams]="queryParams()" [attr.data-post-id]="postId()">
-  <img [scheduledSrc]="thumbnailUrl()" [alt]="'Post ' + postId()" class="block h-full w-full object-cover"
+  <img [appScheduledSrc]="thumbnailUrl()" [alt]="'Post ' + postId()" class="block h-full w-full object-cover"
     decoding="async" loading="lazy" fetchpriority="low" />
 
   @if (isFavorite()) {
