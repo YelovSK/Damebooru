@@ -16,6 +16,16 @@ module.exports = defineConfig([
     processor: angular.processInlineTemplates,
     rules: {
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/consistent-type-imports": [
+        "warn",
+        {
+          prefer: "type-imports",
+          fixStyle: "inline-type-imports",
+        },
+      ],
+      "@angular-eslint/prefer-on-push-component-change-detection": "error",
+      "@angular-eslint/no-duplicates-in-metadata-arrays": "error",
+      "@angular-eslint/sort-lifecycle-methods": "warn",
       "@angular-eslint/directive-selector": [
         "error",
         {

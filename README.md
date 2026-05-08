@@ -16,7 +16,7 @@ At the moment, the project is half-baked, and will very likely stay like that.
 
 ## Prerequisites (Local Development)
 - .NET 10 SDK
-- Node.js 22+ and npm
+- Node.js 22+ with Corepack enabled for pnpm
 - FFmpeg + FFprobe on `PATH` (required for video thumbnails/metadata)
 
 ## Features
@@ -53,8 +53,9 @@ Frontend:
 
 ```bash
 cd client
-npm install
-npm start
+corepack enable
+pnpm install
+pnpm start
 ```
 
 ### Database Migrations

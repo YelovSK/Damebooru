@@ -1,6 +1,7 @@
 {
   "name": "damebooru-angular",
   "version": "0.1.0",
+  "packageManager": "pnpm@11.0.8",
   "scripts": {
     "ng": "ng",
     "start": "ng serve --proxy-config proxy.conf.json",
