@@ -9,7 +9,7 @@ import {
   computed,
   viewChild,
   untracked,
-  ElementRef,
+  type ElementRef,
 } from "@angular/core";
 import { CommonModule, DOCUMENT } from "@angular/common";
 import { RouterLink, Router } from "@angular/router";
@@ -34,19 +34,19 @@ import { ToastService } from "@services/toast.service";
 import { TagPipe } from "@shared/pipes/escape-tag.pipe";
 import { escapeTagName, getMediaType } from "@shared/utils/utils";
 import {
-  DamebooruPostDto,
-  DamebooruPostsAroundDto,
-  DamebooruTagDto,
+  type DamebooruPostDto,
+  type DamebooruPostsAroundDto,
+  type DamebooruTagDto,
   DuplicateType,
-  SimilarPost,
-  PostAuditEntry,
+  type SimilarPost,
+  type PostAuditEntry,
   TagCategoryKind,
   AutoTagProvider,
   AutoTagScanStatus,
   AutoTagScanStepStatus,
-  PostAutoTagCandidate,
-  PostAutoTagProviderStatus,
-  PostAutoTagStatus,
+  type PostAutoTagCandidate,
+  type PostAutoTagProviderStatus,
+  type PostAutoTagStatus,
 } from "@models";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
 import { ProgressiveImageComponent } from "@shared/components/progressive-image/progressive-image.component";
@@ -57,7 +57,7 @@ import { TabsComponent } from "@shared/components/tabs/tabs.component";
 import { ButtonDirective, TooltipDirective } from "@shared/directives";
 import { HotkeysService } from "@services/hotkeys.service";
 import { AppLinks } from "@app/app.paths";
-import { PostEditService, PostEditTag } from "./post-edit.service";
+import { PostEditService, type PostEditTag } from "./post-edit.service";
 import { FileSizePipe } from "@shared/pipes/file-size.pipe";
 import { FileNamePipe } from "@shared/pipes/file-name.pipe";
 

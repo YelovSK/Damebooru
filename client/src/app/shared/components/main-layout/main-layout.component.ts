@@ -6,7 +6,7 @@ import { filter } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ToastsComponent } from '@shared/components/toasts/toasts.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
-import { NavbarComponent, NavbarLink } from '@shared/components/navbar/navbar.component';
+import { NavbarComponent, type NavbarLink } from '@shared/components/navbar/navbar.component';
 import { AppLinks } from '@app/app.paths';
 
 type PageWidth = 'full' | 'wide' | 'content';

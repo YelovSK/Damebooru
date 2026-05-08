@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, type ElementRef, computed, effect, input, output, signal, viewChild } from '@angular/core';
 
 export interface ZoomPanViewport {
   zoomLevel: number;

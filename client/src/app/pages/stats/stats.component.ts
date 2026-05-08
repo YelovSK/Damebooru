@@ -3,12 +3,12 @@ import { switchMap } from 'rxjs';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 
 import { DamebooruService } from '@app/services/api/damebooru/damebooru.service';
-import { StatsGrowthDateKind, StatsSeriesPointDto, StatsStorageBreakdownDto, StatsTagCategoryDto, StatsTagDensityBucketDto, TagCategoryKind } from '@app/services/api/damebooru/models';
+import { type StatsGrowthDateKind, type StatsSeriesPointDto, type StatsStorageBreakdownDto, type StatsTagCategoryDto, type StatsTagDensityBucketDto, TagCategoryKind } from '@app/services/api/damebooru/models';
 import { CommonModule, DecimalPipe, DatePipe } from '@angular/common';
 import { FileSizePipe } from '@app/shared/pipes/file-size.pipe';
 import { TabComponent } from '@app/shared/components/tabs/tab.component';
 import { TabsComponent } from '@app/shared/components/tabs/tabs.component';
-import { LineChartComponent, LineChartPoint } from '@app/shared/components/line-chart/line-chart.component';
+import { LineChartComponent, type LineChartPoint } from '@app/shared/components/line-chart/line-chart.component';
 import { formatBytes } from '@app/shared/utils/utils';
 import { ButtonDirective } from '@app/shared/directives/button.directive';
 

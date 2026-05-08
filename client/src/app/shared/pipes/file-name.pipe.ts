@@ -1,4 +1,4 @@
-import { Pipe, PipeTransform } from '@angular/core';
+import { Pipe, type PipeTransform } from '@angular/core';
 import { getFileNameFromPath } from '@shared/utils/utils';
 
 @Pipe({

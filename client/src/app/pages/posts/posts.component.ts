@@ -1,9 +1,9 @@
 import {
-  AfterViewInit,
+  type AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ElementRef,
+  type ElementRef,
   HostListener,
   ViewChild,
   computed,
@@ -16,7 +16,7 @@ import {
 import { CommonModule } from "@angular/common";
 import { Router } from "@angular/router";
 import {
-  CdkVirtualScrollViewport,
+  type CdkVirtualScrollViewport,
   ScrollingModule,
 } from "@angular/cdk/scrolling";
 import {
@@ -38,7 +38,7 @@ import {
 
 import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { HotkeysService } from "@services/hotkeys.service";
-import { DamebooruTagDto } from "@models";
+import { type DamebooruPostDto, type DamebooruTagDto } from "@models";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
 import { escapeTagName } from "@shared/utils/utils";
 import { AppLinks, AppPaths } from "@app/app.paths";
@@ -56,10 +56,10 @@ import { VirtualRowIndexDataSource } from "./posts-row-index.data-source";
 import { PostsPageCacheStore } from "./posts-page-cache.store";
 import { PostsFastScrollerController } from "./posts-fast-scroller.controller";
 import {
-  GridCell,
-  GridDensity,
-  PageStatus,
-  RouteState,
+  type GridCell,
+  type GridDensity,
+  type PageStatus,
+  type RouteState,
 } from "./posts.types";
 
 @Component({
@@ -167,7 +167,7 @@ export class PostsComponent implements AfterViewInit {
 
   currentOffset = signal(0);
   isScrolling = signal(false);
-  previewPost = signal<import("@models").DamebooruPostDto | null>(null);
+  previewPost = signal<DamebooruPostDto | null>(null);
   mobileControlsOpen = signal(false);
 
   readonly mobileControlsLabel = computed(() => {
@@ -527,14 +527,14 @@ export class PostsComponent implements AfterViewInit {
     this.pageCacheStore.retry(pageNumber);
   }
 
-  getThumbnailUrl(post: import("@models").DamebooruPostDto): string {
+  getThumbnailUrl(post: DamebooruPostDto): string {
     return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );
   }
 
-  private findPostById(id: number): import("@models").DamebooruPostDto | null {
+  private findPostById(id: number): DamebooruPostDto | null {
     for (const page of this.pageCache().values()) {
       if (page.status === "ready") {
         const match = page.items.find((p) => p.id === id);

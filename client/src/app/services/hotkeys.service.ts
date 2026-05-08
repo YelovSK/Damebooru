@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
-import { fromEvent, Observable } from 'rxjs';
+import { fromEvent, type Observable } from 'rxjs';
 import { filter, share, map } from 'rxjs/operators';
 
 export interface HotkeyOptions {

@@ -1,4 +1,4 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, input, signal, viewChild } from '@angular/core';
+import { afterNextRender, ChangeDetectionStrategy, Component, DestroyRef, type ElementRef, computed, inject, input, signal, viewChild } from '@angular/core';
 
 export interface LineChartPoint {
   label: string;

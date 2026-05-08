@@ -1,7 +1,7 @@
 import {
   Directive,
   ElementRef,
-  OnDestroy,
+  type OnDestroy,
   effect,
   inject,
   input,

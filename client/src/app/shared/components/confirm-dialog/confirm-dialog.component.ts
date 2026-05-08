@@ -1,10 +1,10 @@
 import {
-  AfterViewInit,
+  type AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
   HostListener,
-  TemplateRef,
+  type TemplateRef,
   ViewChild,
   ViewContainerRef,
   computed,
@@ -13,7 +13,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { OverlayRef } from '@angular/cdk/overlay';
+import { type OverlayRef } from '@angular/cdk/overlay';
 import { TemplatePortal } from '@angular/cdk/portal';
 
 import { ConfirmService } from '@services/confirm.service';

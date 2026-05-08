@@ -11,7 +11,7 @@ import { combineLatest } from "rxjs";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 import { DamebooruService } from "@services/api/damebooru/damebooru.service";
-import { LibraryBrowseResponse } from "@services/api/damebooru/models";
+import { type LibraryBrowseResponse } from "@services/api/damebooru/models";
 import { AppPaths } from "@app/app.paths";
 import { ToastService } from "@services/toast.service";
 import { PaginatorComponent } from "@shared/components/paginator/paginator.component";

@@ -1,4 +1,4 @@
-import { Pipe, PipeTransform } from '@angular/core';
+import { Pipe, type PipeTransform } from '@angular/core';
 import dayjs from 'dayjs/esm';
 
 const DEFAULT_DATE_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';

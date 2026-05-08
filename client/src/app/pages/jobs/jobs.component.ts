@@ -5,14 +5,14 @@ import { catchError, interval, of } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
-import { CronPreview, JobExecution, JobKey, JobMode, JobState, JobStatus, JobViewModel, ScheduledJob } from '../../services/api/damebooru/models';
+import { type CronPreview, type JobExecution, type JobKey, type JobMode, type JobState, JobStatus, type JobViewModel, type ScheduledJob } from '../../services/api/damebooru/models';
 import { ButtonDirective } from '@shared/directives';
 import { FormCheckboxComponent } from '../../shared/components/form-checkbox/form-checkbox.component';
 import { CollapsibleComponent } from '../../shared/components/collapsible/collapsible.component';
 import { FormInputComponent } from '../../shared/components/form-input/form-input.component';
 import { PaginatorComponent } from '../../shared/components/paginator/paginator.component';
 import { ProgressBarComponent } from '../../shared/components/progress-bar/progress-bar.component';
-import { DataTableColumn, DataTableComponent } from '../../shared/components/data-table/data-table.component';
+import { type DataTableColumn, DataTableComponent } from '../../shared/components/data-table/data-table.component';
 import { TooltipDirective } from '../../shared/directives';
 import { DateTimePipe } from '../../shared/pipes/date-time.pipe';
 import { RelativeDurationPipe } from '../../shared/pipes/relative-duration.pipe';

@@ -1,10 +1,10 @@
 import { CommonModule } from '@angular/common';
 import {
-  AfterViewInit,
+  type AfterViewInit,
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  TemplateRef,
+  type TemplateRef,
   ViewChild,
   ViewContainerRef,
   effect,
@@ -13,7 +13,7 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { OverlayRef } from '@angular/cdk/overlay';
+import { type OverlayRef } from '@angular/cdk/overlay';
 import { TemplatePortal } from '@angular/cdk/portal';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 

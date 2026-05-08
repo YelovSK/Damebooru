@@ -25,6 +25,11 @@ module.exports = defineConfig([
       ],
       "@angular-eslint/prefer-on-push-component-change-detection": "error",
       "@angular-eslint/no-duplicates-in-metadata-arrays": "error",
+      "@angular-eslint/use-lifecycle-interface": "error",
+      "@angular-eslint/no-input-rename": "error",
+      "@angular-eslint/no-output-rename": "error",
+      "@angular-eslint/no-empty-lifecycle-method": "warn",
+      "@angular-eslint/no-conflicting-lifecycle": "warn",
       "@angular-eslint/sort-lifecycle-methods": "warn",
       "@angular-eslint/directive-selector": [
         "error",

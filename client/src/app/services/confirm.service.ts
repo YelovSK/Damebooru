@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import { Observable, Subscriber } from 'rxjs';
+import { Observable, type Subscriber } from 'rxjs';
 
 import type { ButtonVariant } from '@shared/directives';
 

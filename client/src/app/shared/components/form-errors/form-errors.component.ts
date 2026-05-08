@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NgControl } from '@angular/forms';
+import { type NgControl } from '@angular/forms';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { EMPTY, merge, of } from 'rxjs';
 import { map, shareReplay, startWith, switchMap } from 'rxjs/operators';

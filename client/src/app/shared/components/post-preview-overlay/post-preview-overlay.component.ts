@@ -7,7 +7,7 @@ import {
   output,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { DamebooruPostDto } from "@models";
+import { type DamebooruPostDto } from "@models";
 import { ProgressiveImageComponent } from "@shared/components/progressive-image/progressive-image.component";
 import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { getMediaType } from "@app/shared/utils/utils";

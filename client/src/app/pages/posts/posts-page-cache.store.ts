@@ -2,7 +2,7 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { CachedPage } from './posts.types';
+import { type CachedPage } from './posts.types';
 import { POSTS_PAGE_SIZE } from './posts.constants';
 
 @Injectable()

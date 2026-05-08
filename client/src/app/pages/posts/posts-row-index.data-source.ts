@@ -1,5 +1,5 @@
-import { CollectionViewer, DataSource } from '@angular/cdk/collections';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { type CollectionViewer, DataSource } from '@angular/cdk/collections';
+import { BehaviorSubject, type Observable } from 'rxjs';
 
 export class VirtualRowIndexDataSource extends DataSource<number> {
     private readonly rowsSubject = new BehaviorSubject<readonly number[]>([]);

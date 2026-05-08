@@ -1,4 +1,4 @@
-import { Pipe, PipeTransform } from '@angular/core';
+import { Pipe, type PipeTransform } from '@angular/core';
 import dayjs from 'dayjs/esm';
 import durationPlugin from 'dayjs/esm/plugin/duration';
 import relativeTimePlugin from 'dayjs/esm/plugin/relativeTime';

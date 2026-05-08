@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { Overlay, OverlayRef } from '@angular/cdk/overlay';
+import { Overlay, type OverlayRef } from '@angular/cdk/overlay';
 
 @Injectable({
   providedIn: 'root',

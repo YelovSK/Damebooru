@@ -2,14 +2,14 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { ManagedTag, TagCategoryKind } from '@services/api/damebooru/models';
+import { type ManagedTag, TagCategoryKind } from '@services/api/damebooru/models';
 import { ToastService } from '@services/toast.service';
 import { ButtonDirective } from '@shared/directives';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { SearchInputComponent } from '@shared/components/search-input/search-input.component';
-import { FormDropdownComponent, FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
+import { FormDropdownComponent, type FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
 import { FormInputComponent } from '@shared/components/form-input/form-input.component';
-import { DataTableColumn, DataTableComponent, DataTableSort } from '@shared/components/data-table/data-table.component';
+import { type DataTableColumn, DataTableComponent, type DataTableSort } from '@shared/components/data-table/data-table.component';
 import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ConfirmService } from '@services/confirm.service';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';

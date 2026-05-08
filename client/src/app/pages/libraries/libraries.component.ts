@@ -6,7 +6,7 @@ import { toSignal, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap } from 'rxjs';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { Library } from '@services/api/damebooru/models';
+import { type Library } from '@services/api/damebooru/models';
 import { ButtonDirective } from '@shared/directives';
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';

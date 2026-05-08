@@ -1,4 +1,4 @@
-import { DamebooruPostDto } from '@models';
+import { type DamebooruPostDto } from '@models';
 
 export type GridDensity = 'compact' | 'comfortable' | 'cozy';
 export type PageStatus = 'idle' | 'loading' | 'ready' | 'error';

@@ -1,4 +1,4 @@
-import { VirtualRowPosition } from './posts.types';
+import { type VirtualRowPosition } from './posts.types';
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));

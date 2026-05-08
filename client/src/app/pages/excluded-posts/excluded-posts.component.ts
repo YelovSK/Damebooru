@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { ExcludedFile } from '@models';
+import { type ExcludedFile } from '@models';
 import { ButtonDirective } from '@shared/directives';
 
 @Component({

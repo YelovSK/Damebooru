@@ -1,4 +1,4 @@
-import { booleanAttribute, ChangeDetectionStrategy, Component, DestroyRef, ElementRef, HostListener, contentChildren, computed, effect, inject, input, signal, viewChild, viewChildren } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, DestroyRef, type ElementRef, HostListener, contentChildren, computed, effect, inject, input, signal, viewChild, viewChildren } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, ActivatedRoute, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';

@@ -1,9 +1,9 @@
-import { Injectable, signal, computed, inject, DestroyRef } from '@angular/core';
+import { Injectable, signal, computed, inject, type DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, of, catchError, tap, switchMap } from 'rxjs';
+import { type Observable, of, catchError, tap, switchMap } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ToastService } from '@services/toast.service';
-import { DamebooruPostDto, UpdatePostMetadata, PostTagSource, TagCategoryKind } from '@models';
+import { type DamebooruPostDto, type UpdatePostMetadata, PostTagSource, type TagCategoryKind } from '@models';
 import { areArraysEqual } from '@shared/utils/utils';
 
 export interface PostEditTag {

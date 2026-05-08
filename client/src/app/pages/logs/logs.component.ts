@@ -2,10 +2,10 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 
 import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
-import { AppLogEntry } from '../../services/api/damebooru/models';
+import { type AppLogEntry } from '../../services/api/damebooru/models';
 import { DateTimePipe } from '../../shared/pipes/date-time.pipe';
 import { ButtonDirective } from '@shared/directives';
-import { FormDropdownComponent, FormDropdownOption } from '../../shared/components/dropdown/form-dropdown.component';
+import { FormDropdownComponent, type FormDropdownOption } from '../../shared/components/dropdown/form-dropdown.component';
 import { SearchInputComponent } from '../../shared/components/search-input/search-input.component';
 import { ToastService } from '../../services/toast.service';
 

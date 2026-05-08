@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ControlValueAccessor, NgControl, FormsModule } from '@angular/forms';
+import { type ControlValueAccessor, NgControl, FormsModule } from '@angular/forms';
 
 import { FormErrorsComponent } from '../form-errors/form-errors.component';
 import { generateId } from '@shared/utils/utils';

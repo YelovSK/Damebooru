@@ -8,15 +8,15 @@ import { filter, map, startWith } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import {
   DuplicateType,
-  DamebooruPostDto,
-  DuplicateGroup,
-  ExactDuplicateCluster,
-  ExactDuplicateFile,
-  DuplicateLookupMatch,
-  DuplicateLookupResponse,
-  DuplicatePostFile,
-  DuplicatePost,
-  ExcludedFile,
+  type DamebooruPostDto,
+  type DuplicateGroup,
+  type ExactDuplicateCluster,
+  type ExactDuplicateFile,
+  type DuplicateLookupMatch,
+  type DuplicateLookupResponse,
+  type DuplicatePostFile,
+  type DuplicatePost,
+  type ExcludedFile,
 } from '@models';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
@@ -32,8 +32,8 @@ import { PostPreviewOverlayComponent } from '@shared/components/post-preview-ove
 import { PostPreviewHoverGateService } from '@shared/components/post-preview-overlay/post-preview-hover-gate.service';
 import { SettingsService } from '@services/settings.service';
 import { computeLookupContentHash } from './lookup-hash';
-import { DuplicateCompareGroup, DuplicateCompareOverlayComponent, DuplicateComparePost } from './duplicate-compare-overlay.component';
-import { DuplicateFolderBucketsComponent, DuplicateFolderBucketView, DuplicateFolderItemView } from './duplicate-folder-buckets.component';
+import { type DuplicateCompareGroup, DuplicateCompareOverlayComponent, type DuplicateComparePost } from './duplicate-compare-overlay.component';
+import { DuplicateFolderBucketsComponent, type DuplicateFolderBucketView, type DuplicateFolderItemView } from './duplicate-folder-buckets.component';
 
 type DuplicateViewFilter = 'all' | 'same-folder' | 'different-folder';
 

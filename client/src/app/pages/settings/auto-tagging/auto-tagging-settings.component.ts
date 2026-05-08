@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { AutoTagDiscoverySettings } from '@services/api/damebooru/models';
+import { type AutoTagDiscoverySettings } from '@services/api/damebooru/models';
 import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 
 type AutoTagDiscoverySettingKey = keyof AutoTagDiscoverySettings;

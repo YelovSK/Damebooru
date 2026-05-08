@@ -5,10 +5,10 @@ import {
   inject,
   input,
 } from "@angular/core";
-import { RouterLink, Params } from "@angular/router";
+import { RouterLink, type Params } from "@angular/router";
 
 import { AppPaths } from "@app/app.paths";
-import { DamebooruPostDto } from "@models";
+import { type DamebooruPostDto } from "@models";
 import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { getMediaType } from "@shared/utils/utils";
 import { ScheduledSrcDirective } from "@shared/directives/scheduled-src.directive";

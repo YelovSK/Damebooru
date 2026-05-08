@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, signal, input, output, effect, HostListener, ElementRef, viewChild, viewChildren, contentChild, TemplateRef, untracked, inject, DestroyRef } from '@angular/core';
+import { Component, ChangeDetectionStrategy, signal, input, output, effect, HostListener, type ElementRef, viewChild, viewChildren, contentChild, TemplateRef, untracked, inject, DestroyRef } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged, filter, fromEvent, switchMap } from 'rxjs';

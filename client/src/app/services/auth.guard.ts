@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { type CanActivateFn, Router } from '@angular/router';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { AppPaths } from '@app/app.paths';
 import { map } from 'rxjs';
