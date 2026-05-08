@@ -1,23 +1,21 @@
-import { Component, input, TemplateRef, contentChild, ChangeDetectionStrategy, EventEmitter, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Output, TemplateRef, input, viewChild } from '@angular/core';
 
 @Component({
   selector: 'app-tab',
   standalone: true,
-  template: ``,
+  template: `
+    <ng-template>
+      <ng-content></ng-content>
+    </ng-template>
+  `,
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TabComponent {
-  /** Route segment for this tab (e.g., 'auto-tagging') */
   id = input.required<string>();
-
-  /** Display label for the tab */
   label = input.required<string>();
-
-  /** Optional icon class */
   icon = input<string>();
-
-  /** Template content for this tab */
-  content = contentChild(TemplateRef);
+  hidden = input(false);
+  readonly content = viewChild(TemplateRef);
 
   /** Fires every time tab becomes active */
   @Output() open = new EventEmitter<void>();

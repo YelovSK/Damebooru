@@ -52,10 +52,8 @@ import { AutocompleteComponent } from "@shared/components/autocomplete/autocompl
 import { ProgressiveImageComponent } from "@shared/components/progressive-image/progressive-image.component";
 import { PostTagSourcesComponent } from '@shared/components/post-tag-sources/post-tag-sources.component';
 import { ZoomPanContainerComponent } from "@shared/components/zoom-pan-container/zoom-pan-container.component";
-import {
-  SimpleTabsComponent,
-  SimpleTabComponent,
-} from "@shared/components/simple-tabs";
+import { TabComponent } from "@shared/components/tabs/tab.component";
+import { TabsComponent } from "@shared/components/tabs/tabs.component";
 import { ButtonDirective, TooltipDirective } from "@shared/directives";
 import { HotkeysService } from "@services/hotkeys.service";
 import { AppLinks } from "@app/app.paths";
@@ -73,8 +71,8 @@ import { FileNamePipe } from "@shared/pipes/file-name.pipe";
     ProgressiveImageComponent,
     PostTagSourcesComponent,
     ZoomPanContainerComponent,
-    SimpleTabsComponent,
-    SimpleTabComponent,
+    TabsComponent,
+    TabComponent,
     ButtonDirective,
     TooltipDirective,
     FileSizePipe,

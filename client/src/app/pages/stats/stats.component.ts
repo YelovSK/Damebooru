@@ -6,7 +6,8 @@ import { DamebooruService } from '@app/services/api/damebooru/damebooru.service'
 import { StatsGrowthDateKind, StatsSeriesPointDto, StatsStorageBreakdownDto, StatsTagCategoryDto, StatsTagDensityBucketDto, TagCategoryKind } from '@app/services/api/damebooru/models';
 import { CommonModule, DecimalPipe, DatePipe } from '@angular/common';
 import { FileSizePipe } from '@app/shared/pipes/file-size.pipe';
-import { SimpleTabComponent, SimpleTabsComponent } from '@app/shared/components/simple-tabs';
+import { TabComponent } from '@app/shared/components/tabs/tab.component';
+import { TabsComponent } from '@app/shared/components/tabs/tabs.component';
 import { LineChartComponent, LineChartPoint } from '@app/shared/components/line-chart/line-chart.component';
 import { formatBytes } from '@app/shared/utils/utils';
 import { ButtonDirective } from '@app/shared/directives/button.directive';
@@ -14,7 +15,7 @@ import { ButtonDirective } from '@app/shared/directives/button.directive';
 @Component({
     selector: 'app-stats',
     standalone: true,
-    imports: [CommonModule, DecimalPipe, DatePipe, FileSizePipe, SimpleTabsComponent, SimpleTabComponent, LineChartComponent, ButtonDirective],
+    imports: [CommonModule, DecimalPipe, DatePipe, FileSizePipe, TabsComponent, TabComponent, LineChartComponent, ButtonDirective],
     templateUrl: './stats.component.html',
     styleUrl: './stats.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush

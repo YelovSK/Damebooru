@@ -1,19 +1,46 @@
-<div class="mb-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b border-glass-border">
-  @for (tab of tabs(); track tab.id()) {
-    <a
-      [routerLink]="[basePath(), tab.id()]"
-      [replaceUrl]="true"
-      routerLinkActive="active-tab"
-      class="tab">
-      @if (tab.icon()) {
-        <i [class]="tab.icon()"></i>
-      }
-      {{ tab.label() }}
-    </a>
+<div #tabList class="relative mb-4 flex shrink-0 gap-1 overflow-auto rounded-lg bg-black/20 p-1" role="tablist">
+  <div
+    class="pointer-events-none absolute bottom-1 left-0 top-1 z-0 rounded-md bg-white/10 transition-[transform,width,opacity] duration-200 ease-out"
+    [class.opacity-0]="!indicatorVisible()"
+    [style.transform]="indicatorTransform()"
+    [style.width.px]="indicatorWidth()">
+  </div>
+
+  @for (tab of visibleTabs(); track tab.id()) {
+    @if (route()) {
+      <a
+        #tabControl
+        role="tab"
+        [routerLink]="[basePath(), tab.id()]"
+        [replaceUrl]="true"
+        routerLinkActive="!text-white"
+        class="relative z-10 flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-3 py-2 text-center text-sm font-medium text-white/60 no-underline transition-colors hover:text-white/80"
+        [attr.aria-selected]="tab === activeTab()">
+        @if (tab.icon()) {
+          <i [class]="tab.icon()"></i>
+        }
+        {{ tab.label() }}
+      </a>
+    } @else {
+      <button
+        #tabControl
+        type="button"
+        role="tab"
+        class="relative z-10 flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-3 py-2 text-center text-sm font-medium text-white/60 transition-colors hover:text-white/80"
+        [class.!text-white]="tab === activeTab()"
+        [attr.aria-selected]="tab === activeTab()"
+        (click)="selectTab(tab.id())">
+        @if (tab.icon()) {
+          <i [class]="tab.icon()"></i>
+        }
+        {{ tab.label() }}
+      </button>
+    }
   }
 </div>
 
-<!-- Render active tab content -->
-@if (activeTab().content(); as template) {
-  <ng-container *ngTemplateOutlet="template"></ng-container>
+@if (activeTab(); as tab) {
+  @if (tab.content(); as template) {
+    <ng-container *ngTemplateOutlet="template"></ng-container>
+  }
 }

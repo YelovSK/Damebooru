@@ -43,9 +43,9 @@
 
         <!-- Tabbed Content -->
         <section class="glass-card p-4 flex-1 min-h-0 flex flex-col">
-            <app-simple-tabs>
+            <app-tabs>
                 <!-- Info Tab (with tags) -->
-                <app-simple-tab id="info" label="Info">
+                <app-tab id="info" label="Info">
                     <div class="grid grid-cols-[100px_1fr] gap-3 text-[0.9rem] mb-4 shrink-0">
                         <span class="text-text-muted">ID</span>
                         <span class="text-text-primary font-medium">#{{ pd.id }}</span>
@@ -168,10 +168,10 @@
                         <span class="text-text-muted text-[0.85rem]">No tags</span>
                         }
                     </div>
-                </app-simple-tab>
+                </app-tab>
 
                 <!-- Source Tab -->
-                <app-simple-tab id="source" label="Source">
+                <app-tab id="source" label="Source">
                     <!-- Auto-tagging status -->
                     <div class="mb-4 rounded-lg border border-white/10 bg-glass-bg p-3 shrink-0">
                         <div class="mb-2 flex items-center justify-between gap-2">
@@ -258,10 +258,10 @@
                     } @else {
                     <span class="text-text-muted text-[0.85rem]">No sources</span>
                     }
-                </app-simple-tab>
+                </app-tab>
 
                 <!-- Similar Tab -->
-                <app-simple-tab id="audit" label="Audit">
+                <app-tab id="audit" label="Audit">
                     @if (auditEntries().length > 0) {
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                         @for (entry of auditEntries(); track entry.id) {
@@ -288,10 +288,10 @@
                     } @else {
                     <span class="text-text-muted text-[0.85rem]">No audit entries yet</span>
                     }
-                </app-simple-tab>
+                </app-tab>
 
                 <!-- Similar Tab -->
-                <app-simple-tab id="similar" label="Similar">
+                <app-tab id="similar" label="Similar">
                     @if (similarPosts().length > 0) {
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                         @for (similar of similarPosts(); track similar.id) {
@@ -323,8 +323,8 @@
                     } @else {
                     <span class="text-text-muted text-[0.85rem]">No similar posts found from duplicate groups.</span>
                     }
-                </app-simple-tab>
-            </app-simple-tabs>
+                </app-tab>
+            </app-tabs>
         </section>
     </aside>
 
