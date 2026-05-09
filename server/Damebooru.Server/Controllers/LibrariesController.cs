@@ -104,10 +104,13 @@ public class LibrariesController : ControllerBase
         int id,
         int postId,
         [FromQuery] string? path,
+        [FromQuery] int window = 1,
+        [FromQuery] int? before = null,
+        [FromQuery] int? after = null,
         CancellationToken cancellationToken = default)
     {
         return await _libraryBrowseService
-            .GetPostsAroundAsync(id, postId, path, cancellationToken)
+            .GetPostsAroundAsync(id, postId, path, window, before, after, cancellationToken)
             .ToHttpResult();
     }
 

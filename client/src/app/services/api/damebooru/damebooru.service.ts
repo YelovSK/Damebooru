@@ -418,10 +418,23 @@ export class DamebooruService {
     return of({ query: "", offset: 0, limit: 100, total: 0, results: [] });
   }
 
-  getPostsAround(id: number, query = ""): Observable<DamebooruPostsAroundDto> {
+  getPostsAround(
+    id: number,
+    query = "",
+    window = 1,
+    before?: number,
+    after?: number,
+  ): Observable<DamebooruPostsAroundDto> {
     let params = new HttpParams();
     if (query) {
       params = params.set("tags", query);
+    }
+    params = params.set("window", String(window));
+    if (before !== undefined) {
+      params = params.set("before", String(before));
+    }
+    if (after !== undefined) {
+      params = params.set("after", String(after));
     }
 
     return this.http.get<DamebooruPostsAroundDto>(
@@ -434,10 +447,20 @@ export class DamebooruService {
     libraryId: number,
     postId: number,
     path = "",
+    window = 1,
+    before?: number,
+    after?: number,
   ): Observable<DamebooruPostsAroundDto> {
     let params = new HttpParams();
     if (path.trim().length > 0) {
       params = params.set("path", path.trim());
+    }
+    params = params.set("window", String(window));
+    if (before !== undefined) {
+      params = params.set("before", String(before));
+    }
+    if (after !== undefined) {
+      params = params.set("after", String(after));
     }
 
     return this.http.get<DamebooruPostsAroundDto>(

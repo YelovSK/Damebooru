@@ -16,7 +16,7 @@ public class HardlinkExactDuplicateFilesJobTests
     [Fact]
     public async Task ExecuteAsync_HardlinksExactDuplicateFilesOnSameDevice()
     {
-        var root = Path.Combine(Path.GetTempPath(), $"bakabooru-hardlink-test-{Guid.NewGuid():N}");
+        var root = Path.Combine(Path.GetTempPath(), $"damebooru-hardlink-test-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
 
         await using var connection = new SqliteConnection("Data Source=:memory:");

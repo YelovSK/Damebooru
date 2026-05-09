@@ -45,7 +45,7 @@
         <section class="glass-card p-4 flex-1 min-h-0 flex flex-col">
             <app-tabs>
                 <!-- Info Tab (with tags) -->
-                <app-tab id="info" label="Info">
+                <app-tab id="info" label="Info" (open)="onSidebarTabOpen('info')">
                     <div class="grid grid-cols-[100px_1fr] gap-3 text-[0.9rem] mb-4 shrink-0">
                         <span class="text-text-muted">ID</span>
                         <span class="text-text-primary font-medium">#{{ pd.id }}</span>
@@ -171,7 +171,7 @@
                 </app-tab>
 
                 <!-- Source Tab -->
-                <app-tab id="source" label="Source">
+                <app-tab id="source" label="Source" (open)="onSourceTabOpen()">
                     <!-- Auto-tagging status -->
                     <div class="mb-4 rounded-lg border border-white/10 bg-glass-bg p-3 shrink-0">
                         <div class="mb-2 flex items-center justify-between gap-2">
@@ -261,7 +261,7 @@
                 </app-tab>
 
                 <!-- Similar Tab -->
-                <app-tab id="audit" label="Audit">
+                <app-tab id="audit" label="Audit" (open)="onAuditTabOpen()">
                     @if (auditEntries().length > 0) {
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                         @for (entry of auditEntries(); track entry.id) {
@@ -291,7 +291,7 @@
                 </app-tab>
 
                 <!-- Similar Tab -->
-                <app-tab id="similar" label="Similar">
+                <app-tab id="similar" label="Similar" (open)="onSidebarTabOpen('similar')">
                     @if (similarPosts().length > 0) {
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                         @for (similar of similarPosts(); track similar.id) {
@@ -349,8 +349,8 @@
             @case ('image')
             @case ('animation') {
             <app-progressive-image [thumbnailSrc]="getThumbnailUrl(pd)"
-                [fullSrc]="getPostContentUrl(pd)" [alt]="'' + pd.id" [width]="pd.width"
-                [height]="pd.height" />
+                [fullSrc]="suppressFullImage() ? null : getPostContentUrl(pd)"
+                [alt]="'' + pd.id" [width]="pd.width" [height]="pd.height" />
             }
             }
         </app-zoom-pan-container>
@@ -367,8 +367,8 @@
 
         <app-zoom-pan-container [touchEnabled]="true">
             <app-progressive-image [thumbnailSrc]="getThumbnailUrl(pd)"
-                [fullSrc]="getPostContentUrl(pd)" [alt]="'' + pd.id" [width]="pd.width"
-                [height]="pd.height" />
+                [fullSrc]="suppressFullImage() ? null : getPostContentUrl(pd)"
+                [alt]="'' + pd.id" [width]="pd.width" [height]="pd.height" />
         </app-zoom-pan-container>
     </div>
     }

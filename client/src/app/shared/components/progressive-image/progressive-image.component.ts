@@ -8,7 +8,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, input, signal } f
 })
 export class ProgressiveImageComponent {
   readonly thumbnailSrc = input.required<string>();
-  readonly fullSrc = input.required<string>();
+  readonly fullSrc = input.required<string | null>();
   readonly alt = input<string>('');
   readonly width = input<number | null>(null);
   readonly height = input<number | null>(null);

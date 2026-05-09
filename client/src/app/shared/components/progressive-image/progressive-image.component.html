@@ -8,12 +8,14 @@
   [draggable]="false"
   [alt]="alt()" />
 
-<img 
+@if (fullSrc(); as src) {
+<img
   class="absolute inset-0 w-full h-full object-contain z-0"
   [class.opacity-0]="!fullVisible()"
-  [src]="fullSrc()" 
-  [alt]="alt()" 
+  [src]="src"
+  [alt]="alt()"
   [attr.width]="width()"
   [attr.height]="height()"
   [draggable]="false"
   (load)="onFullLoad($event, loadToken())" />
+}

@@ -34,9 +34,15 @@ public class PostsController : ControllerBase
     }
 
     [HttpGet("{id}/around")]
-    public async Task<IActionResult> GetPostsAround(int id, [FromQuery] string? tags = null, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> GetPostsAround(
+        int id,
+        [FromQuery] string? tags = null,
+        [FromQuery] int window = 1,
+        [FromQuery] int? before = null,
+        [FromQuery] int? after = null,
+        CancellationToken cancellationToken = default)
     {
-        return await _postReadService.GetPostsAroundAsync(id, tags, cancellationToken).ToHttpResult();
+        return await _postReadService.GetPostsAroundAsync(id, tags, window, before, after, cancellationToken).ToHttpResult();
     }
 
     [HttpGet("{id}")]

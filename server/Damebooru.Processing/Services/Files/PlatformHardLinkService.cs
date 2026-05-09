@@ -28,8 +28,8 @@ public sealed partial class PlatformHardLinkService : IHardLinkService
             return HardLinkResult.Fail("Target directory is missing.");
         }
 
-        var tempLinkPath = Path.Combine(directoryPath, $".bakabooru-hardlink-{Guid.NewGuid():N}.tmp");
-        var backupPath = Path.Combine(directoryPath, $".bakabooru-hardlink-backup-{Guid.NewGuid():N}.tmp");
+        var tempLinkPath = Path.Combine(directoryPath, $".damebooru-hardlink-{Guid.NewGuid():N}.tmp");
+        var backupPath = Path.Combine(directoryPath, $".damebooru-hardlink-backup-{Guid.NewGuid():N}.tmp");
 
         try
         {

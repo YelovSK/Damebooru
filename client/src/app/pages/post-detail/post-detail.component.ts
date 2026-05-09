@@ -15,15 +15,13 @@ import { CommonModule, DOCUMENT } from "@angular/common";
 import { RouterLink, Router } from "@angular/router";
 import {
   Subject,
+  fromEvent,
   switchMap,
   catchError,
   of,
   map,
-  combineLatest,
-  tap,
 } from "rxjs";
 import {
-  toObservable,
   toSignal,
   takeUntilDestroyed,
 } from "@angular/core/rxjs-interop";
@@ -35,7 +33,6 @@ import { TagPipe } from "@shared/pipes/escape-tag.pipe";
 import { escapeTagName, getMediaType } from "@shared/utils/utils";
 import {
   type DamebooruPostDto,
-  type DamebooruPostsAroundDto,
   type DamebooruTagDto,
   DuplicateType,
   type SimilarPost,
@@ -60,6 +57,8 @@ import { AppLinks } from "@app/app.paths";
 import { PostEditService, type PostEditTag } from "./post-edit.service";
 import { FileSizePipe } from "@shared/pipes/file-size.pipe";
 import { FileNamePipe } from "@shared/pipes/file-name.pipe";
+
+type NavigationFetchDirection = "initial" | "previous" | "next";
 
 @Component({
   selector: "app-post-detail",
@@ -135,9 +134,19 @@ export class PostDetailComponent {
   private readonly tapMaxDistancePx = 14;
   private readonly tapMaxDurationMs = 500;
 
-  // Triggers a local post stream refresh after in-place edits.
-  private refreshTrigger = signal(0);
-  private readonly postCache = signal(new Map<number, DamebooruPostDto>());
+  private readonly navigationPosts = signal<DamebooruPostDto[]>([]);
+  private readonly navigationHasPrevious = signal(false);
+  private readonly navigationHasNext = signal(false);
+  private readonly initialBeforeCount = 25;
+  private readonly initialAfterCount = 25;
+  private readonly refillOverlapCount = 10;
+  private readonly refillAheadCount = 50;
+  private readonly refillThreshold = 10;
+  private readonly keepBehindCount = 40;
+  private readonly keepAheadCount = 70;
+  private navigationScopeKey = "";
+  private readonly navigationRequestsInFlight = new Set<string>();
+  private pendingEdgeNavigation: NavigationFetchDirection | null = null;
 
   isAutoTagging = signal(false);
   isAutoTagStatusLoading = signal(false);
@@ -163,73 +172,64 @@ export class PostDetailComponent {
   // Sources edit value
   sourcesValue = signal("");
 
-  post = toSignal(
-    combineLatest([
-      toObservable(this.id),
-      toObservable(this.refreshTrigger),
-    ]).pipe(
-      switchMap(([id]) =>
-        this.getPostWithCache(Number(id)).pipe(
-          // Ensure error doesn't break the component stream
-          catchError((err) => {
-            console.error("Error fetching post detail:", err);
-            return of(null);
-          }),
-        ),
-      ),
-    ),
-  );
+  readonly currentPostId = computed(() => {
+    const id = Number(this.id());
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
 
-  // Pre-fetch surrounding posts
-  around = toSignal(
-    combineLatest([
-      toObservable(this.id),
-      toObservable(this.query),
-      toObservable(this.explorerLibraryId),
-      toObservable(this.explorerPath),
-    ]).pipe(
-      switchMap(([id, query, explorerLibraryId, explorerPath]) => {
-        const parsedExplorerLibraryId = this.parsePositiveInt(explorerLibraryId);
-        const normalizedExplorerPath = this.normalizeExplorerPath(explorerPath);
+  post = computed(() => {
+    const id = this.currentPostId();
+    if (id === null) {
+      return null;
+    }
 
-        const aroundRequest = parsedExplorerLibraryId !== null
-          ? this.damebooru.getLibraryPostsAround(
-              parsedExplorerLibraryId,
-              Number(id),
-              normalizedExplorerPath,
-            )
-          : this.damebooru.getPostsAround(Number(id), query ?? "");
+    return this.navigationPosts().find((post) => post.id === id) ?? null;
+  });
 
-        return aroundRequest.pipe(
-          tap((around) => {
-            if (around.prev) this.setCachedPost(around.prev);
-            if (around.next) this.setCachedPost(around.next);
-          }),
-          catchError((err) => {
-            console.error(
-              "Around API failed (disabling keyboard nav for this post):",
-              err,
-            );
-            return of({ prev: null, next: null } as DamebooruPostsAroundDto);
-          }),
-        );
-      }),
-    ),
-  );
+  private readonly currentWindowIndex = computed(() => {
+    const id = this.currentPostId();
+    if (id === null) {
+      return -1;
+    }
+
+    return this.navigationPosts().findIndex((post) => post.id === id);
+  });
+
+  readonly around = computed(() => {
+    const index = this.currentWindowIndex();
+    if (index < 0) {
+      return { prev: null, next: null };
+    }
+
+    const posts = this.navigationPosts();
+    return {
+      prev: posts[index - 1]?.id ?? (this.navigationHasPrevious() ? -1 : null),
+      next: posts[index + 1]?.id ?? (this.navigationHasNext() ? -1 : null),
+    };
+  });
 
   similarPosts = computed<SimilarPost[]>(() => this.post()?.similarPosts ?? []);
 
+  suppressFullImage = signal(false);
   imageLoading = signal(true);
   auditEntries = signal<PostAuditEntry[]>([]);
   auditHasMore = signal(false);
   private auditRequestInFlight = false;
+  private auditRequestPostId: number | null = null;
+  private activeSidebarTabId = "info";
+  private auditLoadedForPostId: number | null = null;
+  private autoTagStatusLoadedForPostId: number | null = null;
+  private autoTagStatusRequestInFlight = false;
+  private autoTagStatusRequestPostId: number | null = null;
+  private readonly heldNavigationKeys = new Set<string>();
 
   constructor() {
     effect(() => {
-      this.post();
+      const post = this.post();
       this.imageLoading.set(true);
       this.mobileImageViewerOpen.set(false);
       this.postFilesExpanded.set(false);
+      untracked(() => this.resetOnDemandTabData(post?.id ?? null));
     });
 
     // Initialize sources value when entering edit mode
@@ -247,42 +247,279 @@ export class PostDetailComponent {
     this.setupHotkeys();
 
     effect(() => {
-      const id = Number(this.id());
-      if (!Number.isInteger(id) || id < 1) {
-        this.auditEntries.set([]);
-        this.auditHasMore.set(false);
+      const id = this.currentPostId();
+      if (id === null) {
         return;
       }
 
-      untracked(() => this.loadAudit(id, false));
-    });
+      const scopeKey = this.getNavigationScopeKey();
+      this.navigationPosts();
+      this.navigationHasPrevious();
+      this.navigationHasNext();
 
-    effect(() => {
-      const id = Number(this.id());
-      if (!Number.isInteger(id) || id < 1) {
-        this.autoTagStatus.set(null);
-        return;
-      }
-
-      untracked(() => this.loadAutoTagStatus(id));
+      untracked(() => {
+        this.ensureNavigationWindowForPost(id, scopeKey);
+      });
     });
   }
 
-  private getPostWithCache(id: number) {
-    const cached = this.postCache().get(id);
-    if (cached) {
-      return of(cached);
+  private resetNavigationScope(nextScopeKey: string) {
+    this.navigationScopeKey = nextScopeKey;
+    this.navigationPosts.set([]);
+    this.navigationHasPrevious.set(false);
+    this.navigationHasNext.set(false);
+    this.navigationRequestsInFlight.clear();
+    this.pendingEdgeNavigation = null;
+  }
+
+  private ensureNavigationWindowForPost(id: number, scopeKey: string) {
+    if (scopeKey !== this.navigationScopeKey) {
+      this.resetNavigationScope(scopeKey);
     }
 
-    return this.damebooru
-      .getPost(id)
-      .pipe(tap((post) => this.setCachedPost(post)));
+    const currentIndex = this.navigationPosts().findIndex((post) => post.id === id);
+    if (currentIndex < 0) {
+      this.requestNavigationWindow(
+        id,
+        this.initialBeforeCount,
+        this.initialAfterCount,
+        "initial",
+      );
+      return;
+    }
+
+    this.prefetchNavigationEdges(id, currentIndex);
   }
 
-  private setCachedPost(post: DamebooruPostDto) {
-    this.postCache.update((existing) => {
-      const next = new Map(existing);
-      next.set(post.id, post);
+  private prefetchNavigationEdges(id: number, currentIndex: number) {
+    const posts = this.navigationPosts();
+    const postsBefore = currentIndex;
+    const postsAfter = posts.length - currentIndex - 1;
+
+    if (this.navigationHasPrevious() && postsBefore <= this.refillThreshold) {
+      this.requestNavigationWindow(
+        id,
+        this.refillAheadCount,
+        this.refillOverlapCount,
+        "previous",
+      );
+    }
+
+    if (this.navigationHasNext() && postsAfter <= this.refillThreshold) {
+      this.requestNavigationWindow(
+        id,
+        this.refillOverlapCount,
+        this.refillAheadCount,
+        "next",
+      );
+    }
+  }
+
+  private requestNavigationWindow(
+    anchorId: number,
+    before: number,
+    after: number,
+    direction: NavigationFetchDirection,
+    navigateAfterLoad = false,
+  ) {
+    const scopeKey = this.navigationScopeKey || this.getNavigationScopeKey();
+    const directionKey = direction === "initial"
+      ? `${scopeKey}|${direction}|${anchorId}`
+      : `${scopeKey}|${direction}`;
+    if (this.navigationRequestsInFlight.has(directionKey)) {
+      if (navigateAfterLoad) {
+        this.pendingEdgeNavigation = direction;
+      }
+      return;
+    }
+
+    this.navigationRequestsInFlight.add(directionKey);
+    if (navigateAfterLoad) {
+      this.pendingEdgeNavigation = direction;
+    }
+
+    const parsedExplorerLibraryId = this.activeExplorerLibraryId();
+    const normalizedExplorerPath = this.activeExplorerPath();
+    const request = parsedExplorerLibraryId !== null
+      ? this.damebooru.getLibraryPostsAround(
+          parsedExplorerLibraryId,
+          anchorId,
+          normalizedExplorerPath,
+          Math.max(before, after),
+          before,
+          after,
+        )
+      : this.damebooru.getPostsAround(
+          anchorId,
+          this.query() ?? "",
+          Math.max(before, after),
+          before,
+          after,
+        );
+
+    request
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (around) => {
+          this.navigationRequestsInFlight.delete(directionKey);
+          if (scopeKey !== this.navigationScopeKey) {
+            return;
+          }
+
+          this.mergeNavigationWindow(around.items ?? [], around.hasPrevious ?? false, around.hasNext ?? false, direction);
+          this.completePendingEdgeNavigation(direction);
+        },
+        error: (err) => {
+          console.error("Around API failed (keyboard nav may pause at the current edge):", err);
+          this.navigationRequestsInFlight.delete(directionKey);
+          if (this.pendingEdgeNavigation === direction) {
+            this.pendingEdgeNavigation = null;
+          }
+        },
+      });
+  }
+
+  private mergeNavigationWindow(
+    incoming: DamebooruPostDto[],
+    hasPrevious: boolean,
+    hasNext: boolean,
+    direction: NavigationFetchDirection,
+  ) {
+    if (incoming.length === 0) {
+      return;
+    }
+
+    const existing = this.navigationPosts();
+    const merged = this.mergeOrderedPosts(existing, incoming, direction);
+    const currentId = this.currentPostId();
+    const currentIndex = currentId === null
+      ? -1
+      : merged.findIndex((post) => post.id === currentId);
+
+    const trimmed = currentIndex >= 0
+      ? this.trimNavigationPosts(merged, currentIndex)
+      : { posts: merged, start: 0, end: merged.length };
+
+    let nextHasPrevious = direction === "next"
+      ? this.navigationHasPrevious()
+      : hasPrevious;
+    let nextHasNext = direction === "previous"
+      ? this.navigationHasNext()
+      : hasNext;
+
+    if (trimmed.start > 0) {
+      nextHasPrevious = true;
+    }
+    if (trimmed.end < merged.length) {
+      nextHasNext = true;
+    }
+
+    this.navigationPosts.set(trimmed.posts);
+    this.navigationHasPrevious.set(nextHasPrevious);
+    this.navigationHasNext.set(nextHasNext);
+  }
+
+  private mergeOrderedPosts(
+    existing: DamebooruPostDto[],
+    incoming: DamebooruPostDto[],
+    direction: NavigationFetchDirection,
+  ): DamebooruPostDto[] {
+    if (existing.length === 0 || direction === "initial") {
+      return this.dedupePosts(incoming);
+    }
+
+    const existingIndexById = new Map(existing.map((post, index) => [post.id, index]));
+    let firstIncomingOverlap = -1;
+    let firstExistingOverlap = -1;
+    let lastIncomingOverlap = -1;
+    let lastExistingOverlap = -1;
+
+    for (let index = 0; index < incoming.length; index++) {
+      const existingIndex = existingIndexById.get(incoming[index].id);
+      if (existingIndex === undefined) {
+        continue;
+      }
+
+      if (firstIncomingOverlap < 0) {
+        firstIncomingOverlap = index;
+        firstExistingOverlap = existingIndex;
+      }
+
+      lastIncomingOverlap = index;
+      lastExistingOverlap = existingIndex;
+    }
+
+    if (firstIncomingOverlap >= 0) {
+      return this.dedupePosts([
+        ...existing.slice(0, firstExistingOverlap),
+        ...incoming,
+        ...existing.slice(lastExistingOverlap + 1),
+      ]);
+    }
+
+    return this.dedupePosts(direction === "previous"
+      ? [...incoming, ...existing]
+      : [...existing, ...incoming]);
+  }
+
+  private dedupePosts(posts: DamebooruPostDto[]): DamebooruPostDto[] {
+    const seen = new Set<number>();
+    const deduped: DamebooruPostDto[] = [];
+
+    for (const post of posts) {
+      if (seen.has(post.id)) {
+        continue;
+      }
+
+      seen.add(post.id);
+      deduped.push(post);
+    }
+
+    return deduped;
+  }
+
+  private trimNavigationPosts(posts: DamebooruPostDto[], currentIndex: number) {
+    const start = Math.max(0, currentIndex - this.keepBehindCount);
+    const end = Math.min(posts.length, currentIndex + this.keepAheadCount + 1);
+
+    return {
+      posts: posts.slice(start, end),
+      start,
+      end,
+    };
+  }
+
+  private completePendingEdgeNavigation(direction: NavigationFetchDirection) {
+    if (this.pendingEdgeNavigation !== direction) {
+      return;
+    }
+
+    this.pendingEdgeNavigation = null;
+    const adjacentPost = this.getAdjacentPost(direction);
+    if (adjacentPost) {
+      this.navigateToPostId(adjacentPost.id);
+    }
+  }
+
+  private getAdjacentPost(direction: NavigationFetchDirection): DamebooruPostDto | null {
+    const index = this.currentWindowIndex();
+    if (index < 0) {
+      return null;
+    }
+
+    const offset = direction === "previous" ? -1 : 1;
+    return this.navigationPosts()[index + offset] ?? null;
+  }
+
+  private replacePostInWindow(updatedPost: DamebooruPostDto) {
+    this.navigationPosts.update((posts) => {
+      const index = posts.findIndex((post) => post.id === updatedPost.id);
+      if (index < 0) {
+        return posts;
+      }
+
+      const next = [...posts];
+      next[index] = updatedPost;
       return next;
     });
   }
@@ -292,7 +529,8 @@ export class PostDetailComponent {
     this.hotkeys
       .on("ArrowLeft")
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
+      .subscribe((event) => {
+        this.setNavigationKeyHeld(event.key, true);
         this.goToPrevPost();
       });
 
@@ -300,8 +538,17 @@ export class PostDetailComponent {
     this.hotkeys
       .on("ArrowRight")
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
+      .subscribe((event) => {
+        this.setNavigationKeyHeld(event.key, true);
         this.goToNextPost();
+      });
+
+    fromEvent<KeyboardEvent>(this.document, "keyup")
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => {
+        if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          this.setNavigationKeyHeld(event.key, false);
+        }
       });
 
     // Edit mode toggle
@@ -322,6 +569,16 @@ export class PostDetailComponent {
       .subscribe(() => {
         this.toggleFullscreen();
       });
+  }
+
+  private setNavigationKeyHeld(key: string, held: boolean) {
+    if (held) {
+      this.heldNavigationKeys.add(key);
+    } else {
+      this.heldNavigationKeys.delete(key);
+    }
+
+    this.suppressFullImage.set(this.heldNavigationKeys.size > 0);
   }
 
   toggleFullscreen(): void {
@@ -383,12 +640,66 @@ export class PostDetailComponent {
     this.postFilesExpanded.update((v) => !v);
   }
 
+  onSourceTabOpen(): void {
+    this.activeSidebarTabId = "source";
+    const id = Number(this.id());
+    if (!Number.isInteger(id) || id < 1 || this.autoTagStatusLoadedForPostId === id) {
+      return;
+    }
+
+    this.loadAutoTagStatus(id);
+  }
+
+  onAuditTabOpen(): void {
+    this.activeSidebarTabId = "audit";
+    const id = Number(this.id());
+    if (!Number.isInteger(id) || id < 1 || this.auditLoadedForPostId === id) {
+      return;
+    }
+
+    this.loadAudit(id, false);
+  }
+
+  onSidebarTabOpen(tabId: "info" | "similar"): void {
+    this.activeSidebarTabId = tabId;
+  }
+
   goToPrevPost() {
-    this.navigateToPost(this.around()?.prev);
+    const previousPost = this.getAdjacentPost("previous");
+    if (previousPost) {
+      this.navigateToPostId(previousPost.id);
+      return;
+    }
+
+    const id = this.currentPostId();
+    if (id !== null && this.navigationHasPrevious()) {
+      this.requestNavigationWindow(
+        id,
+        this.refillAheadCount,
+        this.refillOverlapCount,
+        "previous",
+        true,
+      );
+    }
   }
 
   goToNextPost() {
-    this.navigateToPost(this.around()?.next);
+    const nextPost = this.getAdjacentPost("next");
+    if (nextPost) {
+      this.navigateToPostId(nextPost.id);
+      return;
+    }
+
+    const id = this.currentPostId();
+    if (id !== null && this.navigationHasNext()) {
+      this.requestNavigationWindow(
+        id,
+        this.refillOverlapCount,
+        this.refillAheadCount,
+        "next",
+        true,
+      );
+    }
   }
 
   onMediaPointerDown(event: PointerEvent) {
@@ -499,8 +810,7 @@ export class PostDetailComponent {
   saveChanges() {
     this.editService.save(this.destroyRef).subscribe((updatedPost) => {
       if (updatedPost) {
-        this.setCachedPost(updatedPost);
-        this.refreshTrigger.update((n) => n + 1);
+        this.replacePostInWindow(updatedPost);
         this.reloadAuditForCurrentPost();
       }
     });
@@ -555,10 +865,9 @@ export class PostDetailComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: result => {
-          this.setCachedPost(result.post);
-          this.refreshTrigger.update((n) => n + 1);
+          this.replacePostInWindow(result.post);
           this.reloadAuditForCurrentPost();
-          this.loadAutoTagStatus(result.post.id);
+          this.reloadAutoTagStatusForCurrentPost();
 
           const parts: string[] = [];
           if (result.addedTags > 0) parts.push(`added ${result.addedTags} tag${result.addedTags === 1 ? '' : 's'}`);
@@ -589,8 +898,7 @@ export class PostDetailComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (updatedPost) => {
-          this.setCachedPost(updatedPost);
-          this.refreshTrigger.update((n) => n + 1);
+          this.replacePostInWindow(updatedPost);
           this.reloadAuditForCurrentPost();
           this.toastService.success(
             updatedPost.isFavorite ? "Post favorited" : "Post unfavorited",
@@ -624,8 +932,8 @@ export class PostDetailComponent {
     );
   }
 
-  private navigateToPost(post: DamebooruPostDto | null | undefined) {
-    if (!post) return;
+  private navigateToPostId(postId: number | null | undefined) {
+    if (!postId) return;
 
     if (this.editService.isEditing()) {
       this.editService.cancelEditing();
@@ -634,7 +942,7 @@ export class PostDetailComponent {
     this.zoomPan()?.resetZoom();
     this.closeMobileImageViewer();
 
-    this.router.navigate(AppLinks.post(post.id), {
+    this.router.navigate(AppLinks.post(postId), {
       queryParams: this.detailQueryParams(),
       replaceUrl: true,
     });
@@ -766,6 +1074,10 @@ export class PostDetailComponent {
   }
 
   private reloadAuditForCurrentPost() {
+    if (this.activeSidebarTabId !== "audit") {
+      return;
+    }
+
     const id = Number(this.id());
     if (!Number.isInteger(id) || id < 1) {
       return;
@@ -785,11 +1097,21 @@ export class PostDetailComponent {
       : undefined;
 
     this.auditRequestInFlight = true;
+    this.auditRequestPostId = postId;
     this.damebooru
       .getPostAudit(postId, beforeId, 50)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
+          if (this.auditRequestPostId !== postId || Number(this.id()) !== postId) {
+            if (this.auditRequestPostId === postId) {
+              this.auditRequestInFlight = false;
+              this.auditRequestPostId = null;
+            }
+            return;
+          }
+
+          this.auditLoadedForPostId = postId;
           if (append) {
             this.auditEntries.set([...currentEntries, ...result.items]);
           } else {
@@ -798,28 +1120,111 @@ export class PostDetailComponent {
 
           this.auditHasMore.set(result.hasMore);
           this.auditRequestInFlight = false;
+          this.auditRequestPostId = null;
         },
         error: () => {
-          this.auditRequestInFlight = false;
+          if (this.auditRequestPostId === postId) {
+            this.auditRequestInFlight = false;
+            this.auditRequestPostId = null;
+          }
         },
       });
   }
 
   private loadAutoTagStatus(postId: number) {
+    if (this.autoTagStatusRequestInFlight) {
+      return;
+    }
+
+    this.autoTagStatusRequestInFlight = true;
+    this.autoTagStatusRequestPostId = postId;
     this.isAutoTagStatusLoading.set(true);
     this.damebooru
       .getPostAutoTagStatus(postId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: status => {
+          if (this.autoTagStatusRequestPostId !== postId || Number(this.id()) !== postId) {
+            if (this.autoTagStatusRequestPostId === postId) {
+              this.autoTagStatusRequestInFlight = false;
+              this.autoTagStatusRequestPostId = null;
+            }
+            return;
+          }
+
+          this.autoTagStatusLoadedForPostId = postId;
           this.autoTagStatus.set(status);
+          this.autoTagStatusRequestInFlight = false;
+          this.autoTagStatusRequestPostId = null;
           this.isAutoTagStatusLoading.set(false);
         },
         error: () => {
+          if (this.autoTagStatusRequestPostId !== postId || Number(this.id()) !== postId) {
+            if (this.autoTagStatusRequestPostId === postId) {
+              this.autoTagStatusRequestInFlight = false;
+              this.autoTagStatusRequestPostId = null;
+            }
+            return;
+          }
+
+          this.autoTagStatusLoadedForPostId = postId;
           this.autoTagStatus.set(null);
+          this.autoTagStatusRequestInFlight = false;
+          this.autoTagStatusRequestPostId = null;
           this.isAutoTagStatusLoading.set(false);
         },
       });
+  }
+
+  private reloadAutoTagStatusForCurrentPost() {
+    if (this.activeSidebarTabId !== "source") {
+      return;
+    }
+
+    const id = Number(this.id());
+    if (!Number.isInteger(id) || id < 1) {
+      return;
+    }
+
+    this.loadAutoTagStatus(id);
+  }
+
+  private resetOnDemandTabData(postId: number | null) {
+    if (this.auditLoadedForPostId !== postId) {
+      this.auditEntries.set([]);
+      this.auditHasMore.set(false);
+      this.auditLoadedForPostId = null;
+      this.auditRequestInFlight = false;
+      this.auditRequestPostId = null;
+    }
+
+    if (this.autoTagStatusLoadedForPostId !== postId) {
+      this.autoTagStatus.set(null);
+      this.autoTagStatusLoadedForPostId = null;
+      this.autoTagStatusRequestInFlight = false;
+      this.autoTagStatusRequestPostId = null;
+      this.isAutoTagStatusLoading.set(false);
+    }
+
+    if (postId === null) {
+      return;
+    }
+
+    if (this.activeSidebarTabId === "audit") {
+      this.loadAudit(postId, false);
+    }
+
+    if (this.activeSidebarTabId === "source") {
+      this.loadAutoTagStatus(postId);
+    }
+  }
+
+  private getNavigationScopeKey(): string {
+    return JSON.stringify({
+      query: this.query() ?? "",
+      explorerLibraryId: this.activeExplorerLibraryId(),
+      explorerPath: this.activeExplorerPath(),
+    });
   }
 
   private parsePositiveInt(value: string | null | undefined): number | null {

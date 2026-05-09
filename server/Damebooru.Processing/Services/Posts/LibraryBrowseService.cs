@@ -11,6 +11,8 @@ public class LibraryBrowseService
 {
     private const int DefaultPageSize = 80;
     private const int MaxPageSize = 200;
+    private const int MaxAroundWindowSize = 100;
+    private const int MaxAroundIdWindowSize = 100;
 
     private readonly DamebooruDbContext _context;
 
@@ -184,11 +186,70 @@ public class LibraryBrowseService
         int libraryId,
         int postId,
         string? path,
+        int window,
+        int? before,
+        int? after,
         CancellationToken cancellationToken = default)
     {
+        var beforeSize = NormalizeAroundWindowSize(before ?? window);
+        var afterSize = NormalizeAroundWindowSize(after ?? window);
+        var idWindowSize = Math.Min(Math.Max(beforeSize, afterSize) + 1, MaxAroundIdWindowSize);
+        var idsResult = await GetPostIdsAroundAsync(libraryId, postId, path, idWindowSize, cancellationToken);
+        if (!idsResult.IsSuccess)
+        {
+            return Result<PostsAroundDto>.Failure(
+                idsResult.Error ?? OperationError.InvalidInput,
+                idsResult.Message ?? "Failed to load surrounding posts.");
+        }
+
+        var ids = idsResult.Value!;
+        var prevIds = ids.PrevIds.Take(beforeSize).ToList();
+        var nextIds = ids.NextIds.Take(afterSize).ToList();
+        var postsById = await LoadPostsByIdAsync(prevIds.Concat([postId]).Concat(nextIds), cancellationToken);
+        if (!postsById.TryGetValue(postId, out var currentPost))
+        {
+            return Result<PostsAroundDto>.Failure(OperationError.NotFound, "Post not found in folder scope.");
+        }
+
+        var prevItems = prevIds
+            .Where(postsById.ContainsKey)
+            .Select(id => postsById[id])
+            .ToList();
+        var nextItems = nextIds
+            .Where(postsById.ContainsKey)
+            .Select(id => postsById[id])
+            .ToList();
+        var orderedItems = prevItems
+            .AsEnumerable()
+            .Reverse()
+            .Concat([currentPost])
+            .Concat(nextItems)
+            .ToList();
+
+        return Result<PostsAroundDto>.Success(new PostsAroundDto
+        {
+            Prev = prevItems.FirstOrDefault(),
+            Next = nextItems.FirstOrDefault(),
+            PrevItems = prevItems,
+            NextItems = nextItems,
+            Items = orderedItems,
+            AnchorIndex = prevItems.Count,
+            HasPrevious = ids.PrevIds.Count > beforeSize,
+            HasNext = ids.NextIds.Count > afterSize,
+        });
+    }
+
+    private async Task<Result<AroundPostIds>> GetPostIdsAroundAsync(
+        int libraryId,
+        int postId,
+        string? path,
+        int window,
+        CancellationToken cancellationToken = default)
+    {
+        var windowSize = NormalizeAroundIdWindowSize(window);
         if (!TryNormalizeFolderPath(path, out var normalizedPath))
         {
-            return Result<PostsAroundDto>.Failure(OperationError.InvalidInput, "Invalid folder path.");
+            return Result<AroundPostIds>.Failure(OperationError.InvalidInput, "Invalid folder path.");
         }
 
         var scopedQuery = ApplyFolderScope(
@@ -212,47 +273,51 @@ public class LibraryBrowseService
 
         if (current == null)
         {
-            return Result<PostsAroundDto>.Failure(OperationError.NotFound, "Post not found in folder scope.");
+            return Result<AroundPostIds>.Failure(OperationError.NotFound, "Post not found in folder scope.");
         }
 
-        var prevRaw = await scopedQuery
+        var prevIds = await scopedQuery
             .Where(p => p.Id != current.Id
                 && (
                     (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) > current.FileModifiedDate
                     || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == current.FileModifiedDate && p.Id > current.Id)
                 ))
             .OrderByOldest()
-            .Select(p => new { p.Id })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Select(p => p.Id)
+            .Take(windowSize)
+            .ToListAsync(cancellationToken);
 
-        var nextRaw = await scopedQuery
+        var nextIds = await scopedQuery
             .Where(p => p.Id != current.Id
                 && (
                     (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) < current.FileModifiedDate
                     || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == current.FileModifiedDate && p.Id < current.Id)
                 ))
             .OrderByNewest()
-            .Select(p => new { p.Id })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Select(p => p.Id)
+            .Take(windowSize)
+            .ToListAsync(cancellationToken);
 
-        var previous = prevRaw != null
-            ? LoadPostAsync(prevRaw.Id, cancellationToken)
-            : Task.FromResult<PostDto?>(null);
-        var next = nextRaw != null
-            ? LoadPostAsync(nextRaw.Id, cancellationToken)
-            : Task.FromResult<PostDto?>(null);
-        var tasks = await Task.WhenAll(previous, next);
-
-        return Result<PostsAroundDto>.Success(new PostsAroundDto
-        {
-            Prev = tasks[0],
-            Next = tasks[1],
-        });
+        return Result<AroundPostIds>.Success(new AroundPostIds(prevIds, nextIds));
     }
 
     private async Task<PostDto?> LoadPostAsync(int id, CancellationToken cancellationToken)
     {
-        var post = await _context.Posts
+        var postsById = await LoadPostsByIdAsync([id], cancellationToken);
+        return postsById.GetValueOrDefault(id);
+    }
+
+    private async Task<Dictionary<int, PostDto>> LoadPostsByIdAsync(IEnumerable<int> ids, CancellationToken cancellationToken)
+    {
+        var idList = ids.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return [];
+        }
+
+        var posts = await _context.Posts
+            // The duplicate-group include graph cycles back through Post, which EF does not allow in no-tracking queries.
+            .AsSplitQuery()
             .Include(p => p.PostFiles)
                 .ThenInclude(pf => pf.Library)
             .Include(p => p.Sources)
@@ -263,11 +328,19 @@ public class LibraryBrowseService
                     .ThenInclude(g => g.Entries)
                         .ThenInclude(e => e.Post)
                             .ThenInclude(sp => sp.PostFiles)
-            .Where(p => p.Id == id)
-            .FirstOrDefaultAsync(cancellationToken);
+            .Where(p => idList.Contains(p.Id))
+            .ToListAsync(cancellationToken);
 
-        return post == null ? null : MapPost(post);
+        return posts.ToDictionary(p => p.Id, MapPost);
     }
+
+    private static int NormalizeAroundWindowSize(int window)
+        => Math.Clamp(window, 1, MaxAroundWindowSize);
+
+    private static int NormalizeAroundIdWindowSize(int window)
+        => Math.Clamp(window, 1, MaxAroundIdWindowSize);
+
+    private sealed record AroundPostIds(IReadOnlyList<int> PrevIds, IReadOnlyList<int> NextIds);
 
     private static PostDto MapPost(Post post)
     {
