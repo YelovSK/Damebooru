@@ -2,7 +2,8 @@ namespace Damebooru.Core.Interfaces;
 
 public interface IMediaFileProcessor
 {
-    Task GenerateThumbnailAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken = default);
+    Task GeneratePreviewAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken = default);
+    Task GenerateThumbnailAsync(string sourcePath, string destinationPath, int size, CancellationToken cancellationToken = default);
     Task<MediaMetadata> GetMetadataAsync(string filePath, CancellationToken cancellationToken = default);
 }
 

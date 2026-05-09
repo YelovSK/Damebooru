@@ -9,6 +9,11 @@
     "secure": false,
     "changeOrigin": true
   },
+  "/previews": {
+    "target": "http://localhost:5119",
+    "secure": false,
+    "changeOrigin": true
+  },
   "/saucenao": {
     "target": "https://saucenao.com",
     "secure": true,

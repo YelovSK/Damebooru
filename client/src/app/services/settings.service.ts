@@ -26,7 +26,7 @@ const DEFAULT_POST_SETTINGS: PostSettings = {
 
 const DEFAULT_PERFORMANCE_SETTINGS: PerformanceSettings = {
   useScheduledImageSrc: true,
-  scheduledImageAssignmentsPerFrame: 10,
+  scheduledImageAssignmentsPerFrame: 8,
   imagePreloadMode: 'adaptive',
 };
 

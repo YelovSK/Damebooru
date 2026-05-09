@@ -7,7 +7,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, input, signal } f
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProgressiveImageComponent {
-  readonly thumbnailSrc = input.required<string>();
+  readonly previewSrc = input.required<string>();
   readonly fullSrc = input.required<string | null>();
   readonly alt = input<string>('');
   readonly width = input<number | null>(null);
@@ -20,7 +20,7 @@ export class ProgressiveImageComponent {
   constructor() {
     effect(() => {
       // Reset transition state whenever either source changes.
-      this.thumbnailSrc();
+      this.previewSrc();
       this.fullSrc();
       this.fullVisible.set(false);
       this.loadToken.update(value => value + 1);

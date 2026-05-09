@@ -146,8 +146,8 @@ export class PostDetailComponent {
   private readonly refillThreshold = 10;
   private readonly keepBehindCount = 40;
   private readonly keepAheadCount = 70;
-  private readonly thumbnailPreloadBehindCount = 8;
-  private readonly thumbnailPreloadAheadCount = 20;
+  private readonly previewPreloadBehindCount = 8;
+  private readonly previewPreloadAheadCount = 20;
   private navigationScopeKey = "";
   private readonly navigationRequestsInFlight = new Set<string>();
   private pendingEdgeNavigation: NavigationFetchDirection | null = null;
@@ -273,7 +273,7 @@ export class PostDetailComponent {
         return;
       }
 
-      untracked(() => this.preloadNearbyThumbnails(posts, currentIndex));
+      untracked(() => this.preloadNearbyPreviews(posts, currentIndex));
     });
   }
 
@@ -538,9 +538,9 @@ export class PostDetailComponent {
     });
   }
 
-  private preloadNearbyThumbnails(posts: DamebooruPostDto[], currentIndex: number) {
-    const start = Math.max(0, currentIndex - this.thumbnailPreloadBehindCount);
-    const end = Math.min(posts.length, currentIndex + this.thumbnailPreloadAheadCount + 1);
+  private preloadNearbyPreviews(posts: DamebooruPostDto[], currentIndex: number) {
+    const start = Math.max(0, currentIndex - this.previewPreloadBehindCount);
+    const end = Math.min(posts.length, currentIndex + this.previewPreloadAheadCount + 1);
     const nearbyPosts = posts.slice(start, end);
     const currentPost = posts[currentIndex];
     const aheadPosts = nearbyPosts.filter((_, index) => start + index > currentIndex);
@@ -553,7 +553,7 @@ export class PostDetailComponent {
     ]
       .filter((post): post is DamebooruPostDto => post !== undefined)
       .filter((post) => this.getMediaType(post.contentType) !== 'video')
-      .map((post) => this.getThumbnailUrl(post));
+      .map((post) => this.getPreviewUrl(post));
 
     this.imagePreloadService.preload(urls, {
       concurrency: 4,
@@ -953,6 +953,13 @@ export class PostDetailComponent {
 
   getThumbnailUrl(post: DamebooruPostDto): string {
     return this.damebooru.getThumbnailUrl(
+      post.thumbnailLibraryId,
+      post.thumbnailContentHash,
+    );
+  }
+
+  getPreviewUrl(post: DamebooruPostDto): string {
+    return this.damebooru.getPreviewUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );

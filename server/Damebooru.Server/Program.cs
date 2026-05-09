@@ -45,8 +45,7 @@ if (authEnabled)
             {
                 OnRedirectToLogin = context =>
                 {
-                    if (context.Request.Path.StartsWithSegments("/api")
-                        || context.Request.Path.StartsWithSegments(MediaPaths.ThumbnailsRequestPath))
+                    if (IsApiOrGeneratedImagePath(context.Request.Path))
                     {
                         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                         return Task.CompletedTask;
@@ -57,8 +56,7 @@ if (authEnabled)
                 },
                 OnRedirectToAccessDenied = context =>
                 {
-                    if (context.Request.Path.StartsWithSegments("/api")
-                        || context.Request.Path.StartsWithSegments(MediaPaths.ThumbnailsRequestPath))
+                    if (IsApiOrGeneratedImagePath(context.Request.Path))
                     {
                         context.Response.StatusCode = StatusCodes.Status403Forbidden;
                         return Task.CompletedTask;
@@ -214,6 +212,14 @@ if (authEnabled)
     app.UseAuthentication();
 }
 
+var previewPath = MediaPaths.ResolvePreviewStoragePath(
+    builder.Environment.ContentRootPath,
+    damebooruConfig.Storage.PreviewPath);
+if (!Directory.Exists(previewPath))
+{
+    Directory.CreateDirectory(previewPath);
+}
+
 var thumbnailPath = MediaPaths.ResolveThumbnailStoragePath(
     builder.Environment.ContentRootPath,
     damebooruConfig.Storage.ThumbnailPath);
@@ -222,13 +228,14 @@ if (!Directory.Exists(thumbnailPath))
     Directory.CreateDirectory(thumbnailPath);
 }
 
+app.Logger.LogInformation("Serving previews from: {Path}", previewPath);
 app.Logger.LogInformation("Serving thumbnails from: {Path}", thumbnailPath);
 
 if (authEnabled)
 {
     app.Use(async (context, next) =>
     {
-        if (context.Request.Path.StartsWithSegments(MediaPaths.ThumbnailsRequestPath)
+        if (IsGeneratedImagePath(context.Request.Path)
             && !(context.User.Identity?.IsAuthenticated ?? false))
         {
             await context.ChallengeAsync();
@@ -238,6 +245,12 @@ if (authEnabled)
         await next();
     });
 }
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(previewPath),
+    RequestPath = MediaPaths.PreviewsRequestPath
+});
 
 app.UseStaticFiles(new StaticFileOptions
 {
@@ -264,3 +277,10 @@ static void TrimSecretLikeValues(DamebooruConfig config)
     config.ExternalApis.Gelbooru.UserId = config.ExternalApis.Gelbooru.UserId?.Trim() ?? string.Empty;
     config.ExternalApis.Gelbooru.ApiKey = config.ExternalApis.Gelbooru.ApiKey?.Trim() ?? string.Empty;
 }
+
+static bool IsApiOrGeneratedImagePath(PathString path)
+    => path.StartsWithSegments("/api") || IsGeneratedImagePath(path);
+
+static bool IsGeneratedImagePath(PathString path)
+    => path.StartsWithSegments(MediaPaths.PreviewsRequestPath)
+        || path.StartsWithSegments(MediaPaths.ThumbnailsRequestPath);

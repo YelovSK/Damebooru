@@ -348,7 +348,11 @@ export class DamebooruService {
   }
 
   getThumbnailUrl(libraryId: number, contentHash: string): string {
-    return this.joinMediaUrl(`/thumbnails/${libraryId}/${contentHash}.webp`);
+    return this.joinMediaUrl(`/thumbnails/200/${libraryId}/${contentHash}.webp`);
+  }
+
+  getPreviewUrl(libraryId: number, contentHash: string): string {
+    return this.joinMediaUrl(`/previews/${libraryId}/${contentHash}.webp`);
   }
 
   getPostContentUrl(postId: number): string {

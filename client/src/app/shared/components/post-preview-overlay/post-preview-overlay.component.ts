@@ -45,8 +45,8 @@ export class PostPreviewOverlayComponent {
     return `min(${size}vw, ${size}vh * ${post.width} / ${post.height})`;
   });
 
-  getThumbnailUrl(post: DamebooruPostDto): string {
-    return this.damebooru.getThumbnailUrl(
+  getPreviewUrl(post: DamebooruPostDto): string {
+    return this.damebooru.getPreviewUrl(
       post.thumbnailLibraryId,
       post.thumbnailContentHash,
     );

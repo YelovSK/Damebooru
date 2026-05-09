@@ -17,6 +17,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CleanupOrphanedThumbnailsJob> _logger;
+    private readonly string _previewPath;
     private readonly string _thumbnailPath;
 
     public CleanupOrphanedThumbnailsJob(
@@ -27,9 +28,17 @@ public class CleanupOrphanedThumbnailsJob : IJob
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _previewPath = MediaPaths.ResolvePreviewStoragePath(
+            hostEnvironment.ContentRootPath,
+            options.Value.Storage.PreviewPath);
         _thumbnailPath = MediaPaths.ResolveThumbnailStoragePath(
             hostEnvironment.ContentRootPath,
             options.Value.Storage.ThumbnailPath);
+
+        if (!Directory.Exists(_previewPath))
+        {
+            Directory.CreateDirectory(_previewPath);
+        }
 
         if (!Directory.Exists(_thumbnailPath))
         {
@@ -40,7 +49,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
     public int DisplayOrder => 60;
     public JobKey Key => JobKey;
     public string Name => JobName;
-    public string Description => "Removes thumbnail files that are not referenced by any post.";
+    public string Description => "Removes thumbnail and preview files that are not referenced by any post file.";
     public bool SupportsAllMode => false;
 
     public async Task ExecuteAsync(JobContext context)
@@ -56,85 +65,103 @@ public class CleanupOrphanedThumbnailsJob : IJob
             ClearProgressCurrent = true,
             ClearProgressTotal = true,
         });
-        var knownThumbnailRelativePaths = (await db.Posts
+        var knownGeneratedFiles = await db.PostFiles
                 .AsNoTracking()
-                .Where(p => p.PostFiles.Any(pf => !string.IsNullOrEmpty(pf.ContentHash)))
-                .Select(p => MediaPaths.GetThumbnailRelativePath(
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
-                    p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty))
+                .Where(pf => !string.IsNullOrEmpty(pf.ContentHash))
+                .Select(pf => new { pf.LibraryId, pf.ContentHash })
                 .Distinct()
-                .ToListAsync(context.CancellationToken))
+                .ToListAsync(context.CancellationToken);
+
+        var knownThumbnailRelativePaths = knownGeneratedFiles
+            .Select(file => MediaPaths.GetThumbnailRelativePath(file.LibraryId, file.ContentHash))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var knownPreviewRelativePaths = knownGeneratedFiles
+            .Select(file => MediaPaths.GetPreviewRelativePath(file.LibraryId, file.ContentHash))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var thumbnailFiles = Directory
-            .EnumerateFiles(_thumbnailPath, MediaPaths.ThumbnailGlobPattern, SearchOption.AllDirectories)
-            .ToList();
+        var cleanupTargets = new[]
+        {
+            new CleanupTarget("thumbnails", _thumbnailPath, knownThumbnailRelativePaths),
+            new CleanupTarget("previews", _previewPath, knownPreviewRelativePaths),
+        };
+        var totalFiles = cleanupTargets.Sum(target => target.Files.Count);
 
-        if (thumbnailFiles.Count == 0)
+        if (totalFiles == 0)
         {
             context.Reporter.Update(new JobState
             {
                 ActivityText = "Completed",
                 ProgressCurrent = 0,
                 ProgressTotal = 0,
-                FinalText = "No thumbnails found."
+                FinalText = "No thumbnails or previews found."
             });
             return;
         }
 
         _logger.LogInformation(
-            "Checking {ThumbnailCount} thumbnails against {KnownThumbnailCount} known thumbnails",
-            thumbnailFiles.Count,
-            knownThumbnailRelativePaths.Count);
+            "Checking {GeneratedImageCount} generated images against {KnownThumbnailCount} known thumbnails and {KnownPreviewCount} known previews",
+            totalFiles,
+            knownThumbnailRelativePaths.Count,
+            knownPreviewRelativePaths.Count);
 
         int deleted = 0;
         int failed = 0;
+        var processed = 0;
 
-        for (var index = 0; index < thumbnailFiles.Count; index++)
+        foreach (var target in cleanupTargets)
         {
-            context.CancellationToken.ThrowIfCancellationRequested();
-
-            var filePath = thumbnailFiles[index];
-            var relativePath = Path.GetRelativePath(_thumbnailPath, filePath)
-                .Replace('\\', '/');
-
-            if (!knownThumbnailRelativePaths.Contains(relativePath))
+            foreach (var filePath in target.Files)
             {
-                try
-                {
-                    File.Delete(filePath);
-                    deleted++;
-                }
-                catch (Exception ex)
-                {
-                    failed++;
-                    _logger.LogWarning(ex, "Failed to delete orphaned thumbnail: {Path}", filePath);
-                }
-            }
+                context.CancellationToken.ThrowIfCancellationRequested();
 
-            var processed = index + 1;
-            if (processed % 50 == 0 || processed == thumbnailFiles.Count)
-            {
-                context.Reporter.Update(new JobState
+                var relativePath = Path.GetRelativePath(target.RootPath, filePath)
+                    .Replace('\\', '/');
+
+                if (!target.KnownRelativePaths.Contains(relativePath))
                 {
-                    ActivityText = $"Cleaning orphaned thumbnails... ({processed}/{thumbnailFiles.Count})",
-                    ProgressCurrent = processed,
-                    ProgressTotal = thumbnailFiles.Count
-                });
+                    try
+                    {
+                        File.Delete(filePath);
+                        deleted++;
+                    }
+                    catch (Exception ex)
+                    {
+                        failed++;
+                        _logger.LogWarning(ex, "Failed to delete orphaned {Kind}: {Path}", target.Kind, filePath);
+                    }
+                }
+
+                processed++;
+                if (processed % 50 == 0 || processed == totalFiles)
+                {
+                    context.Reporter.Update(new JobState
+                    {
+                        ActivityText = $"Cleaning orphaned generated images... ({processed}/{totalFiles})",
+                        ProgressCurrent = processed,
+                        ProgressTotal = totalFiles
+                    });
+                }
             }
         }
 
         context.Reporter.Update(new JobState
         {
             ActivityText = "Completed",
-            ProgressCurrent = thumbnailFiles.Count,
-            ProgressTotal = thumbnailFiles.Count,
-            FinalText = $"Removed {deleted} orphaned thumbnails ({failed} failed)."
+            ProgressCurrent = totalFiles,
+            ProgressTotal = totalFiles,
+            FinalText = $"Removed {deleted} orphaned generated images ({failed} failed)."
         });
         _logger.LogInformation(
-            "Orphaned thumbnail cleanup complete: {Deleted} deleted, {Failed} failed, {Total} scanned",
+            "Orphaned generated image cleanup complete: {Deleted} deleted, {Failed} failed, {Total} scanned",
             deleted,
             failed,
-            thumbnailFiles.Count);
+            totalFiles);
+    }
+
+    private sealed record CleanupTarget(string Kind, string RootPath, HashSet<string> KnownRelativePaths)
+    {
+        public List<string> Files { get; } = Directory.Exists(RootPath)
+            ? Directory.EnumerateFiles(RootPath, MediaPaths.GeneratedImageGlobPattern, SearchOption.AllDirectories).ToList()
+            : [];
     }
 }

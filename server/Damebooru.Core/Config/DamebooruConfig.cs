@@ -23,7 +23,13 @@ public class StorageConfig
     public string DatabasePath { get; set; } = "data/damebooru.db";
 
     /// <summary>
-    /// Path where thumbnails are stored.
+    /// Path where larger preview images are stored.
+    /// Default: ./data/previews
+    /// </summary>
+    public string PreviewPath { get; set; } = "data/previews";
+
+    /// <summary>
+    /// Path where small square thumbnails are stored.
     /// Default: ./data/thumbnails
     /// </summary>
     public string ThumbnailPath { get; set; } = "data/thumbnails";

@@ -4,6 +4,9 @@ using Damebooru.Core.Paths;
 using FFMpegCore;
 using Microsoft.Extensions.Logging;
 using PhotoSauce.MagicScaler;
+using PhotoSauce.NativeCodecs.Libjxl;
+using PhotoSauce.NativeCodecs.Libpng;
+using PhotoSauce.NativeCodecs.Libwebp;
 
 namespace Damebooru.Processing.Infrastructure;
 
@@ -21,11 +24,23 @@ public class MediaProcessor : IMediaFileProcessor
         _logger = logger;
     }
 
-    public async Task GenerateThumbnailAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken = default)
+    public Task GeneratePreviewAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken = default)
+        => GenerateImageDerivativeAsync(sourcePath, destinationPath, maxSize, maxSize, CropScaleMode.Max, cancellationToken);
+
+    public Task GenerateThumbnailAsync(string sourcePath, string destinationPath, int size, CancellationToken cancellationToken = default)
+        => GenerateImageDerivativeAsync(sourcePath, destinationPath, size, size, CropScaleMode.Crop, cancellationToken);
+
+    private async Task GenerateImageDerivativeAsync(
+        string sourcePath,
+        string destinationPath,
+        int width,
+        int height,
+        CropScaleMode resizeMode,
+        CancellationToken cancellationToken)
     {
         try
         {
-            _logger.LogInformation("Generating thumbnail for {Path}", sourcePath);
+            _logger.LogInformation("Generating derived image for {Path}", sourcePath);
             var destinationDirectory = Path.GetDirectoryName(destinationPath);
             if (!string.IsNullOrWhiteSpace(destinationDirectory) && !Directory.Exists(destinationDirectory))
             {
@@ -35,47 +50,77 @@ public class MediaProcessor : IMediaFileProcessor
             var extension = Path.GetExtension(sourcePath);
             if (SupportedMedia.IsImage(extension))
             {
-                await GenerateImageThumbnailAsync(sourcePath, destinationPath, maxSize, cancellationToken);
+                await GenerateImageFileDerivativeAsync(sourcePath, destinationPath, width, height, resizeMode, cancellationToken);
             }
             else
             {
-                await GenerateVideoThumbnailAsync(sourcePath, destinationPath, maxSize, cancellationToken);
+                await GenerateVideoFileDerivativeAsync(sourcePath, destinationPath, width, height, resizeMode, cancellationToken);
             }
 
-            EnsureThumbnailCreated(destinationPath, sourcePath);
+            EnsureDerivativeCreated(destinationPath, sourcePath);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate thumbnail for {Path}", sourcePath);
+            _logger.LogError(ex, "Failed to generate derived image for {Path}", sourcePath);
             throw;
         }
     }
 
-    private static async Task GenerateImageThumbnailAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken)
+    private static async Task GenerateImageFileDerivativeAsync(
+        string sourcePath,
+        string destinationPath,
+        int width,
+        int height,
+        CropScaleMode resizeMode,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var settings = new ProcessImageSettings
         {
-            Width = maxSize,
-            Height = maxSize,
-            ResizeMode = CropScaleMode.Max,
+            Width = width,
+            Height = height,
+            ResizeMode = resizeMode,
+            DecoderOptions = GetSingleFrameDecoderOptions(Path.GetExtension(sourcePath)),
         };
 
-        settings.TrySetEncoderFormat(MediaPaths.ThumbnailContentType);
+        settings.TrySetEncoderFormat(MediaPaths.GeneratedImageContentType);
 
         await Task.Run(() => MagicImageProcessor.ProcessImage(sourcePath, destinationPath, settings), cancellationToken);
     }
 
-    private static async Task GenerateVideoThumbnailAsync(string sourcePath, string destinationPath, int maxSize, CancellationToken cancellationToken)
+    private static IDecoderOptions? GetSingleFrameDecoderOptions(string extension)
+    {
+        var firstFrame = 0..1;
+        return extension.ToLowerInvariant() switch
+        {
+            ".gif" => new GifDecoderOptions(firstFrame, true),
+            ".jxl" => new JxlDecoderOptions(firstFrame),
+            ".png" => new PngDecoderOptions(firstFrame),
+            ".tif" or ".tiff" => new TiffDecoderOptions(firstFrame),
+            ".webp" => new WebpDecoderOptions(firstFrame, true, true),
+            _ => null,
+        };
+    }
+
+    private static async Task GenerateVideoFileDerivativeAsync(
+        string sourcePath,
+        string destinationPath,
+        int width,
+        int height,
+        CropScaleMode resizeMode,
+        CancellationToken cancellationToken)
     {
         var analysis = await FFProbe.AnalyseAsync(sourcePath, null, cancellationToken);
         var duration = analysis.Duration;
+        var filter = resizeMode == CropScaleMode.Crop
+            ? $"scale={width}:{height}:force_original_aspect_ratio=increase,crop={width}:{height}"
+            : $"scale={width}:{height}:force_original_aspect_ratio=decrease";
 
         await FFMpegArguments
             .FromFileInput(sourcePath, true, options => options.Seek(GetVideoCaptureTime(duration)))
             .OutputToFile(destinationPath, true, options => options
-                .WithCustomArgument($"-vf \"scale={maxSize}:{maxSize}:force_original_aspect_ratio=decrease\"")
+                .WithCustomArgument($"-vf \"{filter}\"")
                 .WithCustomArgument("-frames:v 1"))
             .ProcessAsynchronously();
     }
@@ -105,19 +150,19 @@ public class MediaProcessor : IMediaFileProcessor
         return clamped > safeUpperBound ? safeUpperBound : clamped;
     }
 
-    private static void EnsureThumbnailCreated(string destinationPath, string sourcePath)
+    private static void EnsureDerivativeCreated(string destinationPath, string sourcePath)
     {
         if (!File.Exists(destinationPath))
         {
             throw new InvalidOperationException(
-                $"Thumbnail generation completed but did not create output. Source: '{sourcePath}', Destination: '{destinationPath}'.");
+                $"Derived image generation completed but did not create output. Source: '{sourcePath}', Destination: '{destinationPath}'.");
         }
 
         var size = new FileInfo(destinationPath).Length;
         if (size <= 0)
         {
             throw new InvalidOperationException(
-                $"Thumbnail generation created an empty output file. Source: '{sourcePath}', Destination: '{destinationPath}'.");
+                $"Derived image generation created an empty output file. Source: '{sourcePath}', Destination: '{destinationPath}'.");
         }
     }
 

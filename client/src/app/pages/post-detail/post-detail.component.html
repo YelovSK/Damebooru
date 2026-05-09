@@ -348,7 +348,7 @@
             @switch (getMediaType(pd.contentType)) {
             @case ('image')
             @case ('animation') {
-            <app-progressive-image [thumbnailSrc]="getThumbnailUrl(pd)"
+            <app-progressive-image [previewSrc]="getPreviewUrl(pd)"
                 [fullSrc]="suppressFullImage() ? null : getPostContentUrl(pd)"
                 [alt]="'' + pd.id" [width]="pd.width" [height]="pd.height" />
             }
@@ -366,7 +366,7 @@
         </button>
 
         <app-zoom-pan-container [touchEnabled]="true">
-            <app-progressive-image [thumbnailSrc]="getThumbnailUrl(pd)"
+            <app-progressive-image [previewSrc]="getPreviewUrl(pd)"
                 [fullSrc]="suppressFullImage() ? null : getPostContentUrl(pd)"
                 [alt]="'' + pd.id" [width]="pd.width" [height]="pd.height" />
         </app-zoom-pan-container>

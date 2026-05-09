@@ -1378,11 +1378,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         try
         {
-            await _mediaEnrichmentService.GenerateThumbnailAsync(target, cancellationToken);
+            await _mediaEnrichmentService.GenerateGeneratedImagesAsync(target, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to enrich thumbnail for post file {Id}: {Path}", postFile.Id, postFile.RelativePath);
+            _logger.LogWarning(ex, "Failed to enrich thumbnail/preview for post file {Id}: {Path}", postFile.Id, postFile.RelativePath);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

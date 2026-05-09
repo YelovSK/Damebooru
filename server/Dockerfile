@@ -20,11 +20,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /app/data/thumbnails /app/data/temp
+RUN mkdir -p /app/data/previews /app/data/thumbnails /app/data/temp
 
 ENV ASPNETCORE_URLS=http://+:6666
 ENV Damebooru__Storage__DatabasePath=/app/data/damebooru.db
 ENV Damebooru__Storage__ThumbnailPath=/app/data/thumbnails
+ENV Damebooru__Storage__PreviewPath=/app/data/previews
 ENV Damebooru__Storage__TempPath=/app/data/temp
 
 EXPOSE 6666

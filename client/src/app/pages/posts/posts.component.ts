@@ -221,8 +221,8 @@ export class PostsComponent implements AfterViewInit {
   readonly showFastScrollerBubble = computed(
     () => this.fastScrollerVisible() && this.totalPages() > 1,
   );
-  readonly virtualMinBufferRows = 8;
-  readonly virtualMaxBufferRows = 16;
+  readonly virtualMinBufferRows = 4;
+  readonly virtualMaxBufferRows = 8;
 
   private tagQuery$ = new Subject<string>();
   tagSuggestions = toSignal(

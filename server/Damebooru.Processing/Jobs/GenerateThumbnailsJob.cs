@@ -37,7 +37,7 @@ public class GenerateThumbnailsJob : IJob
     public int DisplayOrder => 25;
     public JobKey Key => JobKey;
     public string Name => JobName;
-    public string Description => "Generates missing (or all) thumbnails for posts.";
+    public string Description => "Generates missing (or all) thumbnails and previews for posts.";
     public bool SupportsAllMode => true;
 
     public async Task ExecuteAsync(JobContext context)
@@ -53,9 +53,9 @@ public class GenerateThumbnailsJob : IJob
         var totalFiles = await query.CountAsync(context.CancellationToken);
         var totalCandidates = context.Mode == JobMode.All
             ? totalFiles
-            : await CountMissingThumbnailCandidatesAsync(query, totalFiles, context);
+            : await CountMissingGeneratedImageCandidatesAsync(query, totalFiles, context);
         _logger.LogInformation(
-            "Generating thumbnails for up to {Count} files (mode: {Mode})",
+            "Generating thumbnails and previews for up to {Count} files (mode: {Mode})",
             totalCandidates,
             context.Mode);
 
@@ -66,7 +66,7 @@ public class GenerateThumbnailsJob : IJob
                 ActivityText = "Completed",
                 ProgressCurrent = 0,
                 ProgressTotal = 0,
-                FinalText = "All thumbnails are up to date."
+                FinalText = "All thumbnails and previews are up to date."
             });
             return;
         }
@@ -84,7 +84,7 @@ public class GenerateThumbnailsJob : IJob
 
         JobState BuildLiveState() => new()
         {
-            ActivityText = $"Generating thumbnails... ({Math.Min(totalCandidates, processed + failed)}/{totalCandidates})",
+            ActivityText = $"Generating thumbnails and previews... ({Math.Min(totalCandidates, processed + failed)}/{totalCandidates})",
             ProgressCurrent = Math.Min(totalCandidates, processed + failed),
             ProgressTotal = totalCandidates
         };
@@ -117,7 +117,7 @@ public class GenerateThumbnailsJob : IJob
             else
             {
                 toProcess = batch
-                    .Where(target => !_mediaEnrichmentService.HasThumbnail(target))
+                    .Where(target => !_mediaEnrichmentService.HasGeneratedImages(target))
                     .ToList();
 
                 skipped += batch.Count - toProcess.Count;
@@ -127,14 +127,14 @@ public class GenerateThumbnailsJob : IJob
             {
                 try
                 {
-                    await _mediaEnrichmentService.GenerateThumbnailAsync(postFile, ct);
+                    await _mediaEnrichmentService.GenerateGeneratedImagesAsync(postFile, ct);
                     Interlocked.Increment(ref processed);
                     context.Reporter.Update(BuildLiveState());
                 }
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref failed);
-                    _logger.LogWarning(ex, "Failed to generate thumbnail for post file {Id}: {Path}", postFile.PostFileId, postFile.RelativePath);
+                    _logger.LogWarning(ex, "Failed to generate thumbnail/preview for post file {Id}: {Path}", postFile.PostFileId, postFile.RelativePath);
                     context.Reporter.Update(BuildLiveState());
                 }
             });
@@ -147,20 +147,20 @@ public class GenerateThumbnailsJob : IJob
             ActivityText = "Completed",
             ProgressCurrent = Math.Min(totalCandidates, processed + failed),
             ProgressTotal = totalCandidates,
-            FinalText = $"Generated {processed} thumbnails ({failed} failed, {skipped} skipped)."
+            FinalText = $"Generated {processed} thumbnail/preview sets ({failed} failed, {skipped} skipped)."
         });
         _logger.LogInformation(
-            "Thumbnail generation complete: {Processed} generated, {Failed} failed, {Skipped} skipped",
+            "Thumbnail/preview generation complete: {Processed} generated, {Failed} failed, {Skipped} skipped",
             processed,
             failed,
             skipped);
     }
 
-    private async Task<int> CountMissingThumbnailCandidatesAsync(IQueryable<PostFile> query, int totalFiles, JobContext context)
+    private async Task<int> CountMissingGeneratedImageCandidatesAsync(IQueryable<PostFile> query, int totalFiles, JobContext context)
     {
         context.Reporter.Update(new JobState
         {
-            ActivityText = $"Scanning files for missing thumbnails... (0/{totalFiles})",
+            ActivityText = $"Scanning files for missing thumbnails/previews... (0/{totalFiles})",
             ProgressCurrent = 0,
             ProgressTotal = totalFiles,
         });
@@ -190,11 +190,11 @@ public class GenerateThumbnailsJob : IJob
 
             lastId = batch[^1].PostFileId;
             scanned += batch.Count;
-            missingCount += batch.Count(target => !_mediaEnrichmentService.HasThumbnail(target));
+            missingCount += batch.Count(target => !_mediaEnrichmentService.HasGeneratedImages(target));
 
             context.Reporter.Update(new JobState
             {
-                ActivityText = $"Scanning files for missing thumbnails... ({scanned}/{totalFiles})",
+                ActivityText = $"Scanning files for missing thumbnails/previews... ({scanned}/{totalFiles})",
                 ProgressCurrent = scanned,
                 ProgressTotal = totalFiles,
             });

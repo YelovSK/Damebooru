@@ -13,7 +13,7 @@
         @default {
         <div class="relative" [style.max-width]="viewportLimitVw()" [style.max-height]="viewportLimitVh()"
             [style.aspect-ratio]="imageAspectRatio()" [style.width]="imageContainerWidth()">
-            <app-progressive-image [thumbnailSrc]="getThumbnailUrl(post())"
+            <app-progressive-image [previewSrc]="getPreviewUrl(post())"
                 [fullSrc]="getPostContentUrl(post())" [alt]="'Post ' + post().id"
                 [width]="post().width || null" [height]="post().height || null" />
         </div>
