@@ -27,6 +27,7 @@ import {
 } from "@angular/core/rxjs-interop";
 
 import { DamebooruService } from "@services/api/damebooru/damebooru.service";
+import { ImagePreloadService } from "@services/image-preload.service";
 import { SettingsService } from "@services/settings.service";
 import { ToastService } from "@services/toast.service";
 import { TagPipe } from "@shared/pipes/escape-tag.pipe";
@@ -88,6 +89,7 @@ export class PostDetailComponent {
   private readonly hotkeys = inject(HotkeysService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly document = inject(DOCUMENT);
+  private readonly imagePreloadService = inject(ImagePreloadService);
   private readonly settingsService = inject(SettingsService);
   private readonly toastService = inject(ToastService);
   readonly editService = inject(PostEditService);
@@ -144,6 +146,8 @@ export class PostDetailComponent {
   private readonly refillThreshold = 10;
   private readonly keepBehindCount = 40;
   private readonly keepAheadCount = 70;
+  private readonly thumbnailPreloadBehindCount = 8;
+  private readonly thumbnailPreloadAheadCount = 20;
   private navigationScopeKey = "";
   private readonly navigationRequestsInFlight = new Set<string>();
   private pendingEdgeNavigation: NavigationFetchDirection | null = null;
@@ -260,6 +264,16 @@ export class PostDetailComponent {
       untracked(() => {
         this.ensureNavigationWindowForPost(id, scopeKey);
       });
+    });
+
+    effect(() => {
+      const posts = this.navigationPosts();
+      const currentIndex = this.currentWindowIndex();
+      if (currentIndex < 0) {
+        return;
+      }
+
+      untracked(() => this.preloadNearbyThumbnails(posts, currentIndex));
     });
   }
 
@@ -521,6 +535,29 @@ export class PostDetailComponent {
       const next = [...posts];
       next[index] = updatedPost;
       return next;
+    });
+  }
+
+  private preloadNearbyThumbnails(posts: DamebooruPostDto[], currentIndex: number) {
+    const start = Math.max(0, currentIndex - this.thumbnailPreloadBehindCount);
+    const end = Math.min(posts.length, currentIndex + this.thumbnailPreloadAheadCount + 1);
+    const nearbyPosts = posts.slice(start, end);
+    const currentPost = posts[currentIndex];
+    const aheadPosts = nearbyPosts.filter((_, index) => start + index > currentIndex);
+    const behindPosts = nearbyPosts.filter((_, index) => start + index < currentIndex).reverse();
+
+    const urls = [
+      currentPost,
+      ...aheadPosts,
+      ...behindPosts,
+    ]
+      .filter((post): post is DamebooruPostDto => post !== undefined)
+      .filter((post) => this.getMediaType(post.contentType) !== 'video')
+      .map((post) => this.getThumbnailUrl(post));
+
+    this.imagePreloadService.preload(urls, {
+      concurrency: 4,
+      replaceQueue: true,
     });
   }
 

@@ -12,7 +12,10 @@ export interface PostSettings {
 export interface PerformanceSettings {
   useScheduledImageSrc: boolean;
   scheduledImageAssignmentsPerFrame: number;
+  imagePreloadMode: ImagePreloadMode;
 }
+
+export type ImagePreloadMode = 'adaptive' | 'off' | 'conservative' | 'aggressive';
 
 const DEFAULT_POST_SETTINGS: PostSettings = {
   autoPlayVideos: true,
@@ -24,6 +27,7 @@ const DEFAULT_POST_SETTINGS: PostSettings = {
 const DEFAULT_PERFORMANCE_SETTINGS: PerformanceSettings = {
   useScheduledImageSrc: true,
   scheduledImageAssignmentsPerFrame: 10,
+  imagePreloadMode: 'adaptive',
 };
 
 @Injectable({

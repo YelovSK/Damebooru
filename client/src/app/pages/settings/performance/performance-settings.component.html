@@ -36,4 +36,22 @@
     </div>
   </div>
   }
+
+  <div class="border-t border-glass-border/50"></div>
+
+  <div class="flex items-start gap-4">
+    <div class="w-72">
+      <app-form-dropdown
+        [value]="settings().imagePreloadMode"
+        [options]="imagePreloadModeOptions"
+        label="Post detail image preloading"
+        (valueChange)="onImagePreloadModeChange($event)"
+      />
+    </div>
+    <div class="flex-1">
+      <p class="text-text-muted text-sm mt-7">
+        Controls thumbnail preloading around the current post. Adaptive reacts to observed image load times and Save-Data.
+      </p>
+    </div>
+  </div>
 </div>
