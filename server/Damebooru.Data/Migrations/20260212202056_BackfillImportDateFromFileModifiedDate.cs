@@ -10,11 +10,8 @@ namespace Damebooru.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql("""
-                UPDATE Posts
-                SET ImportDate = FileModifiedDate
-                WHERE FileModifiedDate IS NOT NULL;
-                """);
+            // Historical no-op: ImportDate is ingestion time, while FileModifiedDate
+            // is source file mtime. Do not backfill one from the other.
         }
 
         /// <inheritdoc />
