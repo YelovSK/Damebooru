@@ -7,3 +7,8 @@ public sealed class AutoTagDiscoverySettingsDto
     public bool DanbooruEnabled { get; set; }
     public bool GelbooruEnabled { get; set; }
 }
+
+public sealed class DuplicateDetectionSettingsDto
+{
+    public int PerceptualSimilarityThresholdPercent { get; set; }
+}

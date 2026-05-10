@@ -15,17 +15,20 @@ public class DuplicateLookupService
     private readonly DamebooruDbContext _context;
     private readonly IHasherService _hasherService;
     private readonly ISimilarityService _similarityService;
+    private readonly DuplicateDetectionSettingsService _settingsService;
     private readonly ILogger<DuplicateLookupService> _logger;
 
     public DuplicateLookupService(
         DamebooruDbContext context,
         IHasherService hasherService,
         ISimilarityService similarityService,
+        DuplicateDetectionSettingsService settingsService,
         ILogger<DuplicateLookupService> logger)
     {
         _context = context;
         _hasherService = hasherService;
         _similarityService = similarityService;
+        _settingsService = settingsService;
         _logger = logger;
     }
 
@@ -79,6 +82,7 @@ public class DuplicateLookupService
         var exactMatchIds = response.ExactMatches
             .Select(match => match.Id)
             .ToHashSet();
+        var duplicateSettings = await _settingsService.GetAsync(cancellationToken);
 
         var candidates = await _context.Posts
             .AsNoTracking()
@@ -119,10 +123,8 @@ public class DuplicateLookupService
 
                 if (!PdqHashMatchHelper.TryComputeSimilarity(
                     uploadHashWords,
-                    normalizedContentType,
                     candidateHash,
-                    candidate.ContentType,
-                    PdqHashMatchHelper.DefaultSimilarityThresholdPercent,
+                    duplicateSettings.PerceptualSimilarityThresholdPercent,
                     out var similarityPercent))
                 {
                     return null;

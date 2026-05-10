@@ -33,9 +33,7 @@ internal static class PdqHashMatchHelper
 
     internal static bool TryComputeSimilarity(
         PdqHashWords left,
-        string leftContentType,
         PdqHashWords right,
-        string rightContentType,
         int similarityThresholdPercent,
         out int similarityPercent)
     {
@@ -46,13 +44,6 @@ internal static class PdqHashMatchHelper
 
         var similarity = 1.0 - (double)distance / 256;
         var threshold = similarityThresholdPercent / 100.0;
-
-        var isLeftImage = leftContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-        var isRightImage = rightContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
-        if (!isLeftImage || !isRightImage)
-        {
-            threshold = Math.Max(threshold, 0.90);
-        }
 
         if (similarity < threshold)
         {

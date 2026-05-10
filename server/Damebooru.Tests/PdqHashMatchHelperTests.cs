@@ -33,9 +33,7 @@ public class PdqHashMatchHelperTests
 
         var success = PdqHashMatchHelper.TryComputeSimilarity(
             words,
-            "image/png",
             words,
-            "image/jpeg",
             PdqHashMatchHelper.DefaultSimilarityThresholdPercent,
             out var similarityPercent);
 

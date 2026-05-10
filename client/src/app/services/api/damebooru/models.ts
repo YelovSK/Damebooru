@@ -495,6 +495,10 @@ export interface AutoTagDiscoverySettings {
   gelbooruEnabled: boolean;
 }
 
+export interface DuplicateDetectionSettings {
+  perceptualSimilarityThresholdPercent: number;
+}
+
 export interface UpdatePostTagInput {
   tagId?: number;
   name: string;

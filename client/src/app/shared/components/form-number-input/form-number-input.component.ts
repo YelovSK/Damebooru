@@ -23,6 +23,7 @@ export class FormNumberInputComponent implements ControlValueAccessor {
 
   // Internal state
   value: number | null = null;
+  displayValue = '';
   disabled = false;
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -42,6 +43,7 @@ export class FormNumberInputComponent implements ControlValueAccessor {
 
   writeValue(value: number | null): void {
     this.value = value !== null && value !== undefined ? Number(value) : null;
+    this.displayValue = this.formatValue(this.value);
   }
 
   registerOnChange(fn: (value: number | null) => void): void {
@@ -58,12 +60,14 @@ export class FormNumberInputComponent implements ControlValueAccessor {
 
   handleInput(event: Event): void {
     const target = event.target as HTMLInputElement;
-    const val = target.value;
-    this.value = val === '' ? null : Number(val);
-    this.onChange(this.value);
+    this.displayValue = target.value;
   }
 
   handleBlur(): void {
+    const next = this.parseDisplayValue();
+    this.value = next;
+    this.displayValue = this.formatValue(next);
+    this.onChange(next);
     this.onTouched();
   }
 
@@ -81,8 +85,27 @@ export class FormNumberInputComponent implements ControlValueAccessor {
     const next = Number(clamped.toFixed(this.getDecimalPlaces(step)));
 
     this.value = next;
+    this.displayValue = this.formatValue(next);
     this.onChange(next);
     this.onTouched();
+  }
+
+  private parseDisplayValue(): number | null {
+    const trimmed = this.displayValue.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      return this.value;
+    }
+
+    return this.clamp(parsed);
+  }
+
+  private formatValue(value: number | null): string {
+    return value === null ? '' : String(value);
   }
 
   private clamp(value: number): number {

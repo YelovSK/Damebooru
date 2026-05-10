@@ -32,6 +32,7 @@ public class DamebooruDbContext : DbContext
     public DbSet<DuplicateGroupEntry> DuplicateGroupEntries { get; set; } = null!;
     public DbSet<AppLogEntry> AppLogEntries { get; set; } = null!;
     public DbSet<AutoTagDiscoverySettings> AutoTagDiscoverySettings { get; set; } = null!;
+    public DbSet<DuplicateDetectionSettings> DuplicateDetectionSettings { get; set; } = null!;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -252,6 +253,13 @@ public class DamebooruDbContext : DbContext
                 IqdbEnabled = true,
                 DanbooruEnabled = true,
                 GelbooruEnabled = true
+            });
+
+        modelBuilder.Entity<DuplicateDetectionSettings>()
+            .HasData(new DuplicateDetectionSettings
+            {
+                Id = 1,
+                PerceptualSimilarityThresholdPercent = Core.Entities.DuplicateDetectionSettings.DefaultPerceptualSimilarityThresholdPercent
             });
     }
 }

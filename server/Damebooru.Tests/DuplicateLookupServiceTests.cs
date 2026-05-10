@@ -21,6 +21,7 @@ public class DuplicateLookupServiceTests
             db,
             new StubHasher("exact-hash"),
             new StubSimilarityService(new SimilarityHashes(new string('f', 64))),
+            new DuplicateDetectionSettingsService(db),
             NullLogger<DuplicateLookupService>.Instance);
 
         var result = await service.LookupAsync(
@@ -46,6 +47,7 @@ public class DuplicateLookupServiceTests
             db,
             new StubHasher("exact-hash"),
             new StubSimilarityService(new SimilarityHashes(new string('f', 64))),
+            new DuplicateDetectionSettingsService(db),
             NullLogger<DuplicateLookupService>.Instance);
 
         var result = await service.LookupAsync(
@@ -70,6 +72,7 @@ public class DuplicateLookupServiceTests
             db,
             new StubHasher("exact-hash"),
             new StubSimilarityService(new SimilarityHashes(new string('f', 64))),
+            new DuplicateDetectionSettingsService(db),
             NullLogger<DuplicateLookupService>.Instance);
 
         var result = await service.LookupAsync(

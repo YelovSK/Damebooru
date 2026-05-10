@@ -39,6 +39,7 @@ import {
   type PostAuditList,
   type AutoTagPostResult,
   type AutoTagDiscoverySettings,
+  type DuplicateDetectionSettings,
   type PostAutoTagStatus,
   type StatsGrowthDateKind,
   type StatsGrowthDto,
@@ -386,6 +387,14 @@ export class DamebooruService {
 
   updateAutoTagDiscoverySettings(settings: AutoTagDiscoverySettings): Observable<AutoTagDiscoverySettings> {
     return this.http.put<AutoTagDiscoverySettings>(`${this.baseUrl}/settings/auto-tagging`, settings);
+  }
+
+  getDuplicateDetectionSettings(): Observable<DuplicateDetectionSettings> {
+    return this.http.get<DuplicateDetectionSettings>(`${this.baseUrl}/settings/duplicates`);
+  }
+
+  updateDuplicateDetectionSettings(settings: DuplicateDetectionSettings): Observable<DuplicateDetectionSettings> {
+    return this.http.put<DuplicateDetectionSettings>(`${this.baseUrl}/settings/duplicates`, settings);
   }
 
   getTags(

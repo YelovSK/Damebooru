@@ -25,8 +25,6 @@ public class FindDuplicatesJob : IJob
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<FindDuplicatesJob> _logger;
 
-    public int CombinedSimilarityThresholdPercent { get; set; } = 68;
-
     public FindDuplicatesJob(IServiceScopeFactory scopeFactory, ILogger<FindDuplicatesJob> logger)
     {
         _scopeFactory = scopeFactory;
@@ -43,6 +41,8 @@ public class FindDuplicatesJob : IJob
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
+        var settingsService = scope.ServiceProvider.GetRequiredService<DuplicateDetectionSettingsService>();
+        var duplicateSettings = await settingsService.GetAsync(context.CancellationToken);
 
         context.Reporter.Update(new JobState
         {
@@ -136,7 +136,7 @@ public class FindDuplicatesJob : IJob
             posts,
             resolvedGroupSignatures,
             exactPostIds,
-            CombinedSimilarityThresholdPercent,
+            duplicateSettings.PerceptualSimilarityThresholdPercent,
             detectedAtUtc,
             (current, total) =>
             {
@@ -236,7 +236,9 @@ public class FindDuplicatesJob : IJob
         var hashPosts = new List<HashPost>();
         foreach (var p in posts)
         {
-            if (!string.IsNullOrWhiteSpace(p.PdqHash256) && PdqHashMatchHelper.TryParseHex256(p.PdqHash256, out var words))
+            if (p.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(p.PdqHash256)
+                && PdqHashMatchHelper.TryParseHex256(p.PdqHash256, out var words))
             {
                 hashPosts.Add(new HashPost(p.Id, words.W0, words.W1, words.W2, words.W3, p.ContentType));
             }
@@ -256,7 +258,11 @@ public class FindDuplicatesJob : IJob
             {
                 comparedSoFar++;
 
-                if (TryComputeSimilarity(hashPosts[i], hashPosts[j], combinedSimilarityThresholdPercent, out var similarity))
+                if (TryComputeSimilarity(
+                    hashPosts[i],
+                    hashPosts[j],
+                    combinedSimilarityThresholdPercent,
+                    out var similarity))
                 {
                     var idA = hashPosts[i].Id;
                     var idB = hashPosts[j].Id;
@@ -328,13 +334,15 @@ public class FindDuplicatesJob : IJob
         return new PerceptualResult(groups, perceptualCount, matchedPairs, totalComparisons);
     }
 
-    private static bool TryComputeSimilarity(HashPost a, HashPost b, int combinedSimilarityThresholdPercent, out int similarityPercent)
+    private static bool TryComputeSimilarity(
+        HashPost a,
+        HashPost b,
+        int combinedSimilarityThresholdPercent,
+        out int similarityPercent)
     {
         return PdqHashMatchHelper.TryComputeSimilarity(
             new PdqHashWords(a.W0, a.W1, a.W2, a.W3),
-            a.ContentType,
             new PdqHashWords(b.W0, b.W1, b.W2, b.W3),
-            b.ContentType,
             combinedSimilarityThresholdPercent,
             out similarityPercent);
     }

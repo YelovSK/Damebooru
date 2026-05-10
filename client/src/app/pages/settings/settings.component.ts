@@ -5,6 +5,7 @@ import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
 import { PostSettingsComponent } from './post/post-settings.component';
 import { AutoTaggingSettingsComponent } from './auto-tagging/auto-tagging-settings.component';
+import { DuplicatesSettingsComponent } from './duplicates/duplicates-settings.component';
 import { PerformanceSettingsComponent } from './performance/performance-settings.component';
 
 @Component({
@@ -16,6 +17,7 @@ import { PerformanceSettingsComponent } from './performance/performance-settings
     TabComponent,
     PostSettingsComponent,
     AutoTaggingSettingsComponent,
+    DuplicatesSettingsComponent,
     PerformanceSettingsComponent,
   ],
   templateUrl: './settings.component.html',

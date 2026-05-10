@@ -16,6 +16,7 @@ using PhotoSauce.NativeCodecs.Libwebp;
 using Damebooru.Processing.Scanning;
 using Damebooru.Processing.Services;
 using Damebooru.Processing.Services.AutoTagging;
+using Damebooru.Processing.Services.Duplicates;
 using Damebooru.Processing.Services.Scanning;
 
 namespace Damebooru.Processing;
@@ -88,6 +89,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AutoTagDiscoverySettingsService>();
         services.AddScoped<AutoTagScanService>();
         services.AddScoped<AutoTagApplyService>();
+        services.AddScoped<DuplicateDetectionSettingsService>();
 
         // Jobs
         services.AddTransient<IJob, Jobs.ScanAllLibrariesJob>();
