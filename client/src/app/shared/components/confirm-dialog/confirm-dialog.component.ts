@@ -5,12 +5,12 @@ import {
   DestroyRef,
   HostListener,
   type TemplateRef,
-  ViewChild,
   ViewContainerRef,
   computed,
   effect,
   inject,
   signal,
+  viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { type OverlayRef } from '@angular/cdk/overlay';
@@ -30,8 +30,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ConfirmDialogComponent implements AfterViewInit {
-  @ViewChild('confirmDialogOverlay')
-  private confirmDialogOverlayTemplate?: TemplateRef<unknown>;
+  private readonly confirmDialogOverlayTemplate = viewChild<TemplateRef<unknown>>('confirmDialogOverlay');
 
   confirmService = inject(ConfirmService);
   private readonly appOverlay = inject(AppOverlayService);
@@ -103,14 +102,15 @@ export class ConfirmDialogComponent implements AfterViewInit {
   }
 
   private attachOverlay(): void {
-    if (!this.confirmDialogOverlayTemplate) {
+    const template = this.confirmDialogOverlayTemplate();
+    if (!template) {
       return;
     }
 
     const overlayRef = this.ensureOverlay();
     if (!this.portal) {
       this.portal = new TemplatePortal(
-        this.confirmDialogOverlayTemplate,
+        template,
         this.viewContainerRef,
       );
     }

@@ -5,13 +5,13 @@ import {
   Component,
   DestroyRef,
   type TemplateRef,
-  ViewChild,
   ViewContainerRef,
   effect,
   inject,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { type OverlayRef } from '@angular/cdk/overlay';
 import { TemplatePortal } from '@angular/cdk/portal';
@@ -27,7 +27,7 @@ import { AppOverlayService } from '@services/app-overlay.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ModalComponent implements AfterViewInit {
-  @ViewChild('modalOverlay') private modalOverlayTemplate?: TemplateRef<unknown>;
+  private readonly modalOverlayTemplate = viewChild<TemplateRef<unknown>>('modalOverlay');
 
   private readonly appOverlay = inject(AppOverlayService);
   private readonly destroyRef = inject(DestroyRef);
@@ -69,14 +69,15 @@ export class ModalComponent implements AfterViewInit {
   }
 
   private attachOverlay(): void {
-    if (!this.modalOverlayTemplate) {
+    const template = this.modalOverlayTemplate();
+    if (!template) {
       return;
     }
 
     const overlayRef = this.ensureOverlay();
     if (!this.portal) {
       this.portal = new TemplatePortal(
-        this.modalOverlayTemplate,
+        template,
         this.viewContainerRef,
       );
     }

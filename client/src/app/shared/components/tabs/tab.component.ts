@@ -3,18 +3,14 @@ import { ChangeDetectionStrategy, Component, EventEmitter, Output, TemplateRef, 
 @Component({
   selector: 'app-tab',
   standalone: true,
-  template: `
-    <ng-template>
-      <ng-content></ng-content>
-    </ng-template>
-  `,
+  templateUrl: './tab.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class TabComponent {
-  id = input.required<string>();
-  label = input.required<string>();
-  icon = input<string>();
-  hidden = input(false);
+  readonly id = input.required<string>();
+  readonly label = input.required<string>();
+  readonly icon = input<string>();
+  readonly hidden = input(false);
   readonly content = viewChild(TemplateRef);
 
   /** Fires every time tab becomes active */

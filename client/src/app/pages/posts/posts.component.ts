@@ -5,13 +5,13 @@ import {
   DestroyRef,
   type ElementRef,
   HostListener,
-  ViewChild,
   computed,
   effect,
   inject,
   input,
   signal,
   NgZone,
+  viewChild,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { Router } from "@angular/router";
@@ -90,11 +90,9 @@ export class PostsComponent implements AfterViewInit {
   private static readonly SCROLL_IDLE_RESET_MS = 120;
   private static readonly HOVER_PREVIEW_DELAY_MS = 700;
 
-  @ViewChild("viewportShell")
-  private viewportShellRef?: ElementRef<HTMLElement>;
-  @ViewChild("postsViewport") private viewportRef?: CdkVirtualScrollViewport;
-  @ViewChild("fastScrollerRail")
-  private fastScrollerRailRef?: ElementRef<HTMLElement>;
+  private readonly viewportShellRef = viewChild<ElementRef<HTMLElement>>("viewportShell");
+  private readonly viewportRef = viewChild<CdkVirtualScrollViewport>("postsViewport");
+  private readonly fastScrollerRailRef = viewChild<ElementRef<HTMLElement>>("fastScrollerRail");
 
   private gridResizeObserver?: ResizeObserver;
 
@@ -274,11 +272,11 @@ export class PostsComponent implements AfterViewInit {
     });
 
     this.fastScroller.configure({
-      getRailElement: () => this.fastScrollerRailRef?.nativeElement ?? null,
+      getRailElement: () => this.fastScrollerRailRef()?.nativeElement ?? null,
       getTotalPages: () => this.totalPages(),
       getViewportMetrics: () => this.getFastScrollerViewportMetrics(),
       scrollToOffset: (scrollTop) =>
-        this.viewportRef?.scrollToOffset(scrollTop, "auto"),
+        this.viewportRef()?.scrollToOffset(scrollTop, "auto"),
       resolvePageForScrollTop: (scrollTop) =>
         this.resolvePageForScrollTop(scrollTop),
       resolveOffsetForScrollTop: (scrollTop) =>
@@ -322,7 +320,7 @@ export class PostsComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    const shell = this.viewportShellRef?.nativeElement;
+    const shell = this.viewportShellRef()?.nativeElement;
     if (!shell) {
       return;
     }
@@ -336,7 +334,7 @@ export class PostsComponent implements AfterViewInit {
       .pipe(auditTime(120), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.recalculateLayout(false));
 
-    const viewport = this.viewportRef;
+    const viewport = this.viewportRef();
     if (viewport) {
       viewport.renderedRangeStream
         .pipe(auditTime(40), takeUntilDestroyed(this.destroyRef))
@@ -377,7 +375,7 @@ export class PostsComponent implements AfterViewInit {
       });
     }
 
-    const rail = this.fastScrollerRailRef?.nativeElement;
+    const rail = this.fastScrollerRailRef()?.nativeElement;
     if (rail) {
       this.zone.runOutsideAngular(() => {
         fromEvent<PointerEvent>(rail, "pointerdown")
@@ -758,7 +756,7 @@ export class PostsComponent implements AfterViewInit {
   }
 
   private loadVisibleRange(): void {
-    const viewport = this.viewportRef;
+    const viewport = this.viewportRef();
     if (!viewport) {
       return;
     }
@@ -779,7 +777,7 @@ export class PostsComponent implements AfterViewInit {
   }
 
   private updateScrollDerivedState(): void {
-    const viewport = this.viewportRef;
+    const viewport = this.viewportRef();
     if (!viewport) {
       return;
     }
@@ -825,7 +823,7 @@ export class PostsComponent implements AfterViewInit {
       return;
     }
 
-    if (!this.viewportRef) {
+    if (!this.viewportRef()) {
       return;
     }
 
@@ -852,7 +850,7 @@ export class PostsComponent implements AfterViewInit {
   }
 
   private scrollToAbsoluteOffset(offset: number, smooth: boolean): void {
-    const viewport = this.viewportRef;
+    const viewport = this.viewportRef();
     if (!viewport) {
       return;
     }
@@ -874,7 +872,7 @@ export class PostsComponent implements AfterViewInit {
   }
 
   private recalculateLayout(preserveCurrentOffset: boolean): void {
-    const shell = this.viewportShellRef?.nativeElement;
+    const shell = this.viewportShellRef()?.nativeElement;
     if (!shell) {
       return;
     }
@@ -892,7 +890,7 @@ export class PostsComponent implements AfterViewInit {
     );
     const mobile = window.innerWidth <= PostsComponent.MOBILE_BREAKPOINT_PX;
 
-    const viewportElement = this.viewportRef?.elementRef.nativeElement ?? shell;
+    const viewportElement = this.viewportRef()?.elementRef.nativeElement ?? shell;
     const viewportStyles = window.getComputedStyle(viewportElement);
     const horizontalPadding =
       this.parseCssPixels(viewportStyles.paddingLeft) +
@@ -923,7 +921,7 @@ export class PostsComponent implements AfterViewInit {
     }
 
     queueMicrotask(() => {
-      this.viewportRef?.checkViewportSize();
+      this.viewportRef()?.checkViewportSize();
       this.refreshFastScrollerGeometry();
 
       if (anchorOffset !== null && this.totalCount() !== null) {
@@ -944,8 +942,8 @@ export class PostsComponent implements AfterViewInit {
     contentHeight: number;
     scrollTop: number;
   } | null {
-    const viewport = this.viewportRef;
-    const rail = this.fastScrollerRailRef?.nativeElement;
+    const viewport = this.viewportRef();
+    const rail = this.fastScrollerRailRef()?.nativeElement;
     if (!viewport || !rail) {
       return null;
     }

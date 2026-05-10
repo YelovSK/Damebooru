@@ -24,6 +24,7 @@ module.exports = defineConfig([
         },
       ],
       "@angular-eslint/prefer-on-push-component-change-detection": "error",
+      "@angular-eslint/no-implicit-take-until-destroyed": "error",
       "@angular-eslint/no-duplicates-in-metadata-arrays": "error",
       "@angular-eslint/use-lifecycle-interface": "error",
       "@angular-eslint/no-input-rename": "error",
@@ -31,6 +32,22 @@ module.exports = defineConfig([
       "@angular-eslint/no-empty-lifecycle-method": "warn",
       "@angular-eslint/no-conflicting-lifecycle": "warn",
       "@angular-eslint/sort-lifecycle-methods": "warn",
+      "@angular-eslint/component-max-inline-declarations": [
+        "error",
+        {
+          template: 0,
+          styles: 0,
+          animations: 15,
+        },
+      ],
+      "@angular-eslint/prefer-signals": [
+        "warn",
+        {
+          preferReadonlySignalProperties: false,
+          preferInputSignals: true,
+          preferQuerySignals: true,
+        },
+      ],
       "@angular-eslint/directive-selector": [
         "error",
         {

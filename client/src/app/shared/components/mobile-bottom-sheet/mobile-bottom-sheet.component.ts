@@ -4,13 +4,13 @@ import {
   Component,
   DestroyRef,
   type TemplateRef,
-  ViewChild,
   ViewContainerRef,
   effect,
   inject,
   input,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { type OverlayRef } from '@angular/cdk/overlay';
 import { TemplatePortal } from '@angular/cdk/portal';
@@ -25,8 +25,7 @@ import { AppOverlayService } from '@services/app-overlay.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MobileBottomSheetComponent implements AfterViewInit {
-  @ViewChild('bottomSheetOverlay')
-  private bottomSheetOverlayTemplate?: TemplateRef<unknown>;
+  private readonly bottomSheetOverlayTemplate = viewChild<TemplateRef<unknown>>('bottomSheetOverlay');
 
   open = input(false);
   openChange = output<boolean>();
@@ -63,14 +62,15 @@ export class MobileBottomSheetComponent implements AfterViewInit {
   }
 
   private attachOverlay(): void {
-    if (!this.bottomSheetOverlayTemplate) {
+    const template = this.bottomSheetOverlayTemplate();
+    if (!template) {
       return;
     }
 
     const overlayRef = this.ensureOverlay();
     if (!this.portal) {
       this.portal = new TemplatePortal(
-        this.bottomSheetOverlayTemplate,
+        template,
         this.viewContainerRef,
       );
     }
