@@ -1,4 +1,4 @@
-import { type ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
+import { inject, type ApplicationConfig, provideAppInitializer, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
@@ -8,10 +8,14 @@ import { authInterceptor } from '@services/api/auth.interceptor';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideServiceWorker } from '@angular/service-worker';
 import { environment } from '@env/environment';
+import { SettingsService } from '@services/settings.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
+    provideAppInitializer(() => {
+      inject(SettingsService);
+    }),
     provideRouter(routes, withComponentInputBinding()),
     provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
     provideAnimations(),
