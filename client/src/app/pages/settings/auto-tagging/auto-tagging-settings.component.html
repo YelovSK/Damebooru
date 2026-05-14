@@ -70,3 +70,70 @@
   <p class="text-sm text-danger">{{ error() }}</p>
   }
 </div>
+
+<div class="mt-6 bg-bg-secondary border border-glass-border rounded-lg p-6 space-y-6">
+  <div>
+    <h3 class="mb-1 text-xl font-semibold text-text-secondary">AI Tagging</h3>
+    <p class="text-text-muted text-sm">Tune local model suggestions and which suggestions are saved as AI-owned tags.</p>
+  </div>
+
+  @if (isAiLoading()) {
+    <p class="text-text-muted">Loading AI tagging settings...</p>
+  } @else {
+    @if (aiDraft(); as current) {
+      <div class="flex flex-col gap-4 md:flex-row md:items-start">
+        <div class="w-full md:w-72">
+          <app-form-number-input
+            [ngModel]="current.suggestionThreshold"
+            (ngModelChange)="updateAiSuggestionThreshold($event)"
+            label="Suggestion threshold"
+            [min]="0.01"
+            [max]="1"
+            [step]="0.01"
+          />
+        </div>
+        <div class="flex-1">
+          <p class="text-text-muted text-sm md:mt-7">
+            Minimum model score requested from the AI service and shown as suggestions.
+          </p>
+        </div>
+      </div>
+
+      <div class="border-t border-glass-border/50"></div>
+
+      <div class="flex flex-col gap-4 md:flex-row md:items-start">
+        <div class="w-full md:w-72">
+          <app-form-number-input
+            [ngModel]="current.applyThreshold"
+            (ngModelChange)="updateAiApplyThreshold($event)"
+            label="Apply threshold"
+            [min]="0.01"
+            [max]="1"
+            [step]="0.01"
+          />
+        </div>
+        <div class="flex-1">
+          <p class="text-text-muted text-sm md:mt-7">
+            Minimum model score saved to the post when AI tagging is applied.
+          </p>
+        </div>
+      </div>
+
+      <div class="border-t border-glass-border/50"></div>
+
+      <button
+        appButton
+        type="button"
+        variant="primary"
+        [disabled]="!hasAiChanges() || isAiSaving()"
+        (click)="saveAiSettings()"
+      >
+        {{ isAiSaving() ? 'Saving...' : 'Save' }}
+      </button>
+    }
+  }
+
+  @if (aiError()) {
+    <p class="text-sm text-danger">{{ aiError() }}</p>
+  }
+</div>

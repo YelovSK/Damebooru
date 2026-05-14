@@ -38,7 +38,10 @@ import {
   type AppLogList,
   type PostAuditList,
   type AutoTagPostResult,
+  type AiTagPreview,
+  type AiTagPostResult,
   type AutoTagDiscoverySettings,
+  type AiTaggingSettings,
   type DuplicateDetectionSettings,
   type PostAutoTagStatus,
   type StatsGrowthDateKind,
@@ -389,6 +392,14 @@ export class DamebooruService {
     return this.http.put<AutoTagDiscoverySettings>(`${this.baseUrl}/settings/auto-tagging`, settings);
   }
 
+  getAiTaggingSettings(): Observable<AiTaggingSettings> {
+    return this.http.get<AiTaggingSettings>(`${this.baseUrl}/settings/ai-tagging`);
+  }
+
+  updateAiTaggingSettings(settings: AiTaggingSettings): Observable<AiTaggingSettings> {
+    return this.http.put<AiTaggingSettings>(`${this.baseUrl}/settings/ai-tagging`, settings);
+  }
+
   getDuplicateDetectionSettings(): Observable<DuplicateDetectionSettings> {
     return this.http.get<DuplicateDetectionSettings>(`${this.baseUrl}/settings/duplicates`);
   }
@@ -488,6 +499,14 @@ export class DamebooruService {
 
   autoTagPost(id: number): Observable<AutoTagPostResult> {
     return this.http.post<AutoTagPostResult>(`${this.baseUrl}/posts/${id}/auto-tag`, {});
+  }
+
+  previewAiTags(id: number): Observable<AiTagPreview> {
+    return this.http.post<AiTagPreview>(`${this.baseUrl}/posts/${id}/ai-tags/preview`, {});
+  }
+
+  applyAiTags(id: number): Observable<AiTagPostResult> {
+    return this.http.post<AiTagPostResult>(`${this.baseUrl}/posts/${id}/ai-tags`, {});
   }
 
   getPostAutoTagStatus(id: number): Observable<PostAutoTagStatus> {

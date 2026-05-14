@@ -22,7 +22,7 @@ public class SanitizeTagNamesJob : IJob
         _logger = logger;
     }
 
-    public int DisplayOrder => 80;
+    public int DisplayOrder => 82;
     public JobKey Key => JobKey;
     public string Name => JobName;
     public string Description => "Retroactively sanitizes all tag names (lowercase, replace colons with underscores, collapse duplicates).";

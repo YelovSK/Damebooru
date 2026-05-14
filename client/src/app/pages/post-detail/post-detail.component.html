@@ -32,9 +32,12 @@
                 </button>
             </div>
             } @else {
-            <div class="flex gap-2">
-                <button appButton type="button" variant="secondary" size="sm" (click)="startEditing()" class="flex-1">Edit</button>
-                <button appButton type="button" variant="primary" size="sm" (click)="autoTagPost()" [disabled]="isAutoTagging()" class="flex-1">
+            <div class="grid grid-cols-3 gap-2">
+                <button appButton type="button" variant="secondary" size="sm" (click)="startEditing()">Edit</button>
+                <button appButton type="button" variant="secondary" size="sm" (click)="applyAiTags()" [disabled]="isAiTagPreviewLoading()">
+                    {{ isAiTagPreviewLoading() ? 'AI...' : 'AI Tag' }}
+                </button>
+                <button appButton type="button" variant="secondary" size="sm" (click)="autoTagPost()" [disabled]="isAutoTagging()">
                     {{ isAutoTagging() ? 'Auto-Tagging...' : 'Auto-Tag' }}
                 </button>
             </div>
@@ -380,4 +383,49 @@
     </div>
     <p>Retrieving post metadata...</p>
 </div>
+}
+
+@if (aiTagPreview(); as preview) {
+<app-modal [open]="true" title="AI Auto-Tag Results" maxWidthClass="max-w-2xl" (closed)="closeAiTagPreview()">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-text-muted">
+        <span>{{ preview.model }} · {{ preview.elapsedMilliseconds | number:'1.0-0' }}ms</span>
+        <span>
+            {{ getAppliedAiTagCount(preview) }} applied · {{ preview.tags.length }} returned · apply threshold {{ preview.applyThreshold | percent:'1.0-1' }}
+        </span>
+    </div>
+
+    @if (preview.tags.length > 0) {
+    <div class="max-h-[60vh] overflow-y-auto pr-1">
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            @for (tag of preview.tags; track tag.name + ':' + tag.rawCategory) {
+            <div class="flex items-center justify-between gap-3 rounded-sm border border-white/10 border-l-3 bg-glass-bg px-3 py-2 text-sm"
+                [style.border-left-color]="getTagCategoryColor(tag)"
+                [appTooltip]="getTagCategoryLabel(tag)" tooltipPosition="right">
+                <span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-text-link">{{ tag.name }}</span>
+                <div class="flex shrink-0 items-center gap-2">
+                    @if (tag.meetsApplyThreshold) {
+                    <span class="rounded-full border border-status-success/30 bg-status-success/15 px-2 py-0.5 text-[0.68rem] font-semibold text-status-success">
+                        Applied
+                    </span>
+                    } @else {
+                    <span class="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[0.68rem] font-semibold text-text-muted">
+                        Below
+                    </span>
+                    }
+                    <span class="text-text-muted">{{ tag.score | percent:'1.0-1' }}</span>
+                </div>
+            </div>
+            }
+        </div>
+    </div>
+    } @else {
+    <div class="rounded-sm border border-white/10 bg-glass-bg p-3 text-sm text-text-muted">
+        No AI tags above the suggestion threshold.
+    </div>
+    }
+
+    <div class="mt-4 flex justify-end">
+        <button appButton type="button" variant="secondary" (click)="closeAiTagPreview()">Close</button>
+    </div>
+</app-modal>
 }

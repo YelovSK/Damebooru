@@ -291,6 +291,7 @@ export const KNOWN_JOB_KEYS = [
   "cleanup-invalid-exclusions",
   "sanitize-tag-names",
   "auto-tag-posts",
+  "ai-tag-posts",
 ] as const;
 
 export type KnownJobKey = (typeof KNOWN_JOB_KEYS)[number];
@@ -488,11 +489,44 @@ export interface PostAutoTagCandidate {
   canonicalUrl: string;
 }
 
+export interface AiTagSuggestion {
+  name: string;
+  score: number;
+  category: TagCategoryKind;
+  rawCategory: string;
+  meetsApplyThreshold: boolean;
+}
+
+export interface AiTagPreview {
+  enabled: boolean;
+  ready: boolean;
+  model: string;
+  provider: string;
+  threshold: number;
+  applyThreshold: number;
+  minConfidence: number;
+  elapsedMilliseconds: number;
+  tags: AiTagSuggestion[];
+}
+
+export interface AiTagPostResult {
+  addedTags: number;
+  removedTags: number;
+  updatedTagCategories: number;
+  preview: AiTagPreview;
+  post: DamebooruPostDto;
+}
+
 export interface AutoTagDiscoverySettings {
   sauceNaoEnabled: boolean;
   iqdbEnabled: boolean;
   danbooruEnabled: boolean;
   gelbooruEnabled: boolean;
+}
+
+export interface AiTaggingSettings {
+  suggestionThreshold: number;
+  applyThreshold: number;
 }
 
 export interface DuplicateDetectionSettings {

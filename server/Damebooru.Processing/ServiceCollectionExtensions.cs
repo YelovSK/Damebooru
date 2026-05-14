@@ -1,5 +1,6 @@
 using Damebooru.Core.Config;
 using Damebooru.Core.Interfaces;
+using Damebooru.Processing.Infrastructure.External.AiTagging;
 using Damebooru.Processing.Infrastructure.External.Danbooru;
 using Damebooru.Processing.Infrastructure.External.Gelbooru;
 using Damebooru.Processing.Infrastructure.External.Iqdb;
@@ -53,6 +54,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<LibraryWatchTrackedStateReader>();
         services.AddSingleton<LibraryWatchSessionFactory>();
         services.AddSingleton<IFileIdentityResolver, PlatformFileIdentityResolver>();
+        services.AddHttpClient<IAiTaggingClient, AiTaggingClient>((sp, client) => ConfigureExternalClient(client, config.AiTagging));
         services.AddSingleton<SauceNaoRateCoordinator>();
         services.AddHttpClient<ISauceNaoClient, SauceNaoClient>((sp, client) => ConfigureExternalClient(client, config.ExternalApis.SauceNao));
         services.AddScoped<IExternalPostDiscoveryClient, SauceNaoDiscoveryClient>();
@@ -103,6 +105,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IJob, Jobs.ComputeSimilarityJob>();
         services.AddTransient<IJob, Jobs.SanitizeTagNamesJob>();
         services.AddTransient<IJob, Jobs.AutoTagPostsJob>();
+        services.AddTransient<IJob, Jobs.AiTagPostsJob>();
 
         return services;
     }

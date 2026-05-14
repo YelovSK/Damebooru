@@ -1,4 +1,3 @@
-using Damebooru.Core.External;
 using PhotoSauce.MagicScaler;
 
 namespace Damebooru.Processing.Infrastructure.External.Shared;
@@ -43,25 +42,35 @@ internal static class ImageUploadPreparer
             fileStream.Seek(0, SeekOrigin.Begin);
         }
 
-        await Task.Run(() => MagicImageProcessor.ProcessImage(fileStream, output, settings), cancellationToken);
-        output.Seek(0, SeekOrigin.Begin);
-
-        if (output.Length > options.MaxUploadBytes)
+        try
+        {
+            await Task.Run(() => MagicImageProcessor.ProcessImage(fileStream, output, settings), cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             await output.DisposeAsync();
-            throw new ExternalProviderException(
-                options.Provider,
-                $"{options.ProviderName} upload remains too large after conversion ({output.Length} bytes).",
-                isRetryable: false);
+            throw new ImageUploadPreparationException("Image upload could not be converted to a supported format.", ex);
+        }
+
+        output.Seek(0, SeekOrigin.Begin);
+
+        if (options.MaxUploadBytes.HasValue && output.Length > options.MaxUploadBytes.Value)
+        {
+            await output.DisposeAsync();
+            throw new ImageUploadPreparationException($"Image upload remains too large after conversion ({output.Length} bytes).");
         }
 
         return new PreparedUploadStream(output, Path.ChangeExtension(resolvedFileName, ".jpg"), "image/jpeg", ownsStream: true);
     }
 
     private static bool IsSupportedUploadFormat(string fileName, string contentType, ImageUploadPreparationOptions options)
-        => options.SupportedUploadContentTypes.Contains(contentType)
-           || options.SupportedUploadExtensions.Contains(Path.GetExtension(fileName));
+    {
+        var extension = Path.GetExtension(fileName);
+        return string.IsNullOrWhiteSpace(extension)
+            ? options.SupportedUploadContentTypes.Contains(contentType)
+            : options.SupportedUploadExtensions.Contains(extension);
+    }
 
-    private static bool IsFileTooLarge(Stream stream, long maxUploadBytes)
-        => stream.CanSeek && stream.Length > maxUploadBytes;
+    private static bool IsFileTooLarge(Stream stream, long? maxUploadBytes)
+        => maxUploadBytes.HasValue && stream.CanSeek && stream.Length > maxUploadBytes.Value;
 }

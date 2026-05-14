@@ -44,8 +44,6 @@ internal sealed class SauceNaoClient(
 
     private static readonly ImageUploadPreparationOptions UploadPreparationOptions = new()
     {
-        ProviderName = "SauceNAO",
-        Provider = AutoTagProvider.SauceNao,
         MaxUploadBytes = SauceNaoMaxUploadBytes,
         SupportedUploadContentTypes = SupportedUploadContentTypes,
         SupportedUploadExtensions = SupportedUploadExtensions,
@@ -177,7 +175,20 @@ internal sealed class SauceNaoClient(
         string fileName,
         string? contentType,
         CancellationToken cancellationToken)
-        => await ImageUploadPreparer.PrepareAsync(fileStream, fileName, contentType, UploadPreparationOptions, cancellationToken);
+    {
+        try
+        {
+            return await ImageUploadPreparer.PrepareAsync(fileStream, fileName, contentType, UploadPreparationOptions, cancellationToken);
+        }
+        catch (ImageUploadPreparationException ex)
+        {
+            throw new ExternalProviderException(
+                AutoTagProvider.SauceNao,
+                $"SauceNAO upload preparation failed: {ex.Message}",
+                isRetryable: false,
+                innerException: ex);
+        }
+    }
 
     private static bool IsRetryable(HttpStatusCode statusCode, SauceNaoHeaderDto header)
     {

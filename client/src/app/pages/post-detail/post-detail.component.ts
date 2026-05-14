@@ -45,6 +45,7 @@ import {
   type PostAutoTagCandidate,
   type PostAutoTagProviderStatus,
   type PostAutoTagStatus,
+  type AiTagPreview,
 } from "@models";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
 import { ProgressiveImageComponent } from "@shared/components/progressive-image/progressive-image.component";
@@ -52,6 +53,7 @@ import { PostTagSourcesComponent } from '@shared/components/post-tag-sources/pos
 import { ZoomPanContainerComponent } from "@shared/components/zoom-pan-container/zoom-pan-container.component";
 import { TabComponent } from "@shared/components/tabs/tab.component";
 import { TabsComponent } from "@shared/components/tabs/tabs.component";
+import { ModalComponent } from "@shared/components/modal/modal.component";
 import { ButtonDirective, TooltipDirective } from "@shared/directives";
 import { HotkeysService } from "@services/hotkeys.service";
 import { AppLinks } from "@app/app.paths";
@@ -73,6 +75,7 @@ type NavigationFetchDirection = "initial" | "previous" | "next";
     ZoomPanContainerComponent,
     TabsComponent,
     TabComponent,
+    ModalComponent,
     ButtonDirective,
     TooltipDirective,
     FileSizePipe,
@@ -153,6 +156,8 @@ export class PostDetailComponent {
   private pendingEdgeNavigation: NavigationFetchDirection | null = null;
 
   isAutoTagging = signal(false);
+  isAiTagPreviewLoading = signal(false);
+  aiTagPreview = signal<AiTagPreview | null>(null);
   isAutoTagStatusLoading = signal(false);
   autoTagStatus = signal<PostAutoTagStatus | null>(null);
 
@@ -225,15 +230,21 @@ export class PostDetailComponent {
   private autoTagStatusLoadedForPostId: number | null = null;
   private autoTagStatusRequestInFlight = false;
   private autoTagStatusRequestPostId: number | null = null;
+  private lastResetPostId: number | null = null;
   private readonly heldNavigationKeys = new Set<string>();
 
   constructor() {
     effect(() => {
-      const post = this.post();
+      const postId = this.currentPostId();
+      if (postId === this.lastResetPostId) {
+        return;
+      }
+
+      this.lastResetPostId = postId;
       this.imageLoading.set(true);
       this.mobileImageViewerOpen.set(false);
       this.postFilesExpanded.set(false);
-      untracked(() => this.resetOnDemandTabData(post?.id ?? null));
+      untracked(() => this.resetOnDemandTabData(postId));
     });
 
     // Initialize sources value when entering edit mode
@@ -922,6 +933,43 @@ export class PostDetailComponent {
       });
   }
 
+  applyAiTags() {
+    const post = this.post();
+    if (!post || this.isAiTagPreviewLoading()) return;
+
+    this.isAiTagPreviewLoading.set(true);
+    this.aiTagPreview.set(null);
+    this.damebooru.applyAiTags(post.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: result => {
+          this.replacePostInWindow(result.post);
+          this.aiTagPreview.set(result.preview);
+          this.reloadAuditForCurrentPost();
+
+          const parts: string[] = [];
+          if (result.addedTags > 0) parts.push(`added ${result.addedTags} tag${result.addedTags === 1 ? '' : 's'}`);
+          if (result.removedTags > 0) parts.push(`removed ${result.removedTags} tag${result.removedTags === 1 ? '' : 's'}`);
+          if (result.updatedTagCategories > 0) parts.push(`updated ${result.updatedTagCategories} categor${result.updatedTagCategories === 1 ? 'y' : 'ies'}`);
+
+          this.toastService.success(parts.length > 0 ? `AI tagging complete: ${parts.join(', ')}` : 'AI tagging complete with no changes');
+          this.isAiTagPreviewLoading.set(false);
+        },
+        error: error => {
+          this.toastService.error(error?.error || 'AI tag preview failed');
+          this.isAiTagPreviewLoading.set(false);
+        },
+      });
+  }
+
+  closeAiTagPreview(): void {
+    this.aiTagPreview.set(null);
+  }
+
+  getAppliedAiTagCount(preview: AiTagPreview): number {
+    return preview.tags.filter(tag => tag.meetsApplyThreshold).length;
+  }
+
   toggleFavorite() {
     const post = this.post();
     if (!post) return;
@@ -1234,6 +1282,9 @@ export class PostDetailComponent {
   }
 
   private resetOnDemandTabData(postId: number | null) {
+    this.aiTagPreview.set(null);
+    this.isAiTagPreviewLoading.set(false);
+
     if (this.auditLoadedForPostId !== postId) {
       this.auditEntries.set([]);
       this.auditHasMore.set(false);

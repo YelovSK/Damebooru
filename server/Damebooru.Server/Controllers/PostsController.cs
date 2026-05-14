@@ -1,5 +1,6 @@
 using Damebooru.Core.DTOs;
 using Damebooru.Processing.Services;
+using Damebooru.Processing.Services.AiTagging;
 using Damebooru.Processing.Services.AutoTagging;
 using Damebooru.Server.Extensions;
 using Microsoft.AspNetCore.Mvc;
@@ -14,13 +15,20 @@ public class PostsController : ControllerBase
     private readonly PostWriteService _postWriteService;
     private readonly PostContentService _postContentService;
     private readonly PostAutoTaggingService _postAutoTaggingService;
+    private readonly AiTaggingService _aiTaggingService;
 
-    public PostsController(PostReadService postReadService, PostWriteService postWriteService, PostContentService postContentService, PostAutoTaggingService postAutoTaggingService)
+    public PostsController(
+        PostReadService postReadService,
+        PostWriteService postWriteService,
+        PostContentService postContentService,
+        PostAutoTaggingService postAutoTaggingService,
+        AiTaggingService aiTaggingService)
     {
         _postReadService = postReadService;
         _postWriteService = postWriteService;
         _postContentService = postContentService;
         _postAutoTaggingService = postAutoTaggingService;
+        _aiTaggingService = aiTaggingService;
     }
 
     [HttpGet]
@@ -121,5 +129,17 @@ public class PostsController : ControllerBase
     public async Task<IActionResult> GetAutoTagStatus(int id, CancellationToken cancellationToken = default)
     {
         return await _postAutoTaggingService.GetStatusAsync(id, cancellationToken).ToHttpResult();
+    }
+
+    [HttpPost("{id}/ai-tags/preview")]
+    public async Task<IActionResult> PreviewAiTags(int id, CancellationToken cancellationToken = default)
+    {
+        return await _aiTaggingService.PreviewAsync(id, cancellationToken).ToHttpResult();
+    }
+
+    [HttpPost("{id}/ai-tags")]
+    public async Task<IActionResult> ApplyAiTags(int id, CancellationToken cancellationToken = default)
+    {
+        return await _aiTaggingService.ApplyAsync(id, cancellationToken).ToHttpResult();
     }
 }

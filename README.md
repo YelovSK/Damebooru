@@ -30,6 +30,7 @@ At the moment, the project is half-baked, and will very likely stay like that.
 - Search syntax (include/exclude tags, types, tag count, sorting, filename, ..)
 - Move/zoom post with mouse
 - Auto-tag via SauceNAO/Iqdb + Gelbooru/Danbooru
+- Auto-tag via local AI tagging service
 
 ## Configuration
 Configuration can be provided through `server/Damebooru.Server/appsettings.json`, environment variables, or Docker Compose environment blocks/secrets.

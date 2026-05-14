@@ -36,8 +36,6 @@ internal sealed partial class IqdbClient(HttpClient httpClient, DamebooruConfig 
 
     private static readonly ImageUploadPreparationOptions UploadPreparationOptions = new()
     {
-        ProviderName = "IQDB",
-        Provider = AutoTagProvider.Iqdb,
         MaxUploadBytes = IqdbMaxUploadBytes,
         MaxDimension = IqdbMaxDimension,
         SupportedUploadContentTypes = SupportedUploadContentTypes,
@@ -181,12 +179,24 @@ internal sealed partial class IqdbClient(HttpClient httpClient, DamebooruConfig 
     private static async Task<PreparedUploadStream> PrepareUploadStreamAsync(PostDiscoveryContext context, CancellationToken cancellationToken)
     {
         var stream = File.OpenRead(context.FilePath);
-        return await ImageUploadPreparer.PrepareAsync(
-            stream,
-            Path.GetFileName(context.FilePath),
-            context.ContentType,
-            UploadPreparationOptions,
-            cancellationToken);
+        try
+        {
+            return await ImageUploadPreparer.PrepareAsync(
+                stream,
+                Path.GetFileName(context.FilePath),
+                context.ContentType,
+                UploadPreparationOptions,
+                cancellationToken);
+        }
+        catch (ImageUploadPreparationException ex)
+        {
+            await stream.DisposeAsync();
+            throw new ExternalProviderException(
+                AutoTagProvider.Iqdb,
+                $"IQDB upload preparation failed: {ex.Message}",
+                isRetryable: false,
+                innerException: ex);
+        }
     }
 
     private sealed record IqdbMatchInfo(string Url, decimal Similarity);

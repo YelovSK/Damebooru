@@ -33,6 +33,7 @@ public class DamebooruDbContext : DbContext
     public DbSet<AppLogEntry> AppLogEntries { get; set; } = null!;
     public DbSet<AutoTagDiscoverySettings> AutoTagDiscoverySettings { get; set; } = null!;
     public DbSet<DuplicateDetectionSettings> DuplicateDetectionSettings { get; set; } = null!;
+    public DbSet<AiTaggingSettings> AiTaggingSettings { get; set; } = null!;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -260,6 +261,14 @@ public class DamebooruDbContext : DbContext
             {
                 Id = 1,
                 PerceptualSimilarityThresholdPercent = Core.Entities.DuplicateDetectionSettings.DefaultPerceptualSimilarityThresholdPercent
+            });
+
+        modelBuilder.Entity<AiTaggingSettings>()
+            .HasData(new AiTaggingSettings
+            {
+                Id = 1,
+                SuggestionThreshold = Core.Entities.AiTaggingSettings.DefaultSuggestionThreshold,
+                ApplyThreshold = Core.Entities.AiTaggingSettings.DefaultApplyThreshold
             });
     }
 }

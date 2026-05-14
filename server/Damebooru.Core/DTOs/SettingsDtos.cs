@@ -12,3 +12,9 @@ public sealed class DuplicateDetectionSettingsDto
 {
     public int PerceptualSimilarityThresholdPercent { get; set; }
 }
+
+public sealed class AiTaggingSettingsDto
+{
+    public decimal SuggestionThreshold { get; set; }
+    public decimal ApplyThreshold { get; set; }
+}

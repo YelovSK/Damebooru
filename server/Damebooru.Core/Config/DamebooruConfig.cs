@@ -11,6 +11,7 @@ public class DamebooruConfig
     public AuthConfig Auth { get; set; } = new();
     public ProxyConfig Proxy { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
+    public AiTaggingConfig AiTagging { get; set; } = new();
     public ExternalApisConfig ExternalApis { get; set; } = new();
 }
 
@@ -107,6 +108,19 @@ public class ExternalApiClientConfig
     public string BaseUrl { get; set; } = string.Empty;
     public int TimeoutSeconds { get; set; } = 30;
     public string UserAgent { get; set; } = "Damebooru/1.0";
+}
+
+public sealed class AiTaggingConfig : ExternalApiClientConfig
+{
+    public AiTaggingConfig()
+    {
+        BaseUrl = "http://ai-tagging:8000";
+        TimeoutSeconds = 300;
+    }
+
+    public bool Enabled { get; set; } = false;
+    public decimal MinConfidence { get; set; } = 0.01m;
+    public int TopK { get; set; } = 256;
 }
 
 public sealed class SauceNaoApiConfig : ExternalApiClientConfig

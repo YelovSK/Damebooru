@@ -1,4 +1,5 @@
 using Damebooru.Core.DTOs;
+using Damebooru.Processing.Services.AiTagging;
 using Damebooru.Processing.Services.AutoTagging;
 using Damebooru.Processing.Services.Duplicates;
 using Damebooru.Server.Extensions;
@@ -11,13 +12,16 @@ namespace Damebooru.Server.Controllers;
 public sealed class SettingsController : ControllerBase
 {
     private readonly AutoTagDiscoverySettingsService _autoTagDiscoverySettingsService;
+    private readonly AiTaggingSettingsService _aiTaggingSettingsService;
     private readonly DuplicateDetectionSettingsService _duplicateDetectionSettingsService;
 
     public SettingsController(
         AutoTagDiscoverySettingsService autoTagDiscoverySettingsService,
+        AiTaggingSettingsService aiTaggingSettingsService,
         DuplicateDetectionSettingsService duplicateDetectionSettingsService)
     {
         _autoTagDiscoverySettingsService = autoTagDiscoverySettingsService;
+        _aiTaggingSettingsService = aiTaggingSettingsService;
         _duplicateDetectionSettingsService = duplicateDetectionSettingsService;
     }
 
@@ -31,6 +35,18 @@ public sealed class SettingsController : ControllerBase
     public async Task<IActionResult> UpdateAutoTagging([FromBody] AutoTagDiscoverySettingsDto dto, CancellationToken cancellationToken = default)
     {
         return await _autoTagDiscoverySettingsService.UpdateAsync(dto, cancellationToken).ToHttpResult();
+    }
+
+    [HttpGet("ai-tagging")]
+    public async Task<ActionResult<AiTaggingSettingsDto>> GetAiTagging(CancellationToken cancellationToken = default)
+    {
+        return Ok(await _aiTaggingSettingsService.GetAsync(cancellationToken));
+    }
+
+    [HttpPut("ai-tagging")]
+    public async Task<IActionResult> UpdateAiTagging([FromBody] AiTaggingSettingsDto dto, CancellationToken cancellationToken = default)
+    {
+        return await _aiTaggingSettingsService.UpdateAsync(dto, cancellationToken).ToHttpResult();
     }
 
     [HttpGet("duplicates")]

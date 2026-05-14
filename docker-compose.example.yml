@@ -10,6 +10,8 @@ services:
       Damebooru__Auth__Enabled: "${AUTH_ENABLED:-true}"
       Damebooru__Auth__Username: "${AUTH_USERNAME:-admin}"
       Damebooru__Proxy__TrustForwardedHeaders: "${TRUST_FORWARDED_HEADERS:-false}"
+      Damebooru__AiTagging__Enabled: "${AI_TAGGING_ENABLED:-false}"
+      Damebooru__AiTagging__BaseUrl: "${AI_TAGGING_BASE_URL:-http://ai-tagging:8000}"
       Damebooru__ExternalApis__Danbooru__Username: "${DANBOORU_USERNAME:-}"
       Damebooru__ExternalApis__Gelbooru__UserId: "${GELBOORU_USER_ID:-}"
       Damebooru__ExternalApis__Iqdb__BaseUrl: "${IQDB_BASE_URL:-https://iqdb.org}"
@@ -36,6 +38,14 @@ services:
       BACKEND_PORT: "${SERVER_PORT:-6666}"
     ports:
       - "${CLIENT_PORT:-8080}:80"
+
+  ai-tagging:
+    image: ghcr.io/yelovsk/damebooru-ai-tagging:latest
+    restart: unless-stopped
+    profiles:
+      - ai
+    volumes:
+      - ./data/ai-tagging/models:/models
 
 secrets:
   auth_password:

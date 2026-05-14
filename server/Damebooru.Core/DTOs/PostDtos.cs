@@ -116,6 +116,37 @@ public sealed class PostAutoTagCandidateDto
     public string CanonicalUrl { get; set; } = string.Empty;
 }
 
+public sealed class AiTagPreviewDto
+{
+    public bool Enabled { get; set; }
+    public bool Ready { get; set; }
+    public string Model { get; set; } = string.Empty;
+    public string Provider { get; set; } = string.Empty;
+    public decimal Threshold { get; set; }
+    public decimal ApplyThreshold { get; set; }
+    public decimal MinConfidence { get; set; }
+    public decimal ElapsedMilliseconds { get; set; }
+    public List<AiTagSuggestionDto> Tags { get; set; } = [];
+}
+
+public sealed class AiTagPostResultDto
+{
+    public int AddedTags { get; set; }
+    public int RemovedTags { get; set; }
+    public int UpdatedTagCategories { get; set; }
+    public AiTagPreviewDto Preview { get; set; } = null!;
+    public PostDto Post { get; set; } = null!;
+}
+
+public sealed class AiTagSuggestionDto
+{
+    public string Name { get; set; } = string.Empty;
+    public decimal Score { get; set; }
+    public TagCategoryKind Category { get; set; }
+    public string RawCategory { get; set; } = string.Empty;
+    public bool MeetsApplyThreshold { get; set; }
+}
+
 public class PostAuditEntryDto
 {
     public long Id { get; set; }

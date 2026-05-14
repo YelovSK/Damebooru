@@ -93,6 +93,19 @@ When startup detects pending EF Core migrations, Damebooru creates a pre-migrati
 | `Damebooru:Logging:Db:MaxRows` | `Damebooru__Logging__Db__MaxRows` | `10000` | Maximum stored DB log rows |
 | `Damebooru:Logging:Db:RetentionCheckIntervalMinutes` | `Damebooru__Logging__Db__RetentionCheckIntervalMinutes` | `15` | Retention cleanup interval |
 
+### AI Tagging
+
+| Path | Env var | Default | Notes |
+| --- | --- | --- | --- |
+| `Damebooru:AiTagging:Enabled` | `Damebooru__AiTagging__Enabled` | `false` | Enables calls to the optional local AI tagging sidecar |
+| `Damebooru:AiTagging:BaseUrl` | `Damebooru__AiTagging__BaseUrl` | `http://ai-tagging:8000` | AI tagging sidecar base URL |
+| `Damebooru:AiTagging:TimeoutSeconds` | `Damebooru__AiTagging__TimeoutSeconds` | `300` | Request timeout |
+| `Damebooru:AiTagging:UserAgent` | `Damebooru__AiTagging__UserAgent` | `Damebooru/1.0` | HTTP user agent |
+| `Damebooru:AiTagging:MinConfidence` | `Damebooru__AiTagging__MinConfidence` | `0.01` | Internal low-confidence floor sent to the sidecar |
+| `Damebooru:AiTagging:TopK` | `Damebooru__AiTagging__TopK` | `256` | Maximum tags per category returned by the sidecar |
+
+AI tagging suggestion/apply thresholds are runtime settings stored in SQLite and exposed at `/api/settings/ai-tagging`.
+
 ### External APIs
 
 #### SauceNAO

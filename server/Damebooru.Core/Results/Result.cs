@@ -4,7 +4,8 @@ public enum OperationError
 {
     NotFound,
     InvalidInput,
-    Conflict
+    Conflict,
+    ServiceUnavailable
 }
 
 public readonly record struct Result

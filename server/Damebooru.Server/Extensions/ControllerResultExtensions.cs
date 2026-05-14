@@ -50,6 +50,10 @@ public static class ControllerResultExtensions
             OperationError.NotFound => new NotFoundObjectResult(description),
             OperationError.InvalidInput => new BadRequestObjectResult(description),
             OperationError.Conflict => new ConflictObjectResult(description),
+            OperationError.ServiceUnavailable => new ObjectResult(description)
+            {
+                StatusCode = StatusCodes.Status503ServiceUnavailable
+            },
             _ => new ObjectResult(description)
             {
                 StatusCode = StatusCodes.Status500InternalServerError
