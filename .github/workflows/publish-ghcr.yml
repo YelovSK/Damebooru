@@ -105,6 +105,32 @@ jobs:
           cache-from: type=gha,scope=damebooru-ai-tagging
           cache-to: type=gha,mode=max,scope=damebooru-ai-tagging
 
+      - name: Docker metadata OpenVINO
+        id: meta_openvino
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.vars.outputs.owner }}/damebooru-ai-tagging
+          tags: |
+            type=ref,event=branch,suffix=-openvino
+            type=ref,event=tag,suffix=-openvino
+            type=sha,suffix=-openvino
+            type=raw,value=openvino,enable={{is_default_branch}}
+
+      - name: Build and push OpenVINO
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ai-tagging
+          file: ./ai-tagging/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta_openvino.outputs.tags }}
+          labels: ${{ steps.meta_openvino.outputs.labels }}
+          build-args: |
+            ONNXRUNTIME_PACKAGE=onnxruntime-openvino==1.24.1
+            INSTALL_OPENVINO_GPU_DEPS=true
+          cache-from: type=gha,scope=damebooru-ai-tagging-openvino
+          cache-to: type=gha,mode=max,scope=damebooru-ai-tagging-openvino
+
   publish_server:
     needs: detect_changes
     if: needs.detect_changes.outputs.server == 'true'

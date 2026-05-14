@@ -102,17 +102,9 @@ docker compose up -d
 cp docker-compose.dev.example.yml docker-compose.yml
 ```
 
-2. Optionally copy defaults and edit them:
-
-```bash
-cp .env.example .env
-```
+2. Create the same `./secrets/*.txt` files as in Option A before starting.
 
 3. Build and start:
-
-Create the same `./secrets/*.txt` files as in Option A before starting.
-
-4. Build and start:
 
 ```bash
 docker compose up -d --build

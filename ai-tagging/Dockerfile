@@ -8,12 +8,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+ARG INSTALL_OPENVINO_GPU_DEPS=false
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
+    && if [ "$INSTALL_OPENVINO_GPU_DEPS" = "true" ]; then \
+        apt-get install -y --no-install-recommends \
+            intel-opencl-icd \
+            ocl-icd-libopencl1 \
+            clinfo; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+
+ARG ONNXRUNTIME_PACKAGE=onnxruntime==1.20.1
+
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir "${ONNXRUNTIME_PACKAGE}"
 
 COPY app ./app
 COPY README.md .

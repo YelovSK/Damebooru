@@ -68,13 +68,19 @@ curl.exe -F "file=@image.png" -F "threshold=0.492" http://127.0.0.1:8000/tag
 | `AI_TAGGING_MODEL_FILE` | `camie-tagger-v2.onnx` | ONNX model filename |
 | `AI_TAGGING_METADATA_FILE` | `camie-tagger-v2-metadata.json` | Metadata filename |
 | `AI_TAGGING_MODEL_DIR` | `./models` | Runtime model cache |
-| `AI_TAGGING_PROVIDER` | `cpu` | Currently `cpu`; future values can map to GPU providers |
+| `AI_TAGGING_PROVIDER` | `cpu` | ONNX Runtime provider selector: `cpu`, `cuda`, `directml`, or `openvino` |
+| `AI_TAGGING_OPENVINO_DEVICE` | `CPU` | OpenVINO target device, for example `CPU`, `GPU`, or `AUTO` |
+| `AI_TAGGING_OPENVINO_CACHE_DIR` | empty | Optional OpenVINO compiled model cache directory |
 | `AI_TAGGING_DEFAULT_THRESHOLD` | `0.492` | Camie v2 macro-optimized threshold from model card |
+| `AI_TAGGING_MIN_CONFIDENCE` | `0.01` | Default confidence floor |
+| `AI_TAGGING_TOP_K` | `256` | Default maximum tags per category |
 | `AI_TAGGING_MAX_UPLOAD_MB` | `32` | Upload limit |
 
-## GPU Later
+## OpenVINO
 
-The inference layer accepts ONNX Runtime providers through one small provider mapping.
-For now the Docker image installs CPU-only `onnxruntime`. NVIDIA CUDA, DirectML, or
-OpenVINO can be added later by changing dependencies/image base and extending the
-provider mapping in `app/settings.py`.
+The normal Docker image installs CPU `onnxruntime`. The GHCR workflow also publishes
+an `openvino` image tag with `onnxruntime-openvino` and Intel OpenCL packages.
+
+For Intel GPU experiments, use the `openvino` image tag, set
+`AI_TAGGING_PROVIDER=openvino`, and set `AI_TAGGING_OPENVINO_DEVICE=GPU`.
+The container also needs access to the host GPU device, usually `/dev/dri`.

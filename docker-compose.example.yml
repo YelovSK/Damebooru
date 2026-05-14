@@ -40,12 +40,17 @@ services:
       - "${CLIENT_PORT:-8080}:80"
 
   ai-tagging:
-    image: ghcr.io/yelovsk/damebooru-ai-tagging:latest
+    image: ghcr.io/yelovsk/damebooru-ai-tagging:${AI_TAGGING_TAG:-latest}
     restart: unless-stopped
     profiles:
       - ai
+    environment:
+      AI_TAGGING_PROVIDER: "${AI_TAGGING_PROVIDER:-cpu}"
+      AI_TAGGING_OPENVINO_DEVICE: "${AI_TAGGING_OPENVINO_DEVICE:-CPU}"
+      AI_TAGGING_OPENVINO_CACHE_DIR: "${AI_TAGGING_OPENVINO_CACHE_DIR:-/openvino-cache}"
     volumes:
       - ./data/ai-tagging/models:/models
+      - ./data/ai-tagging/openvino-cache:/openvino-cache
 
 secrets:
   auth_password:

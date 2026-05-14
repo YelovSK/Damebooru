@@ -106,6 +106,64 @@ When startup detects pending EF Core migrations, Damebooru creates a pre-migrati
 
 AI tagging suggestion/apply thresholds are runtime settings stored in SQLite and exposed at `/api/settings/ai-tagging`.
 
+#### AI Tagging Sidecar Container
+
+The optional `ai-tagging` service is a separate FastAPI container. The ASP.NET server talks to it over the Docker Compose network using `Damebooru__AiTagging__BaseUrl`, usually `http://ai-tagging:8000`.
+
+If your Docker UI does not support Compose profiles, remove this block from the `ai-tagging` service in your real compose file:
+
+```yaml
+profiles:
+  - ai
+```
+
+CPU image example:
+
+```yaml
+ai-tagging:
+  image: ghcr.io/yelovsk/damebooru-ai-tagging:latest
+  restart: unless-stopped
+  environment:
+    AI_TAGGING_PROVIDER: cpu
+  volumes:
+    - ./data/ai-tagging/models:/models
+```
+
+OpenVINO image example for Intel GPU experiments:
+
+```yaml
+ai-tagging:
+  image: ghcr.io/yelovsk/damebooru-ai-tagging:openvino
+  restart: unless-stopped
+  devices:
+    - /dev/dri:/dev/dri
+  environment:
+    AI_TAGGING_PROVIDER: openvino
+    AI_TAGGING_OPENVINO_DEVICE: GPU
+    AI_TAGGING_OPENVINO_CACHE_DIR: /openvino-cache
+  volumes:
+    - ./data/ai-tagging/models:/models
+    - ./data/ai-tagging/openvino-cache:/openvino-cache
+```
+
+Depending on host/NAS permissions, OpenVINO GPU may also require adding the container user to the host `render` or `video` group. Check the `ai-tagging` container logs on startup; it prints available, requested, and active ONNX Runtime providers.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `AI_TAGGING_HOST` | `127.0.0.1` locally, `0.0.0.0` in Docker | Sidecar bind host |
+| `AI_TAGGING_PORT` | `8000` | Sidecar bind port |
+| `AI_TAGGING_MODEL_REPO` | `Camais03/camie-tagger-v2` | Hugging Face repo |
+| `AI_TAGGING_MODEL_FILE` | `camie-tagger-v2.onnx` | ONNX model filename |
+| `AI_TAGGING_METADATA_FILE` | `camie-tagger-v2-metadata.json` | Metadata filename |
+| `AI_TAGGING_MODEL_DIR` | `./models` locally, `/models` in Docker | Runtime model cache |
+| `AI_TAGGING_PROVIDER` | `cpu` | ONNX Runtime provider selector: `cpu`, `cuda`, `directml`, or `openvino` |
+| `AI_TAGGING_OPENVINO_DEVICE` | `CPU` | OpenVINO target device, for example `CPU`, `GPU`, or `AUTO` |
+| `AI_TAGGING_OPENVINO_CACHE_DIR` | empty | Optional OpenVINO compiled model cache directory |
+| `AI_TAGGING_DEFAULT_THRESHOLD` | `0.492` | Sidecar default threshold; Damebooru normally sends the DB-backed suggestion threshold |
+| `AI_TAGGING_MIN_CONFIDENCE` | `0.01` | Sidecar default confidence floor |
+| `AI_TAGGING_TOP_K` | `256` | Sidecar default maximum tags per category |
+| `AI_TAGGING_MAX_UPLOAD_MB` | `32` | Sidecar upload limit |
+
 ### External APIs
 
 #### SauceNAO

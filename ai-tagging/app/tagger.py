@@ -71,7 +71,13 @@ class CamieTagger:
             with Path(metadata_path).open("r", encoding="utf-8") as metadata_file:
                 metadata = json.load(metadata_file)
 
+            print("Available ONNX Runtime providers:", ort.get_available_providers(), file=sys.stderr)
+            print("Requested ONNX Runtime providers:", settings.onnx_providers, file=sys.stderr)
+
             session = ort.InferenceSession(model_path, providers=settings.onnx_providers)
+
+            print("Active ONNX Runtime providers:", session.get_providers(), file=sys.stderr)
+
             return cls(session=session, metadata=metadata, model_repo=settings.model_repo)
         except Exception as ex:
             raise TaggingError(f"Failed to load {settings.model_repo}: {ex}") from ex
