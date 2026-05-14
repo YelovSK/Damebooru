@@ -28,6 +28,7 @@ public class SchedulerService : BackgroundService
         (JobKeys.CleanupOrphanedThumbnails, "45 */6 * * *"), // 45 min after scan
         (JobKeys.CleanupInvalidExclusions, "50 */6 * * *"), // 50 min after scan
         (JobKeys.AutoTagPosts, "10 */6 * * *"),         // 10 min after scan
+        (JobKeys.AiTagPosts, "15 */6 * * *"),           // 15 min after scan
         (JobKeys.FindDuplicates, "0 3 * * 0"),          // Weekly, Sunday 3 AM
         (JobKeys.HardlinkExactDuplicateFiles, "30 3 * * 0"), // Weekly, Sunday 3:30 AM
     ];
