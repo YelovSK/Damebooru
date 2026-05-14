@@ -80,6 +80,8 @@ curl.exe -F "file=@image.png" -F "threshold=0.492" http://127.0.0.1:8000/tag
 
 The normal Docker image installs CPU `onnxruntime`. The GHCR workflow also publishes
 an `openvino` image tag with `onnxruntime-openvino` and Intel OpenCL packages.
+The Docker base is pinned to Debian Bookworm because the Intel OpenCL package used
+by the OpenVINO image is available there.
 
 For Intel GPU experiments, use the `openvino` image tag, set
 `AI_TAGGING_PROVIDER=openvino`, and set `AI_TAGGING_OPENVINO_DEVICE=GPU`.
