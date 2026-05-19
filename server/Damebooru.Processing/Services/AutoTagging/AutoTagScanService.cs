@@ -478,7 +478,7 @@ public sealed class AutoTagScanService
         }
 
         foreach (var group in tags
-                     .Select(tag => new ExternalTagData(TagService.SanitizeTagName(tag.Name), tag.Category))
+                     .Select(tag => new ExternalTagData(Tag.NormalizeName(tag.Name), tag.Category))
                      .Where(tag => !string.IsNullOrWhiteSpace(tag.Name))
                      .GroupBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase))
         {

@@ -217,6 +217,6 @@ public class FolderTaggingService
         }
 
         var collapsedWhitespace = WhitespaceRegex.Replace(segment.Trim(), "_");
-        return collapsedWhitespace.ToLowerInvariant();
+        return Tag.NormalizeName(collapsedWhitespace);
     }
 }

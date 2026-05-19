@@ -68,68 +68,16 @@ public sealed class AutoTagApplyService
             }
 
             var tagSource = ToPostTagSource(provider);
-            var desiredScanTags = scan.Tags.Where(tag => tag.Provider == provider).ToList();
-            var desiredNames = desiredScanTags.Select(tag => tag.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            var existingLinks = post.PostTags.Where(link => link.Source == tagSource).ToList();
-            foreach (var link in existingLinks.Where(link => !desiredNames.Contains(link.Tag.Name)).ToList())
-            {
-                _db.PostTags.Remove(link);
-                post.PostTags.Remove(link);
-                result.RemovedTags++;
-            }
-
-            var requiredNames = desiredScanTags.Select(tag => tag.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-            var tagsByName = _db.Tags.Local
-                .Where(tag => requiredNames.Contains(tag.Name))
-                .ToDictionary(tag => tag.Name, StringComparer.OrdinalIgnoreCase);
-
-            var persistedTags = await _db.Tags
-                .Where(tag => requiredNames.Contains(tag.Name))
-                .ToDictionaryAsync(tag => tag.Name, StringComparer.OrdinalIgnoreCase, cancellationToken);
-
-            foreach (var existingTag in persistedTags)
-            {
-                tagsByName[existingTag.Key] = existingTag.Value;
-            }
-
-            foreach (var desiredTag in desiredScanTags)
-            {
-                if (!tagsByName.TryGetValue(desiredTag.Name, out var tag))
-                {
-                    tag = new Tag
-                    {
-                        Name = desiredTag.Name,
-                        Category = desiredTag.Category
-                    };
-                    _db.Tags.Add(tag);
-                    tagsByName[tag.Name] = tag;
-                }
-                else if (ShouldUpgradeCategory(tag.Category, desiredTag.Category))
-                {
-                    tag.Category = desiredTag.Category;
-                    result.UpdatedTagCategories++;
-                }
-
-                var alreadyLinked = post.PostTags.Any(link => link.Source == tagSource && string.Equals(link.Tag.Name, desiredTag.Name, StringComparison.OrdinalIgnoreCase));
-                if (!alreadyLinked)
-                {
-                    var link = new PostTag
-                    {
-                        PostId = post.Id,
-                        Tag = tag,
-                        Source = tagSource
-                    };
-                    _db.PostTags.Add(link);
-                    post.PostTags.Add(link);
-                    result.AddedTags++;
-                }
-            }
+            result.Add(await PostTagReconciler.ReconcileAsync(
+                _db,
+                post,
+                tagSource,
+                scan.Tags
+                    .Where(tag => tag.Provider == provider)
+                    .Select(tag => new PostTagReconciliationTarget(tag.Name, tag.Category)),
+                cancellationToken));
         }
     }
-
-    private static bool ShouldUpgradeCategory(TagCategoryKind current, TagCategoryKind discovered)
-        => current == TagCategoryKind.General && discovered != TagCategoryKind.General;
 
     private static PostTagSource ToPostTagSource(AutoTagProvider provider)
         => provider switch
@@ -145,5 +93,12 @@ public sealed class AutoTagApplyService
         public int RemovedTags { get; set; }
         public int UpdatedTagCategories { get; set; }
         public int AddedSources { get; set; }
+
+        public void Add(PostTagReconciliationResult result)
+        {
+            AddedTags += result.AddedTags;
+            RemovedTags += result.RemovedTags;
+            UpdatedTagCategories += result.UpdatedTagCategories;
+        }
     }
 }

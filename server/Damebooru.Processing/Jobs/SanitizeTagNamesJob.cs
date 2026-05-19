@@ -53,7 +53,7 @@ public class SanitizeTagNamesJob : IJob
 
         // Build a lookup of sanitized name → existing tags with that sanitized name
         var sanitizedGroups = allTags
-            .GroupBy(t => TagService.SanitizeTagName(t.Name))
+            .GroupBy(t => Tag.NormalizeName(t.Name))
             .ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var (sanitizedName, group) in sanitizedGroups)

@@ -22,6 +22,46 @@ public class PostDto
     public string ThumbnailContentHash { get; set; } = string.Empty;
     public List<TagDto> Tags { get; set; } = [];
     public List<SimilarPostDto> SimilarPosts { get; set; } = [];
+
+    public static PostDto FromPost(Post post)
+    {
+        var representativeFile = GetRepresentativeFile(post);
+
+        return new PostDto
+        {
+            Id = post.Id,
+            LibraryId = representativeFile?.LibraryId ?? 0,
+            LibraryName = representativeFile?.Library?.Name ?? string.Empty,
+            RelativePath = representativeFile?.RelativePath ?? string.Empty,
+            ContentHash = representativeFile?.ContentHash ?? string.Empty,
+            SizeBytes = representativeFile?.SizeBytes ?? 0,
+            Width = representativeFile?.Width ?? 0,
+            Height = representativeFile?.Height ?? 0,
+            ContentType = representativeFile?.ContentType ?? string.Empty,
+            ImportDate = post.ImportDate,
+            FileModifiedDate = representativeFile?.FileModifiedDate ?? default,
+            IsFavorite = post.IsFavorite,
+            ThumbnailLibraryId = representativeFile?.LibraryId ?? 0,
+            ThumbnailContentHash = representativeFile?.ContentHash ?? string.Empty,
+            Sources = post.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
+            PostFiles = post.PostFiles
+                .OrderBy(pf => pf.Id)
+                .Select(PostFileDto.FromPostFile)
+                .ToList(),
+            Tags = TagDto.FromPostTags(post.PostTags),
+            SimilarPosts = post.DuplicateGroupEntries
+                .Select(dge => dge.DuplicateGroup)
+                .SelectMany(g => g.Entries)
+                .Where(e => e.PostId != post.Id)
+                .Select(SimilarPostDto.FromDuplicateGroupEntry)
+                .ToList()
+        };
+    }
+
+    internal static PostFile? GetRepresentativeFile(Post post)
+        => post.PostFiles
+            .OrderBy(pf => pf.Id)
+            .FirstOrDefault();
 }
 
 public class PostFileDto
@@ -35,6 +75,20 @@ public class PostFileDto
     public int Height { get; set; }
     public string ContentType { get; set; } = string.Empty;
     public DateTime FileModifiedDate { get; set; }
+
+    public static PostFileDto FromPostFile(PostFile postFile)
+        => new()
+        {
+            LibraryId = postFile.LibraryId,
+            LibraryName = postFile.Library?.Name,
+            RelativePath = postFile.RelativePath,
+            ContentHash = postFile.ContentHash,
+            SizeBytes = postFile.SizeBytes,
+            Width = postFile.Width,
+            Height = postFile.Height,
+            ContentType = postFile.ContentType,
+            FileModifiedDate = postFile.FileModifiedDate,
+        };
 }
 
 public class PostListDto

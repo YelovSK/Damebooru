@@ -61,8 +61,14 @@ public sealed class AiTaggingService
             return Result<AiTagPostResultDto>.Failure(OperationError.NotFound, "Post not found.");
         }
 
-        var result = new MutableApplyResult();
-        await ApplyTagsAsync(post, previewResult.Value.Tags, settings.ApplyThreshold, result, cancellationToken);
+        var result = await PostTagReconciler.ReconcileAsync(
+            _db,
+            post,
+            PostTagSource.Ai,
+            previewResult.Value.Tags
+                .Where(tag => tag.Score >= settings.ApplyThreshold)
+                .Select(tag => new PostTagReconciliationTarget(tag.Name, tag.Category)),
+            cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         var postResult = await _postReadService.GetPostAsync(postId, cancellationToken);
@@ -178,101 +184,4 @@ public sealed class AiTaggingService
         }
     }
 
-    private async Task ApplyTagsAsync(
-        Post post,
-        IReadOnlyCollection<AiTagSuggestionDto> suggestions,
-        decimal applyThreshold,
-        MutableApplyResult result,
-        CancellationToken cancellationToken)
-    {
-        var desiredTags = suggestions
-            .Where(tag => tag.Score >= applyThreshold)
-            .Select(tag => new
-            {
-                Name = TagService.SanitizeTagName(tag.Name),
-                tag.Category
-            })
-            .Where(tag => !string.IsNullOrWhiteSpace(tag.Name))
-            .GroupBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new
-            {
-                Name = group.Key,
-                Category = group.Select(tag => tag.Category).FirstOrDefault(category => category != TagCategoryKind.General)
-            })
-            .ToList();
-
-        var desiredNames = desiredTags
-            .Select(tag => tag.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var existingAiLinks = post.PostTags
-            .Where(link => link.Source == PostTagSource.Ai)
-            .ToList();
-
-        foreach (var link in existingAiLinks.Where(link => !desiredNames.Contains(link.Tag.Name)).ToList())
-        {
-            _db.PostTags.Remove(link);
-            post.PostTags.Remove(link);
-            result.RemovedTags++;
-        }
-
-        var requiredNames = desiredTags.Select(tag => tag.Name).ToList();
-        var tagsByName = _db.Tags.Local
-            .Where(tag => requiredNames.Contains(tag.Name, StringComparer.OrdinalIgnoreCase))
-            .ToDictionary(tag => tag.Name, StringComparer.OrdinalIgnoreCase);
-
-        var persistedTags = await _db.Tags
-            .Where(tag => requiredNames.Contains(tag.Name))
-            .ToDictionaryAsync(tag => tag.Name, StringComparer.OrdinalIgnoreCase, cancellationToken);
-
-        foreach (var persistedTag in persistedTags)
-        {
-            tagsByName[persistedTag.Key] = persistedTag.Value;
-        }
-
-        foreach (var desiredTag in desiredTags)
-        {
-            if (!tagsByName.TryGetValue(desiredTag.Name, out var tag))
-            {
-                tag = new Tag
-                {
-                    Name = desiredTag.Name,
-                    Category = desiredTag.Category
-                };
-                _db.Tags.Add(tag);
-                tagsByName[tag.Name] = tag;
-            }
-            else if (ShouldUpgradeCategory(tag.Category, desiredTag.Category))
-            {
-                tag.Category = desiredTag.Category;
-                result.UpdatedTagCategories++;
-            }
-
-            var alreadyLinked = post.PostTags.Any(link =>
-                link.Source == PostTagSource.Ai
-                && string.Equals(link.Tag.Name, desiredTag.Name, StringComparison.OrdinalIgnoreCase));
-            if (!alreadyLinked)
-            {
-                var link = new PostTag
-                {
-                    PostId = post.Id,
-                    Tag = tag,
-                    Source = PostTagSource.Ai
-                };
-                _db.PostTags.Add(link);
-                post.PostTags.Add(link);
-                result.AddedTags++;
-            }
-        }
-    }
-
-    private static bool ShouldUpgradeCategory(TagCategoryKind current, TagCategoryKind discovered)
-        => current == TagCategoryKind.General && discovered != TagCategoryKind.General;
-
-    private sealed class MutableApplyResult
-    {
-        public int AddedTags { get; set; }
-        public int RemovedTags { get; set; }
-        public int UpdatedTagCategories { get; set; }
-    }
 }

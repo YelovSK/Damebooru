@@ -10,6 +10,31 @@ public class TagDto
     public TagCategoryKind Category { get; set; }
     public int Usages { get; set; }
     public List<PostTagSource> Sources { get; set; } = [];
+
+    public static List<TagDto> FromPostTags(IEnumerable<PostTag> postTags)
+        => postTags
+            .GroupBy(pt => new { pt.Tag.Id, pt.Tag.Name, pt.Tag.Category, pt.Tag.PostCount })
+            .OrderBy(group => GetCategoryDisplayOrder(group.Key.Category))
+            .ThenBy(group => group.Key.Name)
+            .Select(group => new TagDto
+            {
+                Id = group.Key.Id,
+                Name = group.Key.Name,
+                Category = group.Key.Category,
+                Usages = group.Key.PostCount,
+                Sources = group.Select(pt => pt.Source).Distinct().OrderBy(source => source).ToList(),
+            })
+            .ToList();
+
+    private static int GetCategoryDisplayOrder(TagCategoryKind category)
+        => category switch
+        {
+            TagCategoryKind.Artist => 0,
+            TagCategoryKind.Character => 1,
+            TagCategoryKind.Copyright => 2,
+            TagCategoryKind.Meta => 3,
+            _ => 4,
+        };
 }
 
 public class CreateTagDto

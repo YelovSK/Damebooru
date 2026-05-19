@@ -15,49 +15,12 @@ public class TagService
         _context = context;
     }
 
-    public async Task<TagListDto> GetTagsAsync(string? query = null, int page = 1, int pageSize = 100, CancellationToken cancellationToken = default)
-    {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 100;
-        if (pageSize > 500) pageSize = 500;
-
-        var q = _context.Tags.AsQueryable();
-
-        var search = NormalizeSearchTerm(query);
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            q = q.Where(t => t.Name.Contains(search));
-        }
-
-        var totalCount = await q.CountAsync(cancellationToken);
-        var sorted = ApplySorting(q, sortBy: null, sortDirection: null);
-        var items = await sorted
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .Select(t => new TagDto
-            {
-                Id = t.Id,
-                Name = t.Name,
-                Category = t.Category,
-                Usages = t.PostCount
-            })
-            .ToListAsync(cancellationToken);
-
-        return new TagListDto
-        {
-            Items = items,
-            TotalCount = totalCount,
-            Page = page,
-            PageSize = pageSize
-        };
-    }
-
     public async Task<TagListDto> GetTagsAsync(
-        string? query,
-        int page,
-        int pageSize,
-        string? sortBy,
-        string? sortDirection,
+        string? query = null,
+        int page = 1,
+        int pageSize = 100,
+        string? sortBy = null,
+        string? sortDirection = null,
         CancellationToken cancellationToken = default)
     {
         if (page < 1) page = 1;
@@ -97,7 +60,7 @@ public class TagService
 
     public async Task<Result<TagDto>> CreateTagAsync(CreateTagDto dto)
     {
-        var name = SanitizeTagName(dto.Name);
+        var name = Tag.NormalizeName(dto.Name);
         if (string.IsNullOrWhiteSpace(name))
         {
             return Result<TagDto>.Failure(OperationError.InvalidInput, "Tag name cannot be empty.");
@@ -135,7 +98,7 @@ public class TagService
             return Result<TagDto>.Failure(OperationError.NotFound, "Tag not found.");
         }
 
-        var name = SanitizeTagName(dto.Name);
+        var name = Tag.NormalizeName(dto.Name);
         if (string.IsNullOrWhiteSpace(name))
         {
             return Result<TagDto>.Failure(OperationError.InvalidInput, "Tag name cannot be empty.");
@@ -275,15 +238,4 @@ public class TagService
         };
     }
 
-    internal static string SanitizeTagName(string name)
-    {
-        var sanitized = name.Trim().ToLowerInvariant();
-        sanitized = sanitized.Replace(':', '_');
-        // Collapse multiple consecutive underscores
-        while (sanitized.Contains("__"))
-        {
-            sanitized = sanitized.Replace("__", "_");
-        }
-        return sanitized.Trim('_');
-    }
 }

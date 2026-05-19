@@ -22,7 +22,7 @@ public class ImageHashService : ISimilarityService
     private const int PdqJaroszWindowSizeDivisor = 128;
 
     private static readonly float DctMatrixScaleFactor = (float)Math.Sqrt(2.0 / PdqReducedSize);
-    private static readonly float[,] DctMatrix = BuildDctMatrix();
+    private static readonly float[] DctMatrix = BuildDctMatrix();
 
     public ImageHashService()
     {
@@ -189,27 +189,34 @@ public class ImageHashService : ISimilarityService
         {
             for (int i = 0; i < PdqDctSize; i++)
             {
+                var matrixRowOffset = i * PdqReducedSize;
+                var tempRowOffset = i * PdqReducedSize;
+
                 for (int j = 0; j < PdqReducedSize; j++)
                 {
                     var sum = 0.0f;
                     for (int k = 0; k < PdqReducedSize; k++)
                     {
-                        sum += DctMatrix[i, k] * input64[(k * PdqReducedSize) + j];
+                        sum += DctMatrix[matrixRowOffset + k] * input64[(k * PdqReducedSize) + j];
                     }
-                    temp[(i * PdqReducedSize) + j] = sum;
+                    temp[tempRowOffset + j] = sum;
                 }
             }
 
             for (int i = 0; i < PdqDctSize; i++)
             {
+                var tempRowOffset = i * PdqReducedSize;
+                var outputRowOffset = i * PdqDctSize;
+
                 for (int j = 0; j < PdqDctSize; j++)
                 {
                     var sum = 0.0f;
+                    var matrixRowOffset = j * PdqReducedSize;
                     for (int k = 0; k < PdqReducedSize; k++)
                     {
-                        sum += temp[(i * PdqReducedSize) + k] * DctMatrix[j, k];
+                        sum += temp[tempRowOffset + k] * DctMatrix[matrixRowOffset + k];
                     }
-                    output16[(i * PdqDctSize) + j] = sum;
+                    output16[outputRowOffset + j] = sum;
                 }
             }
         }
@@ -360,15 +367,16 @@ public class ImageHashService : ISimilarityService
         words[wordIndex] |= 1UL << bitInWord;
     }
 
-    private static float[,] BuildDctMatrix()
+    private static float[] BuildDctMatrix()
     {
-        var matrix = new float[PdqDctSize, PdqReducedSize];
+        var matrix = new float[PdqDctSize * PdqReducedSize];
 
         for (int i = 0; i < PdqDctSize; i++)
         {
+            var rowOffset = i * PdqReducedSize;
             for (int j = 0; j < PdqReducedSize; j++)
             {
-                matrix[i, j] =
+                matrix[rowOffset + j] =
                     (float)(DctMatrixScaleFactor * Math.Cos((Math.PI / 2 / PdqReducedSize) * (i + 1) * (2 * j + 1)));
             }
         }

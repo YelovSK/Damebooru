@@ -54,11 +54,16 @@ public class FindDuplicatesJob : IJob
         });
         var posts = await db.Posts
             .AsNoTracking()
-            .Select(p => new DuplicatePostCandidate(
+            .Select(p => new
+            {
                 p.Id,
-                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
-                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.PdqHash256).FirstOrDefault(),
-                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentType).FirstOrDefault() ?? string.Empty))
+                RepFile = p.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault()
+            })
+            .Select(x => new DuplicatePostCandidate(
+                x.Id,
+                x.RepFile != null ? x.RepFile.ContentHash : string.Empty,
+                x.RepFile != null ? x.RepFile.PdqHash256 : null,
+                x.RepFile != null ? x.RepFile.ContentType : string.Empty))
             .ToListAsync(context.CancellationToken);
         context.Reporter.Update(new JobState
         {

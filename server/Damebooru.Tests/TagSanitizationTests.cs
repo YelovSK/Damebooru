@@ -1,4 +1,4 @@
-using Damebooru.Processing.Services;
+using Damebooru.Core.Entities;
 
 namespace Damebooru.Tests;
 
@@ -11,9 +11,9 @@ public class TagSanitizationTests
     [InlineData("MIXED_Case", "mixed_case")]
     [InlineData("name::::value", "name_value")]
     [InlineData(" : : ", " ")]
-    public void SanitizeTagName_ReturnsCanonicalForm(string input, string expected)
+    public void NormalizeName_ReturnsCanonicalForm(string input, string expected)
     {
-        var sanitized = TagService.SanitizeTagName(input);
+        var sanitized = Tag.NormalizeName(input);
 
         Assert.Equal(expected, sanitized);
     }

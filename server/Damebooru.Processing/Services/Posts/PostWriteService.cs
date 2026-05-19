@@ -20,7 +20,7 @@ public class PostWriteService
         var postExists = await _context.Posts.AnyAsync(p => p.Id == postId);
         if (!postExists) return Result.Failure(OperationError.NotFound, "Post not found");
 
-        tagName = tagName.Trim();
+        tagName = Tag.NormalizeName(tagName);
         if (string.IsNullOrEmpty(tagName)) return Result.Failure(OperationError.InvalidInput, "Tag name cannot be empty");
 
         var tag = await _context.Tags.FirstOrDefaultAsync(t => t.Name == tagName);
@@ -55,6 +55,9 @@ public class PostWriteService
     {
         var postExists = await _context.Posts.AnyAsync(p => p.Id == postId);
         if (!postExists) return Result.Failure(OperationError.NotFound, "Post not found");
+
+        tagName = Tag.NormalizeName(tagName);
+        if (string.IsNullOrEmpty(tagName)) return Result.Failure(OperationError.InvalidInput, "Tag name cannot be empty");
 
         var postTag = await _context.PostTags
             .Where(pt =>
@@ -111,11 +114,7 @@ public class PostWriteService
             return Result.Failure(OperationError.NotFound, "Post not found");
         }
 
-        var normalizedSources = sources
-            .Select(s => s.Trim())
-            .Where(s => !string.IsNullOrWhiteSpace(s))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var normalizedSources = NormalizeSources(sources);
 
         await _context.PostSources
             .Where(ps => ps.PostId == postId)
@@ -152,39 +151,25 @@ public class PostWriteService
             return Result.Failure(OperationError.NotFound, "Post not found");
         }
 
-        var updateTags = metadata.TagsWithSources != null;
-        var updateSources = metadata.Sources != null;
-        if (!updateTags && !updateSources)
+        if (metadata.TagsWithSources == null && metadata.Sources == null)
         {
             return Result.Success();
         }
 
-        if (updateTags)
+        if (metadata.TagsWithSources is { } tagsWithSources)
         {
-            var desiredTagLinks = new List<(string Name, PostTagSource Source)>();
-            var desiredTagKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (var requestedTag in metadata.TagsWithSources!)
+            var invalidTag = tagsWithSources.FirstOrDefault(tag => !Enum.IsDefined(tag.Source));
+            if (invalidTag != null)
             {
-                var normalizedTagName = requestedTag.Name?.Trim();
-                if (string.IsNullOrWhiteSpace(normalizedTagName))
-                {
-                    continue;
-                }
-
-                if (!Enum.IsDefined(requestedTag.Source))
-                {
-                    return Result.Failure(OperationError.InvalidInput, $"Invalid post tag source '{requestedTag.Source}'.");
-                }
-
-                var key = BuildTagKey(normalizedTagName, requestedTag.Source);
-                if (!desiredTagKeys.Add(key))
-                {
-                    continue;
-                }
-
-                desiredTagLinks.Add((normalizedTagName, requestedTag.Source));
+                return Result.Failure(OperationError.InvalidInput, $"Invalid post tag source '{invalidTag.Source}'.");
             }
+
+            var desiredTagLinks = tagsWithSources
+                .Select(tag => (Name: Tag.NormalizeName(tag.Name), tag.Source))
+                .Where(tag => !string.IsNullOrWhiteSpace(tag.Name))
+                .Distinct()
+                .ToList();
+            var desiredTagKeys = desiredTagLinks.ToHashSet();
 
             var existingPostTags = await _context.PostTags
                 .Where(pt => pt.PostId == postId)
@@ -192,7 +177,7 @@ public class PostWriteService
                 .ToListAsync();
 
             var toRemove = existingPostTags
-                .Where(pt => !desiredTagKeys.Contains(BuildTagKey(pt.Tag.Name, pt.Source)))
+                .Where(pt => !desiredTagKeys.Contains((pt.Tag.Name, pt.Source)))
                 .ToList();
             if (toRemove.Count > 0)
             {
@@ -241,24 +226,9 @@ public class PostWriteService
             }
         }
 
-        if (updateSources)
+        if (metadata.Sources is { } sources)
         {
-            var normalizedSources = new List<string>();
-            var seenSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var source in metadata.Sources!)
-            {
-                var normalized = source?.Trim();
-                if (string.IsNullOrWhiteSpace(normalized))
-                {
-                    continue;
-                }
-
-                if (seenSources.Add(normalized))
-                {
-                    normalizedSources.Add(normalized);
-                }
-            }
-
+            var normalizedSources = NormalizeSources(sources);
             var existingSources = await _context.PostSources
                 .Where(ps => ps.PostId == postId)
                 .ToListAsync();
@@ -282,8 +252,10 @@ public class PostWriteService
         return Result.Success();
     }
 
-    private static string BuildTagKey(string tagName, PostTagSource source)
-    {
-        return $"{source}|{tagName}";
-    }
+    private static List<string> NormalizeSources(IEnumerable<string> sources)
+        => sources
+            .Select(source => source.Trim())
+            .Where(source => !string.IsNullOrWhiteSpace(source))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 }

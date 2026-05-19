@@ -15,4 +15,21 @@ public class Tag
     public int PostCount { get; set; }
     
     public ICollection<PostTag> PostTags { get; set; } = new List<PostTag>();
+
+    public static string NormalizeName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var normalized = name.Trim().ToLowerInvariant();
+        normalized = normalized.Replace(':', '_');
+        while (normalized.Contains("__"))
+        {
+            normalized = normalized.Replace("__", "_");
+        }
+
+        return normalized.Trim('_');
+    }
 }
