@@ -70,7 +70,7 @@ curl.exe -F "file=@image.png" -F "threshold=0.492" http://127.0.0.1:8000/tag
 | `AI_TAGGING_MODEL_DIR` | `./models` | Runtime model cache |
 | `AI_TAGGING_PROVIDER` | `cpu` | ONNX Runtime provider selector: `cpu`, `cuda`, `directml`, or `openvino` |
 | `AI_TAGGING_OPENVINO_DEVICE` | `CPU` | OpenVINO target device, for example `CPU`, `GPU`, or `AUTO` |
-| `AI_TAGGING_OPENVINO_CACHE_DIR` | empty | Optional OpenVINO compiled model cache directory |
+| `AI_TAGGING_OPENVINO_CACHE_DIR` | empty | Optional OpenVINO compiled model cache directory, passed through OpenVINO `CACHE_DIR` |
 | `AI_TAGGING_DEFAULT_THRESHOLD` | `0.492` | Camie v2 macro-optimized threshold from model card |
 | `AI_TAGGING_MIN_CONFIDENCE` | `0.01` | Default confidence floor |
 | `AI_TAGGING_TOP_K` | `256` | Default maximum tags per category |

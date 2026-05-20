@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +43,15 @@ class Settings:
             }
 
             if self.openvino_cache_dir:
-                options["cache_dir"] = self.openvino_cache_dir
+                config_device = self.openvino_device.split(":", 1)[0].split(".", 1)[0]
+                options["load_config"] = json.dumps(
+                    {
+                        config_device: {
+                            "CACHE_DIR": self.openvino_cache_dir,
+                            "PERFORMANCE_HINT": "LATENCY",
+                        }
+                    }
+                )
 
             return [
                 ("OpenVINOExecutionProvider", options),

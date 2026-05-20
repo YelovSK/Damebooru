@@ -71,12 +71,24 @@ class CamieTagger:
             with Path(metadata_path).open("r", encoding="utf-8") as metadata_file:
                 metadata = json.load(metadata_file)
 
+            if settings.openvino_cache_dir:
+                Path(settings.openvino_cache_dir).mkdir(parents=True, exist_ok=True)
+
             print("Available ONNX Runtime providers:", ort.get_available_providers(), file=sys.stderr)
             print("Requested ONNX Runtime providers:", settings.onnx_providers, file=sys.stderr)
 
-            session = ort.InferenceSession(model_path, providers=settings.onnx_providers)
+            session_options = ort.SessionOptions()
+            if settings.provider == "openvino":
+                session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+
+            session = ort.InferenceSession(
+                model_path,
+                sess_options=session_options,
+                providers=settings.onnx_providers,
+            )
 
             print("Active ONNX Runtime providers:", session.get_providers(), file=sys.stderr)
+            print("Active ONNX Runtime provider options:", session.get_provider_options(), file=sys.stderr)
 
             return cls(session=session, metadata=metadata, model_repo=settings.model_repo)
         except Exception as ex:
