@@ -87,21 +87,21 @@ public class DuplicateLookupService
         var candidates = await _context.Posts
             .AsNoTracking()
             .Where(p => p.PostFiles.Any(pf => pf.ContentType.StartsWith("image/") && !string.IsNullOrEmpty(pf.PdqHash256)))
-            .Where(p => p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() != contentHash)
+            .Where(p => (p.PrimaryPostFile == null ? null : p.PrimaryPostFile.ContentHash) != contentHash)
             .Select(p => new
             {
                 p.Id,
-                LibraryId = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
-                LibraryName = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Name).FirstOrDefault() ?? string.Empty,
-                RelativePath = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
-                ContentHash = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
-                Width = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (int?)pf.Width).FirstOrDefault() ?? 0,
-                Height = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (int?)pf.Height).FirstOrDefault() ?? 0,
-                ContentType = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentType).FirstOrDefault() ?? string.Empty,
-                SizeBytes = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (long?)pf.SizeBytes).FirstOrDefault() ?? 0,
+                LibraryId = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.LibraryId,
+                LibraryName = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.Library.Name,
+                RelativePath = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.RelativePath,
+                ContentHash = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentHash,
+                Width = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.Width,
+                Height = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.Height,
+                ContentType = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentType,
+                SizeBytes = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.SizeBytes,
                 p.ImportDate,
-                FileModifiedDate = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default,
-                PdqHash256 = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.PdqHash256).FirstOrDefault(),
+                FileModifiedDate = p.PrimaryPostFile == null ? default : p.PrimaryPostFile.FileModifiedDate,
+                PdqHash256 = p.PrimaryPostFile == null ? null : p.PrimaryPostFile.PdqHash256,
             })
             .ToListAsync(cancellationToken);
 
@@ -200,24 +200,24 @@ public class DuplicateLookupService
             ExactMatches = await _context.Posts
                 .AsNoTracking()
                 .Where(p => p.PostFiles.Any(pf => pf.ContentHash == contentHash))
-                .OrderBy(p => p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Name).FirstOrDefault())
-                .ThenBy(p => p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault())
+                .OrderBy(p => p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.Library.Name)
+                .ThenBy(p => p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.RelativePath)
                 .ThenBy(p => p.Id)
                 .Select(p => new DuplicateLookupMatchDto
                 {
                     Id = p.Id,
-                    LibraryId = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
-                    LibraryName = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.Library.Name).FirstOrDefault() ?? string.Empty,
-                    RelativePath = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
-                    ContentHash = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
-                    Width = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (int?)pf.Width).FirstOrDefault() ?? 0,
-                    Height = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (int?)pf.Height).FirstOrDefault() ?? 0,
-                    ContentType = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentType).FirstOrDefault() ?? string.Empty,
-                    SizeBytes = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (long?)pf.SizeBytes).FirstOrDefault() ?? 0,
+                    LibraryId = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.LibraryId,
+                    LibraryName = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.Library.Name,
+                    RelativePath = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.RelativePath,
+                    ContentHash = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentHash,
+                    Width = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.Width,
+                    Height = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.Height,
+                    ContentType = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentType,
+                    SizeBytes = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.SizeBytes,
                     ImportDate = p.ImportDate,
-                    FileModifiedDate = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default,
-                    ThumbnailLibraryId = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
-                    ThumbnailContentHash = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
+                    FileModifiedDate = p.PrimaryPostFile == null ? default : p.PrimaryPostFile.FileModifiedDate,
+                    ThumbnailLibraryId = p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.LibraryId,
+                    ThumbnailContentHash = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentHash,
                     SimilarityPercent = null,
                 })
                 .ToListAsync(cancellationToken),

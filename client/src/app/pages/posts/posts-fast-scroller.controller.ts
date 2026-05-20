@@ -9,12 +9,12 @@ interface FastScrollerViewportMetrics {
 
 interface PostsFastScrollerBindings {
     getRailElement: () => HTMLElement | null;
-    getTotalPages: () => number;
+    getTotalItems: () => number;
     getViewportMetrics: () => FastScrollerViewportMetrics | null;
     scrollToOffset: (scrollTop: number) => void;
-    resolvePageForScrollTop: (scrollTop: number) => number;
+    resolveBubbleLabelForScrollTop: (scrollTop: number) => number;
     resolveOffsetForScrollTop: (scrollTop: number) => number;
-    onDragSample: (offset: number, page: number) => void;
+    onDragSample: (offset: number, bubbleLabel: number) => void;
     onDragCommit: () => void;
 }
 
@@ -35,7 +35,7 @@ export class PostsFastScrollerController {
     private dragThumbHeightPx = PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX;
     private dragUsableHeight = 1;
     private lastDragSampleTs = 0;
-    private lastDragSamplePage = -1;
+    private lastDragSampleBubbleLabel = -1;
 
     readonly visible = signal(false);
     readonly scrollControlsVisible = signal(true);
@@ -43,7 +43,7 @@ export class PostsFastScrollerController {
     readonly thumbTopPx = signal(0);
     readonly thumbHeightPx = signal(56);
     readonly bubbleTopPx = signal(0);
-    readonly bubblePage = signal(1);
+    readonly bubbleLabel = signal(1);
 
     configure(bindings: PostsFastScrollerBindings): void {
         this.bindings = bindings;
@@ -62,7 +62,7 @@ export class PostsFastScrollerController {
         const bindings = this.bindings;
         const rail = bindings?.getRailElement() ?? null;
         const metrics = bindings?.getViewportMetrics() ?? null;
-        if (!bindings || !rail || !metrics || bindings.getTotalPages() <= 1) {
+        if (!bindings || !rail || !metrics || bindings.getTotalItems() <= 1) {
             return;
         }
 
@@ -76,7 +76,7 @@ export class PostsFastScrollerController {
         this.dragUsableHeight = Math.max(1, this.dragRailRect.height - this.dragThumbHeightPx);
         this.thumbHeightPx.set(this.dragThumbHeightPx);
         this.lastDragSampleTs = 0;
-        this.lastDragSamplePage = -1;
+        this.lastDragSampleBubbleLabel = -1;
 
         rail.setPointerCapture(event.pointerId);
         this.pendingFastScrollerClientY = event.clientY;
@@ -184,20 +184,20 @@ export class PostsFastScrollerController {
         const targetScrollTop = ratio * maxScrollTop;
         bindings.scrollToOffset(targetScrollTop);
 
-        const targetPage = bindings.resolvePageForScrollTop(targetScrollTop);
+        const targetBubbleLabel = bindings.resolveBubbleLabelForScrollTop(targetScrollTop);
         const targetOffset = bindings.resolveOffsetForScrollTop(targetScrollTop);
-        if (targetPage !== this.bubblePage()) {
-            this.bubblePage.set(targetPage);
+        if (targetBubbleLabel !== this.bubbleLabel()) {
+            this.bubbleLabel.set(targetBubbleLabel);
         }
 
         const now = performance.now();
         if (
-            targetPage !== this.lastDragSamplePage
+            targetBubbleLabel !== this.lastDragSampleBubbleLabel
             || now - this.lastDragSampleTs >= PostsFastScrollerController.DRAG_SAMPLE_MIN_INTERVAL_MS
         ) {
             this.lastDragSampleTs = now;
-            this.lastDragSamplePage = targetPage;
-            bindings.onDragSample(targetOffset, targetPage);
+            this.lastDragSampleBubbleLabel = targetBubbleLabel;
+            bindings.onDragSample(targetOffset, targetBubbleLabel);
         }
 
         this.reveal();
@@ -239,8 +239,8 @@ export class PostsFastScrollerController {
         this.scrollControlsVisible.set(true);
         this.clearFastScrollerHideTimer();
 
-        const totalPages = this.bindings?.getTotalPages() ?? 0;
-        if (totalPages > 1) {
+        const totalItems = this.bindings?.getTotalItems() ?? 0;
+        if (totalItems > 1) {
             this.visible.set(true);
         }
 

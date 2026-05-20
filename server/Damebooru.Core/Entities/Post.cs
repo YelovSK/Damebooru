@@ -10,6 +10,17 @@ public class Post
 
     public bool IsFavorite { get; set; }
 
+    /// <summary>
+    /// DB-maintained cached primary PostFile id. Source of truth is PostFiles; triggers refresh this value.
+    /// </summary>
+    public int? PrimaryPostFileId { get; set; }
+    public PostFile? PrimaryPostFile { get; set; }
+
+    /// <summary>
+    /// DB-maintained cached modified date for the primary PostFile. Used for fast post-list sorting.
+    /// </summary>
+    public DateTime? PrimaryFileModifiedDate { get; set; }
+
     public ICollection<PostFile> PostFiles { get; set; } = new List<PostFile>();
     public ICollection<PostTag> PostTags { get; set; } = new List<PostTag>();
     public ICollection<PostSource> Sources { get; set; } = new List<PostSource>();

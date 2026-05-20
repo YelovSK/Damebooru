@@ -162,8 +162,8 @@ export interface DamebooruPostFileDto {
 export interface DamebooruPostListDto {
   items: DamebooruPostDto[];
   totalCount: number;
-  page: number;
-  pageSize: number;
+  offset: number;
+  limit: number;
 }
 
 export interface DamebooruPostsAroundDto {

@@ -96,7 +96,7 @@ public class DuplicateLookupServiceTests
             .Options;
 
         var context = new DamebooruDbContext(options);
-        await context.Database.EnsureCreatedAsync();
+        await context.Database.MigrateAsync();
         return context;
     }
 

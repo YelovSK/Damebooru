@@ -23,7 +23,7 @@ public class MergeExactDuplicatePostsJobTests
         await using (var setupScope = services.BuildServiceProvider().CreateAsyncScope())
         {
             var setupDb = setupScope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
-            await setupDb.Database.EnsureCreatedAsync();
+            await setupDb.Database.MigrateAsync();
 
             var library = new Library { Name = "Library", Path = "C:/Library" };
             var tagA = new Tag { Name = "tag-a", Category = TagCategoryKind.General };

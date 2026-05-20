@@ -48,17 +48,13 @@ import { PostPreviewOverlayComponent } from "@shared/components/post-preview-ove
 import { PostPreviewHoverGateService } from "@shared/components/post-preview-overlay/post-preview-hover-gate.service";
 import { PostTileComponent } from "@shared/components/post-tile/post-tile.component";
 import { MobileBottomSheetComponent } from "@shared/components/mobile-bottom-sheet/mobile-bottom-sheet.component";
-import {
-  offsetToPage,
-} from "./posts-row-math";
-import { POSTS_PAGE_SIZE } from "./posts.constants";
+import { POSTS_CACHE_SEGMENT_SIZE, POSTS_FETCH_SIZE } from "./posts.constants";
 import { VirtualRowIndexDataSource } from "./posts-row-index.data-source";
-import { PostsPageCacheStore } from "./posts-page-cache.store";
+import { PostsRangeCacheStore } from "./posts-range-cache.store";
 import { PostsFastScrollerController } from "./posts-fast-scroller.controller";
 import {
   type GridCell,
   type GridDensity,
-  type PageStatus,
   type RouteState,
 } from "./posts.types";
 
@@ -72,7 +68,7 @@ import {
     PostTileComponent,
     MobileBottomSheetComponent,
   ],
-  providers: [PostsPageCacheStore, PostsFastScrollerController],
+  providers: [PostsRangeCacheStore, PostsFastScrollerController],
   templateUrl: "./posts.component.html",
   styleUrl: "./posts.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -114,7 +110,7 @@ export class PostsComponent implements AfterViewInit {
   private readonly settingsService = inject(SettingsService);
   private readonly hotkeys = inject(HotkeysService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly pageCacheStore = inject(PostsPageCacheStore);
+  private readonly rangeCacheStore = inject(PostsRangeCacheStore);
   private readonly fastScroller = inject(PostsFastScrollerController);
   private readonly previewHoverGate = inject(PostPreviewHoverGateService);
   private readonly zone = inject(NgZone);
@@ -143,10 +139,10 @@ export class PostsComponent implements AfterViewInit {
   readonly activeQueryParams = computed(() => ({
     query: this.activeQuery() || null,
   }));
-  readonly totalCount = this.pageCacheStore.totalCount;
-  readonly isInitialLoading = this.pageCacheStore.isInitialLoading;
+  readonly totalCount = this.rangeCacheStore.totalCount;
+  readonly isInitialLoading = this.rangeCacheStore.isInitialLoading;
 
-  readonly pageCache = this.pageCacheStore.pageCache;
+  readonly segmentCache = this.rangeCacheStore.segmentCache;
   readonly hoverPreviewEnabled = this.settingsService.enablePostPreviewOnHover;
   readonly hoverPreviewDelayMs = computed(() => {
     const raw = this.settingsService.postPreviewDelayMs();
@@ -156,8 +152,6 @@ export class PostsComponent implements AfterViewInit {
 
     return Math.max(0, Math.min(5000, Math.round(raw)));
   });
-
-  anchorPageHint = signal(1);
 
   viewportHeightPx = signal(480);
   columns = signal(1);
@@ -173,15 +167,6 @@ export class PostsComponent implements AfterViewInit {
     return query.length > 0 ? query : "Posts";
   });
 
-  readonly totalPages = computed(() => {
-    const total = this.totalCount();
-    if (total === null || total <= 0) {
-      return 0;
-    }
-
-    return Math.ceil(total / POSTS_PAGE_SIZE);
-  });
-
   readonly rowItemHeightPx = computed(
     () => this.tileSizePx() + PostsComponent.GRID_GAP_PX,
   );
@@ -189,7 +174,7 @@ export class PostsComponent implements AfterViewInit {
     const columns = Math.max(1, this.columns());
     const total = this.totalCount();
     if (total === null) {
-      return Math.max(1, Math.ceil(POSTS_PAGE_SIZE / columns));
+      return Math.max(1, Math.ceil(POSTS_FETCH_SIZE / columns));
     }
 
     return Math.ceil(Math.max(0, total) / columns);
@@ -198,10 +183,6 @@ export class PostsComponent implements AfterViewInit {
 
   readonly hasNoResults = computed(
     () => this.totalCount() === 0 && !this.isInitialLoading(),
-  );
-
-  readonly currentPage = computed(() =>
-    offsetToPage(this.currentOffset(), POSTS_PAGE_SIZE),
   );
 
   readonly gridTemplateColumns = computed(
@@ -214,10 +195,10 @@ export class PostsComponent implements AfterViewInit {
   readonly fastScrollerThumbTopPx = this.fastScroller.thumbTopPx;
   readonly fastScrollerThumbHeightPx = this.fastScroller.thumbHeightPx;
   readonly fastScrollerBubbleTopPx = this.fastScroller.bubbleTopPx;
-  readonly fastScrollerBubblePage = this.fastScroller.bubblePage;
+  readonly fastScrollerBubblePost = this.fastScroller.bubbleLabel;
 
   readonly showFastScrollerBubble = computed(
-    () => this.fastScrollerVisible() && this.totalPages() > 1,
+    () => this.fastScrollerVisible() && (this.totalCount() ?? 0) > 1,
   );
   readonly virtualMinBufferRows = 4;
   readonly virtualMaxBufferRows = 8;
@@ -245,7 +226,7 @@ export class PostsComponent implements AfterViewInit {
     });
 
     effect(() => {
-      this.pageCache();
+      this.segmentCache();
       this.rowCellsCache.clear();
     });
 
@@ -273,16 +254,16 @@ export class PostsComponent implements AfterViewInit {
 
     this.fastScroller.configure({
       getRailElement: () => this.fastScrollerRailRef()?.nativeElement ?? null,
-      getTotalPages: () => this.totalPages(),
+      getTotalItems: () => this.totalCount() ?? 0,
       getViewportMetrics: () => this.getFastScrollerViewportMetrics(),
       scrollToOffset: (scrollTop) =>
         this.viewportRef()?.scrollToOffset(scrollTop, "auto"),
-      resolvePageForScrollTop: (scrollTop) =>
-        this.resolvePageForScrollTop(scrollTop),
+      resolveBubbleLabelForScrollTop: (scrollTop) =>
+        this.resolveBubbleLabelForScrollTop(scrollTop),
       resolveOffsetForScrollTop: (scrollTop) =>
         this.resolveOffsetForScrollTop(scrollTop),
-      onDragSample: (offset, page) =>
-        this.handleFastScrollerDragSample(offset, page),
+      onDragSample: (offset, bubbleLabel) =>
+        this.handleFastScrollerDragSample(offset, bubbleLabel),
       onDragCommit: () => this.onFastScrollerDragCommit(),
     });
 
@@ -449,10 +430,6 @@ export class PostsComponent implements AfterViewInit {
     return this.density() === value;
   }
 
-  getPageStatus(pageNumber: number): PageStatus {
-    return this.pageCache().get(pageNumber)?.status ?? "idle";
-  }
-
   getRowCells(rowIndex: number): GridCell[] {
     if (rowIndex < 0) {
       return [];
@@ -484,13 +461,12 @@ export class PostsComponent implements AfterViewInit {
         continue;
       }
 
-      const page = this.offsetToPage(absoluteOffset);
-      const pageBaseOffset = (page - 1) * POSTS_PAGE_SIZE;
-      const indexInPage = absoluteOffset - pageBaseOffset;
-      const entry = this.pageCache().get(page);
+      const segmentIndex = Math.floor(absoluteOffset / POSTS_CACHE_SEGMENT_SIZE);
+      const indexInSegment = absoluteOffset - segmentIndex * POSTS_CACHE_SEGMENT_SIZE;
+      const entry = this.segmentCache().get(segmentIndex);
 
       if (entry?.status === "ready") {
-        const post = entry.items[indexInPage] ?? null;
+        const post = entry.items[indexInSegment] ?? null;
         if (post) {
           cells.push({
             kind: "post",
@@ -521,10 +497,6 @@ export class PostsComponent implements AfterViewInit {
     return cells;
   }
 
-  retryPage(pageNumber: number): void {
-    this.pageCacheStore.retry(pageNumber);
-  }
-
   getThumbnailUrl(post: DamebooruPostDto): string {
     return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,
@@ -533,9 +505,9 @@ export class PostsComponent implements AfterViewInit {
   }
 
   private findPostById(id: number): DamebooruPostDto | null {
-    for (const page of this.pageCache().values()) {
-      if (page.status === "ready") {
-        const match = page.items.find((p) => p.id === id);
+    for (const segment of this.segmentCache().values()) {
+      if (segment.status === "ready") {
+        const match = segment.items.find((p) => p.id === id);
         if (match) return match;
       }
     }
@@ -660,13 +632,10 @@ export class PostsComponent implements AfterViewInit {
     this.routeAnchorAppliedForQuery = state.query;
 
     const targetOffset = this.resolveAnchorOffset(state.offset);
-    const targetPage = this.offsetToPage(targetOffset);
 
-    if (this.totalCount() === null && !this.pageCache().has(targetPage)) {
+    if (this.totalCount() === null && !this.rangeCacheStore.hasOffset(targetOffset)) {
       this.pendingAnchorOffset = targetOffset;
-      this.anchorPageHint.set(targetPage);
-      this.ensurePageLoaded(targetPage);
-      this.prefetchAroundPages(new Set([targetPage]));
+      this.ensureOffsetLoaded(targetOffset);
       this.tryApplyPendingAnchor();
       return;
     }
@@ -676,9 +645,7 @@ export class PostsComponent implements AfterViewInit {
     }
 
     this.pendingAnchorOffset = targetOffset;
-    this.anchorPageHint.set(this.offsetToPage(targetOffset));
-    this.ensurePageLoaded(targetPage);
-    this.prefetchAroundPages(new Set([targetPage]));
+    this.ensureOffsetLoaded(targetOffset);
     this.tryApplyPendingAnchor();
   }
 
@@ -687,7 +654,7 @@ export class PostsComponent implements AfterViewInit {
     this.currentSearchValue.set(state.query);
 
     this.rowCellsCache.clear();
-    this.pageCacheStore.reset(state.query);
+    this.rangeCacheStore.reset(state.query);
     this.fastScroller.visible.set(false);
     this.fastScroller.dragging.set(false);
 
@@ -696,13 +663,10 @@ export class PostsComponent implements AfterViewInit {
     this.latestMeasuredOffset = targetOffset;
     this.currentOffset.set(targetOffset);
 
-    const targetPage = offsetToPage(targetOffset, POSTS_PAGE_SIZE);
-    this.anchorPageHint.set(targetPage);
-    this.fastScrollerBubblePage.set(targetPage);
-    this.pageCacheStore.setCurrentPageHint(targetPage);
+    this.fastScrollerBubblePost.set(targetOffset + 1);
+    this.rangeCacheStore.setCurrentOffsetHint(targetOffset);
 
-    this.ensurePageLoaded(targetPage, true);
-    this.prefetchAroundPages(new Set([targetPage]));
+    this.ensureOffsetLoaded(targetOffset, true);
 
     this.recalculateLayout(false);
   }
@@ -711,25 +675,27 @@ export class PostsComponent implements AfterViewInit {
     this.hotkeys
       .on("ArrowLeft")
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.stepPage(-1));
+      .subscribe(() => this.stepFetchWindow(-1));
 
     this.hotkeys
       .on("ArrowRight")
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.stepPage(1));
+      .subscribe(() => this.stepFetchWindow(1));
   }
 
-  private stepPage(delta: number): void {
-    const totalPages = this.totalPages();
-    if (totalPages <= 0) {
+  private stepFetchWindow(delta: number): void {
+    const totalCount = this.totalCount();
+    if (totalCount === null || totalCount <= 0) {
       return;
     }
 
-    const targetPage = this.clamp(this.currentPage() + delta, 1, totalPages);
-    const targetOffset = (targetPage - 1) * POSTS_PAGE_SIZE;
+    const targetOffset = this.clamp(
+      this.currentOffset() + delta * POSTS_FETCH_SIZE,
+      0,
+      totalCount - 1,
+    );
 
-    this.ensurePageLoaded(targetPage);
-    this.prefetchAroundPages(new Set([targetPage]));
+    this.ensureOffsetLoaded(targetOffset);
     this.scrollToAbsoluteOffset(targetOffset, true);
   }
 
@@ -746,13 +712,10 @@ export class PostsComponent implements AfterViewInit {
     const startIndex = this.clamp(start, 0, rowCount - 1);
     const endIndex = this.clamp(end - 1, 0, rowCount - 1);
 
-    const pagesInView = new Set<number>();
-    for (let index = startIndex; index <= endIndex; index += 1) {
-      const rowOffset = index * Math.max(1, this.columns());
-      pagesInView.add(this.offsetToPage(rowOffset));
-    }
-
-    this.prefetchAroundPages(pagesInView);
+    const columns = Math.max(1, this.columns());
+    const startOffset = startIndex * columns;
+    const endOffset = (endIndex + 1) * columns;
+    this.ensureWindowLoaded(startOffset, endOffset);
   }
 
   private loadVisibleRange(): void {
@@ -785,21 +748,20 @@ export class PostsComponent implements AfterViewInit {
     const scrollTop = viewport.measureScrollOffset("top");
     const rowIndex = this.getRowIndexForScrollTop(scrollTop);
     const absoluteOffset = this.getFirstVisiblePostOffsetFromRowIndex(rowIndex);
-    const visiblePage = this.getPageForRowIndex(rowIndex);
-    this.pageCacheStore.setCurrentPageHint(visiblePage);
+    this.rangeCacheStore.setCurrentOffsetHint(absoluteOffset);
 
     this.latestMeasuredOffset = absoluteOffset;
 
     const isDragging = this.fastScrollerDragging();
     if (isDragging) {
-      if (visiblePage !== this.offsetToPage(this.currentOffset())) {
+      if (absoluteOffset !== this.currentOffset()) {
         this.currentOffset.set(absoluteOffset);
       }
     } else if (absoluteOffset !== this.currentOffset()) {
       this.currentOffset.set(absoluteOffset);
     }
 
-    this.fastScrollerBubblePage.set(visiblePage);
+    this.fastScrollerBubblePost.set(absoluteOffset + 1);
 
     this.refreshFastScrollerGeometry();
 
@@ -808,14 +770,14 @@ export class PostsComponent implements AfterViewInit {
     }
   }
 
-  private ensurePageLoaded(pageNumber: number, force = false): void {
-    this.pageCacheStore.setCurrentPageHint(this.currentPage());
-    this.pageCacheStore.ensure(pageNumber, force);
+  private ensureOffsetLoaded(offset: number, force = false): void {
+    this.rangeCacheStore.setCurrentOffsetHint(this.currentOffset());
+    this.rangeCacheStore.ensureAroundOffset(offset, force);
   }
 
-  private prefetchAroundPages(basePages: Set<number>): void {
-    this.pageCacheStore.setCurrentPageHint(this.currentPage());
-    this.pageCacheStore.prefetch(basePages);
+  private ensureWindowLoaded(startOffset: number, endOffset: number, force = false): void {
+    this.rangeCacheStore.setCurrentOffsetHint(this.currentOffset());
+    this.rangeCacheStore.ensureWindow(startOffset, endOffset, force);
   }
 
   private tryApplyPendingAnchor(): void {
@@ -865,7 +827,7 @@ export class PostsComponent implements AfterViewInit {
 
     this.latestMeasuredOffset = clampedOffset;
     this.currentOffset.set(clampedOffset);
-    this.fastScrollerBubblePage.set(this.offsetToPage(clampedOffset));
+    this.fastScrollerBubblePost.set(clampedOffset + 1);
 
     this.refreshFastScrollerGeometry();
     this.scheduleUrlSync();
@@ -965,9 +927,9 @@ export class PostsComponent implements AfterViewInit {
     };
   }
 
-  private resolvePageForScrollTop(scrollTop: number): number {
+  private resolveBubbleLabelForScrollTop(scrollTop: number): number {
     const rowIndex = this.getRowIndexForScrollTop(scrollTop);
-    return this.getPageForRowIndex(rowIndex);
+    return this.getFirstVisiblePostOffsetFromRowIndex(rowIndex) + 1;
   }
 
   private resolveOffsetForScrollTop(scrollTop: number): number {
@@ -975,15 +937,15 @@ export class PostsComponent implements AfterViewInit {
     return this.getFirstVisiblePostOffsetFromRowIndex(rowIndex);
   }
 
-  private handleFastScrollerDragSample(offset: number, page: number): void {
+  private handleFastScrollerDragSample(offset: number, bubbleLabel: number): void {
     this.latestMeasuredOffset = offset;
     if (offset !== this.currentOffset()) {
       this.currentOffset.set(offset);
     }
-    if (page !== this.fastScrollerBubblePage()) {
-      this.fastScrollerBubblePage.set(page);
+    if (bubbleLabel !== this.fastScrollerBubblePost()) {
+      this.fastScrollerBubblePost.set(bubbleLabel);
     }
-    this.pageCacheStore.setCurrentPageHint(page);
+    this.rangeCacheStore.setCurrentOffsetHint(offset);
   }
 
   private onFastScrollerDragCommit(): void {
@@ -1127,11 +1089,6 @@ export class PostsComponent implements AfterViewInit {
     return 0;
   }
 
-  private getPageForRowIndex(rowIndex: number): number {
-    const columns = Math.max(1, this.columns());
-    return this.offsetToPage(rowIndex * columns);
-  }
-
   private getFirstVisiblePostOffsetFromRowIndex(rowIndex: number): number {
     const columns = Math.max(1, this.columns());
     const totalCount = this.totalCount();
@@ -1156,10 +1113,6 @@ export class PostsComponent implements AfterViewInit {
 
   private getRowIdByIndex(rowIndex: number): string {
     return `r${rowIndex}`;
-  }
-
-  private offsetToPage(offset: number): number {
-    return offsetToPage(offset, POSTS_PAGE_SIZE);
   }
 
   private parseNonNegativeInt(value: string | null | undefined): number | null {
@@ -1204,7 +1157,6 @@ export class PostsComponent implements AfterViewInit {
     return Math.min(max, Math.max(min, value));
   }
 
-  readonly pageSize = POSTS_PAGE_SIZE;
   readonly gridGapPx = PostsComponent.GRID_GAP_PX;
 
   private clearHoverPreviewTimer(): void {

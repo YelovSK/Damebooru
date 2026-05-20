@@ -34,11 +34,11 @@ public class PostsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetPosts(
         [FromQuery] string? tags = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
+        [FromQuery] int offset = 0,
+        [FromQuery] int limit = 100,
         CancellationToken cancellationToken = default)
     {
-        return await _postReadService.GetPostsAsync(tags, page, pageSize, cancellationToken).ToHttpResult();
+        return await _postReadService.GetPostsAsync(tags, offset, limit, cancellationToken).ToHttpResult();
     }
 
     [HttpGet("{id}/around")]

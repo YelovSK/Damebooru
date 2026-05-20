@@ -481,7 +481,7 @@ public class DuplicateWriteService
     }
 
     private static PostFile? GetRepresentativeFile(Post post)
-        => post.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault();
+        => PostDto.GetRepresentativeFile(post);
 
     private static int GetRepresentativeWidth(Post post)
         => GetRepresentativeFile(post)?.Width ?? 0;

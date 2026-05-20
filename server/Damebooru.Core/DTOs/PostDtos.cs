@@ -58,10 +58,12 @@ public class PostDto
         };
     }
 
-    internal static PostFile? GetRepresentativeFile(Post post)
-        => post.PostFiles
-            .OrderBy(pf => pf.Id)
-            .FirstOrDefault();
+    public static PostFile? GetRepresentativeFile(Post post)
+        => post.PrimaryPostFile
+            ?? (post.PrimaryPostFileId.HasValue
+            ? post.PostFiles.FirstOrDefault(pf => pf.Id == post.PrimaryPostFileId.Value)
+                ?? post.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault()
+            : post.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault());
 }
 
 public class PostFileDto
@@ -95,8 +97,8 @@ public class PostListDto
 {
     public IReadOnlyList<PostDto> Items { get; set; } = [];
     public int TotalCount { get; set; }
-    public int Page { get; set; }
-    public int PageSize { get; set; }
+    public int Offset { get; set; }
+    public int Limit { get; set; }
 }
 
 public class PostsAroundDto

@@ -57,7 +57,7 @@ public class FindDuplicatesJob : IJob
             .Select(p => new
             {
                 p.Id,
-                RepFile = p.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault()
+                RepFile = p.PrimaryPostFile
             })
             .Select(x => new DuplicatePostCandidate(
                 x.Id,

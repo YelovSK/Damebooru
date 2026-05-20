@@ -5,6 +5,9 @@ using Damebooru.Data;
 using Damebooru.Processing.Extensions;
 using Damebooru.Processing.Pipeline;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Diagnostics;
 
 namespace Damebooru.Processing.Services;
 
@@ -15,45 +18,53 @@ public class PostReadService
     private const int MaxAroundIdWindowSize = 100;
 
     private readonly DamebooruDbContext _context;
+    private readonly ILogger<PostReadService> _logger;
 
-    public PostReadService(DamebooruDbContext context)
+    public PostReadService(DamebooruDbContext context, ILogger<PostReadService>? logger = null)
     {
         _context = context;
+        _logger = logger ?? NullLogger<PostReadService>.Instance;
     }
 
-    public async Task<Result<PostListDto>> GetPostsAsync(string? tags, int page, int pageSize, CancellationToken cancellationToken)
+    public async Task<Result<PostListDto>> GetPostsAsync(string? tags, int offset, int limit, CancellationToken cancellationToken)
     {
-        if (page < 1) page = 1;
-        if (pageSize < 1) pageSize = 20;
-        if (pageSize > MaxPageSize) pageSize = MaxPageSize;
+        var totalStopwatch = Stopwatch.StartNew();
+        if (offset < 0) offset = 0;
+        if (limit < 1) limit = 20;
+        if (limit > MaxPageSize) limit = MaxPageSize;
 
+        var filterStopwatch = Stopwatch.StartNew();
         var parsedQuery = QueryParser.Parse(tags ?? string.Empty);
         var query = await ApplySearchFiltersAsync(_context.Posts.AsNoTracking(), parsedQuery, cancellationToken);
+        filterStopwatch.Stop();
 
+        var countStopwatch = Stopwatch.StartNew();
         var totalCount = await query.CountAsync(cancellationToken);
+        countStopwatch.Stop();
+
+        var itemsStopwatch = Stopwatch.StartNew();
         var items = await query
             .ApplySorting(parsedQuery)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+            .Skip(offset)
+            .Take(limit)
             .Select(p => new
             {
                 p.Id,
                 p.ImportDate,
                 p.IsFavorite,
-                RepresentativeFile = p.PostFiles
-                    .OrderBy(pf => pf.Id)
-                    .Select(pf => new
+                RepresentativeFile = p.PrimaryPostFile == null
+                    ? null
+                    : new
                     {
-                        pf.LibraryId,
-                        pf.RelativePath,
-                        pf.ContentHash,
-                        pf.SizeBytes,
-                        pf.Width,
-                        pf.Height,
-                        pf.ContentType,
-                        pf.FileModifiedDate,
-                    })
-                    .FirstOrDefault(),
+                        p.PrimaryPostFile.LibraryId,
+                        p.PrimaryPostFile.RelativePath,
+                        p.PrimaryPostFile.ContentHash,
+                        p.PrimaryPostFile.SizeBytes,
+                        p.PrimaryPostFile.Width,
+                        p.PrimaryPostFile.Height,
+                        p.PrimaryPostFile.ContentType,
+                        p.PrimaryPostFile.FileModifiedDate,
+                    },
                 PostFiles = p.PostFiles
                     .OrderBy(pf => pf.Id)
                     .Select(pf => new PostFileDto
@@ -90,13 +101,29 @@ public class PostReadService
                 Tags = new List<TagDto>(),
             })
             .ToListAsync(cancellationToken);
+        itemsStopwatch.Stop();
+        totalStopwatch.Stop();
+
+        _logger.LogInformation(
+            "Posts list query completed in {ElapsedMs} ms: offset {Offset}, limit {Limit}, returned {ReturnedCount}, total {TotalCount}, filter {FilterMs} ms, count {CountMs} ms, items {ItemsMs} ms, query length {QueryLength}, sort {SortField} {SortDirection}",
+            totalStopwatch.ElapsedMilliseconds,
+            offset,
+            limit,
+            items.Count,
+            totalCount,
+            filterStopwatch.ElapsedMilliseconds,
+            countStopwatch.ElapsedMilliseconds,
+            itemsStopwatch.ElapsedMilliseconds,
+            tags?.Length ?? 0,
+            parsedQuery.SortField,
+            parsedQuery.SortDirection);
 
         return Result<PostListDto>.Success(new PostListDto
         {
             Items = items,
             TotalCount = totalCount,
-            Page = page,
-            PageSize = pageSize
+            Offset = offset,
+            Limit = limit
         });
     }
 
@@ -182,10 +209,7 @@ public class PostReadService
             .Select(p => new
             {
                 p.Id,
-                FileModifiedDate = p.PostFiles
-                    .OrderBy(pf => pf.Id)
-                    .Select(pf => (DateTime?)pf.FileModifiedDate)
-                    .FirstOrDefault() ?? default(DateTime)
+                FileModifiedDate = p.PrimaryFileModifiedDate ?? default(DateTime)
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -201,8 +225,8 @@ public class PostReadService
         var prevIds = await query
             .Where(p => p.Id != current.Id
                 && (
-                    (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) > currentSortDate
-                    || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == currentSortDate && p.Id > current.Id)
+                    (p.PrimaryFileModifiedDate ?? default(DateTime)) > currentSortDate
+                    || ((p.PrimaryFileModifiedDate ?? default(DateTime)) == currentSortDate && p.Id > current.Id)
                 ))
             .OrderByOldest()
             .Select(p => p.Id)
@@ -212,8 +236,8 @@ public class PostReadService
         var nextIds = await query
             .Where(p => p.Id != current.Id
                 && (
-                    (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) < currentSortDate
-                    || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == currentSortDate && p.Id < current.Id)
+                    (p.PrimaryFileModifiedDate ?? default(DateTime)) < currentSortDate
+                    || ((p.PrimaryFileModifiedDate ?? default(DateTime)) == currentSortDate && p.Id < current.Id)
                 ))
             .OrderByNewest()
             .Select(p => p.Id)

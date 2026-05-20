@@ -95,7 +95,7 @@
         @if (showFastScrollerBubble()) {
         <div class="fast-scroller-bubble pointer-events-none absolute top-0 right-[31px] z-[36] inline-flex h-9 min-w-[74px] items-center justify-center whitespace-nowrap rounded-full border border-sky-300/45 bg-slate-900/92 px-[0.72rem] text-[0.74rem] font-bold text-text-secondary"
             [style.transform]="'translateY(' + fastScrollerBubbleTopPx() + 'px)'">
-            Page {{ fastScrollerBubblePage() }}
+            Post {{ fastScrollerBubblePost() | number }}
         </div>
         }
     </div>

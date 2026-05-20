@@ -198,7 +198,7 @@ public sealed class AutoTagPostsJob : IJob
                 scan => scan.PostId,
                 (post, scans) => new { Post = post, Scan = scans.FirstOrDefault() })
             .Where(x => x.Scan == null
-                || x.Scan.ContentHash != x.Post.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault()
+                || x.Scan.ContentHash != (x.Post.PrimaryPostFile == null ? null : x.Post.PrimaryPostFile.ContentHash)
                 || x.Scan.Status == AutoTagScanStatus.Pending
                 || x.Scan.Status == AutoTagScanStatus.InProgress
                 || (x.Scan.Status == AutoTagScanStatus.Partial

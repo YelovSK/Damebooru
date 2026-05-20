@@ -74,20 +74,20 @@ public class LibraryBrowseService
                 p.Id,
                 p.ImportDate,
                 p.IsFavorite,
-                RepresentativeFile = p.PostFiles
-                    .OrderBy(pf => pf.Id)
-                    .Select(pf => new
+                p.PrimaryFileModifiedDate,
+                RepresentativeFile = p.PrimaryPostFile == null
+                    ? null
+                    : new
                     {
-                        pf.LibraryId,
-                        pf.RelativePath,
-                        pf.ContentHash,
-                        pf.SizeBytes,
-                        pf.Width,
-                        pf.Height,
-                        pf.ContentType,
-                        pf.FileModifiedDate,
-                    })
-                    .FirstOrDefault(),
+                        p.PrimaryPostFile.LibraryId,
+                        p.PrimaryPostFile.RelativePath,
+                        p.PrimaryPostFile.ContentHash,
+                        p.PrimaryPostFile.SizeBytes,
+                        p.PrimaryPostFile.Width,
+                        p.PrimaryPostFile.Height,
+                        p.PrimaryPostFile.ContentType,
+                        p.PrimaryPostFile.FileModifiedDate,
+                    },
                 LibraryFile = p.PostFiles
                     .Where(pf => pf.LibraryId == libraryId)
                     .OrderBy(pf => pf.Id)
@@ -98,7 +98,7 @@ public class LibraryBrowseService
                     })
                     .FirstOrDefault(),
             })
-            .OrderByDescending(p => p.RepresentativeFile == null ? default : p.RepresentativeFile.FileModifiedDate)
+            .OrderByDescending(p => p.PrimaryFileModifiedDate)
             .ThenByDescending(p => p.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -263,10 +263,7 @@ public class LibraryBrowseService
             .Select(p => new
             {
                 p.Id,
-                FileModifiedDate = p.PostFiles
-                    .OrderBy(pf => pf.Id)
-                    .Select(pf => (DateTime?)pf.FileModifiedDate)
-                    .FirstOrDefault() ?? default(DateTime)
+                FileModifiedDate = p.PrimaryFileModifiedDate ?? default(DateTime)
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -278,8 +275,8 @@ public class LibraryBrowseService
         var prevIds = await scopedQuery
             .Where(p => p.Id != current.Id
                 && (
-                    (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) > current.FileModifiedDate
-                    || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == current.FileModifiedDate && p.Id > current.Id)
+                    (p.PrimaryFileModifiedDate ?? default(DateTime)) > current.FileModifiedDate
+                    || ((p.PrimaryFileModifiedDate ?? default(DateTime)) == current.FileModifiedDate && p.Id > current.Id)
                 ))
             .OrderByOldest()
             .Select(p => p.Id)
@@ -289,8 +286,8 @@ public class LibraryBrowseService
         var nextIds = await scopedQuery
             .Where(p => p.Id != current.Id
                 && (
-                    (p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) < current.FileModifiedDate
-                    || ((p.PostFiles.OrderBy(pf => pf.Id).Select(pf => (DateTime?)pf.FileModifiedDate).FirstOrDefault() ?? default(DateTime)) == current.FileModifiedDate && p.Id < current.Id)
+                    (p.PrimaryFileModifiedDate ?? default(DateTime)) < current.FileModifiedDate
+                    || ((p.PrimaryFileModifiedDate ?? default(DateTime)) == current.FileModifiedDate && p.Id < current.Id)
                 ))
             .OrderByNewest()
             .Select(p => p.Id)

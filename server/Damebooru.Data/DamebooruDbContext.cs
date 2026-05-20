@@ -109,6 +109,12 @@ public class DamebooruDbContext : DbContext
             .HasForeignKey(pf => pf.PostId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<Post>()
+            .HasOne(p => p.PrimaryPostFile)
+            .WithMany()
+            .HasForeignKey(p => p.PrimaryPostFileId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<PostFile>()
             .HasOne(pf => pf.Library)
             .WithMany()
@@ -127,6 +133,9 @@ public class DamebooruDbContext : DbContext
         // Indexes for performance
         modelBuilder.Entity<Post>()
             .HasIndex(p => new { p.ImportDate, p.Id });
+
+        modelBuilder.Entity<Post>()
+            .HasIndex(p => new { p.PrimaryFileModifiedDate, p.Id });
 
         modelBuilder.Entity<Post>()
             .HasIndex(p => p.IsFavorite);

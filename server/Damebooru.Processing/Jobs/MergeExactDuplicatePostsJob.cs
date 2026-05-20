@@ -46,7 +46,7 @@ public class MergeExactDuplicatePostsJob : IJob
             .Select(p => new MergeCandidate(
                 p.Id,
                 p.ImportDate,
-                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty))
+                p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentHash))
             .ToListAsync(context.CancellationToken);
 
         var groups = candidates

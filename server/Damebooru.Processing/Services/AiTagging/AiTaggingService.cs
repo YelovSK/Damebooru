@@ -101,7 +101,12 @@ public sealed class AiTaggingService
         var candidate = await _db.Posts
             .AsNoTracking()
             .Where(p => p.Id == postId)
-            .Select(p => p.PostFiles
+            .Select(p => p.PrimaryPostFile != null && EF.Functions.Like(p.PrimaryPostFile.ContentType, "image/%")
+                ? new AiTaggingCandidate(
+                    p.PrimaryPostFile.Library.Path,
+                    p.PrimaryPostFile.RelativePath,
+                    p.PrimaryPostFile.ContentType)
+                : p.PostFiles
                 .Where(pf => EF.Functions.Like(pf.ContentType, "image/%"))
                 .OrderBy(pf => pf.Id)
                 .Select(pf => new AiTaggingCandidate(

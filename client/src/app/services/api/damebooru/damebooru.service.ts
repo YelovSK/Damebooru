@@ -261,11 +261,9 @@ export class DamebooruService {
     offset = 0,
     limit = 100,
   ): Observable<DamebooruPostListDto> {
-    const page = Math.floor(offset / limit) + 1;
-
     let params = new HttpParams()
-      .set("page", page.toString())
-      .set("pageSize", limit.toString());
+      .set("offset", offset.toString())
+      .set("limit", limit.toString());
 
     if (query) {
       params = params.set("tags", query);

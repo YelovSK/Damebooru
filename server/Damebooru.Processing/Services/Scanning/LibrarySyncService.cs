@@ -1,5 +1,6 @@
 using Damebooru.Core;
 using Damebooru.Core.Config;
+using Damebooru.Core.DTOs;
 using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
 using Damebooru.Core.Paths;
@@ -888,7 +889,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .Select(p => new
             {
                 p.Id,
-                ContentHash = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty
+                ContentHash = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentHash
             })
             .ToListAsync(cancellationToken);
 
@@ -913,11 +914,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .AsNoTracking()
             .Where(pt => pt.Source != PostTagSource.Folder
                 && pt.Post.PostFiles.Any(pf => pf.LibraryId == libraryId)
-                && hashSet.Contains(pt.Post.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty))
+                && hashSet.Contains(pt.Post.PrimaryPostFile == null ? string.Empty : pt.Post.PrimaryPostFile.ContentHash))
             .Select(pt => new
             {
                 pt.PostId,
-                ContentHash = pt.Post.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.ContentHash).FirstOrDefault() ?? string.Empty,
+                ContentHash = pt.Post.PrimaryPostFile == null ? string.Empty : pt.Post.PrimaryPostFile.ContentHash,
                 pt.TagId,
                 pt.Source
             })
@@ -1218,9 +1219,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         foreach (var post in posts)
         {
-            var representativeFile = post.PostFiles
-                .OrderBy(pf => pf.Id)
-                .FirstOrDefault();
+            var representativeFile = PostDto.GetRepresentativeFile(post);
 
             if (representativeFile == null)
             {
