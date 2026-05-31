@@ -282,6 +282,7 @@ public class DuplicateWriteService
         await using var transaction = await _context.Database.BeginTransactionAsync(CancellationToken.None);
 
         await AddExclusionsForPostAsync(postToExclude, cancellationToken);
+        await ClearPrimaryFileCacheForPostDeletesAsync([postToExclude], CancellationToken.None);
         _context.Posts.Remove(postToExclude);
         await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -360,6 +361,7 @@ public class DuplicateWriteService
             _context.ExcludedFiles.RemoveRange(excluded);
         }
 
+        await ClearPrimaryFileCacheForPostDeletesAsync([postToDelete], CancellationToken.None);
         _context.Posts.Remove(postToDelete);
         await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -387,8 +389,10 @@ public class DuplicateWriteService
         return await _context.ExcludedFiles.ExecuteDeleteAsync(cancellationToken);
     }
 
-    private async Task ResolveGroupKeepingPostAsync(DuplicateGroup group, int keepPostId, bool saveChanges = true)
+    private async Task ResolveGroupKeepingPostAsync(DuplicateGroup group, int keepPostId)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(CancellationToken.None);
+
         var keptEntry = group.Entries.First(e => e.PostId == keepPostId);
         var keptPost = keptEntry.Post;
         var removedEntries = group.Entries.Where(e => e.PostId != keepPostId).ToList();
@@ -434,15 +438,20 @@ public class DuplicateWriteService
             }
 
             await AddExclusionsForPostAsync(post);
-            _context.Posts.Remove(post);
+        }
+
+        await ClearPrimaryFileCacheForPostDeletesAsync(
+            removedEntries.Select(entry => entry.Post).ToList());
+
+        foreach (var entry in removedEntries)
+        {
+            _context.Posts.Remove(entry.Post);
         }
 
         _context.DuplicateGroups.Remove(group);
 
-        if (saveChanges)
-        {
-            await _context.SaveChangesAsync();
-        }
+        await _context.SaveChangesAsync();
+        await transaction.CommitAsync(CancellationToken.None);
     }
 
     private int SelectBestQualityPostId(IEnumerable<Post> posts)
@@ -478,6 +487,34 @@ public class DuplicateWriteService
                 Reason = "duplicate_resolution"
             });
         }
+    }
+
+    private async Task ClearPrimaryFileCacheForPostDeletesAsync(
+        IReadOnlyCollection<Post> posts,
+        CancellationToken cancellationToken = default)
+    {
+        if (posts.Count == 0)
+        {
+            return;
+        }
+
+        var persistedPosts = posts
+            .Where(p => p.Id > 0)
+            .DistinctBy(p => p.Id)
+            .ToList();
+        if (persistedPosts.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var post in persistedPosts)
+        {
+            post.PrimaryPostFileId = null;
+            post.PrimaryPostFile = null;
+            post.PrimaryFileModifiedDate = null;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     private static PostFile? GetRepresentativeFile(Post post)
