@@ -22,6 +22,7 @@ import { AppOverlayService } from '@services/app-overlay.service';
   selector: 'app-mobile-bottom-sheet',
   standalone: true,
   templateUrl: './mobile-bottom-sheet.component.html',
+  styleUrl: './mobile-bottom-sheet.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MobileBottomSheetComponent implements AfterViewInit {
@@ -29,6 +30,7 @@ export class MobileBottomSheetComponent implements AfterViewInit {
 
   open = input(false);
   openChange = output<boolean>();
+  closing = signal(false);
 
   private readonly appOverlay = inject(AppOverlayService);
   private readonly destroyRef = inject(DestroyRef);
@@ -36,6 +38,7 @@ export class MobileBottomSheetComponent implements AfterViewInit {
   private overlayRef?: OverlayRef;
   private portal?: TemplatePortal;
   private viewReady = signal(false);
+  private closeTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     effect(() => {
@@ -46,11 +49,14 @@ export class MobileBottomSheetComponent implements AfterViewInit {
       if (this.open()) {
         this.attachOverlay();
       } else {
-        this.overlayRef?.detach();
+        this.detachOverlay();
       }
     });
 
-    this.destroyRef.onDestroy(() => this.overlayRef?.dispose());
+    this.destroyRef.onDestroy(() => {
+      this.clearCloseTimer();
+      this.overlayRef?.dispose();
+    });
   }
 
   ngAfterViewInit(): void {
@@ -66,6 +72,9 @@ export class MobileBottomSheetComponent implements AfterViewInit {
     if (!template) {
       return;
     }
+
+    this.clearCloseTimer();
+    this.closing.set(false);
 
     const overlayRef = this.ensureOverlay();
     if (!this.portal) {
@@ -97,5 +106,31 @@ export class MobileBottomSheetComponent implements AfterViewInit {
 
     this.overlayRef = overlayRef;
     return overlayRef;
+  }
+
+  private detachOverlay(): void {
+    if (!this.overlayRef?.hasAttached()) {
+      return;
+    }
+
+    if (this.closing()) {
+      return;
+    }
+
+    this.closing.set(true);
+    this.closeTimer = setTimeout(() => {
+      this.closeTimer = null;
+      this.closing.set(false);
+      this.overlayRef?.detach();
+    }, 180);
+  }
+
+  private clearCloseTimer(): void {
+    if (this.closeTimer === null) {
+      return;
+    }
+
+    clearTimeout(this.closeTimer);
+    this.closeTimer = null;
   }
 }
