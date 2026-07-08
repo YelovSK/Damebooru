@@ -795,6 +795,17 @@ export class PostDetailComponent {
     this.mobileImageViewerOpen.set(false);
   }
 
+  onMobileImageViewerClick(event: MouseEvent, imageFrame: HTMLElement): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.target instanceof Node && imageFrame.contains(event.target)) {
+      return;
+    }
+
+    this.closeMobileImageViewer();
+  }
+
   private handleMobileMediaTap(event: PointerEvent): void {
     const post = this.post();
     if (!post || this.editService.isEditing() || !this.isMobileViewport()) {

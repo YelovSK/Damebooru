@@ -361,15 +361,16 @@
     </div>
 
     @if (mobileImageViewerOpen()) {
-    <div class="fixed inset-0 z-[100] bg-black min-[1101px]:hidden" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 z-[100] bg-black min-[1101px]:hidden" role="dialog" aria-modal="true" tabindex="-1"
+        (click)="onMobileImageViewerClick($event, imageFrame)" (keydown.escape)="closeMobileImageViewer()">
         <button type="button"
             class="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-black/55 text-text-secondary backdrop-blur-sm transition-colors hover:bg-black/75"
-            aria-label="Close image viewer" (click)="closeMobileImageViewer()">
+            aria-label="Close image viewer" (click)="closeMobileImageViewer(); $event.stopPropagation()">
             <span class="text-2xl leading-none">×</span>
         </button>
 
-        <app-zoom-pan-container [touchEnabled]="true" (backdropTap)="closeMobileImageViewer()">
-            <div class="relative max-h-[100dvh] max-w-[100vw]" [style.aspect-ratio]="imageAspectRatio(pd)"
+        <app-zoom-pan-container [touchEnabled]="true">
+            <div #imageFrame class="relative max-h-[100dvh] max-w-[100vw]" [style.aspect-ratio]="imageAspectRatio(pd)"
                 [style.width]="imageContainerWidth(pd)">
                 <app-progressive-image [previewSrc]="getPreviewUrl(pd)"
                     [fullSrc]="suppressFullImage() ? null : getPostContentUrl(pd)"
