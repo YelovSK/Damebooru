@@ -133,9 +133,6 @@ export class PostDetailComponent {
   private swipeStartX: number | null = null;
   private swipeStartY: number | null = null;
   private swipeStartTime = 0;
-  private readonly swipeMinDistancePx = 60;
-  private readonly swipeMaxDurationMs = 700;
-  private readonly swipeDirectionRatio = 1.3;
   private readonly tapMaxDistancePx = 14;
   private readonly tapMaxDurationMs = 500;
 
@@ -778,20 +775,8 @@ export class PostDetailComponent {
     this.resetSwipeState();
 
     if (this.isMobileImageViewerTap(deltaX, deltaY, elapsedMs)) {
-      this.openMobileImageViewer();
-      return;
+      this.handleMobileMediaTap(event);
     }
-
-    if (elapsedMs > this.swipeMaxDurationMs) return;
-    if (Math.abs(deltaX) < this.swipeMinDistancePx) return;
-    if (Math.abs(deltaX) < Math.abs(deltaY) * this.swipeDirectionRatio) return;
-
-    if (deltaX < 0) {
-      this.goToNextPost();
-      return;
-    }
-
-    this.goToPrevPost();
   }
 
   openMobileImageViewer() {
@@ -808,6 +793,35 @@ export class PostDetailComponent {
 
   closeMobileImageViewer() {
     this.mobileImageViewerOpen.set(false);
+  }
+
+  private handleMobileMediaTap(event: PointerEvent): void {
+    const post = this.post();
+    if (!post || this.editService.isEditing() || !this.isMobileViewport()) {
+      return;
+    }
+
+    const mediaType = this.getMediaType(post.contentType);
+    if (mediaType !== 'image' && mediaType !== 'animation') {
+      return;
+    }
+
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const tapX = event.clientX - rect.left;
+    const leftEdge = rect.width / 3;
+    const rightEdge = rect.width * 2 / 3;
+
+    if (tapX < leftEdge) {
+      this.goToPrevPost();
+      return;
+    }
+
+    if (tapX > rightEdge) {
+      this.goToNextPost();
+      return;
+    }
+
+    this.openMobileImageViewer();
   }
 
   onMediaPointerCancel(event?: PointerEvent) {
