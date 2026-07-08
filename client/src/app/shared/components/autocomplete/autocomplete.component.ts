@@ -42,7 +42,13 @@ export class AutocompleteComponent<T> {
   selectedIndex = signal(-1);
   manualClose = signal(false);
   internalLoading = signal(false);
+  dropdownOpensAbove = signal(false);
+  dropdownMaxHeightPx = signal(420);
 
+  private readonly dropdownGapPx = 8;
+  private readonly dropdownViewportMarginPx = 12;
+  private readonly dropdownMaxHeightLimitPx = 420;
+  private readonly dropdownMinHeightPx = 64;
   private inputElement = viewChild<ElementRef<HTMLInputElement>>('searchInput');
   private listElement = viewChild<ElementRef<HTMLUListElement>>('suggestionList');
 
@@ -83,6 +89,7 @@ export class AutocompleteComponent<T> {
 
       if (hasSuggestions && hasFocus && !this.manualClose()) {
         this.isDropdownOpen.set(true);
+        this.scheduleDropdownPositionUpdate();
       } else if (!hasSuggestions || !hasFocus) {
         this.manualClose.set(false);
         this.isDropdownOpen.set(false);
@@ -98,6 +105,20 @@ export class AutocompleteComponent<T> {
         this.closeDropdown();
       }
     });
+
+    fromEvent(window, 'resize', { passive: true }).pipe(
+      takeUntilDestroyed()
+    ).subscribe(() => this.scheduleDropdownPositionUpdate());
+
+    if (window.visualViewport) {
+      fromEvent(window.visualViewport, 'resize', { passive: true }).pipe(
+        takeUntilDestroyed()
+      ).subscribe(() => this.scheduleDropdownPositionUpdate());
+
+      fromEvent(window.visualViewport, 'scroll', { passive: true }).pipe(
+        takeUntilDestroyed()
+      ).subscribe(() => this.scheduleDropdownPositionUpdate());
+    }
   }
 
   private getLastWord(text: string): string {
@@ -115,6 +136,7 @@ export class AutocompleteComponent<T> {
   onFocus() {
     if (this.suggestions().length > 0) {
       this.isDropdownOpen.set(true);
+      this.scheduleDropdownPositionUpdate();
     }
   }
 
@@ -251,5 +273,45 @@ export class AutocompleteComponent<T> {
     requestAnimationFrame(() => {
       this.inputElement()?.nativeElement.blur();
     });
+  }
+
+  private scheduleDropdownPositionUpdate() {
+    if (!this.isDropdownOpen()) {
+      return;
+    }
+
+    requestAnimationFrame(() => this.updateDropdownPosition());
+  }
+
+  private updateDropdownPosition() {
+    const input = this.inputElement()?.nativeElement;
+    if (!input) {
+      return;
+    }
+
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportBottom = viewportTop + (viewport?.height ?? window.innerHeight);
+    const inputRect = input.getBoundingClientRect();
+    const spaceAbove = Math.max(0, inputRect.top - viewportTop - this.dropdownGapPx - this.dropdownViewportMarginPx);
+    const spaceBelow = Math.max(0, viewportBottom - inputRect.bottom - this.dropdownGapPx - this.dropdownViewportMarginPx);
+    const desiredHeight = this.estimateDropdownHeight();
+    const opensAbove = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+    const availableHeight = opensAbove ? spaceAbove : spaceBelow;
+
+    this.dropdownOpensAbove.set(opensAbove);
+    this.dropdownMaxHeightPx.set(Math.max(
+      this.dropdownMinHeightPx,
+      Math.min(this.dropdownMaxHeightLimitPx, Math.floor(availableHeight)),
+    ));
+  }
+
+  private estimateDropdownHeight() {
+    const renderedHeight = this.listElement()?.nativeElement.scrollHeight ?? 0;
+    if (renderedHeight > 0) {
+      return Math.min(this.dropdownMaxHeightLimitPx, renderedHeight);
+    }
+
+    return Math.min(this.dropdownMaxHeightLimitPx, this.suggestions().length * 44 + 20);
   }
 }

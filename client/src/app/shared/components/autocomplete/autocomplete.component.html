@@ -25,7 +25,10 @@
   @if (isDropdownOpen())
   {
   <ul #suggestionList
-    class="absolute top-[calc(100%+8px)] left-0 right-0 bg-bg-tertiary border border-white/10 rounded-[15px] list-none p-2.5 m-0 z-[500] shadow-[0_15px_35px_rgba(0,0,0,0.6)] max-h-[420px] overflow-y-auto box-scrollbar">
+    class="absolute left-0 right-0 bg-bg-tertiary border border-white/10 rounded-[15px] list-none p-2.5 m-0 z-[500] shadow-[0_15px_35px_rgba(0,0,0,0.6)] overflow-y-auto box-scrollbar"
+    [style.top]="dropdownOpensAbove() ? null : 'calc(100% + 8px)'"
+    [style.bottom]="dropdownOpensAbove() ? 'calc(100% + 8px)' : null"
+    [style.max-height.px]="dropdownMaxHeightPx()">
     @for (suggestion of suggestions(); track $index) {
     @let isSelected = $index === selectedIndex();
     <li #optionItem (mouseenter)="setSelectedIndex($index)" (click)="selectItem(suggestion)" tabindex="0"
