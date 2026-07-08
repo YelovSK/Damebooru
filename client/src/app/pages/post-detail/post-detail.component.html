@@ -368,10 +368,13 @@
             <span class="text-2xl leading-none">×</span>
         </button>
 
-        <app-zoom-pan-container [touchEnabled]="true">
-            <app-progressive-image [previewSrc]="getPreviewUrl(pd)"
-                [fullSrc]="suppressFullImage() ? null : getPostContentUrl(pd)"
-                [alt]="'' + pd.id" [width]="pd.width" [height]="pd.height" />
+        <app-zoom-pan-container [touchEnabled]="true" (backdropTap)="closeMobileImageViewer()">
+            <div class="relative max-h-[100dvh] max-w-[100vw]" [style.aspect-ratio]="imageAspectRatio(pd)"
+                [style.width]="imageContainerWidth(pd)">
+                <app-progressive-image [previewSrc]="getPreviewUrl(pd)"
+                    [fullSrc]="suppressFullImage() ? null : getPostContentUrl(pd)"
+                    [alt]="'' + pd.id" [width]="pd.width" [height]="pd.height" />
+            </div>
         </app-zoom-pan-container>
     </div>
     }

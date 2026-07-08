@@ -23,6 +23,7 @@ export class ZoomPanContainerComponent {
   private readonly zoomAnimationDuration = 140;
   private readonly destroyRef = inject(DestroyRef);
   private readonly container = viewChild<ElementRef<HTMLElement>>('container');
+  private readonly stage = viewChild<ElementRef<HTMLElement>>('stage');
   private readonly panVelocity = new VelocityTracker(0.65);
   private readonly viewportAnimator = new ValueAnimator<ZoomPanViewport>({
     easing: easeOutCubic,
@@ -39,6 +40,7 @@ export class ZoomPanContainerComponent {
   readonly touchEnabled = input(false);
   readonly viewport = input<ZoomPanViewport | null>(null);
   readonly viewportChange = output<ZoomPanViewport>();
+  readonly backdropTap = output<void>();
 
   readonly zoomLevel = computed(() => this.targetViewport().zoomLevel);
   readonly panX = computed(() => this.targetViewport().panX);
@@ -166,6 +168,11 @@ export class ZoomPanContainerComponent {
 
     event.preventDefault();
     event.stopPropagation();
+    if (this.isBackdropTarget(event.target)) {
+      this.backdropTap.emit();
+      return;
+    }
+
     this.cancelMomentum();
     this.interruptViewportAnimation();
     this.touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -235,6 +242,11 @@ export class ZoomPanContainerComponent {
     }
 
     this.startMomentum();
+  }
+
+  private isBackdropTarget(target: EventTarget | null): boolean {
+    return target === this.stage()?.nativeElement
+      || target === this.container()?.nativeElement;
   }
 
   private clampPan(x: number, y: number, zoom: number): { x: number; y: number } {

@@ -999,6 +999,18 @@ export class PostDetailComponent {
     return getMediaType(contentType);
   }
 
+  imageAspectRatio(post: Pick<DamebooruPostDto, 'width' | 'height'>): string {
+    return post.width && post.height ? `${post.width}/${post.height}` : '1/1';
+  }
+
+  imageContainerWidth(post: Pick<DamebooruPostDto, 'width' | 'height'>): string {
+    if (!(post.width && post.height)) {
+      return '100vw';
+    }
+
+    return `min(100vw, 100dvh * ${post.width} / ${post.height})`;
+  }
+
   getThumbnailUrl(post: DamebooruPostDto): string {
     return this.damebooru.getThumbnailUrl(
       post.thumbnailLibraryId,

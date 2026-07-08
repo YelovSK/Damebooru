@@ -5,7 +5,7 @@
     (pointerup)="onPointerUp($event)" (pointercancel)="onPointerUp($event)"
     [class.touch-none]="touchEnabled()"
     [style.cursor]="isDragging ? 'grabbing' : 'grab'">
-    <div class="w-full h-full flex items-center justify-center will-change-transform" [style.transform]="transform()">
+    <div #stage class="w-full h-full flex items-center justify-center will-change-transform" [style.transform]="transform()">
         <ng-content />
     </div>
 </div>
