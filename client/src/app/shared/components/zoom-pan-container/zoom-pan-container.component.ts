@@ -23,7 +23,6 @@ export class ZoomPanContainerComponent {
   private readonly zoomAnimationDuration = 140;
   private readonly destroyRef = inject(DestroyRef);
   private readonly container = viewChild<ElementRef<HTMLElement>>('container');
-  private readonly stage = viewChild<ElementRef<HTMLElement>>('stage');
   private readonly panVelocity = new VelocityTracker(0.65);
   private readonly viewportAnimator = new ValueAnimator<ZoomPanViewport>({
     easing: easeOutCubic,
@@ -38,6 +37,7 @@ export class ZoomPanContainerComponent {
   readonly smoothZoomEnabled = input(true);
   readonly momentumEnabled = input(true);
   readonly touchEnabled = input(false);
+  readonly doubleClickZoomEnabled = input(true);
   readonly viewport = input<ZoomPanViewport | null>(null);
   readonly viewportChange = output<ZoomPanViewport>();
 
@@ -93,7 +93,13 @@ export class ZoomPanContainerComponent {
 
   readonly isZoomed = computed(() => this.zoomLevel() > 1);
 
-  onDoubleClick(): void {
+  onDoubleClick(event: MouseEvent): void {
+    if (!this.doubleClickZoomEnabled()) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     this.cancelMomentum();
     const isDefault = this.zoomLevel() === 1 && this.panX() === 0 && this.panY() === 0;
     const newZoom = isDefault ? 2 : 1;

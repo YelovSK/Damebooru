@@ -347,7 +347,7 @@
             class="w-full h-full object-contain" controls [autoplay]="autoPlayVideos()" [muted]="startVideosMuted()"
             loop></video>
         } @else {
-        <app-zoom-pan-container #zoomPan>
+        <app-zoom-pan-container #zoomPan [doubleClickZoomEnabled]="!isMobileViewport()">
             @switch (getMediaType(pd.contentType)) {
             @case ('image')
             @case ('animation') {

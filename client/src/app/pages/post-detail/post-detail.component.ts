@@ -863,7 +863,7 @@ export class PostDetailComponent {
       && Math.hypot(deltaX, deltaY) <= this.tapMaxDistancePx;
   }
 
-  private isMobileViewport(): boolean {
+  isMobileViewport(): boolean {
     return window.matchMedia('(max-width: 1100px)').matches;
   }
 
