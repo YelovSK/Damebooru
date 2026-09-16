@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Damebooru.Core.Config;
 using Damebooru.Core.Entities;
 using Damebooru.Core.External;
@@ -73,7 +74,7 @@ internal sealed class SauceNaoClient(
         var url = $"/search.php?output_type=2&api_key={Uri.EscapeDataString(_config.ApiKey)}&numres={_config.ResultsCount}&db={_config.Database}&minsim={_config.MinimumSimilarity.ToString(CultureInfo.InvariantCulture)}";
         using var response = await _httpClient.PostAsync(url, formData, cancellationToken);
 
-        var payload = await response.Content.ReadFromJsonAsync<SauceNaoResponseDto>(cancellationToken);
+        var payload = await ReadPayloadAsync(response, cancellationToken);
         if (payload is null)
         {
             _rateCoordinator.ObserveFailure();
@@ -129,10 +130,27 @@ internal sealed class SauceNaoClient(
                 retryAfter: payload.Header.IsShortLimitExceeded || payload.Header.IsFailedAttemptsExceeded
                     ? TimeSpan.FromSeconds(30)
                     : null,
-                stopCurrentRun: payload.Header.IsDailyLimitExceeded || payload.Header.IsFailedAttemptsExceeded || response.StatusCode == HttpStatusCode.TooManyRequests);
+                stopCurrentRun: payload.Header.IsDailyLimitExceeded || payload.Header.IsFailedAttemptsExceeded);
         }
 
         throw new InvalidOperationException("Unreachable SauceNAO response state encountered.");
+    }
+
+    private static async Task<SauceNaoResponseDto?> ReadPayloadAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await response.Content.ReadFromJsonAsync<SauceNaoResponseDto>(cancellationToken);
+        }
+        catch (JsonException) when (response.StatusCode == HttpStatusCode.TooManyRequests)
+        {
+            // Non-JSON 429 body; without a header, assume the short-term rate limit.
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return new SauceNaoResponseDto
+            {
+                Header = new SauceNaoHeaderDto { Status = -2, Message = content },
+            };
+        }
     }
 
     private void LogFailure(HttpStatusCode statusCode, SauceNaoHeaderDto header)
