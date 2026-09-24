@@ -7,7 +7,7 @@ public sealed class DanbooruClientIntegrationTests
 {
     private const long SamplePostId = 10342182;
 
-    [Fact]
+    [LiveApiFact]
     public async Task GetPostDetailsAsync_returns_live_post_details()
     {
         var settings = ExternalApiTestSettings.Load();

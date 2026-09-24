@@ -6,7 +6,7 @@ public sealed class SauceNaoClientIntegrationTests
 {
     private const string SampleImageUrl = "https://cdn.donmai.us/original/80/ed/__frieren_sousou_no_frieren_drawn_by_khyle__80ed1d55cff5989b83ddf24409b15933.jpg";
 
-    [Fact]
+    [LiveApiFact]
     public async Task SearchAsync_returns_matches_from_live_api()
     {
         var settings = ExternalApiTestSettings.Load();

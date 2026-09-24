@@ -7,7 +7,7 @@ public sealed class GelbooruClientIntegrationTests
 {
     private const long SamplePostId = 13391919;
 
-    [Fact]
+    [LiveApiFact]
     public async Task GetPostDetailsAsync_returns_live_post_details()
     {
         var settings = ExternalApiTestSettings.Load();
