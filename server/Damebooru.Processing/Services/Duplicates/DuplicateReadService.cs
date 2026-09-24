@@ -48,22 +48,26 @@ public class DuplicateReadService
                     Id = g.Id,
                     SimilarityPercent = g.SimilarityPercent,
                     DetectedDate = g.DetectedDate,
-                    Posts = posts.Select(p => new DuplicatePostDto
+                    Posts = posts.Select(p =>
                     {
-                        Id = p.Id,
-                        LibraryId = GetRepresentativeLibraryId(p),
-                        LibraryName = GetRepresentativeLibraryName(p),
-                        RelativePath = GetRepresentativeRelativePath(p),
-                        ContentHash = GetRepresentativeContentHash(p),
-                        Width = GetRepresentativeWidth(p),
-                        Height = GetRepresentativeHeight(p),
-                        ContentType = GetRepresentativeContentType(p),
-                        SizeBytes = GetRepresentativeSizeBytes(p),
-                        ImportDate = p.ImportDate,
-                        FileModifiedDate = GetRepresentativeFileModifiedDate(p),
-                        ThumbnailLibraryId = GetRepresentativeLibraryId(p),
-                        ThumbnailContentHash = GetRepresentativeContentHash(p),
-                        Files = GetPostFileDtos(p),
+                        var file = PostDto.GetRepresentativeFile(p);
+                        return new DuplicatePostDto
+                        {
+                            Id = p.Id,
+                            LibraryId = file?.LibraryId ?? 0,
+                            LibraryName = file?.Library?.Name ?? string.Empty,
+                            RelativePath = file?.RelativePath ?? string.Empty,
+                            ContentHash = file?.ContentHash ?? string.Empty,
+                            Width = file?.Width ?? 0,
+                            Height = file?.Height ?? 0,
+                            ContentType = file?.ContentType ?? string.Empty,
+                            SizeBytes = file?.SizeBytes ?? 0,
+                            ImportDate = p.ImportDate,
+                            FileModifiedDate = file?.FileModifiedDate ?? default,
+                            ThumbnailLibraryId = file?.LibraryId ?? 0,
+                            ThumbnailContentHash = file?.ContentHash ?? string.Empty,
+                            Files = GetPostFileDtos(p),
+                        };
                     }).ToList()
                 };
             })
@@ -136,36 +140,6 @@ public class DuplicateReadService
             .ThenBy(cluster => cluster.ContentHash, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
-
-    private static PostFile? GetRepresentativeFile(Post post)
-        => PostDto.GetRepresentativeFile(post);
-
-    private static int GetRepresentativeLibraryId(Post post)
-        => GetRepresentativeFile(post)?.LibraryId ?? 0;
-
-    private static string GetRepresentativeLibraryName(Post post)
-        => GetRepresentativeFile(post)?.Library?.Name ?? string.Empty;
-
-    private static string GetRepresentativeRelativePath(Post post)
-        => GetRepresentativeFile(post)?.RelativePath ?? string.Empty;
-
-    private static string GetRepresentativeContentHash(Post post)
-        => GetRepresentativeFile(post)?.ContentHash ?? string.Empty;
-
-    private static long GetRepresentativeSizeBytes(Post post)
-        => GetRepresentativeFile(post)?.SizeBytes ?? 0;
-
-    private static string GetRepresentativeContentType(Post post)
-        => GetRepresentativeFile(post)?.ContentType ?? string.Empty;
-
-    private static int GetRepresentativeWidth(Post post)
-        => GetRepresentativeFile(post)?.Width ?? 0;
-
-    private static int GetRepresentativeHeight(Post post)
-        => GetRepresentativeFile(post)?.Height ?? 0;
-
-    private static DateTime GetRepresentativeFileModifiedDate(Post post)
-        => GetRepresentativeFile(post)?.FileModifiedDate ?? default;
 
     private static List<DuplicatePostFileDto> GetPostFileDtos(Post post)
         => post.PostFiles

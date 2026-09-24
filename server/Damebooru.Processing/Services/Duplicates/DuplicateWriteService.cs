@@ -456,14 +456,15 @@ public class DuplicateWriteService
         await transaction.CommitAsync(CancellationToken.None);
     }
 
-    private int SelectBestQualityPostId(IEnumerable<Post> posts)
+    private static int SelectBestQualityPostId(IEnumerable<Post> posts)
     {
         return posts
-            .OrderByDescending(p => (long)GetRepresentativeWidth(p) * GetRepresentativeHeight(p))
-            .ThenByDescending(GetRepresentativeSizeBytes)
-            .ThenByDescending(GetRepresentativeFileModifiedDate)
-            .ThenByDescending(p => p.Id)
-            .Select(p => p.Id)
+            .Select(p => (Post: p, File: PostDto.GetRepresentativeFile(p)))
+            .OrderByDescending(x => (long)(x.File?.Width ?? 0) * (x.File?.Height ?? 0))
+            .ThenByDescending(x => x.File?.SizeBytes ?? 0)
+            .ThenByDescending(x => x.File?.FileModifiedDate ?? default)
+            .ThenByDescending(x => x.Post.Id)
+            .Select(x => x.Post.Id)
             .First();
     }
 
@@ -518,21 +519,6 @@ public class DuplicateWriteService
 
         await _context.SaveChangesAsync(cancellationToken);
     }
-
-    private static PostFile? GetRepresentativeFile(Post post)
-        => PostDto.GetRepresentativeFile(post);
-
-    private static int GetRepresentativeWidth(Post post)
-        => GetRepresentativeFile(post)?.Width ?? 0;
-
-    private static int GetRepresentativeHeight(Post post)
-        => GetRepresentativeFile(post)?.Height ?? 0;
-
-    private static long GetRepresentativeSizeBytes(Post post)
-        => GetRepresentativeFile(post)?.SizeBytes ?? 0;
-
-    private static DateTime GetRepresentativeFileModifiedDate(Post post)
-        => GetRepresentativeFile(post)?.FileModifiedDate ?? default;
 
     private async Task<List<int>> CollectAffectedGroupIdsAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken)
     {

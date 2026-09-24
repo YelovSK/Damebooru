@@ -315,7 +315,7 @@ public class LibraryBrowseService
             .Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId))
             .SelectMany(p => p.PostFiles
                 .Where(pf => pf.LibraryId == libraryId)
-                .Select(pf => pf.RelativePath.Replace('\\', '/')));
+                .Select(pf => pf.RelativePath));
 
         if (!string.IsNullOrEmpty(currentPath))
         {
@@ -339,19 +339,19 @@ public class LibraryBrowseService
                 return query;
             }
 
-            return query.Where(p => p.PostFiles.Any(pf => !pf.RelativePath.Replace('\\', '/').Contains('/')));
+            return query.Where(p => p.PostFiles.Any(pf => !pf.RelativePath.Contains('/')));
         }
 
         var prefix = currentPath + "/";
-        var scoped = query.Where(p => p.PostFiles.Any(pf => pf.RelativePath.Replace('\\', '/').StartsWith(prefix)));
+        var scoped = query.Where(p => p.PostFiles.Any(pf => pf.RelativePath.StartsWith(prefix)));
         if (recursive)
         {
             return scoped;
         }
 
         return scoped.Where(p => p.PostFiles.Any(pf =>
-            pf.RelativePath.Replace('\\', '/').StartsWith(prefix)
-            && !pf.RelativePath.Replace('\\', '/').Substring(prefix.Length).Contains('/')));
+            pf.RelativePath.StartsWith(prefix)
+            && !pf.RelativePath.Substring(prefix.Length).Contains('/')));
     }
 
     private static List<LibraryBrowseBreadcrumbDto> BuildBreadcrumbs(string libraryName, string currentPath)
@@ -389,19 +389,13 @@ public class LibraryBrowseService
     }
 
     private static List<LibraryFolderNodeDto> BuildChildFolders(
-        IEnumerable<string> normalizedRelativePaths,
+        IEnumerable<string> relativePaths,
         string currentPath)
     {
         var folders = new Dictionary<string, LibraryFolderNodeDto>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var relativePathRaw in normalizedRelativePaths)
+        foreach (var relativePath in relativePaths)
         {
-            var relativePath = NormalizeStoredPath(relativePathRaw);
-            if (string.IsNullOrEmpty(relativePath))
-            {
-                continue;
-            }
-
             var remainder = GetPathRemainder(relativePath, currentPath);
             if (string.IsNullOrEmpty(remainder))
             {
@@ -452,12 +446,6 @@ public class LibraryBrowseService
         return folders.Values
             .OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-    }
-
-    private static string NormalizeStoredPath(string path)
-    {
-        var normalized = path.Replace('\\', '/').Trim();
-        return normalized.Trim('/');
     }
 
     private static string GetPathRemainder(string relativePath, string currentPath)

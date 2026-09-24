@@ -1,13 +1,8 @@
 using Damebooru.Core.Config;
-using Damebooru.Core.Paths;
 using Damebooru.Core.Interfaces;
+using Damebooru.Core.Paths;
 using Damebooru.Data;
 using Damebooru.Processing;
-using Damebooru.Processing.Logging;
-using Damebooru.Processing.Services;
-using Damebooru.Processing.Services.AiTagging;
-using Damebooru.Processing.Services.AutoTagging;
-using Damebooru.Processing.Services.Duplicates;
 using Damebooru.Server.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -139,31 +134,7 @@ builder.Services.AddDbContextFactory<DamebooruDbContext>(options =>
         sqliteOptions => sqliteOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery)));
 builder.Services.AddScoped(sp =>
     sp.GetRequiredService<IDbContextFactory<DamebooruDbContext>>().CreateDbContext());
-builder.Services.AddScoped<PostReadService>();
-builder.Services.AddScoped<PostWriteService>();
-builder.Services.AddScoped<PostContentService>();
-builder.Services.AddScoped<PostAutoTaggingService>();
-builder.Services.AddScoped<AiTaggingService>();
-builder.Services.AddScoped<AiTaggingSettingsService>();
-builder.Services.AddScoped<LibraryService>();
-builder.Services.AddScoped<LibraryBrowseService>();
-builder.Services.AddScoped<TagService>();
-builder.Services.AddScoped<DuplicateWriteService>();
-builder.Services.AddScoped<DuplicateReadService>();
-builder.Services.AddScoped<DuplicateLookupService>();
-builder.Services.AddScoped<JobScheduleService>();
-builder.Services.AddScoped<StatsReadService>();
 
-if (damebooruConfig.Logging.Db.Enabled)
-{
-    builder.Services.AddSingleton(new AppLogChannel(damebooruConfig.Logging.Db.ChannelCapacity));
-    builder.Services.AddSingleton<ILoggerProvider, DbLoggerProvider>();
-    builder.Services.AddHostedService<AppLogWriterService>();
-    builder.Services.AddHostedService<AppLogRetentionService>();
-}
-
-
-// Modular Processing Pipeline
 builder.Services.AddDamebooruProcessing(damebooruConfig);
 
 var app = builder.Build();

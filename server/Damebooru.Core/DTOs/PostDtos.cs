@@ -59,11 +59,7 @@ public class PostDto
     }
 
     public static PostFile? GetRepresentativeFile(Post post)
-        => post.PrimaryPostFile
-            ?? (post.PrimaryPostFileId.HasValue
-            ? post.PostFiles.FirstOrDefault(pf => pf.Id == post.PrimaryPostFileId.Value)
-                ?? post.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault()
-            : post.PostFiles.OrderBy(pf => pf.Id).FirstOrDefault());
+        => post.PrimaryPostFile ?? post.PostFiles.FirstOrDefault(pf => pf.Id == post.PrimaryPostFileId);
 }
 
 public class PostFileDto

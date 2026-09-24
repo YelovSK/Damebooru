@@ -7,6 +7,7 @@ using Damebooru.Processing.Infrastructure.External.Iqdb;
 using Damebooru.Processing.Infrastructure.External.SauceNao;
 using Damebooru.Processing.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using PhotoSauce.MagicScaler;
 using PhotoSauce.NativeCodecs.Giflib;
 using PhotoSauce.NativeCodecs.Libjpeg;
@@ -14,8 +15,10 @@ using PhotoSauce.NativeCodecs.Libjxl;
 using PhotoSauce.NativeCodecs.Libpng;
 using PhotoSauce.NativeCodecs.Libwebp;
 
+using Damebooru.Processing.Logging;
 using Damebooru.Processing.Scanning;
 using Damebooru.Processing.Services;
+using Damebooru.Processing.Services.AiTagging;
 using Damebooru.Processing.Services.AutoTagging;
 using Damebooru.Processing.Services.Duplicates;
 using Damebooru.Processing.Services.Scanning;
@@ -88,6 +91,30 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AutoTagScanService>();
         services.AddScoped<AutoTagApplyService>();
         services.AddScoped<DuplicateDetectionSettingsService>();
+
+        // API-facing services
+        services.AddScoped<PostReadService>();
+        services.AddScoped<PostWriteService>();
+        services.AddScoped<PostContentService>();
+        services.AddScoped<PostAutoTaggingService>();
+        services.AddScoped<AiTaggingService>();
+        services.AddScoped<AiTaggingSettingsService>();
+        services.AddScoped<LibraryService>();
+        services.AddScoped<LibraryBrowseService>();
+        services.AddScoped<TagService>();
+        services.AddScoped<DuplicateWriteService>();
+        services.AddScoped<DuplicateReadService>();
+        services.AddScoped<DuplicateLookupService>();
+        services.AddScoped<JobScheduleService>();
+        services.AddScoped<StatsReadService>();
+
+        if (config.Logging.Db.Enabled)
+        {
+            services.AddSingleton(new AppLogChannel(config.Logging.Db.ChannelCapacity));
+            services.AddSingleton<ILoggerProvider, DbLoggerProvider>();
+            services.AddHostedService<AppLogWriterService>();
+            services.AddHostedService<AppLogRetentionService>();
+        }
 
         // Jobs
         services.AddTransient<IJob, Jobs.ScanAllLibrariesJob>();
