@@ -133,8 +133,6 @@ export interface DamebooruPostDto {
   contentType: string;
   importDate: string;
   fileModifiedDate: string;
-  thumbnailLibraryId: number;
-  thumbnailContentHash: string;
   isFavorite: boolean;
   sources: string[];
   postFiles: DamebooruPostFileDto[];
@@ -146,11 +144,6 @@ export interface DamebooruPostFileDto {
   libraryId: number;
   libraryName: string | null;
   relativePath: string;
-  contentHash: string;
-  sizeBytes: number;
-  width: number;
-  height: number;
-  contentType: string;
   fileModifiedDate: string;
 }
 
@@ -346,8 +339,7 @@ export interface SimilarPost {
   height: number;
   sizeBytes: number;
   contentType: string;
-  thumbnailLibraryId: number;
-  thumbnailContentHash: string;
+  contentHash: string;
   similarityPercent: number | null;
   groupIsResolved: boolean;
 }
@@ -364,8 +356,6 @@ export interface DuplicateLookupMatch {
   sizeBytes: number;
   importDate: string;
   fileModifiedDate: string;
-  thumbnailLibraryId: number;
-  thumbnailContentHash: string;
   similarityPercent: number | null;
 }
 
@@ -541,8 +531,6 @@ export interface DuplicatePost {
   sizeBytes: number;
   importDate: string;
   fileModifiedDate: string;
-  thumbnailLibraryId: number;
-  thumbnailContentHash: string;
   files: DuplicatePostFile[];
 }
 
@@ -572,8 +560,6 @@ export interface ExactDuplicateFile {
   contentType: string;
   sizeBytes: number;
   fileModifiedDate: string;
-  thumbnailLibraryId: number;
-  thumbnailContentHash: string;
 }
 
 export interface ExactDuplicateFolderBucket {

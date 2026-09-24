@@ -7,21 +7,21 @@ using Microsoft.Extensions.Options;
 
 namespace Damebooru.Processing.Services;
 
-public sealed record PostFileEnrichmentTarget(
-    int PostFileId,
-    int LibraryId,
+/// <summary>
+/// A post's content, read from any one of its files; all of them hold the same bytes.
+/// </summary>
+public sealed record PostEnrichmentTarget(
+    int PostId,
     string ContentHash,
-    string RelativePath,
-    string LibraryPath);
+    string FullPath);
 
-public sealed record PostFileMetadataResult(
-    int PostFileId,
+public sealed record PostMetadataResult(
+    int PostId,
     int Width,
-    int Height,
-    string ContentType);
+    int Height);
 
-public sealed record PostFileSimilarityResult(
-    int PostFileId,
+public sealed record PostSimilarityResult(
+    int PostId,
     string PdqHash256);
 
 public class MediaEnrichmentService
@@ -57,68 +57,61 @@ public class MediaEnrichmentService
         }
     }
 
-    public bool HasThumbnail(PostFileEnrichmentTarget target)
+    public bool HasThumbnail(PostEnrichmentTarget target)
         => File.Exists(GetThumbnailPath(target));
 
-    public bool HasPreview(PostFileEnrichmentTarget target)
+    public bool HasPreview(PostEnrichmentTarget target)
         => File.Exists(GetPreviewPath(target));
 
-    public bool HasGeneratedImages(PostFileEnrichmentTarget target)
+    public bool HasGeneratedImages(PostEnrichmentTarget target)
         => HasPreview(target) && HasThumbnail(target);
 
-    public async Task GenerateGeneratedImagesAsync(PostFileEnrichmentTarget target, CancellationToken cancellationToken)
+    public async Task GenerateGeneratedImagesAsync(PostEnrichmentTarget target, CancellationToken cancellationToken)
     {
         await GeneratePreviewAsync(target, cancellationToken);
         await GenerateThumbnailAsync(target, cancellationToken);
     }
 
-    public Task GeneratePreviewAsync(PostFileEnrichmentTarget target, CancellationToken cancellationToken)
+    public Task GeneratePreviewAsync(PostEnrichmentTarget target, CancellationToken cancellationToken)
         => _mediaFileProcessor.GeneratePreviewAsync(
-            GetFullPath(target),
+            target.FullPath,
             GetPreviewPath(target),
             MediaPaths.PreviewSize,
             cancellationToken);
 
-    public Task GenerateThumbnailAsync(PostFileEnrichmentTarget target, CancellationToken cancellationToken)
+    public Task GenerateThumbnailAsync(PostEnrichmentTarget target, CancellationToken cancellationToken)
         => _mediaFileProcessor.GenerateThumbnailAsync(
-            GetFullPath(target),
+            target.FullPath,
             GetThumbnailPath(target),
             MediaPaths.ThumbnailSize,
             cancellationToken);
 
-    public async Task<PostFileMetadataResult> ExtractMetadataAsync(PostFileEnrichmentTarget target, CancellationToken cancellationToken)
+    public async Task<PostMetadataResult> ExtractMetadataAsync(PostEnrichmentTarget target, CancellationToken cancellationToken)
     {
-        var metadata = await _mediaFileProcessor.GetMetadataAsync(GetFullPath(target), cancellationToken);
+        var metadata = await _mediaFileProcessor.GetMetadataAsync(target.FullPath, cancellationToken);
         if (metadata.Width <= 0 || metadata.Height <= 0)
         {
             throw new InvalidOperationException(
-                $"Metadata extraction produced invalid dimensions for post file {target.PostFileId}: {target.RelativePath} ({metadata.Width}x{metadata.Height})");
+                $"Metadata extraction produced invalid dimensions for post {target.PostId}: {target.FullPath} ({metadata.Width}x{metadata.Height})");
         }
 
-        return new PostFileMetadataResult(
-            target.PostFileId,
-            metadata.Width,
-            metadata.Height,
-            SupportedMedia.GetMimeType(Path.GetExtension(target.RelativePath)));
+        return new PostMetadataResult(target.PostId, metadata.Width, metadata.Height);
     }
 
-    public async Task<PostFileSimilarityResult?> ComputeSimilarityAsync(PostFileEnrichmentTarget target, CancellationToken cancellationToken)
+    public async Task<PostSimilarityResult?> ComputeSimilarityAsync(PostEnrichmentTarget target, CancellationToken cancellationToken)
     {
-        if (!SupportedMedia.IsImage(Path.GetExtension(target.RelativePath)))
+        if (!SupportedMedia.IsImage(Path.GetExtension(target.FullPath)))
         {
             return null;
         }
 
-        var hashes = await _similarityService.ComputeHashesAsync(GetFullPath(target), cancellationToken);
-        return new PostFileSimilarityResult(target.PostFileId, hashes.PdqHash256);
+        var hashes = await _similarityService.ComputeHashesAsync(target.FullPath, cancellationToken);
+        return new PostSimilarityResult(target.PostId, hashes.PdqHash256);
     }
 
-    private string GetPreviewPath(PostFileEnrichmentTarget target)
-        => MediaPaths.GetPreviewFilePath(_previewPath, target.LibraryId, target.ContentHash);
+    private string GetPreviewPath(PostEnrichmentTarget target)
+        => MediaPaths.GetPreviewFilePath(_previewPath, target.ContentHash);
 
-    private string GetThumbnailPath(PostFileEnrichmentTarget target)
-        => MediaPaths.GetThumbnailFilePath(_thumbnailPath, target.LibraryId, target.ContentHash);
-
-    private static string GetFullPath(PostFileEnrichmentTarget target)
-        => Path.Combine(target.LibraryPath, target.RelativePath);
+    private string GetThumbnailPath(PostEnrichmentTarget target)
+        => MediaPaths.GetThumbnailFilePath(_thumbnailPath, target.ContentHash);
 }

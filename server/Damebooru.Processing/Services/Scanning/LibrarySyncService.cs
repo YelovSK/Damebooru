@@ -300,7 +300,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         foreach (var postFile in postFiles)
         {
-            PostFileWriter.SetPath(postFile, RelativePathMatcher.ReplacePrefix(postFile.RelativePath, oldPrefix, newPrefix));
+            postFile.RelativePath = RelativePathMatcher.ReplacePrefix(postFile.RelativePath, oldPrefix, newPrefix);
         }
 
         await CommitAsync(dbContext, library, [], postFiles, [], cancellationToken);
@@ -338,7 +338,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
     /// <summary>
     /// Saves pending file changes, then brings posts back in line: empty posts are deleted,
-    /// folder tags follow the files' paths, and files with new content get their media data regenerated.
+    /// folder tags follow the files' paths, and posts with new content get their media data generated.
     /// </summary>
     private async Task CommitAsync(
         DamebooruDbContext dbContext,
@@ -370,44 +370,51 @@ public class LibrarySyncService : ILibrarySyncProcessor
         }
     }
 
+    /// <summary>
+    /// Fills in whatever media data the file's post is still missing; a file joining an existing post usually needs nothing.
+    /// </summary>
     private async Task EnrichAsync(DamebooruDbContext dbContext, Library library, PostFile postFile, CancellationToken cancellationToken)
     {
-        var target = new PostFileEnrichmentTarget(
-            postFile.Id,
-            postFile.LibraryId,
-            postFile.ContentHash,
-            postFile.RelativePath,
-            library.Path);
+        var post = postFile.Post;
+        var target = new PostEnrichmentTarget(post.Id, post.ContentHash, Path.Combine(library.Path, postFile.RelativePath));
 
-        try
+        if (post.Width == 0)
         {
-            var metadata = await _mediaEnrichmentService.ExtractMetadataAsync(target, cancellationToken);
-            postFile.Width = metadata.Width;
-            postFile.Height = metadata.Height;
-            postFile.ContentType = metadata.ContentType;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to enrich metadata for post file {Id}: {Path}", postFile.Id, postFile.RelativePath);
+            try
+            {
+                var metadata = await _mediaEnrichmentService.ExtractMetadataAsync(target, cancellationToken);
+                post.Width = metadata.Width;
+                post.Height = metadata.Height;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to enrich metadata for post {Id}: {Path}", post.Id, postFile.RelativePath);
+            }
         }
 
-        try
+        if (string.IsNullOrEmpty(post.PdqHash256))
         {
-            var similarity = await _mediaEnrichmentService.ComputeSimilarityAsync(target, cancellationToken);
-            postFile.PdqHash256 = similarity?.PdqHash256;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to enrich similarity for post file {Id}: {Path}", postFile.Id, postFile.RelativePath);
+            try
+            {
+                var similarity = await _mediaEnrichmentService.ComputeSimilarityAsync(target, cancellationToken);
+                post.PdqHash256 = similarity?.PdqHash256;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to enrich similarity for post {Id}: {Path}", post.Id, postFile.RelativePath);
+            }
         }
 
-        try
+        if (!_mediaEnrichmentService.HasGeneratedImages(target))
         {
-            await _mediaEnrichmentService.GenerateGeneratedImagesAsync(target, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to enrich thumbnail/preview for post file {Id}: {Path}", postFile.Id, postFile.RelativePath);
+            try
+            {
+                await _mediaEnrichmentService.GenerateGeneratedImagesAsync(target, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to enrich thumbnail/preview for post {Id}: {Path}", post.Id, postFile.RelativePath);
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

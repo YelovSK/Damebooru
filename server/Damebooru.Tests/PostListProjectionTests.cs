@@ -9,7 +9,7 @@ namespace Damebooru.Tests;
 public sealed class PostListProjectionTests
 {
     [Fact]
-    public async Task GetPostsAsync_ExecutesRepresentativeFileProjection()
+    public async Task GetPostsAsync_ProjectsPostContentAndFirstFile()
     {
         await using var db = await CreateContextAsync();
         var seed = await SeedPostWithFilesAsync(db);
@@ -21,6 +21,7 @@ public sealed class PostListProjectionTests
         var post = Assert.Single(result.Value!.Items);
         Assert.Equal(seed.PrimaryLibraryId, post.LibraryId);
         Assert.Equal("root/a.png", post.RelativePath);
+        Assert.Equal("hash-a", post.ContentHash);
         Assert.Equal("image/png", post.ContentType);
         Assert.Equal(2, post.PostFiles.Count);
     }
@@ -35,39 +36,30 @@ public sealed class PostListProjectionTests
             Path = "A:\\library"
         };
 
-        var posts = new List<Post>();
         for (var index = 0; index < 3; index++)
         {
-            var seededPost = new Post
+            var fileModifiedDate = new DateTime(2026, 5, 18 + index, 12, 0, 0, DateTimeKind.Utc);
+            db.Posts.Add(new Post
             {
                 ImportDate = new DateTime(2026, 5, 19, 12, index, 0, DateTimeKind.Utc),
-                PrimaryFileModifiedDate = new DateTime(2026, 5, 18 + index, 12, 0, 0, DateTimeKind.Utc),
+                FileModifiedDate = fileModifiedDate,
+                ContentHash = $"hash-{index}",
+                SizeBytes = 100 + index,
+                Width = 10,
+                Height = 20,
+                ContentType = "image/png",
                 PostFiles =
                 {
                     new PostFile
                     {
                         Library = library,
                         RelativePath = $"root/{index}.png",
-                        ContentHash = $"hash-{index}",
-                        SizeBytes = 100 + index,
-                        Width = 10,
-                        Height = 20,
-                        ContentType = "image/png",
-                        FileModifiedDate = new DateTime(2026, 5, 18 + index, 12, 0, 0, DateTimeKind.Utc),
+                        FileModifiedDate = fileModifiedDate,
                     }
                 }
-            };
-            posts.Add(seededPost);
-            db.Posts.Add(seededPost);
+            });
         }
 
-        await db.SaveChangesAsync();
-        foreach (var seededPost in posts)
-        {
-            var primaryFile = seededPost.PostFiles.OrderBy(pf => pf.Id).First();
-            seededPost.PrimaryPostFileId = primaryFile.Id;
-            seededPost.PrimaryFileModifiedDate = primaryFile.FileModifiedDate;
-        }
         await db.SaveChangesAsync();
         var service = new PostReadService(db);
 
@@ -82,7 +74,7 @@ public sealed class PostListProjectionTests
     }
 
     [Fact]
-    public async Task PrimaryPostFileCacheTriggers_MaintainCachedValues()
+    public async Task FileModifiedDateTriggers_KeepEarliestFileDateOnPost()
     {
         await using var db = await CreateMigratedContextAsync();
         var library = new Library
@@ -93,6 +85,8 @@ public sealed class PostListProjectionTests
         var post = new Post
         {
             ImportDate = new DateTime(2026, 5, 19, 12, 0, 0, DateTimeKind.Utc),
+            ContentHash = "hash-a",
+            ContentType = "image/png",
         };
 
         db.Libraries.Add(library);
@@ -104,56 +98,38 @@ public sealed class PostListProjectionTests
             PostId = post.Id,
             LibraryId = library.Id,
             RelativePath = "root/a.png",
-            ContentHash = "hash-a",
-            SizeBytes = 100,
-            Width = 10,
-            Height = 20,
-            ContentType = "image/png",
             FileModifiedDate = new DateTime(2026, 5, 18, 12, 0, 0, DateTimeKind.Utc),
         };
         db.PostFiles.Add(firstFile);
         await db.SaveChangesAsync();
         await db.Entry(post).ReloadAsync();
-
-        Assert.Equal(firstFile.Id, post.PrimaryPostFileId);
-        Assert.Equal(firstFile.FileModifiedDate, post.PrimaryFileModifiedDate);
+        Assert.Equal(firstFile.FileModifiedDate, post.FileModifiedDate);
 
         var secondFile = new PostFile
         {
             PostId = post.Id,
             LibraryId = library.Id,
             RelativePath = "root/b.png",
-            ContentHash = "hash-a",
-            SizeBytes = 100,
-            Width = 10,
-            Height = 20,
-            ContentType = "image/png",
-            FileModifiedDate = new DateTime(2026, 5, 19, 12, 0, 0, DateTimeKind.Utc),
+            FileModifiedDate = new DateTime(2026, 5, 17, 12, 0, 0, DateTimeKind.Utc),
         };
         db.PostFiles.Add(secondFile);
         await db.SaveChangesAsync();
         await db.Entry(post).ReloadAsync();
+        Assert.Equal(secondFile.FileModifiedDate, post.FileModifiedDate);
 
-        Assert.Equal(firstFile.Id, post.PrimaryPostFileId);
-        Assert.Equal(firstFile.FileModifiedDate, post.PrimaryFileModifiedDate);
-
-        firstFile.FileModifiedDate = new DateTime(2026, 5, 20, 12, 0, 0, DateTimeKind.Utc);
+        secondFile.FileModifiedDate = new DateTime(2026, 5, 20, 12, 0, 0, DateTimeKind.Utc);
         await db.SaveChangesAsync();
         await db.Entry(post).ReloadAsync();
-
-        Assert.Equal(firstFile.Id, post.PrimaryPostFileId);
-        Assert.Equal(firstFile.FileModifiedDate, post.PrimaryFileModifiedDate);
+        Assert.Equal(firstFile.FileModifiedDate, post.FileModifiedDate);
 
         db.PostFiles.Remove(firstFile);
         await db.SaveChangesAsync();
         await db.Entry(post).ReloadAsync();
-
-        Assert.Equal(secondFile.Id, post.PrimaryPostFileId);
-        Assert.Equal(secondFile.FileModifiedDate, post.PrimaryFileModifiedDate);
+        Assert.Equal(secondFile.FileModifiedDate, post.FileModifiedDate);
     }
 
     [Fact]
-    public async Task BrowseAsync_ExecutesRepresentativeAndLibraryFileProjection()
+    public async Task BrowseAsync_ShowsTheFileInTheBrowsedLibrary()
     {
         await using var db = await CreateContextAsync();
         var seed = await SeedPostWithFilesAsync(db);
@@ -172,7 +148,7 @@ public sealed class PostListProjectionTests
         Assert.Equal(seed.SecondaryLibraryId, post.LibraryId);
         Assert.Equal("Library B", post.LibraryName);
         Assert.Equal("folder/b.png", post.RelativePath);
-        Assert.Equal(seed.SecondaryLibraryId, post.ThumbnailLibraryId);
+        Assert.Equal("hash-a", post.ContentHash);
         Assert.Equal(2, post.PostFiles.Count);
     }
 
@@ -219,38 +195,30 @@ public sealed class PostListProjectionTests
         var post = new Post
         {
             ImportDate = new DateTime(2026, 5, 19, 12, 0, 0, DateTimeKind.Utc),
+            FileModifiedDate = new DateTime(2026, 5, 17, 12, 0, 0, DateTimeKind.Utc),
+            ContentHash = "hash-a",
+            SizeBytes = 100,
+            Width = 10,
+            Height = 20,
+            ContentType = "image/png",
             PostFiles =
             {
                 new PostFile
                 {
                     Library = primaryLibrary,
                     RelativePath = "root/a.png",
-                    ContentHash = "hash-a",
-                    SizeBytes = 100,
-                    Width = 10,
-                    Height = 20,
-                    ContentType = "image/png",
                     FileModifiedDate = new DateTime(2026, 5, 18, 12, 0, 0, DateTimeKind.Utc),
                 },
                 new PostFile
                 {
                     Library = secondaryLibrary,
                     RelativePath = "folder/b.png",
-                    ContentHash = "hash-b",
-                    SizeBytes = 200,
-                    Width = 30,
-                    Height = 40,
-                    ContentType = "image/png",
                     FileModifiedDate = new DateTime(2026, 5, 17, 12, 0, 0, DateTimeKind.Utc),
                 }
             }
         };
 
         db.Posts.Add(post);
-        await db.SaveChangesAsync();
-        var primaryFile = post.PostFiles.OrderBy(pf => pf.Id).First();
-        post.PrimaryPostFileId = primaryFile.Id;
-        post.PrimaryFileModifiedDate = primaryFile.FileModifiedDate;
         await db.SaveChangesAsync();
         return (primaryLibrary.Id, secondaryLibrary.Id);
     }

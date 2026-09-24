@@ -20,7 +20,7 @@ public class StatsReadService
     {
         var postCount = await _dbContext.Posts.AsNoTracking().CountAsync(cancellationToken);
         var fileCount = await _dbContext.PostFiles.AsNoTracking().CountAsync(cancellationToken);
-        var totalSizeBytes = await _dbContext.PostFiles.AsNoTracking().SumAsync(pf => (long?)pf.SizeBytes, cancellationToken) ?? 0;
+        var totalSizeBytes = await _dbContext.PostFiles.AsNoTracking().SumAsync(pf => (long?)pf.Post.SizeBytes, cancellationToken) ?? 0;
         var tagCount = await _dbContext.Tags.AsNoTracking().CountAsync(cancellationToken);
         var favoritePostCount = await _dbContext.Posts.AsNoTracking().CountAsync(p => p.IsFavorite, cancellationToken);
         var untaggedPostCount = await _dbContext.Posts
@@ -31,12 +31,12 @@ public class StatsReadService
         var unresolvedDuplicateGroupCount = await _dbContext.DuplicateGroups
             .AsNoTracking()
             .CountAsync(g => !g.IsResolved, cancellationToken);
-        var missingMetadataFileCount = await _dbContext.PostFiles
+        var missingMetadataFileCount = await _dbContext.Posts
             .AsNoTracking()
-            .CountAsync(pf => pf.Width == 0 || pf.Height == 0 || string.IsNullOrEmpty(pf.ContentType), cancellationToken);
-        var missingPerceptualHashFileCount = await _dbContext.PostFiles
+            .CountAsync(p => p.Width == 0 || p.Height == 0, cancellationToken);
+        var missingPerceptualHashFileCount = await _dbContext.Posts
             .AsNoTracking()
-            .CountAsync(pf => string.IsNullOrEmpty(pf.PdqHash256), cancellationToken);
+            .CountAsync(p => p.ContentType.StartsWith("image/") && string.IsNullOrEmpty(p.PdqHash256), cancellationToken);
 
         return new StatsOverviewDto
         {
@@ -81,16 +81,16 @@ public class StatsReadService
     {
         var files = _dbContext.PostFiles.AsNoTracking();
         var fileCount = await files.CountAsync(cancellationToken);
-        var totalSizeBytes = await files.SumAsync(pf => (long?)pf.SizeBytes, cancellationToken) ?? 0;
-        var imageFileCount = await files.CountAsync(pf => pf.ContentType.StartsWith("image/"), cancellationToken);
-        var videoFileCount = await files.CountAsync(pf => pf.ContentType.StartsWith("video/"), cancellationToken);
+        var totalSizeBytes = await files.SumAsync(pf => (long?)pf.Post.SizeBytes, cancellationToken) ?? 0;
+        var imageFileCount = await files.CountAsync(pf => pf.Post.ContentType.StartsWith("image/"), cancellationToken);
+        var videoFileCount = await files.CountAsync(pf => pf.Post.ContentType.StartsWith("video/"), cancellationToken);
         var contentTypes = await files
-            .GroupBy(pf => string.IsNullOrEmpty(pf.ContentType) ? "Unknown" : pf.ContentType)
+            .GroupBy(pf => string.IsNullOrEmpty(pf.Post.ContentType) ? "Unknown" : pf.Post.ContentType)
             .Select(g => new StatsStorageBreakdownDto
             {
                 Label = g.Key,
                 FileCount = g.Count(),
-                SizeBytes = g.Sum(pf => pf.SizeBytes)
+                SizeBytes = g.Sum(pf => pf.Post.SizeBytes)
             })
             .OrderByDescending(item => item.SizeBytes)
             .ThenByDescending(item => item.FileCount)
@@ -114,11 +114,11 @@ public class StatsReadService
         var files = _dbContext.PostFiles.AsNoTracking();
 
         return [
-            await BuildSizeBucketAsync("< 1 MB", pf => pf.SizeBytes < 1_048_576, cancellationToken),
-            await BuildSizeBucketAsync("1-5 MB", pf => pf.SizeBytes >= 1_048_576 && pf.SizeBytes < 5_242_880, cancellationToken),
-            await BuildSizeBucketAsync("5-20 MB", pf => pf.SizeBytes >= 5_242_880 && pf.SizeBytes < 20_971_520, cancellationToken),
-            await BuildSizeBucketAsync("20-100 MB", pf => pf.SizeBytes >= 20_971_520 && pf.SizeBytes < 104_857_600, cancellationToken),
-            await BuildSizeBucketAsync("100 MB+", pf => pf.SizeBytes >= 104_857_600, cancellationToken)
+            await BuildSizeBucketAsync("< 1 MB", pf => pf.Post.SizeBytes < 1_048_576, cancellationToken),
+            await BuildSizeBucketAsync("1-5 MB", pf => pf.Post.SizeBytes >= 1_048_576 && pf.Post.SizeBytes < 5_242_880, cancellationToken),
+            await BuildSizeBucketAsync("5-20 MB", pf => pf.Post.SizeBytes >= 5_242_880 && pf.Post.SizeBytes < 20_971_520, cancellationToken),
+            await BuildSizeBucketAsync("20-100 MB", pf => pf.Post.SizeBytes >= 20_971_520 && pf.Post.SizeBytes < 104_857_600, cancellationToken),
+            await BuildSizeBucketAsync("100 MB+", pf => pf.Post.SizeBytes >= 104_857_600, cancellationToken)
         ];
 
         async Task<StatsStorageBreakdownDto> BuildSizeBucketAsync(
@@ -131,7 +131,7 @@ public class StatsReadService
             {
                 Label = label,
                 FileCount = await bucket.CountAsync(token),
-                SizeBytes = await bucket.SumAsync(pf => (long?)pf.SizeBytes, token) ?? 0
+                SizeBytes = await bucket.SumAsync(pf => (long?)pf.Post.SizeBytes, token) ?? 0
             };
         }
     }
@@ -198,15 +198,15 @@ public class StatsReadService
     public async Task<StatsMaintenanceDto> GetMaintenanceAsync(CancellationToken cancellationToken = default)
     {
         var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
-        var missingMetadataFileCount = await _dbContext.PostFiles
+        var missingMetadataFileCount = await _dbContext.Posts
             .AsNoTracking()
-            .CountAsync(pf => pf.Width == 0 || pf.Height == 0 || string.IsNullOrEmpty(pf.ContentType), cancellationToken);
-        var missingPerceptualHashFileCount = await _dbContext.PostFiles
+            .CountAsync(p => p.Width == 0 || p.Height == 0, cancellationToken);
+        var missingPerceptualHashFileCount = await _dbContext.Posts
             .AsNoTracking()
-            .CountAsync(pf => string.IsNullOrEmpty(pf.PdqHash256), cancellationToken);
-        var unknownContentTypeFileCount = await _dbContext.PostFiles
+            .CountAsync(p => p.ContentType.StartsWith("image/") && string.IsNullOrEmpty(p.PdqHash256), cancellationToken);
+        var unknownContentTypeFileCount = await _dbContext.Posts
             .AsNoTracking()
-            .CountAsync(pf => string.IsNullOrEmpty(pf.ContentType) || pf.ContentType == "application/octet-stream", cancellationToken);
+            .CountAsync(p => string.IsNullOrEmpty(p.ContentType) || p.ContentType == "application/octet-stream", cancellationToken);
         var untaggedPostCount = await _dbContext.Posts
             .AsNoTracking()
             .CountAsync(p => !p.PostTags.Any(), cancellationToken);
@@ -273,11 +273,9 @@ public class StatsReadService
             .ToListAsync(cancellationToken);
 
     private async Task<List<MonthlyValue>> GetMonthlyPostsByFileModifiedDateAsync(CancellationToken cancellationToken)
-        => await _dbContext.PostFiles
+        => await _dbContext.Posts
             .AsNoTracking()
-            .GroupBy(pf => pf.PostId)
-            .Select(g => g.Min(pf => pf.FileModifiedDate))
-            .GroupBy(date => new { date.Year, date.Month })
+            .GroupBy(p => new { p.FileModifiedDate.Year, p.FileModifiedDate.Month })
             .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.LongCount()))
             .ToListAsync(cancellationToken);
 
@@ -285,14 +283,14 @@ public class StatsReadService
         => await _dbContext.PostFiles
             .AsNoTracking()
             .GroupBy(pf => new { pf.Post.ImportDate.Year, pf.Post.ImportDate.Month })
-            .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.Sum(pf => pf.SizeBytes)))
+            .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.Sum(pf => pf.Post.SizeBytes)))
             .ToListAsync(cancellationToken);
 
     private async Task<List<MonthlyValue>> GetMonthlySizeByFileModifiedDateAsync(CancellationToken cancellationToken)
         => await _dbContext.PostFiles
             .AsNoTracking()
             .GroupBy(pf => new { pf.FileModifiedDate.Year, pf.FileModifiedDate.Month })
-            .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.Sum(pf => pf.SizeBytes)))
+            .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.Sum(pf => pf.Post.SizeBytes)))
             .ToListAsync(cancellationToken);
 
     private static List<DateTime> BuildMonthRange(params List<MonthlyValue>[] values)

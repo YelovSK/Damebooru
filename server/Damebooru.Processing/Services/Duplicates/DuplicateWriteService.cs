@@ -168,7 +168,7 @@ public class DuplicateWriteService
             {
                 LibraryId = postFile.LibraryId,
                 RelativePath = postFile.RelativePath,
-                ContentHash = postFile.ContentHash,
+                ContentHash = postFile.Post.ContentHash,
                 ExcludedDate = DateTime.UtcNow,
                 Reason = "duplicate_resolution"
             });
@@ -282,7 +282,6 @@ public class DuplicateWriteService
         await using var transaction = await _context.Database.BeginTransactionAsync(CancellationToken.None);
 
         await AddExclusionsForPostAsync(postToExclude, cancellationToken);
-        await ClearPrimaryFileCacheForPostDeletesAsync([postToExclude], CancellationToken.None);
         _context.Posts.Remove(postToExclude);
         await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -361,7 +360,6 @@ public class DuplicateWriteService
             _context.ExcludedFiles.RemoveRange(excluded);
         }
 
-        await ClearPrimaryFileCacheForPostDeletesAsync([postToDelete], CancellationToken.None);
         _context.Posts.Remove(postToDelete);
         await _context.SaveChangesAsync(CancellationToken.None);
 
@@ -442,9 +440,6 @@ public class DuplicateWriteService
             await AddExclusionsForPostAsync(post);
         }
 
-        await ClearPrimaryFileCacheForPostDeletesAsync(
-            removedEntries.Select(entry => entry.Post).ToList());
-
         foreach (var entry in removedEntries)
         {
             _context.Posts.Remove(entry.Post);
@@ -459,12 +454,11 @@ public class DuplicateWriteService
     private static int SelectBestQualityPostId(IEnumerable<Post> posts)
     {
         return posts
-            .Select(p => (Post: p, File: PostDto.GetRepresentativeFile(p)))
-            .OrderByDescending(x => (long)(x.File?.Width ?? 0) * (x.File?.Height ?? 0))
-            .ThenByDescending(x => x.File?.SizeBytes ?? 0)
-            .ThenByDescending(x => x.File?.FileModifiedDate ?? default)
-            .ThenByDescending(x => x.Post.Id)
-            .Select(x => x.Post.Id)
+            .OrderByDescending(p => (long)p.Width * p.Height)
+            .ThenByDescending(p => p.SizeBytes)
+            .ThenByDescending(p => p.FileModifiedDate)
+            .ThenByDescending(p => p.Id)
+            .Select(p => p.Id)
             .First();
     }
 
@@ -485,39 +479,11 @@ public class DuplicateWriteService
             {
                 LibraryId = file.LibraryId,
                 RelativePath = file.RelativePath,
-                ContentHash = file.ContentHash,
+                ContentHash = post.ContentHash,
                 ExcludedDate = DateTime.UtcNow,
                 Reason = "duplicate_resolution"
             });
         }
-    }
-
-    private async Task ClearPrimaryFileCacheForPostDeletesAsync(
-        IReadOnlyCollection<Post> posts,
-        CancellationToken cancellationToken = default)
-    {
-        if (posts.Count == 0)
-        {
-            return;
-        }
-
-        var persistedPosts = posts
-            .Where(p => p.Id > 0)
-            .DistinctBy(p => p.Id)
-            .ToList();
-        if (persistedPosts.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var post in persistedPosts)
-        {
-            post.PrimaryPostFileId = null;
-            post.PrimaryPostFile = null;
-            post.PrimaryFileModifiedDate = null;
-        }
-
-        await _context.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<List<int>> CollectAffectedGroupIdsAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken)

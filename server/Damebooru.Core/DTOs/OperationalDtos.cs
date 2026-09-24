@@ -83,8 +83,6 @@ public class DuplicatePostDto
     public long SizeBytes { get; set; }
     public DateTime ImportDate { get; set; }
     public DateTime FileModifiedDate { get; set; }
-    public int ThumbnailLibraryId { get; set; }
-    public string ThumbnailContentHash { get; set; } = string.Empty;
     public List<DuplicatePostFileDto> Files { get; set; } = [];
 }
 
@@ -109,8 +107,6 @@ public class ExactDuplicateFileDto
     public string ContentType { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
     public DateTime FileModifiedDate { get; set; }
-    public int ThumbnailLibraryId { get; set; }
-    public string ThumbnailContentHash { get; set; } = string.Empty;
 }
 
 public class ExactDuplicateFolderBucketDto
@@ -142,31 +138,30 @@ public class SimilarPostDto
     public int LibraryId { get; set; }
     public string LibraryName { get; set; } = string.Empty;
     public string RelativePath { get; set; } = string.Empty;
+    public string ContentHash { get; set; } = string.Empty;
     public int Width { get; set; }
     public int Height { get; set; }
     public long SizeBytes { get; set; }
     public string ContentType { get; set; } = string.Empty;
-    public int ThumbnailLibraryId { get; set; }
-    public string ThumbnailContentHash { get; set; } = string.Empty;
     public int? SimilarityPercent { get; set; }
     public bool GroupIsResolved { get; set; }
 
     public static SimilarPostDto FromDuplicateGroupEntry(DuplicateGroupEntry entry)
     {
-        var representativeFile = PostDto.GetRepresentativeFile(entry.Post);
+        var post = entry.Post;
+        var displayFile = PostDto.GetDisplayFile(post);
 
         return new SimilarPostDto
         {
-            Id = entry.Post.Id,
-            LibraryId = representativeFile?.LibraryId ?? 0,
-            LibraryName = representativeFile?.Library?.Name ?? string.Empty,
-            RelativePath = representativeFile?.RelativePath ?? string.Empty,
-            Width = representativeFile?.Width ?? 0,
-            Height = representativeFile?.Height ?? 0,
-            SizeBytes = representativeFile?.SizeBytes ?? 0,
-            ContentType = representativeFile?.ContentType ?? string.Empty,
-            ThumbnailLibraryId = representativeFile?.LibraryId ?? 0,
-            ThumbnailContentHash = representativeFile?.ContentHash ?? string.Empty,
+            Id = post.Id,
+            LibraryId = displayFile?.LibraryId ?? 0,
+            LibraryName = displayFile?.Library?.Name ?? string.Empty,
+            RelativePath = displayFile?.RelativePath ?? string.Empty,
+            ContentHash = post.ContentHash,
+            Width = post.Width,
+            Height = post.Height,
+            SizeBytes = post.SizeBytes,
+            ContentType = post.ContentType,
             SimilarityPercent = entry.DuplicateGroup.SimilarityPercent,
             GroupIsResolved = entry.DuplicateGroup.IsResolved,
         };
@@ -186,8 +181,6 @@ public class DuplicateLookupMatchDto
     public long SizeBytes { get; set; }
     public DateTime ImportDate { get; set; }
     public DateTime FileModifiedDate { get; set; }
-    public int ThumbnailLibraryId { get; set; }
-    public string ThumbnailContentHash { get; set; } = string.Empty;
     public int? SimilarityPercent { get; set; }
 }
 

@@ -90,7 +90,7 @@ public sealed class LibrarySyncServiceTests
 
         var moved = (await h.GetFilesAsync()).Single(f => f.RelativePath == "moved/a.png");
         Assert.Equal(bPostId, moved.PostId);
-        Assert.Equal(0, moved.Width);
+        Assert.Equal(0, moved.Post.Width);
         Assert.Equal(1, await h.CountPostsAsync());
     }
 
@@ -108,8 +108,8 @@ public sealed class LibrarySyncServiceTests
 
         Assert.Equal(1, result.Updated);
         var file = (await h.GetFilesAsync()).Single();
-        Assert.Equal(await h.HashAsync("a.png"), file.ContentHash);
-        Assert.Equal(0, file.Width);
+        Assert.Equal(await h.HashAsync("a.png"), file.Post.ContentHash);
+        Assert.Equal(0, file.Post.Width);
         Assert.Equal(postId, file.PostId);
     }
 
@@ -185,15 +185,15 @@ public sealed class LibrarySyncServiceTests
         await h.Sync.ProcessChangedFileAsync(h.Library, h.Item("dir/a.png"), CancellationToken.None);
 
         var file = (await h.GetFilesAsync()).Single();
-        Assert.Equal(await h.HashAsync("dir/a.png"), file.ContentHash);
-        Assert.Equal(10, file.Width);
+        Assert.Equal(await h.HashAsync("dir/a.png"), file.Post.ContentHash);
+        Assert.Equal(10, file.Post.Width);
         Assert.Equal(h.FolderTagsFor("dir/a.png"), await h.GetFolderTagsAsync(file.PostId));
 
         h.WriteFile("dir/a.png", "second, longer");
         await h.Sync.ProcessChangedFileAsync(h.Library, h.Item("dir/a.png"), CancellationToken.None);
 
         file = (await h.GetFilesAsync()).Single();
-        Assert.Equal(await h.HashAsync("dir/a.png"), file.ContentHash);
+        Assert.Equal(await h.HashAsync("dir/a.png"), file.Post.ContentHash);
         Assert.Equal(1, await h.CountPostsAsync());
     }
 
@@ -271,7 +271,7 @@ public sealed class LibrarySyncServiceTests
 
         var file = (await h.GetFilesAsync()).Single();
         Assert.Equal("b.png", file.RelativePath);
-        Assert.Equal(await h.HashAsync("b.png"), file.ContentHash);
+        Assert.Equal(await h.HashAsync("b.png"), file.Post.ContentHash);
         Assert.Equal(1, await h.CountPostsAsync());
     }
 
@@ -401,7 +401,7 @@ public sealed class LibrarySyncServiceTests
             => new FolderTaggingService().BuildPlan(relativePath).FolderTags.Order().ToList();
 
         public Task<List<PostFile>> GetFilesAsync()
-            => QueryAsync(db => db.PostFiles.AsNoTracking().OrderBy(f => f.RelativePath).ToListAsync());
+            => QueryAsync(db => db.PostFiles.AsNoTracking().Include(f => f.Post).OrderBy(f => f.RelativePath).ToListAsync());
 
         public Task<int> CountPostsAsync()
             => QueryAsync(db => db.Posts.CountAsync());
@@ -414,9 +414,9 @@ public sealed class LibrarySyncServiceTests
                 .ToListAsync());
 
         public Task SetDimensionsAsync(string relativePath, int width, int height)
-            => QueryAsync(db => db.PostFiles
-                .Where(f => f.RelativePath == relativePath)
-                .ExecuteUpdateAsync(s => s.SetProperty(f => f.Width, width).SetProperty(f => f.Height, height)));
+            => QueryAsync(db => db.Posts
+                .Where(p => p.PostFiles.Any(f => f.RelativePath == relativePath))
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.Width, width).SetProperty(p => p.Height, height)));
 
         public Task AddIgnoredPathAsync(string prefix)
             => QueryAsync(db =>

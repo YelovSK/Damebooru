@@ -20,8 +20,7 @@ export interface DuplicateComparePost {
   height: number;
   sizeBytes: number;
   fileModifiedDate: string;
-  thumbnailLibraryId: number;
-  thumbnailContentHash: string;
+  contentHash: string;
   isRecommendedKeep: boolean;
   files: DuplicatePostFile[];
   contentType?: string;
@@ -178,7 +177,7 @@ export class DuplicateCompareOverlayComponent {
   }
 
   getThumbnailUrl(post: DuplicateComparePost): string {
-    return this.damebooru.getThumbnailUrl(post.thumbnailLibraryId, post.thumbnailContentHash);
+    return this.damebooru.getThumbnailUrl(post.contentHash);
   }
 
   getPostContentUrl(post: DuplicateComparePost): string {

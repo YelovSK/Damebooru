@@ -6,11 +6,11 @@ namespace Damebooru.Processing.Extensions;
 public static class PostQueryExtensions
 {
     public static IOrderedQueryable<Post> OrderByNewest(this IQueryable<Post> query) => query
-            .OrderByDescending(p => p.PrimaryFileModifiedDate)
+            .OrderByDescending(p => p.FileModifiedDate)
             .ThenByDescending(p => p.Id);
 
     public static IOrderedQueryable<Post> OrderByOldest(this IQueryable<Post> query) => query
-            .OrderBy(p => p.PrimaryFileModifiedDate)
+            .OrderBy(p => p.FileModifiedDate)
             .ThenBy(p => p.Id);
 
     public static IOrderedQueryable<Post> ApplySorting(this IQueryable<Post> query, SearchQuery searchQuery)
@@ -18,10 +18,10 @@ public static class PostQueryExtensions
         return (searchQuery.SortField, searchQuery.SortDirection) switch
         {
             (SearchSortField.FileModifiedDate, SearchSortDirection.Asc) => query
-                .OrderBy(p => p.PrimaryFileModifiedDate)
+                .OrderBy(p => p.FileModifiedDate)
                 .ThenBy(p => p.Id),
             (SearchSortField.FileModifiedDate, SearchSortDirection.Desc) => query
-                .OrderByDescending(p => p.PrimaryFileModifiedDate)
+                .OrderByDescending(p => p.FileModifiedDate)
                 .ThenByDescending(p => p.Id),
 
             (SearchSortField.ImportDate, SearchSortDirection.Asc) => query
@@ -39,24 +39,24 @@ public static class PostQueryExtensions
                 .ThenByDescending(p => p.Id),
 
             (SearchSortField.Width, SearchSortDirection.Asc) => query
-                .OrderBy(p => p.PrimaryPostFile == null ? null : (int?)p.PrimaryPostFile.Width)
+                .OrderBy(p => p.Width)
                 .ThenBy(p => p.Id),
             (SearchSortField.Width, SearchSortDirection.Desc) => query
-                .OrderByDescending(p => p.PrimaryPostFile == null ? null : (int?)p.PrimaryPostFile.Width)
+                .OrderByDescending(p => p.Width)
                 .ThenByDescending(p => p.Id),
 
             (SearchSortField.Height, SearchSortDirection.Asc) => query
-                .OrderBy(p => p.PrimaryPostFile == null ? null : (int?)p.PrimaryPostFile.Height)
+                .OrderBy(p => p.Height)
                 .ThenBy(p => p.Id),
             (SearchSortField.Height, SearchSortDirection.Desc) => query
-                .OrderByDescending(p => p.PrimaryPostFile == null ? null : (int?)p.PrimaryPostFile.Height)
+                .OrderByDescending(p => p.Height)
                 .ThenByDescending(p => p.Id),
 
             (SearchSortField.SizeBytes, SearchSortDirection.Asc) => query
-                .OrderBy(p => p.PrimaryPostFile == null ? null : (long?)p.PrimaryPostFile.SizeBytes)
+                .OrderBy(p => p.SizeBytes)
                 .ThenBy(p => p.Id),
             (SearchSortField.SizeBytes, SearchSortDirection.Desc) => query
-                .OrderByDescending(p => p.PrimaryPostFile == null ? null : (long?)p.PrimaryPostFile.SizeBytes)
+                .OrderByDescending(p => p.SizeBytes)
                 .ThenByDescending(p => p.Id),
 
             (SearchSortField.Id, SearchSortDirection.Asc) => query.OrderBy(p => p.Id),

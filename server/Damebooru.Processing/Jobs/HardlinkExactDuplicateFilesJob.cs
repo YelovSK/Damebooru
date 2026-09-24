@@ -53,7 +53,6 @@ public sealed class HardlinkExactDuplicateFilesJob : IJob
 
         var files = await db.PostFiles
             .AsNoTracking()
-            .Where(pf => pf.ContentHash != string.Empty)
             .Select(pf => new FileCandidate(
                 pf.Id,
                 pf.PostId,
@@ -61,7 +60,7 @@ public sealed class HardlinkExactDuplicateFilesJob : IJob
                 pf.LibraryId,
                 pf.Library.Path,
                 pf.RelativePath,
-                pf.ContentHash,
+                pf.Post.ContentHash,
                 pf.FileIdentityDevice,
                 pf.FileIdentityValue))
             .ToListAsync(context.CancellationToken);

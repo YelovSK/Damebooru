@@ -46,10 +46,7 @@ export class PostPreviewOverlayComponent {
   });
 
   getPreviewUrl(post: DamebooruPostDto): string {
-    return this.damebooru.getPreviewUrl(
-      post.thumbnailLibraryId,
-      post.thumbnailContentHash,
-    );
+    return this.damebooru.getPreviewUrl(post.contentHash);
   }
 
   getPostContentUrl(post: DamebooruPostDto): string {

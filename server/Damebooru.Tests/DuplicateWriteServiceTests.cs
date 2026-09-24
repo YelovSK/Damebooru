@@ -10,7 +10,7 @@ namespace Damebooru.Tests;
 public class DuplicateWriteServiceTests
 {
     [Fact]
-    public async Task DeleteDuplicatePostAsync_DeletesPostWithPrimaryFileCache()
+    public async Task DeleteDuplicatePostAsync_DeletesPostAndItsFile()
     {
         var libraryPath = Path.Combine(Path.GetTempPath(), $"damebooru-duplicate-delete-{Guid.NewGuid():N}");
         Directory.CreateDirectory(libraryPath);
@@ -28,8 +28,8 @@ public class DuplicateWriteServiceTests
             db.Libraries.Add(library);
             await db.SaveChangesAsync();
 
-            var deletePost = CreatePost(library.Id, "delete.png", "same-hash", DateTime.UtcNow);
-            var keepPost = CreatePost(library.Id, "keep.png", "same-hash", DateTime.UtcNow.AddMinutes(1));
+            var deletePost = CreatePost(library.Id, "delete.png", "hash-delete", DateTime.UtcNow);
+            var keepPost = CreatePost(library.Id, "keep.png", "hash-keep", DateTime.UtcNow.AddMinutes(1));
             db.Posts.AddRange(deletePost, keepPost);
             await db.SaveChangesAsync();
 
@@ -64,7 +64,7 @@ public class DuplicateWriteServiceTests
     }
 
     [Fact]
-    public async Task DeleteExactDuplicateFileAsync_DeletesLastFilePostWithPrimaryFileCache()
+    public async Task DeleteExactDuplicateFileAsync_DeletesPostWhenItsLastFileIsDeleted()
     {
         var libraryPath = Path.Combine(Path.GetTempPath(), $"damebooru-exact-delete-{Guid.NewGuid():N}");
         Directory.CreateDirectory(libraryPath);
@@ -166,17 +166,17 @@ public class DuplicateWriteServiceTests
         => new()
         {
             ImportDate = timestamp,
+            ContentHash = contentHash,
+            SizeBytes = 100,
+            Width = 100,
+            Height = 100,
+            ContentType = "image/png",
             PostFiles =
             [
                 new PostFile
                 {
                     LibraryId = libraryId,
                     RelativePath = relativePath,
-                    ContentHash = contentHash,
-                    SizeBytes = 100,
-                    Width = 100,
-                    Height = 100,
-                    ContentType = "image/png",
                     FileModifiedDate = timestamp,
                 },
             ],

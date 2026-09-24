@@ -5,9 +5,12 @@ namespace Damebooru.Core.DTOs;
 public class PostDto
 {
     public int Id { get; set; }
+
+    // The location displayed for the post: its first file. PostFiles lists all copies.
     public int LibraryId { get; set; }
     public string? LibraryName { get; set; }
     public string RelativePath { get; set; } = string.Empty;
+
     public string ContentHash { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
     public int Width { get; set; }
@@ -18,31 +21,27 @@ public class PostDto
     public bool IsFavorite { get; set; }
     public List<string> Sources { get; set; } = [];
     public List<PostFileDto> PostFiles { get; set; } = [];
-    public int ThumbnailLibraryId { get; set; }
-    public string ThumbnailContentHash { get; set; } = string.Empty;
     public List<TagDto> Tags { get; set; } = [];
     public List<SimilarPostDto> SimilarPosts { get; set; } = [];
 
     public static PostDto FromPost(Post post)
     {
-        var representativeFile = GetRepresentativeFile(post);
+        var displayFile = GetDisplayFile(post);
 
         return new PostDto
         {
             Id = post.Id,
-            LibraryId = representativeFile?.LibraryId ?? 0,
-            LibraryName = representativeFile?.Library?.Name ?? string.Empty,
-            RelativePath = representativeFile?.RelativePath ?? string.Empty,
-            ContentHash = representativeFile?.ContentHash ?? string.Empty,
-            SizeBytes = representativeFile?.SizeBytes ?? 0,
-            Width = representativeFile?.Width ?? 0,
-            Height = representativeFile?.Height ?? 0,
-            ContentType = representativeFile?.ContentType ?? string.Empty,
+            LibraryId = displayFile?.LibraryId ?? 0,
+            LibraryName = displayFile?.Library?.Name ?? string.Empty,
+            RelativePath = displayFile?.RelativePath ?? string.Empty,
+            ContentHash = post.ContentHash,
+            SizeBytes = post.SizeBytes,
+            Width = post.Width,
+            Height = post.Height,
+            ContentType = post.ContentType,
             ImportDate = post.ImportDate,
-            FileModifiedDate = representativeFile?.FileModifiedDate ?? default,
+            FileModifiedDate = post.FileModifiedDate,
             IsFavorite = post.IsFavorite,
-            ThumbnailLibraryId = representativeFile?.LibraryId ?? 0,
-            ThumbnailContentHash = representativeFile?.ContentHash ?? string.Empty,
             Sources = post.Sources.OrderBy(s => s.Order).Select(s => s.Url).ToList(),
             PostFiles = post.PostFiles
                 .OrderBy(pf => pf.Id)
@@ -58,8 +57,8 @@ public class PostDto
         };
     }
 
-    public static PostFile? GetRepresentativeFile(Post post)
-        => post.PrimaryPostFile ?? post.PostFiles.FirstOrDefault(pf => pf.Id == post.PrimaryPostFileId);
+    public static PostFile? GetDisplayFile(Post post)
+        => post.PostFiles.MinBy(pf => pf.Id);
 }
 
 public class PostFileDto
@@ -67,11 +66,6 @@ public class PostFileDto
     public int LibraryId { get; set; }
     public string? LibraryName { get; set; }
     public string RelativePath { get; set; } = string.Empty;
-    public string ContentHash { get; set; } = string.Empty;
-    public long SizeBytes { get; set; }
-    public int Width { get; set; }
-    public int Height { get; set; }
-    public string ContentType { get; set; } = string.Empty;
     public DateTime FileModifiedDate { get; set; }
 
     public static PostFileDto FromPostFile(PostFile postFile)
@@ -80,11 +74,6 @@ public class PostFileDto
             LibraryId = postFile.LibraryId,
             LibraryName = postFile.Library?.Name,
             RelativePath = postFile.RelativePath,
-            ContentHash = postFile.ContentHash,
-            SizeBytes = postFile.SizeBytes,
-            Width = postFile.Width,
-            Height = postFile.Height,
-            ContentType = postFile.ContentType,
             FileModifiedDate = postFile.FileModifiedDate,
         };
 }

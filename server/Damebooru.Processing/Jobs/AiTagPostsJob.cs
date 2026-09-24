@@ -125,7 +125,7 @@ public sealed class AiTagPostsJob : IJob
     {
         var imagePosts = db.Posts
             .AsNoTracking()
-            .Where(p => p.PostFiles.Any(pf => EF.Functions.Like(pf.ContentType, "image/%")));
+            .Where(p => EF.Functions.Like(p.ContentType, "image/%"));
 
         var candidatePostIds = mode == JobMode.All
             ? await imagePosts

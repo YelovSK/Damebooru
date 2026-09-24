@@ -2,6 +2,9 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Damebooru.Core.Entities;
 
+/// <summary>
+/// A place on disk where a post's content exists.
+/// </summary>
 public class PostFile
 {
     public int Id { get; set; }
@@ -16,23 +19,10 @@ public class PostFile
     public string RelativePath { get; set; } = string.Empty;
 
     [MaxLength(64)]
-    public string ContentHash { get; set; } = string.Empty;
-
-    [MaxLength(64)]
     public string? FileIdentityDevice { get; set; }
 
     [MaxLength(128)]
     public string? FileIdentityValue { get; set; }
-
-    [MaxLength(64)]
-    public string? PdqHash256 { get; set; }
-
-    public long SizeBytes { get; set; }
-    public int Width { get; set; }
-    public int Height { get; set; }
-
-    [MaxLength(100)]
-    public string ContentType { get; set; } = string.Empty;
 
     public DateTime FileModifiedDate { get; set; }
 }

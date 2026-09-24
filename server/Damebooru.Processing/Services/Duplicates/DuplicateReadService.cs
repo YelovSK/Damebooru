@@ -50,22 +50,20 @@ public class DuplicateReadService
                     DetectedDate = g.DetectedDate,
                     Posts = posts.Select(p =>
                     {
-                        var file = PostDto.GetRepresentativeFile(p);
+                        var file = PostDto.GetDisplayFile(p);
                         return new DuplicatePostDto
                         {
                             Id = p.Id,
                             LibraryId = file?.LibraryId ?? 0,
                             LibraryName = file?.Library?.Name ?? string.Empty,
                             RelativePath = file?.RelativePath ?? string.Empty,
-                            ContentHash = file?.ContentHash ?? string.Empty,
-                            Width = file?.Width ?? 0,
-                            Height = file?.Height ?? 0,
-                            ContentType = file?.ContentType ?? string.Empty,
-                            SizeBytes = file?.SizeBytes ?? 0,
+                            ContentHash = p.ContentHash,
+                            Width = p.Width,
+                            Height = p.Height,
+                            ContentType = p.ContentType,
+                            SizeBytes = p.SizeBytes,
                             ImportDate = p.ImportDate,
-                            FileModifiedDate = file?.FileModifiedDate ?? default,
-                            ThumbnailLibraryId = file?.LibraryId ?? 0,
-                            ThumbnailContentHash = file?.ContentHash ?? string.Empty,
+                            FileModifiedDate = p.FileModifiedDate,
                             Files = GetPostFileDtos(p),
                         };
                     }).ToList()
@@ -80,7 +78,7 @@ public class DuplicateReadService
     {
         var files = await _context.PostFiles
             .AsNoTracking()
-            .Where(pf => pf.ContentHash != string.Empty)
+            .Where(pf => pf.Post.PostFiles.Count > 1)
             .Select(pf => new ExactDuplicateFileDto
             {
                 PostId = pf.PostId,
@@ -88,14 +86,12 @@ public class DuplicateReadService
                 LibraryId = pf.LibraryId,
                 LibraryName = pf.Library.Name,
                 RelativePath = pf.RelativePath,
-                ContentHash = pf.ContentHash,
-                Width = pf.Width,
-                Height = pf.Height,
-                ContentType = pf.ContentType,
-                SizeBytes = pf.SizeBytes,
+                ContentHash = pf.Post.ContentHash,
+                Width = pf.Post.Width,
+                Height = pf.Post.Height,
+                ContentType = pf.Post.ContentType,
+                SizeBytes = pf.Post.SizeBytes,
                 FileModifiedDate = pf.FileModifiedDate,
-                ThumbnailLibraryId = pf.LibraryId,
-                ThumbnailContentHash = pf.ContentHash,
             })
             .ToListAsync(cancellationToken);
 

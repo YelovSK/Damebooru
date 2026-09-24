@@ -39,7 +39,7 @@ internal static class AutoTagCandidateFilter
             var batchIds = candidatePostIds.Skip(i).Take(batchSize).ToList();
             var candidatePaths = await db.PostFiles
                 .AsNoTracking()
-                .Where(pf => batchIds.Contains(pf.PostId) && EF.Functions.Like(pf.ContentType, "image/%"))
+                .Where(pf => batchIds.Contains(pf.PostId) && EF.Functions.Like(pf.Post.ContentType, "image/%"))
                 .Select(pf => new CandidatePath(pf.PostId, pf.LibraryId, pf.RelativePath))
                 .ToListAsync(cancellationToken);
 

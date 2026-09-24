@@ -35,7 +35,7 @@ public class LibraryService
             {
                 LibraryId = g.Key,
                 PostCount = g.Select(pf => pf.PostId).Distinct().Count(),
-                TotalSizeBytes = g.Sum(pf => pf.SizeBytes),
+                TotalSizeBytes = g.Sum(pf => pf.Post.SizeBytes),
                 LastImportDate = g.Max(pf => (DateTime?)pf.Post.ImportDate)
             })
             .ToDictionaryAsync(x => x.LibraryId, cancellationToken);
@@ -402,7 +402,7 @@ public class LibraryService
             PostCount = await _context.PostFiles.Where(pf => pf.LibraryId == library.Id).Select(pf => pf.PostId).Distinct().CountAsync(cancellationToken),
             TotalSizeBytes = await _context.PostFiles
                 .Where(pf => pf.LibraryId == library.Id)
-                .Select(pf => (long?)pf.SizeBytes)
+                .Select(pf => (long?)pf.Post.SizeBytes)
                 .SumAsync(cancellationToken) ?? 0,
             LastImportDate = await _context.Posts
                 .Where(p => p.PostFiles.Any(pf => pf.LibraryId == library.Id))

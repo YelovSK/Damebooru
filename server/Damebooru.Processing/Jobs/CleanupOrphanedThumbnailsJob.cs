@@ -49,7 +49,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
     public int DisplayOrder => 60;
     public JobKey Key => JobKey;
     public string Name => JobName;
-    public string Description => "Removes thumbnail and preview files that are not referenced by any post file.";
+    public string Description => "Removes thumbnail and preview files that are not referenced by any post.";
     public bool SupportsAllMode => false;
 
     public async Task ExecuteAsync(JobContext context)
@@ -65,18 +65,16 @@ public class CleanupOrphanedThumbnailsJob : IJob
             ClearProgressCurrent = true,
             ClearProgressTotal = true,
         });
-        var knownGeneratedFiles = await db.PostFiles
-                .AsNoTracking()
-                .Where(pf => !string.IsNullOrEmpty(pf.ContentHash))
-                .Select(pf => new { pf.LibraryId, pf.ContentHash })
-                .Distinct()
-                .ToListAsync(context.CancellationToken);
+        var knownHashes = await db.Posts
+            .AsNoTracking()
+            .Select(p => p.ContentHash)
+            .ToListAsync(context.CancellationToken);
 
-        var knownThumbnailRelativePaths = knownGeneratedFiles
-            .Select(file => MediaPaths.GetThumbnailRelativePath(file.LibraryId, file.ContentHash))
+        var knownThumbnailRelativePaths = knownHashes
+            .Select(MediaPaths.GetThumbnailRelativePath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var knownPreviewRelativePaths = knownGeneratedFiles
-            .Select(file => MediaPaths.GetPreviewRelativePath(file.LibraryId, file.ContentHash))
+        var knownPreviewRelativePaths = knownHashes
+            .Select(MediaPaths.GetPreviewRelativePath)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var cleanupTargets = new[]

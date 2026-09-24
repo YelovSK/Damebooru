@@ -21,7 +21,9 @@ public sealed class AutoTagApplyServiceTests
         var post = new Post
         {
             ImportDate = DateTime.UtcNow,
-            PostFiles = [new PostFile { LibraryId = library.Id, RelativePath = "a.png", ContentHash = "hash", ContentType = "image/png" }],
+            ContentHash = "hash",
+            ContentType = "image/png",
+            PostFiles = [new PostFile { LibraryId = library.Id, RelativePath = "a.png" }],
             PostTags = [new PostTag { TagId = tag.Id, Source = PostTagSource.Danbooru }],
         };
         db.Posts.Add(post);

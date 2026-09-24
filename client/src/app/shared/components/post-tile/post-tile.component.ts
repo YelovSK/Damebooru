@@ -32,10 +32,7 @@ export class PostTileComponent {
   readonly isFavorite = computed(() => this.post().isFavorite);
   readonly thumbnailUrl = computed(() => {
     const post = this.post();
-    return this.damebooru.getThumbnailUrl(
-      post.thumbnailLibraryId,
-      post.thumbnailContentHash,
-    );
+    return this.damebooru.getThumbnailUrl(post.contentHash);
   });
   readonly mediaType = computed(() => getMediaType(this.post().contentType));
 }

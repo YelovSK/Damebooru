@@ -80,8 +80,8 @@ internal sealed class LibraryScanDiff
             {
                 pf.Id,
                 pf.RelativePath,
-                pf.ContentHash,
-                pf.SizeBytes,
+                pf.Post.ContentHash,
+                pf.Post.SizeBytes,
                 pf.FileModifiedDate,
                 pf.FileIdentityDevice,
                 pf.FileIdentityValue

@@ -45,8 +45,7 @@ interface VisibleDuplicatePost {
   height: number;
   sizeBytes: number;
   fileModifiedDate: string;
-  thumbnailLibraryId: number;
-  thumbnailContentHash: string;
+  contentHash: string;
   isRecommendedKeep: boolean;
   files: DuplicatePostFile[];
   contentType?: string;
@@ -293,8 +292,7 @@ export class DuplicatesPageComponent {
           height: post.height,
           sizeBytes: post.sizeBytes,
           fileModifiedDate: post.fileModifiedDate,
-          thumbnailLibraryId: post.thumbnailLibraryId,
-          thumbnailContentHash: post.thumbnailContentHash,
+          contentHash: post.contentHash,
           isRecommendedKeep: recommendedKeepPostId !== null && post.id === recommendedKeepPostId,
           files: this.getDuplicatePostFiles(post),
           contentType: post.contentType,
@@ -439,8 +437,6 @@ export class DuplicatesPageComponent {
       contentType: '',
       sizeBytes: item.sizeBytes,
       fileModifiedDate: '',
-      thumbnailLibraryId: 0,
-      thumbnailContentHash: '',
     });
   }
 
@@ -457,8 +453,6 @@ export class DuplicatesPageComponent {
       contentType: '',
       sizeBytes: item.sizeBytes,
       fileModifiedDate: '',
-      thumbnailLibraryId: 0,
-      thumbnailContentHash: '',
     });
   }
 
@@ -756,12 +750,12 @@ export class DuplicatesPageComponent {
     return this.damebooru.getExcludedFileContentUrl(file.id);
   }
 
-  getThumbnailUrl(post: Pick<VisibleDuplicatePost, 'thumbnailLibraryId' | 'thumbnailContentHash'>): string {
-    return this.damebooru.getThumbnailUrl(post.thumbnailLibraryId, post.thumbnailContentHash);
+  getThumbnailUrl(post: Pick<VisibleDuplicatePost, 'contentHash'>): string {
+    return this.damebooru.getThumbnailUrl(post.contentHash);
   }
 
-  getExactFileThumbnailUrl(file: Pick<ExactDuplicateFile, 'thumbnailLibraryId' | 'thumbnailContentHash'>): string {
-    return this.damebooru.getThumbnailUrl(file.thumbnailLibraryId, file.thumbnailContentHash);
+  getExactFileThumbnailUrl(file: Pick<ExactDuplicateFile, 'contentHash'>): string {
+    return this.damebooru.getThumbnailUrl(file.contentHash);
   }
 
   trackExactCluster(_: number, cluster: ExactDuplicateCluster) {
@@ -794,7 +788,7 @@ export class DuplicatesPageComponent {
   }
 
   getLookupThumbnailUrl(match: DuplicateLookupMatch): string {
-    return this.damebooru.getThumbnailUrl(match.thumbnailLibraryId, match.thumbnailContentHash);
+    return this.damebooru.getThumbnailUrl(match.contentHash);
   }
 
   onImageError(event: Event) {

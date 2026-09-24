@@ -31,7 +31,7 @@ public class DuplicateLookupServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
-        Assert.Equal(2, result.Value!.ExactMatches.Count);
+        Assert.Single(result.Value!.ExactMatches);
         Assert.Single(result.Value.PerceptualMatches);
         Assert.DoesNotContain(result.Value.PerceptualMatches, match => match.ContentHash == "exact-hash");
         Assert.All(result.Value.ExactMatches, match => Assert.Null(match.SimilarityPercent));
@@ -112,58 +112,30 @@ public class DuplicateLookupServiceTests
             new Post
             {
                 ImportDate = now,
+                ContentHash = "exact-hash",
+                PdqHash256 = includePdqCandidates ? new string('0', 64) : null,
+                SizeBytes = 100,
+                Width = 100,
+                Height = 100,
+                ContentType = "image/png",
                 PostFiles =
                 [
-                    new PostFile
-                    {
-                        LibraryId = libraryA.Id,
-                        RelativePath = "exact/a.png",
-                        ContentHash = "exact-hash",
-                        PdqHash256 = includePdqCandidates ? new string('0', 64) : null,
-                        SizeBytes = 100,
-                        Width = 100,
-                        Height = 100,
-                        ContentType = "image/png",
-                        FileModifiedDate = now,
-                    }
-                ],
-            },
-            new Post
-            {
-                ImportDate = now.AddMinutes(1),
-                PostFiles =
-                [
-                    new PostFile
-                    {
-                        LibraryId = libraryB.Id,
-                        RelativePath = "exact/b.png",
-                        ContentHash = "exact-hash",
-                        PdqHash256 = includePdqCandidates ? new string('1', 64) : null,
-                        SizeBytes = 120,
-                        Width = 110,
-                        Height = 110,
-                        ContentType = "image/png",
-                        FileModifiedDate = now.AddMinutes(1),
-                    }
+                    new PostFile { LibraryId = libraryA.Id, RelativePath = "exact/a.png", FileModifiedDate = now },
+                    new PostFile { LibraryId = libraryB.Id, RelativePath = "exact/b.png", FileModifiedDate = now.AddMinutes(1) },
                 ],
             },
             new Post
             {
                 ImportDate = now.AddMinutes(2),
+                ContentHash = "different-hash",
+                PdqHash256 = includePdqCandidates ? new string('f', 64) : null,
+                SizeBytes = 140,
+                Width = 120,
+                Height = 120,
+                ContentType = "image/png",
                 PostFiles =
                 [
-                    new PostFile
-                    {
-                        LibraryId = libraryA.Id,
-                        RelativePath = "similar/c.png",
-                        ContentHash = "different-hash",
-                        PdqHash256 = includePdqCandidates ? new string('f', 64) : null,
-                        SizeBytes = 140,
-                        Width = 120,
-                        Height = 120,
-                        ContentType = "image/png",
-                        FileModifiedDate = now.AddMinutes(2),
-                    }
+                    new PostFile { LibraryId = libraryA.Id, RelativePath = "similar/c.png", FileModifiedDate = now.AddMinutes(2) },
                 ],
             });
 

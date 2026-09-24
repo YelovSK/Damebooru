@@ -3,6 +3,7 @@ using Damebooru.Core.Interfaces;
 using Damebooru.Core.Paths;
 using Damebooru.Data;
 using Damebooru.Processing;
+using Damebooru.Processing.Services;
 using Damebooru.Server.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -207,6 +208,8 @@ if (!Directory.Exists(thumbnailPath))
 {
     Directory.CreateDirectory(thumbnailPath);
 }
+
+GeneratedImageLayoutMigration.Run(previewPath, thumbnailPath, app.Logger);
 
 app.Logger.LogInformation("Serving previews from: {Path}", previewPath);
 app.Logger.LogInformation("Serving thumbnails from: {Path}", thumbnailPath);

@@ -28,15 +28,15 @@ public static class MediaPaths
     public static string GetGeneratedImageFileName(string contentHash)
         => $"{contentHash}{GeneratedImageExtension}";
 
-    public static string GetPreviewRelativePath(int libraryId, string contentHash)
-        => $"{libraryId}/{GetGeneratedImageFileName(contentHash)}";
+    public static string GetPreviewRelativePath(string contentHash)
+        => GetGeneratedImageFileName(contentHash);
 
-    public static string GetPreviewFilePath(string previewRootPath, int libraryId, string contentHash)
-        => Path.Combine(previewRootPath, libraryId.ToString(), GetGeneratedImageFileName(contentHash));
+    public static string GetPreviewFilePath(string previewRootPath, string contentHash)
+        => Path.Combine(previewRootPath, GetGeneratedImageFileName(contentHash));
 
-    public static string GetThumbnailRelativePath(int libraryId, string contentHash)
-        => $"{ThumbnailSizeSegment}/{libraryId}/{GetGeneratedImageFileName(contentHash)}";
+    public static string GetThumbnailRelativePath(string contentHash)
+        => $"{ThumbnailSizeSegment}/{GetGeneratedImageFileName(contentHash)}";
 
-    public static string GetThumbnailFilePath(string thumbnailRootPath, int libraryId, string contentHash)
-        => Path.Combine(thumbnailRootPath, ThumbnailSizeSegment, libraryId.ToString(), GetGeneratedImageFileName(contentHash));
+    public static string GetThumbnailFilePath(string thumbnailRootPath, string contentHash)
+        => Path.Combine(thumbnailRootPath, ThumbnailSizeSegment, GetGeneratedImageFileName(contentHash));
 }

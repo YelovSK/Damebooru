@@ -15,7 +15,7 @@ internal sealed record FileSnapshot(
 
 /// <summary>
 /// Tracked-entity mutations shared by full scans and watcher events. Callers save.
-/// A post groups every file with the same content, so content changes move files between posts.
+/// A post is one piece of content, so a file whose content changes moves to the post holding that content.
 /// </summary>
 internal static class PostFileWriter
 {
@@ -28,22 +28,23 @@ internal static class PostFileWriter
         var postFile = new PostFile { LibraryId = libraryId };
         CopySnapshot(postFile, snapshot);
 
-        var post = await FindPostByHashAsync(dbContext, snapshot.Hash, cancellationToken) ?? AddPost(dbContext);
+        var post = await FindPostByHashAsync(dbContext, snapshot.Hash, cancellationToken) ?? AddPost(dbContext, snapshot);
         post.PostFiles.Add(postFile);
         return postFile;
     }
 
-    /// <returns>Whether the content changed, which invalidates the file's derived media data.</returns>
+    /// <returns>Whether the content changed, which invalidates the post's derived media data.</returns>
     public static async Task<bool> ApplyAsync(
         DamebooruDbContext dbContext,
         PostFile postFile,
         FileSnapshot snapshot,
         CancellationToken cancellationToken)
     {
-        var contentChanged = !string.Equals(postFile.ContentHash, snapshot.Hash, StringComparison.OrdinalIgnoreCase);
+        await dbContext.Entry(postFile).Reference(pf => pf.Post).LoadAsync(cancellationToken);
+
+        var contentChanged = !string.Equals(postFile.Post.ContentHash, snapshot.Hash, StringComparison.OrdinalIgnoreCase);
         if (contentChanged)
         {
-            // A post's only file keeps the post when edited, so its tags survive.
             var matchingPost = await FindPostByHashAsync(dbContext, snapshot.Hash, cancellationToken);
             if (matchingPost != null)
             {
@@ -51,22 +52,17 @@ internal static class PostFileWriter
             }
             else if (await HasSiblingFilesAsync(dbContext, postFile, cancellationToken))
             {
-                postFile.Post = AddPost(dbContext);
+                postFile.Post = AddPost(dbContext, snapshot);
             }
-
-            postFile.Width = 0;
-            postFile.Height = 0;
-            postFile.PdqHash256 = null;
+            else
+            {
+                // A post's only file keeps the post when edited, so its tags survive.
+                SetContent(postFile.Post, snapshot);
+            }
         }
 
         CopySnapshot(postFile, snapshot);
         return contentChanged;
-    }
-
-    public static void SetPath(PostFile postFile, string relativePath)
-    {
-        postFile.RelativePath = relativePath;
-        postFile.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(relativePath));
     }
 
     public static Task<int> DeleteEmptyPostsAsync(DamebooruDbContext dbContext, CancellationToken cancellationToken)
@@ -76,12 +72,32 @@ internal static class PostFileWriter
 
     private static void CopySnapshot(PostFile postFile, FileSnapshot snapshot)
     {
-        SetPath(postFile, snapshot.RelativePath);
-        postFile.ContentHash = snapshot.Hash;
-        postFile.SizeBytes = snapshot.SizeBytes;
+        postFile.RelativePath = snapshot.RelativePath;
         postFile.FileModifiedDate = snapshot.ModifiedUtc;
         postFile.FileIdentityDevice = snapshot.Identity?.Device ?? postFile.FileIdentityDevice;
         postFile.FileIdentityValue = snapshot.Identity?.Value ?? postFile.FileIdentityValue;
+    }
+
+    private static void SetContent(Post post, FileSnapshot snapshot)
+    {
+        post.ContentHash = snapshot.Hash;
+        post.SizeBytes = snapshot.SizeBytes;
+        post.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(snapshot.RelativePath));
+        post.Width = 0;
+        post.Height = 0;
+        post.PdqHash256 = null;
+    }
+
+    private static Post AddPost(DamebooruDbContext dbContext, FileSnapshot snapshot)
+    {
+        var post = new Post
+        {
+            ImportDate = DateTime.UtcNow,
+            FileModifiedDate = snapshot.ModifiedUtc,
+        };
+        SetContent(post, snapshot);
+        dbContext.Posts.Add(post);
+        return post;
     }
 
     private static async Task<bool> HasSiblingFilesAsync(
@@ -91,29 +107,19 @@ internal static class PostFileWriter
         => dbContext.PostFiles.Local.Any(pf => pf != postFile && pf.PostId == postFile.PostId)
             || await dbContext.PostFiles.AnyAsync(pf => pf.PostId == postFile.PostId && pf.Id != postFile.Id, cancellationToken);
 
-    private static Post AddPost(DamebooruDbContext dbContext)
-    {
-        var post = new Post { ImportDate = DateTime.UtcNow };
-        dbContext.Posts.Add(post);
-        return post;
-    }
-
     private static async Task<Post?> FindPostByHashAsync(
         DamebooruDbContext dbContext,
         string hash,
         CancellationToken cancellationToken)
     {
-        // Posts created earlier in the same unsaved batch are only visible locally.
-        var tracked = dbContext.Posts.Local
-            .Where(p => p.PostFiles.Any(pf => string.Equals(pf.ContentHash, hash, StringComparison.OrdinalIgnoreCase)))
-            .OrderBy(p => p.ImportDate)
-            .ThenBy(p => p.Id)
-            .FirstOrDefault();
+        // Unsaved changes in the current batch are only visible locally: new posts, and posts whose content was replaced.
+        var tracked = dbContext.Posts.Local.FirstOrDefault(p => string.Equals(p.ContentHash, hash, StringComparison.OrdinalIgnoreCase));
+        if (tracked != null)
+        {
+            return tracked;
+        }
 
-        return tracked ?? await dbContext.Posts
-            .Where(p => p.PostFiles.Any(pf => pf.ContentHash == hash))
-            .OrderBy(p => p.ImportDate)
-            .ThenBy(p => p.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        var stored = await dbContext.Posts.FirstOrDefaultAsync(p => p.ContentHash == hash, cancellationToken);
+        return stored != null && string.Equals(stored.ContentHash, hash, StringComparison.OrdinalIgnoreCase) ? stored : null;
     }
 }

@@ -47,57 +47,29 @@ public class PostReadService
             .ApplySorting(parsedQuery)
             .Skip(offset)
             .Take(limit)
-            .Select(p => new
+            .Select(p => new PostDto
             {
-                p.Id,
-                p.ImportDate,
-                p.IsFavorite,
-                RepresentativeFile = p.PrimaryPostFile == null
-                    ? null
-                    : new
-                    {
-                        p.PrimaryPostFile.LibraryId,
-                        p.PrimaryPostFile.RelativePath,
-                        p.PrimaryPostFile.ContentHash,
-                        p.PrimaryPostFile.SizeBytes,
-                        p.PrimaryPostFile.Width,
-                        p.PrimaryPostFile.Height,
-                        p.PrimaryPostFile.ContentType,
-                        p.PrimaryPostFile.FileModifiedDate,
-                    },
+                Id = p.Id,
+                LibraryId = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
+                RelativePath = p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
+                ContentHash = p.ContentHash,
+                SizeBytes = p.SizeBytes,
+                Width = p.Width,
+                Height = p.Height,
+                ContentType = p.ContentType,
+                ImportDate = p.ImportDate,
+                FileModifiedDate = p.FileModifiedDate,
+                IsFavorite = p.IsFavorite,
+                Sources = new List<string>(),
                 PostFiles = p.PostFiles
                     .OrderBy(pf => pf.Id)
                     .Select(pf => new PostFileDto
                     {
                         LibraryId = pf.LibraryId,
-                        LibraryName = null,
                         RelativePath = pf.RelativePath,
-                        ContentHash = pf.ContentHash,
-                        SizeBytes = pf.SizeBytes,
-                        Width = pf.Width,
-                        Height = pf.Height,
-                        ContentType = pf.ContentType,
                         FileModifiedDate = pf.FileModifiedDate,
                     })
                     .ToList(),
-            })
-            .Select(p => new PostDto
-            {
-                Id = p.Id,
-                LibraryId = p.RepresentativeFile == null ? 0 : p.RepresentativeFile.LibraryId,
-                RelativePath = p.RepresentativeFile == null ? string.Empty : p.RepresentativeFile.RelativePath,
-                ContentHash = p.RepresentativeFile == null ? string.Empty : p.RepresentativeFile.ContentHash,
-                SizeBytes = p.RepresentativeFile == null ? 0 : p.RepresentativeFile.SizeBytes,
-                Width = p.RepresentativeFile == null ? 0 : p.RepresentativeFile.Width,
-                Height = p.RepresentativeFile == null ? 0 : p.RepresentativeFile.Height,
-                ContentType = p.RepresentativeFile == null ? string.Empty : p.RepresentativeFile.ContentType,
-                ImportDate = p.ImportDate,
-                FileModifiedDate = p.RepresentativeFile == null ? default : p.RepresentativeFile.FileModifiedDate,
-                IsFavorite = p.IsFavorite,
-                Sources = new List<string>(),
-                PostFiles = p.PostFiles,
-                ThumbnailLibraryId = p.RepresentativeFile == null ? 0 : p.RepresentativeFile.LibraryId,
-                ThumbnailContentHash = p.RepresentativeFile == null ? string.Empty : p.RepresentativeFile.ContentHash,
                 Tags = new List<TagDto>(),
             })
             .ToListAsync(cancellationToken);
@@ -209,7 +181,7 @@ public class PostReadService
             .Select(p => new
             {
                 p.Id,
-                FileModifiedDate = p.PrimaryFileModifiedDate ?? default(DateTime)
+                p.FileModifiedDate
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -225,8 +197,8 @@ public class PostReadService
         var prevIds = await query
             .Where(p => p.Id != current.Id
                 && (
-                    (p.PrimaryFileModifiedDate ?? default(DateTime)) > currentSortDate
-                    || ((p.PrimaryFileModifiedDate ?? default(DateTime)) == currentSortDate && p.Id > current.Id)
+                    p.FileModifiedDate > currentSortDate
+                    || (p.FileModifiedDate == currentSortDate && p.Id > current.Id)
                 ))
             .OrderByOldest()
             .Select(p => p.Id)
@@ -236,8 +208,8 @@ public class PostReadService
         var nextIds = await query
             .Where(p => p.Id != current.Id
                 && (
-                    (p.PrimaryFileModifiedDate ?? default(DateTime)) < currentSortDate
-                    || ((p.PrimaryFileModifiedDate ?? default(DateTime)) == currentSortDate && p.Id < current.Id)
+                    p.FileModifiedDate < currentSortDate
+                    || (p.FileModifiedDate == currentSortDate && p.Id < current.Id)
                 ))
             .OrderByNewest()
             .Select(p => p.Id)
@@ -348,26 +320,26 @@ public class PostReadService
             var includeVideo = parsedQuery.IncludedMediaTypes.Contains(PostMediaType.Video);
 
             query = query.Where(p =>
-                (includeImage && p.PostFiles.Any(pf => pf.ContentType.StartsWith("image/") && pf.ContentType != "image/gif"))
-                || (includeAnimation && p.PostFiles.Any(pf => pf.ContentType == "image/gif"))
-                || (includeVideo && p.PostFiles.Any(pf => pf.ContentType.StartsWith("video/"))));
+                (includeImage && p.ContentType.StartsWith("image/") && p.ContentType != "image/gif")
+                || (includeAnimation && p.ContentType == "image/gif")
+                || (includeVideo && p.ContentType.StartsWith("video/")));
         }
 
         if (parsedQuery.ExcludedMediaTypes.Count > 0)
         {
             if (parsedQuery.ExcludedMediaTypes.Contains(PostMediaType.Image))
             {
-                query = query.Where(p => !p.PostFiles.Any(pf => pf.ContentType.StartsWith("image/") && pf.ContentType != "image/gif"));
+                query = query.Where(p => !(p.ContentType.StartsWith("image/") && p.ContentType != "image/gif"));
             }
 
             if (parsedQuery.ExcludedMediaTypes.Contains(PostMediaType.Animation))
             {
-                query = query.Where(p => !p.PostFiles.Any(pf => pf.ContentType == "image/gif"));
+                query = query.Where(p => p.ContentType != "image/gif");
             }
 
             if (parsedQuery.ExcludedMediaTypes.Contains(PostMediaType.Video))
             {
-                query = query.Where(p => !p.PostFiles.Any(pf => pf.ContentType.StartsWith("video/")));
+                query = query.Where(p => !p.ContentType.StartsWith("video/"));
             }
         }
 

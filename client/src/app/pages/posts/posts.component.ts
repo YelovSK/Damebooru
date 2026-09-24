@@ -498,10 +498,7 @@ export class PostsComponent implements AfterViewInit {
   }
 
   getThumbnailUrl(post: DamebooruPostDto): string {
-    return this.damebooru.getThumbnailUrl(
-      post.thumbnailLibraryId,
-      post.thumbnailContentHash,
-    );
+    return this.damebooru.getThumbnailUrl(post.contentHash);
   }
 
   private findPostById(id: number): DamebooruPostDto | null {

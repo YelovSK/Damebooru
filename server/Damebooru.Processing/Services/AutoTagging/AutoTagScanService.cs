@@ -47,10 +47,10 @@ public sealed class AutoTagScanService
             .Where(p => p.Id == postId)
             .Select(p => new PostScanTarget(
                 p.Id,
-                p.PrimaryPostFile == null ? 0 : p.PrimaryPostFile.LibraryId,
-                p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.RelativePath,
-                p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentHash,
-                p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentType))
+                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.LibraryId).FirstOrDefault(),
+                p.PostFiles.OrderBy(pf => pf.Id).Select(pf => pf.RelativePath).FirstOrDefault() ?? string.Empty,
+                p.ContentHash,
+                p.ContentType))
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException($"Post {postId} was not found.");
 

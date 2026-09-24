@@ -46,37 +46,27 @@ public class HardlinkExactDuplicateFilesJobTests
 
                 var identityA = identityResolver.TryResolve(fileA)!;
                 var identityB = identityResolver.TryResolve(fileB)!;
-                setupDb.Posts.AddRange(
+                setupDb.Posts.Add(
                     new Post
                     {
                         ImportDate = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc),
+                        ContentHash = "same-hash",
+                        ContentType = "application/octet-stream",
+                        SizeBytes = 4,
                         PostFiles =
                         [
                             new PostFile
                             {
                                 LibraryId = library.Id,
                                 RelativePath = "a.bin",
-                                ContentHash = "same-hash",
-                                ContentType = "application/octet-stream",
-                                SizeBytes = 4,
                                 FileModifiedDate = File.GetLastWriteTimeUtc(fileA),
                                 FileIdentityDevice = identityA.Device,
                                 FileIdentityValue = identityA.Value,
-                            }
-                        ]
-                    },
-                    new Post
-                    {
-                        ImportDate = new DateTime(2026, 4, 1, 11, 0, 0, DateTimeKind.Utc),
-                        PostFiles =
-                        [
+                            },
                             new PostFile
                             {
                                 LibraryId = library.Id,
                                 RelativePath = "b.bin",
-                                ContentHash = "same-hash",
-                                ContentType = "application/octet-stream",
-                                SizeBytes = 4,
                                 FileModifiedDate = File.GetLastWriteTimeUtc(fileB),
                                 FileIdentityDevice = identityB.Device,
                                 FileIdentityValue = identityB.Value,

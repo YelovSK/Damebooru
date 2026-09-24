@@ -76,17 +76,17 @@ public sealed class AutoTagCandidateFilterTests
         => new()
         {
             ImportDate = new DateTime(2026, 5, 19, 12, 0, 0, DateTimeKind.Utc),
+            ContentHash = hash,
+            SizeBytes = 100,
+            Width = 10,
+            Height = 10,
+            ContentType = contentType,
             PostFiles =
             {
                 new PostFile
                 {
                     Library = library,
                     RelativePath = relativePath,
-                    ContentHash = hash,
-                    SizeBytes = 100,
-                    Width = 10,
-                    Height = 10,
-                    ContentType = contentType,
                     FileModifiedDate = new DateTime(2026, 5, 18, 12, 0, 0, DateTimeKind.Utc),
                 }
             }

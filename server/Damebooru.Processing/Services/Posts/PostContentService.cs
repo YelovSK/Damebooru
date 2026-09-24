@@ -26,9 +26,11 @@ public class PostContentService
             .Where(p => p.Id == id)
             .Select(p => new
             {
-                RelativePath = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.RelativePath,
-                ContentType = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.ContentType,
-                LibraryPath = p.PrimaryPostFile == null ? string.Empty : p.PrimaryPostFile.Library.Path
+                p.ContentType,
+                Files = p.PostFiles
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => new { LibraryPath = pf.Library.Path, pf.RelativePath })
+                    .ToList()
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -37,20 +39,19 @@ public class PostContentService
             return Result<PostContentDescriptor>.Failure(OperationError.NotFound, "Post not found.");
         }
 
-        if (!SafeSubpathResolver.TryResolve(post.LibraryPath, post.RelativePath, out var fullPath))
+        // Every file holds the same content, so any copy that still exists will do.
+        foreach (var file in post.Files)
         {
-            return Result<PostContentDescriptor>.Failure(OperationError.InvalidInput, "Invalid file path");
+            if (SafeSubpathResolver.TryResolve(file.LibraryPath, file.RelativePath, out var fullPath) && File.Exists(fullPath))
+            {
+                return Result<PostContentDescriptor>.Success(new PostContentDescriptor
+                {
+                    FullPath = fullPath,
+                    ContentType = post.ContentType
+                });
+            }
         }
 
-        if (!File.Exists(fullPath))
-        {
-            return Result<PostContentDescriptor>.Failure(OperationError.NotFound, "File not found on disk");
-        }
-
-        return Result<PostContentDescriptor>.Success(new PostContentDescriptor
-        {
-            FullPath = fullPath,
-            ContentType = post.ContentType
-        });
+        return Result<PostContentDescriptor>.Failure(OperationError.NotFound, "File not found on disk");
     }
 }

@@ -1035,17 +1035,11 @@ export class PostDetailComponent {
   }
 
   getThumbnailUrl(post: DamebooruPostDto): string {
-    return this.damebooru.getThumbnailUrl(
-      post.thumbnailLibraryId,
-      post.thumbnailContentHash,
-    );
+    return this.damebooru.getThumbnailUrl(post.contentHash);
   }
 
   getPreviewUrl(post: DamebooruPostDto): string {
-    return this.damebooru.getPreviewUrl(
-      post.thumbnailLibraryId,
-      post.thumbnailContentHash,
-    );
+    return this.damebooru.getPreviewUrl(post.contentHash);
   }
 
   getPostContentUrl(post: DamebooruPostDto): string {
@@ -1053,10 +1047,7 @@ export class PostDetailComponent {
   }
 
   getSimilarPostThumbnailUrl(post: SimilarPost): string {
-    return this.damebooru.getThumbnailUrl(
-      post.thumbnailLibraryId,
-      post.thumbnailContentHash,
-    );
+    return this.damebooru.getThumbnailUrl(post.contentHash);
   }
 
   private navigateToPostId(postId: number | null | undefined) {

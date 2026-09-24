@@ -68,73 +68,38 @@ public class LibraryBrowseService
         var totalCount = await scopedQuery.CountAsync(cancellationToken);
 
         var posts = await scopedQuery
-            .Select(p => new
-            {
-                Post = p,
-                p.Id,
-                p.ImportDate,
-                p.IsFavorite,
-                p.PrimaryFileModifiedDate,
-                RepresentativeFile = p.PrimaryPostFile == null
-                    ? null
-                    : new
-                    {
-                        p.PrimaryPostFile.LibraryId,
-                        p.PrimaryPostFile.RelativePath,
-                        p.PrimaryPostFile.ContentHash,
-                        p.PrimaryPostFile.SizeBytes,
-                        p.PrimaryPostFile.Width,
-                        p.PrimaryPostFile.Height,
-                        p.PrimaryPostFile.ContentType,
-                        p.PrimaryPostFile.FileModifiedDate,
-                    },
-                LibraryFile = p.PostFiles
-                    .Where(pf => pf.LibraryId == libraryId)
-                    .OrderBy(pf => pf.Id)
-                    .Select(pf => new
-                    {
-                        pf.LibraryId,
-                        pf.RelativePath,
-                    })
-                    .FirstOrDefault(),
-            })
-            .OrderByDescending(p => p.PrimaryFileModifiedDate)
+            .OrderByDescending(p => p.FileModifiedDate)
             .ThenByDescending(p => p.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(p => new PostDto
             {
                 Id = p.Id,
-                LibraryId = p.LibraryFile == null ? 0 : p.LibraryFile.LibraryId,
+                LibraryId = libraryId,
                 LibraryName = library.Name,
-                RelativePath = p.LibraryFile == null
-                    ? p.RepresentativeFile == null ? string.Empty : p.RepresentativeFile.RelativePath
-                    : p.LibraryFile.RelativePath,
-                ContentHash = p.RepresentativeFile == null ? string.Empty : p.RepresentativeFile.ContentHash,
-                SizeBytes = p.RepresentativeFile == null ? 0 : p.RepresentativeFile.SizeBytes,
-                Width = p.RepresentativeFile == null ? 0 : p.RepresentativeFile.Width,
-                Height = p.RepresentativeFile == null ? 0 : p.RepresentativeFile.Height,
-                ContentType = p.RepresentativeFile == null ? string.Empty : p.RepresentativeFile.ContentType,
+                // Show the copy that lives in the browsed library.
+                RelativePath = p.PostFiles
+                    .Where(pf => pf.LibraryId == libraryId)
+                    .OrderBy(pf => pf.Id)
+                    .Select(pf => pf.RelativePath)
+                    .FirstOrDefault() ?? string.Empty,
+                ContentHash = p.ContentHash,
+                SizeBytes = p.SizeBytes,
+                Width = p.Width,
+                Height = p.Height,
+                ContentType = p.ContentType,
                 ImportDate = p.ImportDate,
-                FileModifiedDate = p.RepresentativeFile == null ? default : p.RepresentativeFile.FileModifiedDate,
+                FileModifiedDate = p.FileModifiedDate,
                 IsFavorite = p.IsFavorite,
-                PostFiles = p.Post.PostFiles
+                PostFiles = p.PostFiles
                     .OrderBy(pf => pf.Id)
                     .Select(pf => new PostFileDto
                     {
                         LibraryId = pf.LibraryId,
-                        LibraryName = null,
                         RelativePath = pf.RelativePath,
-                        ContentHash = pf.ContentHash,
-                        SizeBytes = pf.SizeBytes,
-                        Width = pf.Width,
-                        Height = pf.Height,
-                        ContentType = pf.ContentType,
                         FileModifiedDate = pf.FileModifiedDate,
                     })
                     .ToList(),
-                ThumbnailLibraryId = p.LibraryFile == null ? 0 : p.LibraryFile.LibraryId,
-                ThumbnailContentHash = p.RepresentativeFile == null ? string.Empty : p.RepresentativeFile.ContentHash,
                 Sources = new List<string>(),
                 Tags = new List<TagDto>(),
                 SimilarPosts = new List<SimilarPostDto>(),
@@ -263,7 +228,7 @@ public class LibraryBrowseService
             .Select(p => new
             {
                 p.Id,
-                FileModifiedDate = p.PrimaryFileModifiedDate ?? default(DateTime)
+                p.FileModifiedDate
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -275,8 +240,8 @@ public class LibraryBrowseService
         var prevIds = await scopedQuery
             .Where(p => p.Id != current.Id
                 && (
-                    (p.PrimaryFileModifiedDate ?? default(DateTime)) > current.FileModifiedDate
-                    || ((p.PrimaryFileModifiedDate ?? default(DateTime)) == current.FileModifiedDate && p.Id > current.Id)
+                    p.FileModifiedDate > current.FileModifiedDate
+                    || (p.FileModifiedDate == current.FileModifiedDate && p.Id > current.Id)
                 ))
             .OrderByOldest()
             .Select(p => p.Id)
@@ -286,8 +251,8 @@ public class LibraryBrowseService
         var nextIds = await scopedQuery
             .Where(p => p.Id != current.Id
                 && (
-                    (p.PrimaryFileModifiedDate ?? default(DateTime)) < current.FileModifiedDate
-                    || ((p.PrimaryFileModifiedDate ?? default(DateTime)) == current.FileModifiedDate && p.Id < current.Id)
+                    p.FileModifiedDate < current.FileModifiedDate
+                    || (p.FileModifiedDate == current.FileModifiedDate && p.Id < current.Id)
                 ))
             .OrderByNewest()
             .Select(p => p.Id)

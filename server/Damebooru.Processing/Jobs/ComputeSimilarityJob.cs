@@ -43,14 +43,14 @@ public class ComputeSimilarityJob : IJob
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
 
-        var query = db.PostFiles.AsNoTracking().AsQueryable();
+        var query = db.Posts.AsNoTracking().Where(p => p.ContentType.StartsWith("image/"));
         if (context.Mode == JobMode.Missing)
         {
-            query = query.Where(pf => string.IsNullOrEmpty(pf.PdqHash256));
+            query = query.Where(p => string.IsNullOrEmpty(p.PdqHash256));
         }
 
         var totalCandidates = await query.CountAsync(context.CancellationToken);
-        _logger.LogInformation("Computing similarity hashes for {Count} candidate files (mode: {Mode})", totalCandidates, context.Mode);
+        _logger.LogInformation("Computing similarity hashes for {Count} candidate posts (mode: {Mode})", totalCandidates, context.Mode);
 
         if (totalCandidates == 0)
         {
@@ -79,25 +79,21 @@ public class ComputeSimilarityJob : IJob
         const int batchSize = 100;
         while (true)
         {
-            var batch = await query
-                .Where(pf => pf.Id > lastId)
-                .OrderBy(pf => pf.Id)
-                .Select(pf => new PostFileEnrichmentTarget(
-                    pf.Id,
-                    pf.LibraryId,
-                    pf.ContentHash,
-                    pf.RelativePath,
-                    pf.Library.Path))
+            var batchIds = await query
+                .Where(p => p.Id > lastId)
+                .OrderBy(p => p.Id)
+                .Select(p => p.Id)
                 .Take(batchSize)
                 .ToListAsync(context.CancellationToken);
 
-            if (batch.Count == 0)
+            if (batchIds.Count == 0)
             {
                 break;
             }
 
-            lastId = batch[^1].PostFileId;
-            var results = new ConcurrentBag<PostFileSimilarityResult>();
+            lastId = batchIds[^1];
+            var batch = await PostEnrichmentTargets.LoadAsync(db.Posts.Where(p => batchIds.Contains(p.Id)), context.CancellationToken);
+            var results = new ConcurrentBag<PostSimilarityResult>();
 
             await Parallel.ForEachAsync(
                 batch,
@@ -106,11 +102,11 @@ public class ComputeSimilarityJob : IJob
                     MaxDegreeOfParallelism = _parallelism,
                     CancellationToken = context.CancellationToken
                 },
-                async (postFile, ct) =>
+                async (target, ct) =>
                 {
                     try
                     {
-                        var result = await _mediaEnrichmentService.ComputeSimilarityAsync(postFile, ct);
+                        var result = await _mediaEnrichmentService.ComputeSimilarityAsync(target, ct);
                         if (result != null)
                         {
                             results.Add(result);
@@ -120,7 +116,7 @@ public class ComputeSimilarityJob : IJob
                     catch (Exception ex)
                     {
                         Interlocked.Increment(ref failed);
-                        _logger.LogWarning(ex, "Failed to compute similarity hash for post file {Id}: {Path}", postFile.PostFileId, postFile.RelativePath);
+                        _logger.LogWarning(ex, "Failed to compute similarity hash for post {Id}: {Path}", target.PostId, target.FullPath);
                     }
                     finally
                     {
@@ -129,14 +125,13 @@ public class ComputeSimilarityJob : IJob
                     }
                 });
 
-            var entityIds = batch.Select(p => p.PostFileId).ToList();
-            var entities = await db.PostFiles
-                .Where(pf => entityIds.Contains(pf.Id))
-                .ToDictionaryAsync(pf => pf.Id, context.CancellationToken);
+            var entities = await db.Posts
+                .Where(p => batchIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, context.CancellationToken);
 
             foreach (var result in results)
             {
-                if (entities.TryGetValue(result.PostFileId, out var entity))
+                if (entities.TryGetValue(result.PostId, out var entity))
                 {
                     entity.PdqHash256 = result.PdqHash256;
                 }

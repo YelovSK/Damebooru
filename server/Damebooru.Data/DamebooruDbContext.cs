@@ -109,12 +109,6 @@ public class DamebooruDbContext : DbContext
             .HasForeignKey(pf => pf.PostId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<Post>()
-            .HasOne(p => p.PrimaryPostFile)
-            .WithMany()
-            .HasForeignKey(p => p.PrimaryPostFileId)
-            .OnDelete(DeleteBehavior.SetNull);
-
         modelBuilder.Entity<PostFile>()
             .HasOne(pf => pf.Library)
             .WithMany()
@@ -135,13 +129,14 @@ public class DamebooruDbContext : DbContext
             .HasIndex(p => new { p.ImportDate, p.Id });
 
         modelBuilder.Entity<Post>()
-            .HasIndex(p => new { p.PrimaryFileModifiedDate, p.Id });
+            .HasIndex(p => new { p.FileModifiedDate, p.Id });
+
+        modelBuilder.Entity<Post>()
+            .HasIndex(p => p.ContentHash)
+            .IsUnique();
 
         modelBuilder.Entity<Post>()
             .HasIndex(p => p.IsFavorite);
-
-        modelBuilder.Entity<PostFile>()
-            .HasIndex(pf => pf.ContentHash);
 
         modelBuilder.Entity<PostFile>()
             .HasIndex(pf => new { pf.LibraryId, pf.RelativePath })

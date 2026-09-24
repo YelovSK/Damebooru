@@ -1,25 +1,37 @@
-using System;
+using System.ComponentModel.DataAnnotations;
+
 namespace Damebooru.Core.Entities;
 
+/// <summary>
+/// One piece of content. Every file with the same content hash belongs to the same post,
+/// so content properties live here and <see cref="PostFile"/> only says where copies are.
+/// </summary>
 public class Post
 {
     public int Id { get; set; }
 
+    [MaxLength(64)]
+    public string ContentHash { get; set; } = string.Empty;
+
+    public long SizeBytes { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
+
+    [MaxLength(100)]
+    public string ContentType { get; set; } = string.Empty;
+
+    [MaxLength(64)]
+    public string? PdqHash256 { get; set; }
+
     /// <summary>When this post was first imported into Damebooru.</summary>
     public DateTime ImportDate { get; set; }
 
+    /// <summary>
+    /// Earliest modified date of the post's files, kept in sync by DB triggers. Used for sorting.
+    /// </summary>
+    public DateTime FileModifiedDate { get; set; }
+
     public bool IsFavorite { get; set; }
-
-    /// <summary>
-    /// DB-maintained cached primary PostFile id. Source of truth is PostFiles; triggers refresh this value.
-    /// </summary>
-    public int? PrimaryPostFileId { get; set; }
-    public PostFile? PrimaryPostFile { get; set; }
-
-    /// <summary>
-    /// DB-maintained cached modified date for the primary PostFile. Used for fast post-list sorting.
-    /// </summary>
-    public DateTime? PrimaryFileModifiedDate { get; set; }
 
     public ICollection<PostFile> PostFiles { get; set; } = new List<PostFile>();
     public ICollection<PostTag> PostTags { get; set; } = new List<PostTag>();
