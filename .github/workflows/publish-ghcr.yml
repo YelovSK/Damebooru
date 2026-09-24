@@ -174,7 +174,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=damebooru-server
-          cache-to: type=gha,mode=max,scope=damebooru-server
+          cache-to: type=gha,mode=min,scope=damebooru-server
 
   publish_client:
     needs: detect_changes

@@ -14,13 +14,13 @@ RUN dotnet publish Damebooru.Server/Damebooru.Server.csproj -c Release -o /app/p
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-COPY --from=build /app/publish ./
-
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /app/data/previews /app/data/thumbnails /app/data/temp
+
+COPY --from=build /app/publish ./
 
 ENV ASPNETCORE_URLS=http://+:6666
 ENV Damebooru__Storage__DatabasePath=/app/data/damebooru.db
