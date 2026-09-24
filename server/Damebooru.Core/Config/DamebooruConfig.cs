@@ -7,7 +7,6 @@ public class DamebooruConfig
     public StorageConfig Storage { get; set; } = new();
     public ScannerConfig Scanner { get; set; } = new();
     public ProcessingConfig Processing { get; set; } = new();
-    public IngestionConfig Ingestion { get; set; } = new();
     public AuthConfig Auth { get; set; } = new();
     public ProxyConfig Proxy { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
@@ -58,12 +57,6 @@ public class ProcessingConfig
     public int SimilarityParallelism { get; set; } = 2;
     public int ThumbnailParallelism { get; set; } = 2;
     public int JobProgressReportIntervalMs { get; set; } = 1000;
-}
-
-public class IngestionConfig
-{
-    public int BatchSize { get; set; } = 100;
-    public int ChannelCapacity { get; set; } = 1000;
 }
 
 public class AuthConfig

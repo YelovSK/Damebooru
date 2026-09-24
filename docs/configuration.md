@@ -59,13 +59,6 @@ When startup detects pending EF Core migrations, Damebooru creates a pre-migrati
 | `Damebooru:Processing:ThumbnailParallelism` | `Damebooru__Processing__ThumbnailParallelism` | `2` | Thumbnail generation parallelism |
 | `Damebooru:Processing:JobProgressReportIntervalMs` | `Damebooru__Processing__JobProgressReportIntervalMs` | `1000` | Job progress update interval |
 
-### Ingestion
-
-| Path | Env var | Default | Notes |
-| --- | --- | --- | --- |
-| `Damebooru:Ingestion:BatchSize` | `Damebooru__Ingestion__BatchSize` | `100` | Batch size for channel-based ingestion |
-| `Damebooru:Ingestion:ChannelCapacity` | `Damebooru__Ingestion__ChannelCapacity` | `1000` | Capacity of the ingestion channel |
-
 ### Auth
 
 | Path | Env var | Default | Notes |

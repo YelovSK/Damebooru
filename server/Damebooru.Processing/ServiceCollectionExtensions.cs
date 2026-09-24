@@ -69,10 +69,6 @@ public static class ServiceCollectionExtensions
         // Core Pipeline Services
         services.AddSingleton<ILibrarySyncProcessor, LibrarySyncService>();
 
-        services.AddSingleton<ChannelPostIngestionService>();
-        services.AddSingleton<IPostIngestionService>(sp => sp.GetRequiredService<ChannelPostIngestionService>());
-        services.AddHostedService(sp => sp.GetRequiredService<ChannelPostIngestionService>());
-
         services.AddSingleton<IJobService, JobService>();
         if (options.EnableScheduler)
         {
