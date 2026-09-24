@@ -39,6 +39,13 @@ public class StorageConfig
     /// Default: ./data/temp
     /// </summary>
     public string TempPath { get; set; } = "data/temp";
+
+    /// <summary>
+    /// Path for ASP.NET data protection keys, which encrypt the login cookie.
+    /// Must be persistent, or every restart logs the user out.
+    /// Default: ./data/keys
+    /// </summary>
+    public string DataProtectionKeysPath { get; set; } = "data/keys";
 }
 
 public class ScannerConfig

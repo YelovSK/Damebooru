@@ -22,11 +22,12 @@ RUN mkdir -p /app/data/previews /app/data/thumbnails /app/data/temp
 
 COPY --from=build /app/publish ./
 
-ENV ASPNETCORE_URLS=http://+:6666
+ENV ASPNETCORE_HTTP_PORTS=6666
 ENV Damebooru__Storage__DatabasePath=/app/data/damebooru.db
 ENV Damebooru__Storage__ThumbnailPath=/app/data/thumbnails
 ENV Damebooru__Storage__PreviewPath=/app/data/previews
 ENV Damebooru__Storage__TempPath=/app/data/temp
+ENV Damebooru__Storage__DataProtectionKeysPath=/app/data/keys
 
 EXPOSE 6666
 

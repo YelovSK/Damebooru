@@ -3,7 +3,7 @@ services:
     image: ghcr.io/yelovsk/damebooru-server:latest
     restart: unless-stopped
     environment:
-      ASPNETCORE_URLS: "http://+:${SERVER_PORT:-6666}"
+      ASPNETCORE_HTTP_PORTS: "${SERVER_PORT:-6666}"
       Damebooru__Storage__DatabasePath: /app/data/damebooru.db
       Damebooru__Storage__ThumbnailPath: /app/data/thumbnails
       Damebooru__Storage__TempPath: /app/data/temp

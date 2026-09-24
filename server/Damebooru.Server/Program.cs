@@ -11,6 +11,7 @@ using Damebooru.Processing.Services.Duplicates;
 using Damebooru.Server.Infrastructure;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -26,8 +27,13 @@ var trustForwardedHeaders = damebooruConfig.Proxy.TrustForwardedHeaders;
 builder.Services.Configure<DamebooruConfig>(builder.Configuration.GetSection(DamebooruConfig.SectionName));
 builder.Services.PostConfigure<DamebooruConfig>(config => TrimSecretLikeValues(config));
 
-// Add services to the container.
 builder.Services.AddControllers();
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(StoragePathResolver.ResolvePath(
+        builder.Environment.ContentRootPath,
+        damebooruConfig.Storage.DataProtectionKeysPath,
+        "data/keys")));
 
 if (authEnabled)
 {
