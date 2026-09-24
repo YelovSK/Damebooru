@@ -121,6 +121,15 @@ public class SchedulerService : BackgroundService
                 continue;
             }
 
+            // A run still in progress covers this occurrence; queueing another would start a full run right after it.
+            if (jobService.IsRunning(scheduledKey))
+            {
+                _logger.LogInformation("Skipping scheduled run of {Key}: it is still running", scheduledKey.Value);
+                scheduledJob.NextRun = JobCron.GetNextRun(scheduledJob.CronExpression);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                continue;
+            }
+
             _logger.LogInformation("Triggering scheduled job: {Key}", scheduledKey.Value);
 
             try

@@ -34,6 +34,7 @@ public interface IJobService
     IEnumerable<JobInfo> GetActiveJobs();
     Task<(List<Entities.JobExecution> Items, int Total)> GetJobHistoryAsync(int pageSize = 20, int page = 1, CancellationToken cancellationToken = default);
     IEnumerable<JobDefinition> GetAvailableJobs();
+    bool IsRunning(JobKey jobKey);
     Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken);
     Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken, JobMode mode);
     Task<string> StartJobAsync(JobKey jobKey, Func<CancellationToken, Task> action);

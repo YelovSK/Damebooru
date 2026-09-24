@@ -65,6 +65,8 @@ public class JobService : IJobService
         return (items, total);
     }
 
+    public bool IsRunning(JobKey jobKey) => _runningJobKeys.ContainsKey(jobKey);
+
     public Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken)
         => StartJobAsync(jobKey, cancellationToken, JobMode.Missing);
 
