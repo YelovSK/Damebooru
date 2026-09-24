@@ -88,10 +88,6 @@ public class StatsDuplicateHealthDto
 {
     public int TotalGroups { get; set; }
     public int UnresolvedGroups { get; set; }
-    public int ExactResolvedGroups { get; set; }
-    public int ExactUnresolvedGroups { get; set; }
-    public int PerceptualResolvedGroups { get; set; }
-    public int PerceptualUnresolvedGroups { get; set; }
     public int UnresolvedPostCount { get; set; }
 }
 

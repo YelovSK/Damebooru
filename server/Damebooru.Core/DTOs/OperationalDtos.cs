@@ -91,7 +91,6 @@ public class DuplicatePostDto
 public class DuplicateGroupDto
 {
     public int Id { get; set; }
-    public DuplicateType Type { get; set; }
     public int? SimilarityPercent { get; set; }
     public DateTime DetectedDate { get; set; }
     public List<DuplicatePostDto> Posts { get; set; } = [];
@@ -149,7 +148,6 @@ public class SimilarPostDto
     public string ContentType { get; set; } = string.Empty;
     public int ThumbnailLibraryId { get; set; }
     public string ThumbnailContentHash { get; set; } = string.Empty;
-    public DuplicateType DuplicateType { get; set; }
     public int? SimilarityPercent { get; set; }
     public bool GroupIsResolved { get; set; }
 
@@ -169,7 +167,6 @@ public class SimilarPostDto
             ContentType = representativeFile?.ContentType ?? string.Empty,
             ThumbnailLibraryId = representativeFile?.LibraryId ?? 0,
             ThumbnailContentHash = representativeFile?.ContentHash ?? string.Empty,
-            DuplicateType = entry.DuplicateGroup.Type,
             SimilarityPercent = entry.DuplicateGroup.SimilarityPercent,
             GroupIsResolved = entry.DuplicateGroup.IsResolved,
         };

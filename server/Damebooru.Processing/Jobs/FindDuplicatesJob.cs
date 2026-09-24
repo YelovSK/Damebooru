@@ -19,8 +19,8 @@ public class FindDuplicatesJob : IJob
         ulong W0, ulong W1, ulong W2, ulong W3,
         string ContentType);
 
-    private sealed record DuplicatePostCandidate(int Id, string ContentHash, string? PdqHash256, string ContentType);
-    private sealed record PerceptualResult(List<DuplicateGroup> Groups, int PerceptualGroupCount, int MatchedPairs, int TotalComparisons);
+    private sealed record DuplicatePostCandidate(int Id, string? PdqHash256, string ContentType);
+    private sealed record PerceptualResult(List<DuplicateGroup> Groups, int TotalComparisons);
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<FindDuplicatesJob> _logger;
@@ -34,7 +34,7 @@ public class FindDuplicatesJob : IJob
     public int DisplayOrder => 40;
     public JobKey Key => JobKey;
     public string Name => JobName;
-    public string Description => "Scans for exact (content hash) and PDQ-based perceptual duplicate posts.";
+    public string Description => "Scans for visually similar posts using PDQ hashes.";
     public bool SupportsAllMode => false;
 
     public async Task ExecuteAsync(JobContext context)
@@ -61,7 +61,6 @@ public class FindDuplicatesJob : IJob
             })
             .Select(x => new DuplicatePostCandidate(
                 x.Id,
-                x.RepFile != null ? x.RepFile.ContentHash : string.Empty,
                 x.RepFile != null ? x.RepFile.PdqHash256 : null,
                 x.RepFile != null ? x.RepFile.ContentType : string.Empty))
             .ToListAsync(context.CancellationToken);
@@ -112,24 +111,6 @@ public class FindDuplicatesJob : IJob
 
         context.Reporter.Update(new JobState
         {
-            ActivityText = $"Finding exact duplicates... (0/{posts.Count})",
-            ProgressCurrent = 0,
-            ProgressTotal = posts.Count
-        });
-
-        var detectedAtUtc = DateTime.UtcNow;
-        var (exactGroups, exactPostIds) = BuildExactGroups(posts, resolvedGroupSignatures, detectedAtUtc);
-
-        _logger.LogInformation("Found {Count} exact duplicate groups", exactGroups.Count);
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = $"Finding exact duplicates... ({posts.Count}/{posts.Count})",
-            ProgressCurrent = posts.Count,
-            ProgressTotal = posts.Count
-        });
-
-        context.Reporter.Update(new JobState
-        {
             ActivityText = "Finding perceptual duplicates... (0 processed)",
             ProgressCurrent = null,
             ProgressTotal = null,
@@ -140,9 +121,8 @@ public class FindDuplicatesJob : IJob
         var perceptual = BuildPerceptualGroups(
             posts,
             resolvedGroupSignatures,
-            exactPostIds,
             duplicateSettings.PerceptualSimilarityThresholdPercent,
-            detectedAtUtc,
+            DateTime.UtcNow,
             (current, total) =>
             {
                 context.Reporter.Update(new JobState
@@ -153,7 +133,7 @@ public class FindDuplicatesJob : IJob
                 });
             });
 
-        _logger.LogInformation("Found {Count} perceptual duplicate groups", perceptual.PerceptualGroupCount);
+        _logger.LogInformation("Found {Count} perceptual duplicate groups", perceptual.Groups.Count);
         context.Reporter.Update(new JobState
         {
             ActivityText = $"Finding perceptual duplicates... ({perceptual.TotalComparisons}/{perceptual.TotalComparisons})",
@@ -170,10 +150,7 @@ public class FindDuplicatesJob : IJob
             ClearProgressTotal = true,
         });
 
-        var newGroups = new List<DuplicateGroup>(exactGroups.Count + perceptual.Groups.Count);
-        newGroups.AddRange(exactGroups);
-        newGroups.AddRange(perceptual.Groups);
-
+        var newGroups = perceptual.Groups;
         if (newGroups.Count > 0)
         {
             db.DuplicateGroups.AddRange(newGroups);
@@ -192,48 +169,9 @@ public class FindDuplicatesJob : IJob
         _logger.LogInformation("Duplicate scan complete: {Groups} groups, {Entries} total posts", newGroups.Count, totalEntries);
     }
 
-    private static (List<DuplicateGroup> Groups, HashSet<int> ExactPostIds) BuildExactGroups(
-        IReadOnlyCollection<DuplicatePostCandidate> posts,
-        ISet<string> resolvedGroupSignatures,
-        DateTime detectedAtUtc)
-    {
-        var groups = new List<DuplicateGroup>();
-
-        var exactGroups = posts
-            .Where(p => !string.IsNullOrEmpty(p.ContentHash))
-            .GroupBy(p => p.ContentHash, StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1);
-
-        foreach (var group in exactGroups)
-        {
-            var postIds = group.Select(p => p.Id).OrderBy(id => id).ToList();
-            var signature = string.Join(",", postIds);
-
-            if (resolvedGroupSignatures.Contains(signature))
-            {
-                continue;
-            }
-
-            groups.Add(new DuplicateGroup
-            {
-                Type = DuplicateType.Exact,
-                DetectedDate = detectedAtUtc,
-                Entries = postIds.Select(id => new DuplicateGroupEntry { PostId = id }).ToList()
-            });
-        }
-
-        var exactPostIds = groups
-            .SelectMany(g => g.Entries)
-            .Select(e => e.PostId)
-            .ToHashSet();
-
-        return (groups, exactPostIds);
-    }
-
     private static PerceptualResult BuildPerceptualGroups(
         IReadOnlyCollection<DuplicatePostCandidate> posts,
         ISet<string> resolvedGroupSignatures,
-        ISet<int> exactPostIds,
         int combinedSimilarityThresholdPercent,
         DateTime detectedAtUtc,
         Action<int, int>? progress)
@@ -255,7 +193,6 @@ public class FindDuplicatesJob : IJob
         int totalComparisons = hashPosts.Count * (hashPosts.Count - 1) / 2;
         int comparedSoFar = 0;
         int lastReportedPercent = 30;
-        int matchedPairs = 0;
 
         for (int i = 0; i < hashPosts.Count; i++)
         {
@@ -271,13 +208,8 @@ public class FindDuplicatesJob : IJob
                 {
                     var idA = hashPosts[i].Id;
                     var idB = hashPosts[j].Id;
-
-                    if (!(exactPostIds.Contains(idA) && exactPostIds.Contains(idB)))
-                    {
-                        AddEdge(neighbors, idA, idB);
-                        pairSimilarity[GetPairKey(idA, idB)] = similarity;
-                        matchedPairs++;
-                    }
+                    AddEdge(neighbors, idA, idB);
+                    pairSimilarity[GetPairKey(idA, idB)] = similarity;
                 }
 
                 if (totalComparisons > 0)
@@ -293,7 +225,6 @@ public class FindDuplicatesJob : IJob
         }
 
         var groups = new List<DuplicateGroup>();
-        var perceptualCount = 0;
         var remaining = new HashSet<int>(neighbors.Keys);
 
         while (remaining.Count > 0)
@@ -323,12 +254,10 @@ public class FindDuplicatesJob : IJob
 
             groups.Add(new DuplicateGroup
             {
-                Type = DuplicateType.Perceptual,
                 SimilarityPercent = CalculateGroupSimilarity(groupMembers, pairSimilarity),
                 DetectedDate = detectedAtUtc,
                 Entries = postIds.Select(id => new DuplicateGroupEntry { PostId = id }).ToList()
             });
-            perceptualCount++;
 
             foreach (var member in groupMembers)
             {
@@ -336,7 +265,7 @@ public class FindDuplicatesJob : IJob
             }
         }
 
-        return new PerceptualResult(groups, perceptualCount, matchedPairs, totalComparisons);
+        return new PerceptualResult(groups, totalComparisons);
     }
 
     private static bool TryComputeSimilarity(

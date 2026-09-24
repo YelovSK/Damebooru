@@ -4,9 +4,7 @@ public class DuplicateGroup
 {
     public int Id { get; set; }
 
-    public DuplicateType Type { get; set; }
-
-    /// <summary>Similarity percentage for perceptual matches (null for exact)</summary>
+    /// <summary>Similarity percentage of the group's perceptual match.</summary>
     public int? SimilarityPercent { get; set; }
 
     public bool IsResolved { get; set; }

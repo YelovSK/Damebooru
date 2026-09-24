@@ -121,11 +121,6 @@ export enum PostTagSource {
   Gelbooru = 4,
 }
 
-export enum DuplicateType {
-  Exact = 0,
-  Perceptual = 1,
-}
-
 export interface DamebooruPostDto {
   id: number;
   libraryId: number;
@@ -249,10 +244,6 @@ export interface StatsMaintenanceDto {
 export interface StatsDuplicateHealthDto {
   totalGroups: number;
   unresolvedGroups: number;
-  exactResolvedGroups: number;
-  exactUnresolvedGroups: number;
-  perceptualResolvedGroups: number;
-  perceptualUnresolvedGroups: number;
   unresolvedPostCount: number;
 }
 
@@ -357,7 +348,6 @@ export interface SimilarPost {
   contentType: string;
   thumbnailLibraryId: number;
   thumbnailContentHash: string;
-  duplicateType: DuplicateType;
   similarityPercent: number | null;
   groupIsResolved: boolean;
 }
@@ -565,7 +555,6 @@ export interface DuplicatePostFile {
 
 export interface DuplicateGroup {
   id: number;
-  type: DuplicateType;
   similarityPercent: number | null;
   detectedDate: string;
   posts: DuplicatePost[];

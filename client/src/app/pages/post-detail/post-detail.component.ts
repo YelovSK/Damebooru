@@ -35,7 +35,6 @@ import { escapeTagName, getMediaType } from "@shared/utils/utils";
 import {
   type DamebooruPostDto,
   type DamebooruTagDto,
-  DuplicateType,
   type SimilarPost,
   type PostAuditEntry,
   TagCategoryKind,
@@ -98,7 +97,6 @@ export class PostDetailComponent {
   readonly editService = inject(PostEditService);
 
   readonly appLinks = AppLinks;
-  readonly duplicateType = DuplicateType;
 
   // Video settings from user preferences
   readonly autoPlayVideos = this.settingsService.autoPlayVideos;

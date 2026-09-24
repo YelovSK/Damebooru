@@ -31,7 +31,6 @@ public class DuplicateReadService
         var groups = await _context.DuplicateGroups
             .AsNoTracking()
             .Where(g => g.IsResolved == resolved)
-            .Where(g => g.Type != DuplicateType.Exact)
             .Include(g => g.Entries)
                 .ThenInclude(e => e.Post)
                     .ThenInclude(p => p.PostFiles)
@@ -47,7 +46,6 @@ public class DuplicateReadService
                 return new DuplicateGroupDto
                 {
                     Id = g.Id,
-                    Type = g.Type,
                     SimilarityPercent = g.SimilarityPercent,
                     DetectedDate = g.DetectedDate,
                     Posts = posts.Select(p => new DuplicatePostDto

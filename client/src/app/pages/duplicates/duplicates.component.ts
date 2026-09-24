@@ -7,7 +7,6 @@ import { finalize } from 'rxjs/operators';
 import { filter, map, startWith } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import {
-  DuplicateType,
   type DamebooruPostDto,
   type DuplicateGroup,
   type ExactDuplicateCluster,
@@ -56,7 +55,6 @@ interface VisibleDuplicatePost {
 interface VisibleDuplicateGroup {
   key: string;
   duplicateGroupId: number;
-  type: DuplicateType;
   similarityPercent: number | null;
   detectedDate: string | null;
   posts: VisibleDuplicatePost[];
@@ -85,7 +83,6 @@ export class DuplicatesPageComponent {
     ),
     { initialValue: this.router.url },
   );
-  readonly duplicateType = DuplicateType;
   readonly isLookupTabActive = computed(() => this.currentUrl().split('?')[0].endsWith('/duplicates/lookup'));
   readonly hoverPreviewEnabled = this.settingsService.enablePostPreviewOnHover;
   readonly hoverPreviewDelayMs = computed(() => {
@@ -100,7 +97,6 @@ export class DuplicatesPageComponent {
   groups = signal<DuplicateGroup[]>([]);
   exactClusters = signal<ExactDuplicateCluster[]>([]);
   exactCount = signal(0);
-  perceptualCount = signal(0);
 
   resolvedGroups = signal<DuplicateGroup[]>([]);
 
@@ -280,15 +276,12 @@ export class DuplicatesPageComponent {
   }
 
   readonly visibleGroups = computed<VisibleDuplicateGroup[]>(() => {
-    return this.groups()
-      .filter(group => group.type === DuplicateType.Perceptual)
-      .map(group => {
+    return this.groups().map(group => {
       const recommendedKeepPostId = this.selectBestQualityVisiblePostId(group.posts);
 
       return {
         key: `${group.id}`,
         duplicateGroupId: group.id,
-        type: group.type,
         similarityPercent: group.similarityPercent,
         detectedDate: group.detectedDate,
         posts: group.posts.map(post => ({
@@ -330,24 +323,9 @@ export class DuplicatesPageComponent {
 
   readonly visibleStats = computed(() => {
     const groups = this.visibleGroups();
-    let postCount = 0;
-    let exactCount = 0;
-    let perceptualCount = 0;
-
-    for (const group of groups) {
-      postCount += group.posts.length;
-      if (group.type === DuplicateType.Exact) {
-        exactCount++;
-      } else {
-        perceptualCount++;
-      }
-    }
-
     return {
       groupCount: groups.length,
-      postCount,
-      exactCount,
-      perceptualCount,
+      postCount: groups.reduce((sum, group) => sum + group.posts.length, 0),
     };
   });
 
@@ -392,14 +370,6 @@ export class DuplicatesPageComponent {
 
   getVisiblePostCount(): number {
     return this.visibleStats().postCount;
-  }
-
-  getVisibleExactCount(): number {
-    return this.visibleStats().exactCount;
-  }
-
-  getVisiblePerceptualCount(): number {
-    return this.visibleStats().perceptualCount;
   }
 
   getExactClusterCount(): number {
@@ -636,14 +606,6 @@ export class DuplicatesPageComponent {
     return this.resolvedGroups().reduce((sum, group) => sum + group.posts.length, 0);
   }
 
-  getResolvedExactCount(): number {
-    return this.resolvedGroups().filter(group => group.type === DuplicateType.Exact).length;
-  }
-
-  getResolvedPerceptualCount(): number {
-    return this.resolvedGroups().filter(group => group.type === DuplicateType.Perceptual).length;
-  }
-
   loadResolvedGroups() {
     this.damebooru.getResolvedDuplicateGroups().subscribe({
       next: (groups) => {
@@ -722,7 +684,6 @@ export class DuplicatesPageComponent {
       next: (groups) => {
         this.groups.set(groups);
         this.visiblePage.set(Math.min(this.visiblePage(), this.visibleTotalPages()));
-        this.perceptualCount.set(groups.filter(group => group.type === DuplicateType.Perceptual).length);
       },
       error: () => void 0
     });

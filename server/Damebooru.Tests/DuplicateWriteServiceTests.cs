@@ -35,7 +35,6 @@ public class DuplicateWriteServiceTests
 
             var group = new DuplicateGroup
             {
-                Type = DuplicateType.Exact,
                 Entries =
                 [
                     new DuplicateGroupEntry { PostId = deletePost.Id },
@@ -129,7 +128,6 @@ public class DuplicateWriteServiceTests
 
         var group = new DuplicateGroup
         {
-            Type = DuplicateType.Perceptual,
             Entries =
             [
                 new DuplicateGroupEntry { PostId = keepPost.Id },

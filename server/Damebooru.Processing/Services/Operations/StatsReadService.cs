@@ -248,11 +248,8 @@ public class StatsReadService
 
     private async Task<StatsDuplicateHealthDto> GetDuplicateHealthAsync(CancellationToken cancellationToken)
     {
-        var groups = await _dbContext.DuplicateGroups
-            .AsNoTracking()
-            .GroupBy(group => new { group.Type, group.IsResolved })
-            .Select(g => new DuplicateGroupCount(g.Key.Type, g.Key.IsResolved, g.Count()))
-            .ToListAsync(cancellationToken);
+        var totalGroups = await _dbContext.DuplicateGroups.CountAsync(cancellationToken);
+        var unresolvedGroups = await _dbContext.DuplicateGroups.CountAsync(group => !group.IsResolved, cancellationToken);
         var unresolvedPostCount = await _dbContext.DuplicateGroupEntries
             .AsNoTracking()
             .Where(entry => !entry.DuplicateGroup.IsResolved)
@@ -260,28 +257,13 @@ public class StatsReadService
             .Distinct()
             .CountAsync(cancellationToken);
 
-        var exactResolved = GetDuplicateGroupCount(groups, DuplicateType.Exact, isResolved: true);
-        var exactUnresolved = GetDuplicateGroupCount(groups, DuplicateType.Exact, isResolved: false);
-        var perceptualResolved = GetDuplicateGroupCount(groups, DuplicateType.Perceptual, isResolved: true);
-        var perceptualUnresolved = GetDuplicateGroupCount(groups, DuplicateType.Perceptual, isResolved: false);
-
         return new StatsDuplicateHealthDto
         {
-            TotalGroups = groups.Sum(group => group.Count),
-            UnresolvedGroups = exactUnresolved + perceptualUnresolved,
-            ExactResolvedGroups = exactResolved,
-            ExactUnresolvedGroups = exactUnresolved,
-            PerceptualResolvedGroups = perceptualResolved,
-            PerceptualUnresolvedGroups = perceptualUnresolved,
+            TotalGroups = totalGroups,
+            UnresolvedGroups = unresolvedGroups,
             UnresolvedPostCount = unresolvedPostCount
         };
     }
-
-    private static int GetDuplicateGroupCount(
-        IReadOnlyCollection<DuplicateGroupCount> groups,
-        DuplicateType type,
-        bool isResolved)
-        => groups.FirstOrDefault(group => group.Type == type && group.IsResolved == isResolved)?.Count ?? 0;
 
     private async Task<List<MonthlyValue>> GetMonthlyPostsByImportDateAsync(CancellationToken cancellationToken)
         => await _dbContext.Posts
@@ -371,5 +353,4 @@ public class StatsReadService
 
     private sealed record MonthlyValue(int Year, int Month, long Value);
     private sealed record PostTagCount(int PostId, int TagCount);
-    private sealed record DuplicateGroupCount(DuplicateType Type, bool IsResolved, int Count);
 }
