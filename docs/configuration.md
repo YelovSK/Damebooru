@@ -60,6 +60,8 @@ When startup detects pending EF Core migrations, Damebooru creates a pre-migrati
 | `Damebooru:Processing:ThumbnailParallelism` | `Damebooru__Processing__ThumbnailParallelism` | `2` | Thumbnail generation parallelism |
 | `Damebooru:Processing:JobProgressReportIntervalMs` | `Damebooru__Processing__JobProgressReportIntervalMs` | `1000` | Job progress update interval |
 
+Job schedule cron expressions are evaluated in the server's local time zone. In Docker, set `TZ` (e.g. `TZ=Europe/Bratislava`); without it, the container uses UTC.
+
 ### Auth
 
 | Path | Env var | Default | Notes |
