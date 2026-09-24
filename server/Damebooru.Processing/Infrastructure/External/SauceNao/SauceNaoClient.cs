@@ -22,8 +22,6 @@ internal sealed class SauceNaoClient(
     private readonly SauceNaoRateCoordinator _rateCoordinator = rateCoordinator;
     private readonly ILogger<SauceNaoClient> _logger = logger;
 
-    // It's 25MB, but using 20MB to be safe.
-    private const long SauceNaoMaxUploadBytes = 20L * 1024L * 1024L;
     private static readonly HashSet<string> SupportedUploadContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
@@ -44,7 +42,6 @@ internal sealed class SauceNaoClient(
 
     private static readonly ImageUploadPreparationOptions UploadPreparationOptions = new()
     {
-        MaxUploadBytes = SauceNaoMaxUploadBytes,
         SupportedUploadContentTypes = SupportedUploadContentTypes,
         SupportedUploadExtensions = SupportedUploadExtensions,
     };

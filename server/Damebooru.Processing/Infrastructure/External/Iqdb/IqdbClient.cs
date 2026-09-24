@@ -16,8 +16,6 @@ internal sealed partial class IqdbClient(HttpClient httpClient, DamebooruConfig 
     private readonly HttpClient _httpClient = httpClient;
     private readonly decimal _minimumSimilarity = config.ExternalApis.Iqdb.MinimumSimilarity;
 
-    private const long IqdbMaxUploadBytes = 8L * 1024L * 1024L;
-    private const int IqdbMaxDimension = 7500;
     private static readonly HashSet<string> SupportedUploadContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "image/jpeg",
@@ -36,8 +34,6 @@ internal sealed partial class IqdbClient(HttpClient httpClient, DamebooruConfig 
 
     private static readonly ImageUploadPreparationOptions UploadPreparationOptions = new()
     {
-        MaxUploadBytes = IqdbMaxUploadBytes,
-        MaxDimension = IqdbMaxDimension,
         SupportedUploadContentTypes = SupportedUploadContentTypes,
         SupportedUploadExtensions = SupportedUploadExtensions,
     };

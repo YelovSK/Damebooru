@@ -15,7 +15,8 @@ internal static class ImageUploadPreparer
         var resolvedContentType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType;
 
         var shouldTranscode = !IsSupportedUploadFormat(resolvedFileName, resolvedContentType, options)
-            || IsFileTooLarge(fileStream, options.MaxUploadBytes);
+            || IsFileTooLarge(fileStream, options.MaxUploadBytes)
+            || ExceedsMaxDimension(fileStream, options.MaxDimension);
 
         if (!shouldTranscode)
         {
@@ -28,13 +29,12 @@ internal static class ImageUploadPreparer
         }
 
         var output = new MemoryStream();
-        var settings = new ProcessImageSettings();
-        if (options.MaxDimension.HasValue)
+        var settings = new ProcessImageSettings
         {
-            settings.Width = options.MaxDimension.Value;
-            settings.Height = options.MaxDimension.Value;
-            settings.ResizeMode = CropScaleMode.Max;
-        }
+            Width = options.MaxDimension,
+            Height = options.MaxDimension,
+            ResizeMode = CropScaleMode.Max,
+        };
         settings.TrySetEncoderFormat("image/jpeg");
 
         if (fileStream.CanSeek)
@@ -54,7 +54,7 @@ internal static class ImageUploadPreparer
 
         output.Seek(0, SeekOrigin.Begin);
 
-        if (options.MaxUploadBytes.HasValue && output.Length > options.MaxUploadBytes.Value)
+        if (output.Length > options.MaxUploadBytes)
         {
             await output.DisposeAsync();
             throw new ImageUploadPreparationException($"Image upload remains too large after conversion ({output.Length} bytes).");
@@ -71,6 +71,30 @@ internal static class ImageUploadPreparer
             : options.SupportedUploadExtensions.Contains(extension);
     }
 
-    private static bool IsFileTooLarge(Stream stream, long? maxUploadBytes)
-        => maxUploadBytes.HasValue && stream.CanSeek && stream.Length > maxUploadBytes.Value;
+    private static bool IsFileTooLarge(Stream stream, long maxUploadBytes)
+        => stream.CanSeek && stream.Length > maxUploadBytes;
+
+    private static bool ExceedsMaxDimension(Stream stream, int maxDimension)
+    {
+        if (!stream.CanSeek)
+        {
+            return false;
+        }
+
+        try
+        {
+            stream.Seek(0, SeekOrigin.Begin);
+            var frame = ImageFileInfo.Load(stream).Frames[0];
+            return Math.Max(frame.Width, frame.Height) > maxDimension;
+        }
+        catch (Exception)
+        {
+            // Unreadable headers: upload as-is and let the provider decide.
+            return false;
+        }
+        finally
+        {
+            stream.Seek(0, SeekOrigin.Begin);
+        }
+    }
 }
