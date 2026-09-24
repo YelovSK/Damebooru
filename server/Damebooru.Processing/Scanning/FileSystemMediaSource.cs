@@ -1,5 +1,6 @@
 using Damebooru.Core;
 using Damebooru.Core.Interfaces;
+using Damebooru.Core.Paths;
 using Microsoft.Extensions.Logging;
 
 namespace Damebooru.Processing.Scanning;
@@ -62,7 +63,7 @@ public class FileSystemMediaSource : IMediaSource
                 yield return new MediaSourceItem
                 {
                     FullPath = filePath,
-                    RelativePath = Path.GetRelativePath(sourcePath, filePath),
+                    RelativePath = RelativePathMatcher.NormalizePath(Path.GetRelativePath(sourcePath, filePath)),
                     SizeBytes = fi.Length,
                     LastModifiedUtc = fi.LastWriteTimeUtc
                 };

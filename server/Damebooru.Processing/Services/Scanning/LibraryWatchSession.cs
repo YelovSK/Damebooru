@@ -3,6 +3,7 @@ using Damebooru.Core;
 using Damebooru.Core.Config;
 using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
+using Damebooru.Core.Paths;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -51,7 +52,7 @@ internal static class LibraryWatchPathHelper
                 return false;
             }
 
-            relativePath = Path.GetRelativePath(library.Path, normalizedFullPath);
+            relativePath = RelativePathMatcher.NormalizePath(Path.GetRelativePath(library.Path, normalizedFullPath));
             return !string.IsNullOrWhiteSpace(relativePath)
                 && !relativePath.StartsWith("..", StringComparison.Ordinal);
         }

@@ -41,7 +41,4 @@ public static class RelativePathMatcher
         var suffix = normalizedPath.Substring(oldNormalizedPrefix.Length).TrimStart('/');
         return string.IsNullOrEmpty(suffix) ? newNormalizedPrefix : $"{newNormalizedPrefix}/{suffix}";
     }
-
-    public static string ToSqlComparablePath(string path)
-        => NormalizePath(path);
 }

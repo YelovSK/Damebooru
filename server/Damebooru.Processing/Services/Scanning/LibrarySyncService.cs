@@ -274,7 +274,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var existingPostFile = await dbContext.PostFiles
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                pf => pf.LibraryId == library.Id && pf.RelativePath.Replace("\\", "/") == normalizedItemPath,
+                pf => pf.LibraryId == library.Id && pf.RelativePath == normalizedItemPath,
                 cancellationToken);
 
         if (existingPostFile != null)
@@ -319,7 +319,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .Include(pf => pf.Post)
                 .ThenInclude(p => p.PostFiles)
             .FirstOrDefaultAsync(
-                pf => pf.LibraryId == library.Id && pf.RelativePath.Replace("\\", "/") == normalizedItemPath,
+                pf => pf.LibraryId == library.Id && pf.RelativePath == normalizedItemPath,
                 cancellationToken);
 
         var evaluation = await EvaluateIncomingFileAsync(dbContext, library.Id, item, cancellationToken);
@@ -371,7 +371,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .Include(pf => pf.Post)
                 .ThenInclude(p => p.PostFiles)
             .FirstOrDefaultAsync(
-                pf => pf.LibraryId == library.Id && pf.RelativePath.Replace("\\", "/") == normalizedRelativePath,
+                pf => pf.LibraryId == library.Id && pf.RelativePath == normalizedRelativePath,
                 cancellationToken);
 
         if (existingPostFile == null)
@@ -395,8 +395,8 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var prefixWithSlash = normalizedPrefix + "/";
         var candidates = await dbContext.PostFiles
             .Where(pf => pf.LibraryId == library.Id)
-            .Where(pf => pf.RelativePath.Replace("\\", "/") == normalizedPrefix
-                || pf.RelativePath.Replace("\\", "/").StartsWith(prefixWithSlash))
+            .Where(pf => pf.RelativePath == normalizedPrefix
+                || pf.RelativePath.StartsWith(prefixWithSlash))
             .ToListAsync(cancellationToken);
 
         if (candidates.Count == 0)
@@ -443,7 +443,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .Include(pf => pf.Post)
                 .ThenInclude(p => p.PostFiles)
             .FirstOrDefaultAsync(
-                pf => pf.LibraryId == library.Id && pf.RelativePath.Replace("\\", "/") == normalizedOldRelativePath,
+                pf => pf.LibraryId == library.Id && pf.RelativePath == normalizedOldRelativePath,
                 cancellationToken);
 
         if (existingPostFile == null)
@@ -461,8 +461,8 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .AsNoTracking()
             .AnyAsync(
                 pf => pf.LibraryId == library.Id
-                    && pf.RelativePath.Replace("\\", "/") == normalizedNewRelativePath
-                    && pf.RelativePath.Replace("\\", "/") != normalizedOldRelativePath,
+                    && pf.RelativePath == normalizedNewRelativePath
+                    && pf.RelativePath != normalizedOldRelativePath,
                 cancellationToken);
 
         if (conflictingTargetPath)
@@ -570,8 +570,8 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var oldPrefixWithSlash = normalizedOldPrefix + "/";
         var candidates = await dbContext.PostFiles
             .Where(pf => pf.LibraryId == library.Id)
-            .Where(pf => pf.RelativePath.Replace("\\", "/") == normalizedOldPrefix
-                || pf.RelativePath.Replace("\\", "/").StartsWith(oldPrefixWithSlash))
+            .Where(pf => pf.RelativePath == normalizedOldPrefix
+                || pf.RelativePath.StartsWith(oldPrefixWithSlash))
             .ToListAsync(cancellationToken);
 
         if (candidates.Count == 0)
@@ -1240,7 +1240,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         var excludedHash = await dbContext.ExcludedFiles
             .AsNoTracking()
-            .Where(e => e.LibraryId == libraryId && e.RelativePath.Replace("\\", "/") == normalizedRelativePath)
+            .Where(e => e.LibraryId == libraryId && e.RelativePath == normalizedRelativePath)
             .Select(e => e.ContentHash)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -1317,7 +1317,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var postFile = await dbContext.PostFiles
             .Include(pf => pf.Library)
             .FirstOrDefaultAsync(
-                pf => pf.LibraryId == libraryId && pf.RelativePath.Replace("\\", "/") == normalizedRelativePath,
+                pf => pf.LibraryId == libraryId && pf.RelativePath == normalizedRelativePath,
                 cancellationToken);
 
         if (postFile == null)

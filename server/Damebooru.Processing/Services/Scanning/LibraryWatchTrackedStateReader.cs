@@ -29,7 +29,7 @@ public sealed class LibraryWatchTrackedStateReader
         return await dbContext.PostFiles
             .AsNoTracking()
             .Where(pf => pf.LibraryId == libraryId)
-            .Select(pf => pf.RelativePath.Replace("\\", "/"))
+            .Select(pf => pf.RelativePath)
             .AnyAsync(
                 path => path == normalizedPrefix || path.StartsWith(prefixWithSlash),
                 cancellationToken);
@@ -42,7 +42,7 @@ public sealed class LibraryWatchTrackedStateReader
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
         var identity = await dbContext.PostFiles
             .AsNoTracking()
-            .Where(pf => pf.LibraryId == libraryId && pf.RelativePath.Replace("\\", "/") == normalizedRelativePath)
+            .Where(pf => pf.LibraryId == libraryId && pf.RelativePath == normalizedRelativePath)
             .Select(pf => new { pf.FileIdentityDevice, pf.FileIdentityValue })
             .FirstOrDefaultAsync(cancellationToken);
 
