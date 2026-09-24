@@ -37,7 +37,7 @@ export class DuplicatesSettingsComponent {
 
   updatePerceptualThreshold(value: number | null): void {
     this.updateDraft({
-      perceptualSimilarityThresholdPercent: this.normalizeThreshold(value, 68),
+      perceptualSimilarityThresholdPercent: this.normalizeThreshold(value, 36),
     });
   }
 
@@ -95,7 +95,7 @@ export class DuplicatesSettingsComponent {
       return fallback;
     }
 
-    return Math.max(50, Math.min(100, Math.round(value)));
+    return Math.max(1, Math.min(100, Math.round(value)));
   }
 
   private resolveError(err: unknown, fallback: string): string {

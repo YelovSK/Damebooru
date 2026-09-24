@@ -7,8 +7,6 @@ internal readonly record struct PdqHashWords(ulong W0, ulong W1, ulong W2, ulong
 
 internal static class PdqHashMatchHelper
 {
-    internal const int DefaultSimilarityThresholdPercent = 68;
-
     internal static bool TryParseHex256(string hex, out PdqHashWords words)
     {
         words = default;
@@ -42,7 +40,8 @@ internal static class PdqHashMatchHelper
                      + BitOperations.PopCount(left.W2 ^ right.W2)
                      + BitOperations.PopCount(left.W3 ^ right.W3);
 
-        var similarity = 1.0 - (double)distance / 256;
+        // Unrelated images differ in about half of the 256 bits, so 128 differing bits maps to 0%, not 50%.
+        var similarity = Math.Max(0, 1.0 - (double)distance / 128);
         var threshold = similarityThresholdPercent / 100.0;
 
         if (similarity < threshold)

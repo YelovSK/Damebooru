@@ -9,7 +9,7 @@ namespace Damebooru.Processing.Services.Duplicates;
 public sealed class DuplicateDetectionSettingsService
 {
     private const int SettingsId = 1;
-    private const int MinimumThresholdPercent = 50;
+    private const int MinimumThresholdPercent = 1;
     private const int MaximumThresholdPercent = 100;
 
     private readonly DamebooruDbContext _db;

@@ -12,14 +12,14 @@
             [ngModel]="current.perceptualSimilarityThresholdPercent"
             (ngModelChange)="updatePerceptualThreshold($event)"
             label="Perceptual threshold"
-            [min]="50"
+            [min]="1"
             [max]="100"
             [step]="1"
           />
         </div>
         <div class="flex-1">
           <p class="text-text-muted text-sm md:mt-7">
-            Minimum similarity percentage for image PDQ matches. Lower values find more candidates and may include more false positives.
+            Minimum similarity for image PDQ matches. 0% is what two unrelated images score and 100% is identical; re-encoded or resized copies usually land above 75%. Lower values find more candidates and more false positives.
           </p>
         </div>
       </div>

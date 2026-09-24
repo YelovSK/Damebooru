@@ -34,10 +34,37 @@ public class PdqHashMatchHelperTests
         var success = PdqHashMatchHelper.TryComputeSimilarity(
             words,
             words,
-            PdqHashMatchHelper.DefaultSimilarityThresholdPercent,
+            similarityThresholdPercent: 1,
             out var similarityPercent);
 
         Assert.True(success);
         Assert.Equal(100, similarityPercent);
+    }
+
+    [Theory]
+    [InlineData(0UL, 100)]
+    [InlineData(0xFFFFUL, 75)]
+    [InlineData(0xFFFFFFFFUL, 50)]
+    public void TryComputeSimilarity_ScalesSoUnrelatedImagesScoreZero(ulong differingBitsInEachWord, int expectedPercent)
+    {
+        // Differing bits across the first two words: 0, 32 and 64 of 256.
+        var left = new PdqHashWords(0, 0, 0, 0);
+        var right = new PdqHashWords(differingBitsInEachWord, differingBitsInEachWord, 0, 0);
+
+        PdqHashMatchHelper.TryComputeSimilarity(left, right, similarityThresholdPercent: 1, out var similarityPercent);
+
+        Assert.Equal(expectedPercent, similarityPercent);
+    }
+
+    [Fact]
+    public void TryComputeSimilarity_HalfTheBitsDifferent_IsNoMatch()
+    {
+        var left = new PdqHashWords(0, 0, 0, 0);
+        var right = new PdqHashWords(ulong.MaxValue, ulong.MaxValue, 0, 0);
+
+        var success = PdqHashMatchHelper.TryComputeSimilarity(left, right, similarityThresholdPercent: 1, out var similarityPercent);
+
+        Assert.False(success);
+        Assert.Equal(0, similarityPercent);
     }
 }
