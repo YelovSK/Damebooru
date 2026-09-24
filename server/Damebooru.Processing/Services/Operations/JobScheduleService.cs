@@ -1,8 +1,8 @@
+using Cronos;
 using Damebooru.Core.DTOs;
 using Damebooru.Core.Interfaces;
 using Damebooru.Core.Results;
 using Damebooru.Data;
-using Cronos;
 using Microsoft.EntityFrameworkCore;
 
 namespace Damebooru.Processing.Services;
@@ -10,59 +10,27 @@ namespace Damebooru.Processing.Services;
 public class JobScheduleService
 {
     private readonly DamebooruDbContext _context;
-    private readonly Dictionary<JobKey, int> _jobOrderByKey;
-    private readonly Dictionary<JobKey, string> _jobDisplayNameByKey;
-    private readonly Dictionary<string, JobKey> _jobKeyByName;
+    private readonly Dictionary<JobKey, IJob> _jobsByKey;
 
     public JobScheduleService(DamebooruDbContext context, IEnumerable<IJob> jobs)
     {
         _context = context;
-        _jobOrderByKey = jobs
+        _jobsByKey = jobs
             .GroupBy(j => j.Key)
-            .ToDictionary(g => g.Key, g => g.First().DisplayOrder);
-        _jobDisplayNameByKey = jobs
-            .GroupBy(j => j.Key)
-            .ToDictionary(g => g.Key, g => g.First().Name);
-        _jobKeyByName = jobs
-            .GroupBy(j => j.Name, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First().Key, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(g => g.Key, g => g.First());
     }
 
-    private JobKey? ResolveKey(string storedJobName)
-    {
-        if (JobKey.TryParse(storedJobName, out var parsedKey)
-            && _jobOrderByKey.ContainsKey(parsedKey))
-        {
-            return parsedKey;
-        }
+    private IJob? FindJob(string storedJobKey)
+        => JobKey.TryParse(storedJobKey, out var key) && _jobsByKey.TryGetValue(key, out var job) ? job : null;
 
-        if (_jobKeyByName.TryGetValue(storedJobName, out var key))
-        {
-            return key;
-        }
-
-        return null;
-    }
-
-    private string ResolveDisplayName(string storedJobName)
-    {
-        var key = ResolveKey(storedJobName);
-        return key.HasValue && _jobDisplayNameByKey.TryGetValue(key.Value, out var displayName)
-            ? displayName
-            : storedJobName;
-    }
+    private string ResolveDisplayName(string storedJobKey)
+        => FindJob(storedJobKey)?.Name ?? storedJobKey;
 
     public async Task<List<ScheduledJobDto>> GetSchedulesAsync(CancellationToken cancellationToken = default)
     {
         var schedules = await _context.ScheduledJobs.ToListAsync(cancellationToken);
         return schedules
-            .OrderBy(s =>
-            {
-                var key = ResolveKey(s.JobName);
-                return key.HasValue && _jobOrderByKey.TryGetValue(key.Value, out var order)
-                    ? order
-                    : int.MaxValue;
-            })
+            .OrderBy(s => FindJob(s.JobName)?.DisplayOrder ?? int.MaxValue)
             .ThenBy(s => s.JobName, StringComparer.OrdinalIgnoreCase)
             .Select(s => new ScheduledJobDto
         {
@@ -86,18 +54,15 @@ public class JobScheduleService
 
         try
         {
-            Cronos.CronExpression.Parse(update.CronExpression);
+            schedule.NextRun = JobCron.GetNextRun(update.CronExpression);
         }
-        catch
+        catch (CronFormatException)
         {
             return Result<ScheduledJobDto>.Failure(OperationError.InvalidInput, $"Invalid cron expression: '{update.CronExpression}'");
         }
 
         schedule.CronExpression = update.CronExpression;
         schedule.IsEnabled = update.IsEnabled;
-
-        var cron = Cronos.CronExpression.Parse(schedule.CronExpression);
-        schedule.NextRun = cron.GetNextOccurrence(DateTime.UtcNow, inclusive: false);
 
         await _context.SaveChangesAsync();
 
@@ -126,13 +91,12 @@ public class JobScheduleService
 
         try
         {
-            var parsed = CronExpression.Parse(expression);
             var nextRuns = new List<DateTime>();
             var cursor = DateTime.UtcNow;
 
             for (var i = 0; i < Math.Clamp(count, 1, 10); i++)
             {
-                var next = parsed.GetNextOccurrence(cursor, inclusive: false);
+                var next = JobCron.GetNextRun(expression, cursor);
                 if (!next.HasValue)
                 {
                     break;
@@ -148,7 +112,7 @@ public class JobScheduleService
                 NextRuns = nextRuns
             };
         }
-        catch
+        catch (CronFormatException)
         {
             return new CronPreviewDto
             {
