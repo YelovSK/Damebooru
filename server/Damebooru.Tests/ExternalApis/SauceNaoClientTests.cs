@@ -20,7 +20,7 @@ public sealed class SauceNaoClientTests
         var exception = await SearchAndCaptureException(client);
 
         Assert.Contains("Search Rate Too High", exception.Message);
-        Assert.True(exception.IsRetryable);
+        Assert.False(exception.RejectsImage);
         Assert.Equal(TimeSpan.FromSeconds(30), exception.RetryAfter);
         Assert.False(exception.StopCurrentRun);
     }
@@ -38,7 +38,7 @@ public sealed class SauceNaoClientTests
 
         var exception = await SearchAndCaptureException(client);
 
-        Assert.True(exception.IsRetryable);
+        Assert.False(exception.RejectsImage);
         Assert.Equal(TimeSpan.FromSeconds(30), exception.RetryAfter);
         Assert.False(exception.StopCurrentRun);
     }
@@ -46,7 +46,7 @@ public sealed class SauceNaoClientTests
     [Theory]
     [InlineData(HttpStatusCode.BadGateway, "<html><body>502 Bad Gateway</body></html>")]
     [InlineData(HttpStatusCode.OK, "error: something went wrong")]
-    public async Task SearchAsync_NonJsonBody_IsRetryableAndKeepsStatusAndBody(HttpStatusCode statusCode, string body)
+    public async Task SearchAsync_NonJsonBody_IsRetriedAndKeepsStatusAndBody(HttpStatusCode statusCode, string body)
     {
         var client = CreateClient(new HttpResponseMessage(statusCode)
         {
@@ -55,7 +55,7 @@ public sealed class SauceNaoClientTests
 
         var exception = await SearchAndCaptureException(client);
 
-        Assert.True(exception.IsRetryable);
+        Assert.False(exception.RejectsImage);
         Assert.False(exception.StopCurrentRun);
         Assert.Contains($"HTTP {(int)statusCode}", exception.Message);
         Assert.Contains(body, exception.Message);
@@ -70,7 +70,35 @@ public sealed class SauceNaoClientTests
 
         var exception = await SearchAndCaptureException(client);
 
-        Assert.True(exception.IsRetryable);
+        Assert.False(exception.RejectsImage);
+        Assert.True(exception.StopCurrentRun);
+    }
+
+    [Fact]
+    public async Task SearchAsync_ImageTooSmall_RejectsImage()
+    {
+        var client = CreateClient(new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""{"header":{"status":-6,"message":"Image too small."}}""", Encoding.UTF8, "application/json"),
+        });
+
+        var exception = await SearchAndCaptureException(client);
+
+        Assert.True(exception.RejectsImage);
+        Assert.False(exception.StopCurrentRun);
+    }
+
+    [Fact]
+    public async Task SearchAsync_Forbidden_StopsRunWithoutRejectingImage()
+    {
+        var client = CreateClient(new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            Content = new StringContent("""{"header":{"status":-1,"message":"Invalid API key."}}""", Encoding.UTF8, "application/json"),
+        });
+
+        var exception = await SearchAndCaptureException(client);
+
+        Assert.False(exception.RejectsImage);
         Assert.True(exception.StopCurrentRun);
     }
 

@@ -19,8 +19,8 @@ public sealed class AutoTagScanServiceTests : IDisposable
     {
         await using var db = await CreateContextAsync();
         var postId = await SeedPostAsync(db);
-        var sauceNao = new FakeDiscoveryClient(AutoTagProvider.SauceNao, fail: true);
-        var iqdb = new FakeDiscoveryClient(AutoTagProvider.Iqdb, fail: false);
+        var sauceNao = new FakeDiscoveryClient(AutoTagProvider.SauceNao, new ExternalProviderException(AutoTagProvider.SauceNao, "Image too small.", rejectsImage: true));
+        var iqdb = new FakeDiscoveryClient(AutoTagProvider.Iqdb);
         var service = CreateService(db, sauceNao, iqdb);
 
         await service.ScanPostAsync(postId);
@@ -33,13 +33,35 @@ public sealed class AutoTagScanServiceTests : IDisposable
         Assert.Equal(1, sauceNaoStep.AttemptCount);
     }
 
+    [Theory]
+    [MemberData(nameof(RetryableFailures))]
+    public async Task ScanPostAsync_FailuresOtherThanImageRejection_AreRetryable(Exception failure)
+    {
+        await using var db = await CreateContextAsync();
+        var postId = await SeedPostAsync(db);
+        var service = CreateService(db, new FakeDiscoveryClient(AutoTagProvider.SauceNao, failure));
+
+        await service.ScanPostAsync(postId);
+
+        var step = await db.PostAutoTagScanSteps.SingleAsync(step => step.Provider == AutoTagProvider.SauceNao && step.Kind == AutoTagScanStepKind.Discovery);
+        Assert.Equal(AutoTagScanStepStatus.RetryableFailure, step.Status);
+        Assert.NotNull(step.NextRetryAtUtc);
+    }
+
+    public static TheoryData<Exception> RetryableFailures() => new()
+    {
+        new ExternalProviderException(AutoTagProvider.SauceNao, "HTTP 502"),
+        new System.Text.Json.JsonException("'<' is an invalid start of a value."),
+        new InvalidOperationException("Unexpected bug."),
+    };
+
     private static AutoTagScanService CreateService(DamebooruDbContext db, params FakeDiscoveryClient[] clients)
     {
         IExternalPostDiscoveryClient[] discovery =
         [
             .. clients,
-            new FakeDiscoveryClient(AutoTagProvider.Danbooru, fail: false),
-            new FakeDiscoveryClient(AutoTagProvider.Gelbooru, fail: false),
+            new FakeDiscoveryClient(AutoTagProvider.Danbooru),
+            new FakeDiscoveryClient(AutoTagProvider.Gelbooru),
         ];
         IExternalPostMetadataClient[] metadata =
         [
@@ -97,7 +119,7 @@ public sealed class AutoTagScanServiceTests : IDisposable
         }
     }
 
-    private sealed class FakeDiscoveryClient(AutoTagProvider provider, bool fail) : IExternalPostDiscoveryClient
+    private sealed class FakeDiscoveryClient(AutoTagProvider provider, Exception? failure = null) : IExternalPostDiscoveryClient
     {
         public int Calls { get; private set; }
         public AutoTagProvider Provider => provider;
@@ -105,9 +127,9 @@ public sealed class AutoTagScanServiceTests : IDisposable
         public Task<ExternalDiscoveryResult> DiscoverAsync(PostDiscoveryContext context, CancellationToken cancellationToken = default)
         {
             Calls++;
-            if (fail)
+            if (failure != null)
             {
-                throw new ExternalProviderException(provider, "Image too small.", isRetryable: false);
+                throw failure;
             }
 
             return Task.FromResult(new ExternalDiscoveryResult(provider, []));

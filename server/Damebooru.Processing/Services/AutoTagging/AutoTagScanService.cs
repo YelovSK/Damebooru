@@ -334,8 +334,9 @@ public sealed class AutoTagScanService
 
     private static AutoTagExecutionDirective? HandleStepFailure(PostAutoTagScanStep step, Exception exception)
     {
+        // Only the provider rejecting the image itself is permanent; outages, odd responses and our own bugs get retried.
         var providerException = exception as ExternalProviderException;
-        var isRetryable = providerException?.IsRetryable == true || IsTransientException(exception);
+        var isRetryable = providerException?.RejectsImage != true;
 
         step.Status = isRetryable
             ? AutoTagScanStepStatus.RetryableFailure
@@ -349,11 +350,6 @@ public sealed class AutoTagScanService
             ? null
             : new AutoTagExecutionDirective(providerException.Provider, providerException.Message, providerException.RetryAfter, providerException.StopCurrentRun);
     }
-
-    private static bool IsTransientException(Exception exception)
-        => exception is HttpRequestException
-            || exception is TimeoutException
-            || exception is TaskCanceledException;
 
     private static bool CanAutoTag(PostScanTarget post)
         => post.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)

@@ -116,11 +116,13 @@ internal sealed class SauceNaoClient(
             throw new ExternalProviderException(
                 provider: AutoTagProvider.SauceNao,
                 message: BuildFailureMessage(response.StatusCode, payload.Header),
-                isRetryable: IsRetryable(response.StatusCode, payload.Header),
+                rejectsImage: payload.Header.IsNoImageProvided || payload.Header.IsFileTooLarge || payload.Header.IsImageTooSmall,
                 retryAfter: payload.Header.IsShortLimitExceeded || payload.Header.IsFailedAttemptsExceeded
                     ? TimeSpan.FromSeconds(30)
                     : null,
-                stopCurrentRun: payload.Header.IsDailyLimitExceeded || payload.Header.IsFailedAttemptsExceeded);
+                stopCurrentRun: payload.Header.IsDailyLimitExceeded
+                    || payload.Header.IsFailedAttemptsExceeded
+                    || response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden);
         }
 
         throw new InvalidOperationException("Unreachable SauceNAO response state encountered.");
@@ -155,8 +157,7 @@ internal sealed class SauceNaoClient(
         var excerpt = content.Length > 300 ? content[..300] + "…" : content;
         throw new ExternalProviderException(
             provider: AutoTagProvider.SauceNao,
-            message: $"SauceNAO returned a non-JSON response with HTTP {(int)response.StatusCode}: {excerpt}",
-            isRetryable: true);
+            message: $"SauceNAO returned a non-JSON response with HTTP {(int)response.StatusCode}: {excerpt}");
     }
 
     private void LogFailure(HttpStatusCode statusCode, SauceNaoHeaderDto header)
@@ -209,18 +210,8 @@ internal sealed class SauceNaoClient(
             throw new ExternalProviderException(
                 AutoTagProvider.SauceNao,
                 $"SauceNAO upload preparation failed: {ex.Message}",
-                isRetryable: false,
+                rejectsImage: true,
                 innerException: ex);
         }
-    }
-
-    private static bool IsRetryable(HttpStatusCode statusCode, SauceNaoHeaderDto header)
-    {
-        if (header.IsNoImageProvided || header.IsFileTooLarge || header.IsImageTooSmall)
-        {
-            return false;
-        }
-
-        return statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
     }
 }

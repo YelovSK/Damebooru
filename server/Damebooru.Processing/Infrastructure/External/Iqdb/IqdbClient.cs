@@ -38,6 +38,8 @@ internal sealed partial class IqdbClient(HttpClient httpClient, DamebooruConfig 
         SupportedUploadExtensions = SupportedUploadExtensions,
     };
 
+    private static readonly string[] ImageRejectionPhrases = ["not an image", "not supported", "too big", "too large", "too small"];
+
     public AutoTagProvider Provider => AutoTagProvider.Iqdb;
 
     public async Task<ExternalDiscoveryResult> DiscoverAsync(PostDiscoveryContext context, CancellationToken cancellationToken = default)
@@ -56,10 +58,10 @@ internal sealed partial class IqdbClient(HttpClient httpClient, DamebooruConfig 
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new ExternalProviderException(
+            throw ExternalProviderException.ForHttpStatus(
                 Provider,
                 $"IQDB discovery failed with status code {(int)response.StatusCode}.",
-                response.StatusCode == HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500);
+                response.StatusCode);
         }
 
         var html = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -141,8 +143,12 @@ internal sealed partial class IqdbClient(HttpClient httpClient, DamebooruConfig 
         throw new ExternalProviderException(
             AutoTagProvider.Iqdb,
             $"IQDB discovery failed: {errorText.Trim()}",
-            isRetryable: errorText.Contains("HTTP request failed", StringComparison.OrdinalIgnoreCase));
+            rejectsImage: IsImageRejection(errorText));
     }
+
+    // IQDB also reports its own hiccups here ("Can't read query result! Please try again."), which must stay retryable.
+    private static bool IsImageRejection(string errorText)
+        => ImageRejectionPhrases.Any(phrase => errorText.Contains(phrase, StringComparison.OrdinalIgnoreCase));
 
     private static string? EnsureScheme(string? value)
     {
@@ -190,7 +196,7 @@ internal sealed partial class IqdbClient(HttpClient httpClient, DamebooruConfig 
             throw new ExternalProviderException(
                 AutoTagProvider.Iqdb,
                 $"IQDB upload preparation failed: {ex.Message}",
-                isRetryable: false,
+                rejectsImage: true,
                 innerException: ex);
         }
     }

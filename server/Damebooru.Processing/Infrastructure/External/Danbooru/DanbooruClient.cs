@@ -39,10 +39,10 @@ internal sealed partial class DanbooruClient : IDanbooruClient
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new ExternalProviderException(
+            throw ExternalProviderException.ForHttpStatus(
                 Provider,
                 $"Danbooru request failed with status code {(int)response.StatusCode}.",
-                IsRetryable(response.StatusCode));
+                response.StatusCode);
         }
 
         var payload = await response.Content.ReadFromJsonAsync<DanbooruPostDto>(cancellationToken: cancellationToken)
@@ -82,10 +82,10 @@ internal sealed partial class DanbooruClient : IDanbooruClient
         using var response = await _httpClient.GetAsync($"/posts.json?tags=md5:{Uri.EscapeDataString(context.Md5Hash)}&limit=1", cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new ExternalProviderException(
+            throw ExternalProviderException.ForHttpStatus(
                 Provider,
                 $"Danbooru md5 discovery failed with status code {(int)response.StatusCode}.",
-                IsRetryable(response.StatusCode));
+                response.StatusCode);
         }
 
         var payload = await response.Content.ReadFromJsonAsync<List<DanbooruPostDto>>(cancellationToken: cancellationToken) ?? [];
@@ -105,9 +105,6 @@ internal sealed partial class DanbooruClient : IDanbooruClient
             : rawTags.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(tag => new ExternalTagData(tag, category))
                 .ToList();
-
-    private static bool IsRetryable(HttpStatusCode statusCode)
-        => statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
 
     [GeneratedRegex(@"https?://danbooru\.donmai\.us/posts/(\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DanbooruUrlRegex();

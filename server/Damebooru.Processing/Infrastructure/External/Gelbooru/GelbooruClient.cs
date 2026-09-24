@@ -40,10 +40,10 @@ internal sealed partial class GelbooruClient : IGelbooruClient
 
         if (!postResponse.IsSuccessStatusCode)
         {
-            throw new ExternalProviderException(
+            throw ExternalProviderException.ForHttpStatus(
                 Provider,
                 $"Gelbooru request failed with status code {(int)postResponse.StatusCode}.",
-                IsRetryable(postResponse.StatusCode));
+                postResponse.StatusCode);
         }
 
         using var postDocument = await JsonDocument.ParseAsync(await postResponse.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
@@ -86,10 +86,10 @@ internal sealed partial class GelbooruClient : IGelbooruClient
 
         if (!postResponse.IsSuccessStatusCode)
         {
-            throw new ExternalProviderException(
+            throw ExternalProviderException.ForHttpStatus(
                 Provider,
                 $"Gelbooru md5 discovery failed with status code {(int)postResponse.StatusCode}.",
-                IsRetryable(postResponse.StatusCode));
+                postResponse.StatusCode);
         }
 
         using var postDocument = await JsonDocument.ParseAsync(await postResponse.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
@@ -133,10 +133,10 @@ internal sealed partial class GelbooruClient : IGelbooruClient
         }), cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new ExternalProviderException(
+            throw ExternalProviderException.ForHttpStatus(
                 Provider,
                 $"Gelbooru tag request failed with status code {(int)response.StatusCode}.",
-                IsRetryable(response.StatusCode));
+                response.StatusCode);
         }
 
         using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
@@ -249,9 +249,6 @@ internal sealed partial class GelbooruClient : IGelbooruClient
             5 => TagCategoryKind.Meta,
             _ => TagCategoryKind.General,
         };
-
-    private static bool IsRetryable(HttpStatusCode statusCode)
-        => statusCode == HttpStatusCode.TooManyRequests || (int)statusCode >= 500;
 
     [GeneratedRegex(@"https?://gelbooru\.com/index\.php\?page=post&s=view&id=(\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex GelbooruViewRegex();
