@@ -142,23 +142,24 @@ internal sealed class LibraryWatchSession
     public async Task ProcessAsync(ChannelReader<LibraryWatchEvent> reader, CancellationToken cancellationToken)
     {
         var pendingState = new LibraryWatchPendingState(_deleteGracePeriod);
+        Task<bool>? waitTask = null;
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            var waitTask = reader.WaitToReadAsync(cancellationToken).AsTask();
-            var expiryTask = pendingState.HasPendingExpirations
-                ? Task.Delay(pendingState.GetNextFlushDelay(), cancellationToken)
-                : Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-
-            var completedTask = await Task.WhenAny(waitTask, expiryTask);
-            if (completedTask == expiryTask)
+            waitTask ??= reader.WaitToReadAsync(cancellationToken).AsTask();
+            if (pendingState.HasPendingExpirations)
             {
-                await FlushDeletesAsync(pendingState.TakeExpiredDeleteEntries(), cancellationToken);
-                pendingState.FlushExpiredDirectoryCreates();
-                continue;
+                var expiryTask = Task.Delay(pendingState.GetNextFlushDelay(), cancellationToken);
+                if (await Task.WhenAny(waitTask, expiryTask) == expiryTask)
+                {
+                    await FlushExpiredAsync(pendingState, cancellationToken);
+                    continue;
+                }
             }
 
-            if (!await waitTask)
+            var hasData = await waitTask;
+            waitTask = null;
+            if (!hasData)
             {
                 break;
             }
@@ -193,8 +194,7 @@ internal sealed class LibraryWatchSession
             foreach (var operation in CompactBatch(batch))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                await FlushDeletesAsync(pendingState.TakeExpiredDeleteEntries(), cancellationToken);
-                pendingState.FlushExpiredDirectoryCreates();
+                await FlushExpiredAsync(pendingState, cancellationToken);
 
                 _logger.LogDebug(
                     "Watcher compacted operation for library {Library}: {Kind} {EntryType} {OldPath} -> {Path}",
@@ -213,15 +213,38 @@ internal sealed class LibraryWatchSession
                         operation.RelativePath);
                 }
 
-                await ProcessOperationAsync(operation, pendingState, cancellationToken);
+                await RunSafelyAsync(
+                    () => ProcessOperationAsync(operation, pendingState, cancellationToken),
+                    $"{operation.Kind} {operation.OldRelativePath ?? operation.RelativePath}",
+                    cancellationToken);
             }
 
-            await FlushDeletesAsync(pendingState.TakeExpiredDeleteEntries(), cancellationToken);
-            pendingState.FlushExpiredDirectoryCreates();
+            await FlushExpiredAsync(pendingState, cancellationToken);
         }
 
         await FlushDeletesAsync(pendingState.TakeAllDeletes(), cancellationToken);
         pendingState.ClearDirectoryCreates();
+    }
+
+    private async Task FlushExpiredAsync(LibraryWatchPendingState pendingState, CancellationToken cancellationToken)
+    {
+        await FlushDeletesAsync(pendingState.TakeExpiredDeleteEntries(), cancellationToken);
+        pendingState.FlushExpiredDirectoryCreates();
+    }
+
+    /// <summary>
+    /// One failing file must not stop the session; the next full scan reconciles whatever was missed.
+    /// </summary>
+    private async Task RunSafelyAsync(Func<Task> action, string description, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogError(ex, "Watcher failed to process {Operation} in library {Library}", description, _library.Name);
+        }
     }
 
     private async Task ProcessOperationAsync(
@@ -489,7 +512,10 @@ internal sealed class LibraryWatchSession
     {
         foreach (var delete in deletes)
         {
-            await ProcessDeleteAsync(delete.RelativePath, delete.IsDirectory, cancellationToken);
+            await RunSafelyAsync(
+                () => ProcessDeleteAsync(delete.RelativePath, delete.IsDirectory, cancellationToken),
+                $"Delete {delete.RelativePath}",
+                cancellationToken);
         }
     }
 

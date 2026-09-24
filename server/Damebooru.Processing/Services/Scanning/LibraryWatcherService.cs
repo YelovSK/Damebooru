@@ -103,10 +103,16 @@ public sealed class LibraryWatcherService : BackgroundService
 
             if (_registrations.TryGetValue(library.Id, out var existing))
             {
-                if (string.Equals(existing.Library.Path, library.Path, StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(existing.Library.Name, library.Name, StringComparison.Ordinal))
+                var unchanged = string.Equals(existing.Library.Path, library.Path, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(existing.Library.Name, library.Name, StringComparison.Ordinal);
+                if (unchanged && !existing.ProcessingTask.IsCompleted)
                 {
                     continue;
+                }
+
+                if (existing.ProcessingTask.IsCompleted)
+                {
+                    _logger.LogWarning("Watcher session for library {Library} stopped unexpectedly; restarting it", library.Name);
                 }
 
                 await RemoveRegistrationAsync(library.Id);
@@ -184,6 +190,10 @@ public sealed class LibraryWatcherService : BackgroundService
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Watcher session for library {Library} failed", registration.Library.Name);
         }
         finally
         {
