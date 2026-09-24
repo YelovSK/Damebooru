@@ -104,6 +104,52 @@ public class DuplicateWriteServiceTests
         }
     }
 
+    [Fact]
+    public async Task KeepOneAsync_MergesFavoriteAndNonFolderTagsIntoKeptPost()
+    {
+        await using var db = await CreateContextAsync();
+
+        var library = new Library { Name = "Library", Path = Path.GetTempPath() };
+        var manualTag = new Tag { Name = "manual", Category = TagCategoryKind.General };
+        var folderTag = new Tag { Name = "other_folder", Category = TagCategoryKind.General };
+        db.Libraries.Add(library);
+        db.Tags.AddRange(manualTag, folderTag);
+        await db.SaveChangesAsync();
+
+        var keepPost = CreatePost(library.Id, "keep.png", "hash-a", DateTime.UtcNow);
+        var removePost = CreatePost(library.Id, "other_folder/remove.png", "hash-b", DateTime.UtcNow);
+        removePost.IsFavorite = true;
+        removePost.PostTags =
+        [
+            new PostTag { TagId = manualTag.Id, Source = PostTagSource.Manual },
+            new PostTag { TagId = folderTag.Id, Source = PostTagSource.Folder },
+        ];
+        db.Posts.AddRange(keepPost, removePost);
+        await db.SaveChangesAsync();
+
+        var group = new DuplicateGroup
+        {
+            Type = DuplicateType.Perceptual,
+            Entries =
+            [
+                new DuplicateGroupEntry { PostId = keepPost.Id },
+                new DuplicateGroupEntry { PostId = removePost.Id },
+            ],
+        };
+        db.DuplicateGroups.Add(group);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+
+        var service = new DuplicateWriteService(db, new FolderTaggingService());
+        var result = await service.KeepOneAsync(group.Id, keepPost.Id);
+
+        Assert.True(result.IsSuccess, result.Message);
+        var kept = await db.Posts.Include(p => p.PostTags).SingleAsync(p => p.Id == keepPost.Id);
+        Assert.True(kept.IsFavorite);
+        Assert.Equal([manualTag.Id], kept.PostTags.Select(pt => pt.TagId));
+        Assert.False(await db.Posts.AnyAsync(p => p.Id == removePost.Id));
+    }
+
     private static async Task<DamebooruDbContext> CreateContextAsync()
     {
         var connection = new SqliteConnection("Data Source=:memory:");

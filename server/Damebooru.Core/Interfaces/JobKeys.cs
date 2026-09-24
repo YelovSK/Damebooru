@@ -6,7 +6,6 @@ public static class JobKeys
     public static readonly JobKey ExtractMetadata = JobKey.Parse("extract-metadata");
     public static readonly JobKey ComputeSimilarity = JobKey.Parse("compute-similarity");
     public static readonly JobKey FindDuplicates = JobKey.Parse("find-duplicates");
-    public static readonly JobKey MergeExactDuplicatePosts = JobKey.Parse("merge-exact-duplicate-posts");
     public static readonly JobKey HardlinkExactDuplicateFiles = JobKey.Parse("hardlink-exact-duplicate-files");
     public static readonly JobKey GenerateThumbnails = JobKey.Parse("generate-thumbnails");
     public static readonly JobKey CleanupOrphanedThumbnails = JobKey.Parse("cleanup-orphaned-thumbnails");

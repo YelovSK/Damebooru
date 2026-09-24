@@ -92,7 +92,6 @@ public static class ServiceCollectionExtensions
         // Jobs
         services.AddTransient<IJob, Jobs.ScanAllLibrariesJob>();
         services.AddTransient<IJob, Jobs.FindDuplicatesJob>();
-        services.AddTransient<IJob, Jobs.MergeExactDuplicatePostsJob>();
         services.AddTransient<IJob, Jobs.HardlinkExactDuplicateFilesJob>();
         services.AddTransient<IJob, Jobs.GenerateThumbnailsJob>();
         services.AddTransient<IJob, Jobs.CleanupOrphanedThumbnailsJob>();

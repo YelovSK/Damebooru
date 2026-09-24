@@ -409,8 +409,10 @@ public class DuplicateWriteService
         foreach (var entry in removedEntries)
         {
             var post = entry.Post;
+            keptPost.IsFavorite |= post.IsFavorite;
 
-            foreach (var pt in post.PostTags)
+            // Folder tags come from the kept post's own paths.
+            foreach (var pt in post.PostTags.Where(pt => pt.Source != PostTagSource.Folder))
             {
                 if (existingTagAssignments.Add((pt.TagId, pt.Source)))
                 {
