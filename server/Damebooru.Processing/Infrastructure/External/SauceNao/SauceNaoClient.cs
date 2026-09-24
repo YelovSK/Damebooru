@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using Damebooru.Core.Config;
 using Damebooru.Core.Entities;
@@ -75,12 +74,6 @@ internal sealed class SauceNaoClient(
         using var response = await _httpClient.PostAsync(url, formData, cancellationToken);
 
         var payload = await ReadPayloadAsync(response, cancellationToken);
-        if (payload is null)
-        {
-            _rateCoordinator.ObserveFailure();
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
-            throw new InvalidOperationException($"Could not deserialize SauceNAO response: {content}");
-        }
 
         if (response.IsSuccessStatusCode && payload.Header.IsSuccess)
         {
@@ -136,21 +129,37 @@ internal sealed class SauceNaoClient(
         throw new InvalidOperationException("Unreachable SauceNAO response state encountered.");
     }
 
-    private static async Task<SauceNaoResponseDto?> ReadPayloadAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    private async Task<SauceNaoResponseDto> ReadPayloadAsync(HttpResponseMessage response, CancellationToken cancellationToken)
     {
+        var content = await response.Content.ReadAsStringAsync(cancellationToken);
         try
         {
-            return await response.Content.ReadFromJsonAsync<SauceNaoResponseDto>(cancellationToken);
+            var payload = JsonSerializer.Deserialize<SauceNaoResponseDto>(content, JsonSerializerOptions.Web);
+            if (payload != null)
+            {
+                return payload;
+            }
         }
-        catch (JsonException) when (response.StatusCode == HttpStatusCode.TooManyRequests)
+        catch (JsonException)
+        {
+        }
+
+        if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
             // Non-JSON 429 body; without a header, assume the short-term rate limit.
-            var content = await response.Content.ReadAsStringAsync(cancellationToken);
             return new SauceNaoResponseDto
             {
                 Header = new SauceNaoHeaderDto { Status = -2, Message = content },
             };
         }
+
+        // Usually an HTML error or maintenance page from SauceNAO or its proxy, which passes.
+        _rateCoordinator.ObserveFailure();
+        var excerpt = content.Length > 300 ? content[..300] + "…" : content;
+        throw new ExternalProviderException(
+            provider: AutoTagProvider.SauceNao,
+            message: $"SauceNAO returned a non-JSON response with HTTP {(int)response.StatusCode}: {excerpt}",
+            isRetryable: true);
     }
 
     private void LogFailure(HttpStatusCode statusCode, SauceNaoHeaderDto header)

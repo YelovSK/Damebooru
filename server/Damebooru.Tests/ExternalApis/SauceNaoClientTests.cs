@@ -43,6 +43,24 @@ public sealed class SauceNaoClientTests
         Assert.False(exception.StopCurrentRun);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.BadGateway, "<html><body>502 Bad Gateway</body></html>")]
+    [InlineData(HttpStatusCode.OK, "error: something went wrong")]
+    public async Task SearchAsync_NonJsonBody_IsRetryableAndKeepsStatusAndBody(HttpStatusCode statusCode, string body)
+    {
+        var client = CreateClient(new HttpResponseMessage(statusCode)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "text/html"),
+        });
+
+        var exception = await SearchAndCaptureException(client);
+
+        Assert.True(exception.IsRetryable);
+        Assert.False(exception.StopCurrentRun);
+        Assert.Contains($"HTTP {(int)statusCode}", exception.Message);
+        Assert.Contains(body, exception.Message);
+    }
+
     [Fact]
     public async Task SearchAsync_429WithDailyLimitHeader_StopsRun()
     {
