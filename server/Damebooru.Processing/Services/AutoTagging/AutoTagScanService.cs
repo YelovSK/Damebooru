@@ -186,7 +186,14 @@ public sealed class AutoTagScanService
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Auto-tag discovery failed for post {PostId} ({RelativePath}) at provider {Provider}", context.PostId, context.RelativePath, provider);
-                return HandleStepFailure(step, ex);
+                var directive = HandleStepFailure(step, ex);
+
+                // A retryable failure pauses discovery so the preferred provider gets another try first;
+                // a permanent one will never succeed for this content, so fall through to the next provider.
+                if (directive != null || step.Status == AutoTagScanStepStatus.RetryableFailure)
+                {
+                    return directive;
+                }
             }
         }
 
@@ -312,9 +319,10 @@ public sealed class AutoTagScanService
         return step;
     }
 
+    // Permanent failures stay failed until the content changes or a forced refresh resets the scan.
     private static bool ShouldRunStep(PostAutoTagScanStep step)
-        => (step.Status is AutoTagScanStepStatus.Pending or AutoTagScanStepStatus.PermanentFailure or AutoTagScanStepStatus.RetryableFailure)
-           && (step.NextRetryAtUtc == null || step.NextRetryAtUtc <= DateTime.UtcNow);
+        => step.Status == AutoTagScanStepStatus.Pending
+           || (step.Status == AutoTagScanStepStatus.RetryableFailure && (step.NextRetryAtUtc == null || step.NextRetryAtUtc <= DateTime.UtcNow));
 
     private static void PrepareStepAttempt(PostAutoTagScanStep step)
     {
