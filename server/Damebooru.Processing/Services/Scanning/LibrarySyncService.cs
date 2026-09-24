@@ -222,28 +222,35 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .Where(path => !state.SeenPaths.ContainsKey(path))
             .ToList();
 
-        if (orphanPaths.Count > 0)
+        using (var scope = _scopeFactory.CreateScope())
         {
-            status?.Report($"Removing {orphanPaths.Count} orphaned posts...");
-            _logger.LogInformation("Removing {Count} orphaned posts from library {Library}", orphanPaths.Count, library.Name);
-
-            using var scope = _scopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
 
-            const int batchSize = 100;
-            for (var i = 0; i < orphanPaths.Count; i += batchSize)
+            if (orphanPaths.Count > 0)
             {
-                var batch = orphanPaths.Skip(i).Take(batchSize).ToList();
-                var orphanFileIds = batch.Select(path => state.ExistingFilesByPath[path].PostFileId).ToList();
+                status?.Report($"Removing {orphanPaths.Count} orphaned files...");
+                _logger.LogInformation("Removing {Count} orphaned files from library {Library}", orphanPaths.Count, library.Name);
 
-                await dbContext.PostFiles
-                    .Where(pf => orphanFileIds.Contains(pf.Id))
-                    .ExecuteDeleteAsync(cancellationToken);
+                const int batchSize = 100;
+                for (var i = 0; i < orphanPaths.Count; i += batchSize)
+                {
+                    var orphanFileIds = orphanPaths
+                        .Skip(i)
+                        .Take(batchSize)
+                        .Select(path => state.ExistingFilesByPath[path].PostFileId)
+                        .ToList();
+
+                    await dbContext.PostFiles
+                        .Where(pf => orphanFileIds.Contains(pf.Id))
+                        .ExecuteDeleteAsync(cancellationToken);
+                }
             }
 
-            await dbContext.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation("Removed {Count} orphaned files", orphanPaths.Count);
+            var deletedPostCount = await DeleteEmptyPostsAsync(dbContext, cancellationToken);
+            if (deletedPostCount > 0)
+            {
+                _logger.LogInformation("Deleted {Count} posts left without files", deletedPostCount);
+            }
         }
 
         status?.Report($"Reconciling folder tags for {library.Name}...");
@@ -404,8 +411,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         dbContext.PostFiles.RemoveRange(candidates);
         await dbContext.SaveChangesAsync(cancellationToken);
-        await RefreshLegacyPostRecordsAsync(dbContext, affectedPostIds, cancellationToken);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await DeleteEmptyPostsAsync(dbContext, cancellationToken);
         await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, affectedPostIds, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -596,8 +602,6 @@ public class LibrarySyncService : ILibrarySyncProcessor
             postFile.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(postFile.RelativePath));
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await RefreshLegacyPostRecordsAsync(dbContext, affectedPostIds, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await _folderTaggingService.SyncPostFolderTagsAsync(dbContext, affectedPostIds, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -1202,31 +1206,10 @@ public class LibrarySyncService : ILibrarySyncProcessor
             .FirstAsync(p => p.Id == postId, cancellationToken);
     }
 
-    private async Task RefreshLegacyPostRecordsAsync(
-        DamebooruDbContext dbContext,
-        IReadOnlyCollection<int> postIds,
-        CancellationToken cancellationToken)
-    {
-        if (postIds.Count == 0)
-        {
-            return;
-        }
-
-        var posts = await dbContext.Posts
-            .Include(p => p.PostFiles)
-            .Where(p => postIds.Contains(p.Id))
-            .ToListAsync(cancellationToken);
-
-        foreach (var post in posts)
-        {
-            var representativeFile = PostDto.GetRepresentativeFile(post);
-
-            if (representativeFile == null)
-            {
-                dbContext.Posts.Remove(post);
-            }
-        }
-    }
+    private static Task<int> DeleteEmptyPostsAsync(DamebooruDbContext dbContext, CancellationToken cancellationToken)
+        => dbContext.Posts
+            .Where(p => !p.PostFiles.Any())
+            .ExecuteDeleteAsync(cancellationToken);
 
     private async Task<FileEvaluationResult> EvaluateIncomingFileAsync(
         DamebooruDbContext dbContext,
@@ -1296,11 +1279,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
                 .Distinct()
                 .ToListAsync(cancellationToken);
 
-        if (resolvedAffectedPostIds.Count > 0)
-        {
-            await RefreshLegacyPostRecordsAsync(dbContext, resolvedAffectedPostIds, cancellationToken);
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
+        await DeleteEmptyPostsAsync(dbContext, cancellationToken);
 
         if (newRelativePaths.Count > 0)
         {
