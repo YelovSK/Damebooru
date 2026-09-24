@@ -52,10 +52,6 @@ public class LibrarySyncService : ILibrarySyncProcessor
         IProgress<string>? status = null,
         CancellationToken cancellationToken = default)
     {
-        status?.Report($"Counting files in {directoryPath}...");
-        var total = await _mediaSource.CountAsync(directoryPath, cancellationToken);
-        _logger.LogInformation("Found {Count} files to process in library {Library}", total, library.Name);
-
         status?.Report("Loading existing posts database...");
         LibraryScanDiff diff;
         using (var scope = _scopeFactory.CreateScope())
@@ -67,6 +63,8 @@ public class LibrarySyncService : ILibrarySyncProcessor
         _logger.LogInformation("Loaded {Count} tracked files for library {Library}", diff.TrackedCount, library.Name);
 
         status?.Report("Scanning files...");
+        // Progress is estimated from the tracked file count; counting on disk would walk the whole library twice.
+        var expected = diff.TrackedCount;
         var inspected = 0;
         var parallelOptions = new ParallelOptions
         {
@@ -79,10 +77,16 @@ public class LibrarySyncService : ILibrarySyncProcessor
             await diff.InspectAsync(item, ct);
 
             var current = Interlocked.Increment(ref inspected);
-            if (total > 0 && (current % 10 == 0 || current == total))
+            if (current % 10 == 0)
             {
-                progress?.Report((float)current / total * 80);
-                status?.Report($"Scanning: {current}/{total} files");
+                if (expected > 0)
+                {
+                    progress?.Report(Math.Min(1f, (float)current / expected) * 80);
+                }
+
+                status?.Report(current <= expected
+                    ? $"Scanning: {current}/{expected} files"
+                    : $"Scanning: {current} files");
             }
         });
 

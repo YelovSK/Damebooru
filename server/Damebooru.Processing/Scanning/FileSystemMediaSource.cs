@@ -71,31 +71,6 @@ public class FileSystemMediaSource : IMediaSource
         }
     }
 
-    public async Task<int> CountAsync(string sourcePath, CancellationToken cancellationToken)
-    {
-        if (!Directory.Exists(sourcePath)) return 0;
-
-        return await Task.Run(() =>
-        {
-            var options = new EnumerationOptions
-            {
-                IgnoreInaccessible = true,
-                RecurseSubdirectories = true,
-                AttributesToSkip = FileAttributes.System | FileAttributes.Hidden | FileAttributes.Temporary
-            };
-
-            int count = 0;
-            // Iterate only file names, no need to construct FileInfo or yield objects.
-            // Just count matches.
-            foreach (var filePath in Directory.EnumerateFiles(sourcePath, "*.*", options))
-            {
-                if (cancellationToken.IsCancellationRequested) break;
-                if (IsAllowed(filePath)) count++;
-            }
-            return count;
-        });
-    }
-
     private static bool IsAllowed(string filePath)
     {
         var ext = Path.GetExtension(filePath);

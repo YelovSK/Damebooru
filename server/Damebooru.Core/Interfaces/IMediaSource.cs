@@ -12,7 +12,4 @@ public interface IMediaSource
 {
     // Returns an async enumerable of items found in the source
     IAsyncEnumerable<MediaSourceItem> GetItemsAsync(string sourcePath, CancellationToken cancellationToken);
-    
-    // Returns the total count of items in the source
-    Task<int> CountAsync(string sourcePath, CancellationToken cancellationToken);
 }
