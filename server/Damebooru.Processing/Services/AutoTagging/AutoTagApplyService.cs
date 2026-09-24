@@ -61,8 +61,9 @@ public sealed class AutoTagApplyService
     {
         foreach (var provider in new[] { AutoTagProvider.Danbooru, AutoTagProvider.Gelbooru })
         {
-            var step = scan.Steps.FirstOrDefault(s => s.Provider == provider);
-            if (step == null || step.Status is AutoTagScanStepStatus.RetryableFailure or AutoTagScanStepStatus.PermanentFailure or AutoTagScanStepStatus.Pending or AutoTagScanStepStatus.Running)
+            // Only a finished metadata step says what the provider's tags should be; after a failure, keep the current ones.
+            var step = scan.Steps.FirstOrDefault(s => s.Provider == provider && s.Kind == AutoTagScanStepKind.Metadata);
+            if (step?.Status is not (AutoTagScanStepStatus.Succeeded or AutoTagScanStepStatus.Skipped))
             {
                 continue;
             }

@@ -439,20 +439,6 @@ public sealed class AutoTagScanService
         return scan.Md5Hash;
     }
 
-    private static void ReplaceProviderCandidates(PostAutoTagScan scan, IReadOnlyCollection<PostAutoTagScanCandidate> candidates)
-    {
-        var existing = scan.Candidates.ToList();
-        foreach (var candidate in existing)
-        {
-            scan.Candidates.Remove(candidate);
-        }
-
-        foreach (var candidate in candidates)
-        {
-            scan.Candidates.Add(candidate);
-        }
-    }
-
     private static void ReplaceProviderSources(PostAutoTagScan scan, AutoTagProvider provider, IEnumerable<string> urls)
     {
         foreach (var existing in scan.Sources.Where(source => source.Provider == provider).ToList())
