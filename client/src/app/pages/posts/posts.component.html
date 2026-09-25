@@ -2,18 +2,18 @@
     <header
         class="posts-toolbar sticky top-3 z-30 mx-3 mb-3 hidden overflow-visible rounded-xl border border-glass-border bg-bg-secondary px-3 py-3 shadow-none md:block lg:px-4">
         <div class="flex flex-col gap-[0.55rem] md:gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div class="relative z-20 w-full lg:max-w-[560px]">
-                <app-autocomplete [value]="currentSearchValue()" [suggestions]="tagSuggestions()" [multi]="true"
+            <div class="relative z-20 flex w-full items-stretch gap-2 lg:max-w-[600px]">
+                <app-autocomplete class="min-w-0 flex-1" [value]="currentSearchValue()" [suggestions]="searchSuggestions()" [multi]="true" [suggestAfterSelection]="true"
                     [focusShortcut]="{ modifier: null, key: '/' }" placeholder="Search posts..."
                     (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
                     (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
-                    <ng-template let-tag>
-                        <div class="flex w-full items-center justify-between gap-3">
-                            <span class="truncate text-accent-primary">{{ tag.name }}</span>
-                            <span class="badge">{{ tag.usages | number }}</span>
-                        </div>
+                    <ng-template let-suggestion>
+                        <ng-container [ngTemplateOutlet]="searchSuggestionTemplate"
+                            [ngTemplateOutletContext]="{ $implicit: suggestion }" />
                     </ng-template>
                 </app-autocomplete>
+                <app-post-search-filters [query]="currentSearchValue()" (queryChange)="currentSearchValue.set($event)"
+                    (searchTrigger)="onSearch(currentSearchValue())" />
             </div>
 
             <div
@@ -146,18 +146,19 @@
             </div>
 
             <div class="relative z-20">
-                <app-autocomplete [value]="currentSearchValue()" [suggestions]="tagSuggestions()" [multi]="true"
+                <app-autocomplete [value]="currentSearchValue()" [suggestions]="searchSuggestions()" [multi]="true" [suggestAfterSelection]="true"
                     [focusShortcut]="{ modifier: null, key: '/' }" placeholder="Search posts..."
                     (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
                     (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
-                    <ng-template let-tag>
-                        <div class="flex w-full items-center justify-between gap-3">
-                            <span class="truncate text-accent-primary">{{ tag.name }}</span>
-                            <span class="badge">{{ tag.usages | number }}</span>
-                        </div>
+                    <ng-template let-suggestion>
+                        <ng-container [ngTemplateOutlet]="searchSuggestionTemplate"
+                            [ngTemplateOutletContext]="{ $implicit: suggestion }" />
                     </ng-template>
                 </app-autocomplete>
             </div>
+
+            <app-post-search-filters class="mt-3" layout="inline" [query]="currentSearchValue()"
+                (queryChange)="currentSearchValue.set($event)" (searchTrigger)="onSearch(currentSearchValue())" />
 
             <div class="mt-3 flex items-center justify-between gap-3">
                 <div
@@ -177,3 +178,20 @@
             </div>
     </app-mobile-bottom-sheet>
 </section>
+
+<ng-template #searchSuggestionTemplate let-suggestion>
+    @switch (suggestion.kind) {
+    @case ('tag') {
+    <div class="flex w-full items-center justify-between gap-3">
+        <span class="truncate text-accent-primary">{{ suggestion.tag.name }}</span>
+        <span class="badge">{{ suggestion.tag.usages | number }}</span>
+    </div>
+    }
+    @case ('syntax') {
+    <div class="flex w-full items-center justify-between gap-3">
+        <code class="truncate text-text-secondary">{{ suggestion.syntax.text }}</code>
+        <span class="shrink-0 text-xs text-text-dim">{{ suggestion.syntax.label }}</span>
+    </div>
+    }
+    }
+</ng-template>

@@ -33,14 +33,16 @@ import {
   fromEvent,
   map,
   of,
+  startWith,
   switchMap,
 } from "rxjs";
 
 import { DamebooruService } from "@services/api/damebooru/damebooru.service";
 import { HotkeysService } from "@services/hotkeys.service";
-import { type DamebooruPostDto, type DamebooruTagDto } from "@models";
+import { type DamebooruPostDto } from "@models";
 import { AutocompleteComponent } from "@shared/components/autocomplete/autocomplete.component";
 import { escapeTagName } from "@shared/utils/utils";
+import { getSearchSyntaxSuggestions, isSearchDirectiveWord } from "@shared/utils/post-search-syntax";
 import { AppLinks, AppPaths } from "@app/app.paths";
 import { StorageService, STORAGE_KEYS } from "@services/storage.service";
 import { SettingsService } from "@services/settings.service";
@@ -52,10 +54,12 @@ import { POSTS_CACHE_SEGMENT_SIZE, POSTS_FETCH_SIZE } from "./posts.constants";
 import { VirtualRowIndexDataSource } from "./posts-row-index.data-source";
 import { PostsRangeCacheStore } from "./posts-range-cache.store";
 import { PostsFastScrollerController } from "./posts-fast-scroller.controller";
+import { PostSearchFiltersComponent } from "./post-search-filters/post-search-filters.component";
 import {
   type GridCell,
   type GridDensity,
   type RouteState,
+  type SearchSuggestion,
 } from "./posts.types";
 
 @Component({
@@ -67,6 +71,7 @@ import {
     PostPreviewOverlayComponent,
     PostTileComponent,
     MobileBottomSheetComponent,
+    PostSearchFiltersComponent,
   ],
   providers: [PostsRangeCacheStore, PostsFastScrollerController],
   templateUrl: "./posts.component.html",
@@ -203,21 +208,30 @@ export class PostsComponent implements AfterViewInit {
   readonly virtualMinBufferRows = 4;
   readonly virtualMaxBufferRows = 8;
 
-  private tagQuery$ = new Subject<string>();
-  tagSuggestions = toSignal(
-    this.tagQuery$.pipe(
+  private searchWord$ = new Subject<string>();
+  searchSuggestions = toSignal(
+    this.searchWord$.pipe(
       switchMap((word) => {
-        if (word.length < 1) {
-          return of([]);
+        const syntax = getSearchSyntaxSuggestions(word).map(
+          (suggestion): SearchSuggestion => ({ kind: "syntax", syntax: suggestion }),
+        );
+        const tagWord = word.startsWith("-") ? word.substring(1) : word;
+        if (tagWord.length < 1 || isSearchDirectiveWord(word)) {
+          return of(syntax);
         }
 
-        return this.damebooru.getTags(`*${word}* sort:usages`, 0, 15).pipe(
-          map((res) => res.results),
-          catchError(() => of([])),
+        const withTags$ = this.damebooru.getTags(`*${escapeTagName(tagWord)}* sort:usages`, 0, 15).pipe(
+          map((res) => [
+            ...syntax,
+            ...res.results.map((tag): SearchSuggestion => ({ kind: "tag", tag })),
+          ]),
+          catchError(() => of(syntax)),
         );
+        // Show syntax matches right away instead of waiting for the tag lookup.
+        return syntax.length > 0 ? withTags$.pipe(startWith(syntax)) : withTags$;
       }),
     ),
-    { initialValue: [] as DamebooruTagDto[] },
+    { initialValue: [] as SearchSuggestion[] },
   );
 
   constructor() {
@@ -384,21 +398,21 @@ export class PostsComponent implements AfterViewInit {
   trackVirtualRow = (_index: number, rowIndex: number): number => rowIndex;
 
   onQueryChange(word: string): void {
-    const cleanWord = word.startsWith("-") ? word.substring(1) : word;
-    this.tagQuery$.next(escapeTagName(cleanWord));
+    this.searchWord$.next(word);
   }
 
-  onSelection(tag: DamebooruTagDto): void {
-    const value = this.currentSearchValue();
-    const parts = value.split(/\s+/);
+  onSelection(suggestion: SearchSuggestion): void {
+    const parts = this.currentSearchValue().split(/\s+/);
     const lastPart = parts[parts.length - 1] || "";
-    const prefix = lastPart.startsWith("-") ? "-" : "";
 
-    parts[parts.length - 1] = prefix + escapeTagName(tag.name);
-    const newValue = parts.join(" ").trim() + " ";
+    const token = suggestion.kind === "tag"
+      ? (lastPart.startsWith("-") ? "-" : "") + escapeTagName(suggestion.tag.name)
+      : suggestion.syntax.text;
+    const complete = suggestion.kind === "tag" || suggestion.syntax.complete;
 
-    this.currentSearchValue.set(newValue);
-    this.tagQuery$.next("");
+    parts[parts.length - 1] = token;
+    this.currentSearchValue.set(parts.join(" ").trim() + (complete ? " " : ""));
+    this.searchWord$.next(complete ? "" : token);
   }
 
   onSearch(q: string): void {

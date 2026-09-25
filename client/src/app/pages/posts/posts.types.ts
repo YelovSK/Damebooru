@@ -1,4 +1,9 @@
-import { type DamebooruPostDto } from '@models';
+import { type DamebooruPostDto, type DamebooruTagDto } from '@models';
+import { type SearchSyntaxSuggestion } from '@shared/utils/post-search-syntax';
+
+export type SearchSuggestion =
+    | { kind: 'tag'; tag: DamebooruTagDto }
+    | { kind: 'syntax'; syntax: SearchSyntaxSuggestion };
 
 export type GridDensity = 'compact' | 'comfortable' | 'cozy';
 export type CacheStatus = 'idle' | 'loading' | 'ready' | 'error';

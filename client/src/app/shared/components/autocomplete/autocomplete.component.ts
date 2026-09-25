@@ -26,6 +26,8 @@ export class AutocompleteComponent<T> {
   debounce = input<number>(300);
   focusShortcut = input<FocusShortcut | null>(null);
   showClear = input<boolean>(true);
+  /** Reopen when suggestions change after a selection, for selections that are partial input like `key:`. */
+  suggestAfterSelection = input<boolean>(false);
 
   // Custom Template for items
   itemTemplate = contentChild(TemplateRef);
@@ -194,7 +196,12 @@ export class AutocompleteComponent<T> {
 
   selectItem(item: T) {
     this.selection.emit(item);
-    this.closeDropdown();
+    if (this.suggestAfterSelection()) {
+      this.isDropdownOpen.set(false);
+      this.selectedIndex.set(-1);
+    } else {
+      this.closeDropdown();
+    }
     // Force focus back to input so user can continue typing (multi-tag)
     this.focusInput();
   }

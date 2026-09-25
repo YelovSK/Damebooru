@@ -1,0 +1,120 @@
+@if (layout() === 'popover') {
+<button type="button" aria-label="Search filters" [attr.aria-expanded]="open()"
+    class="inline-flex h-full min-h-[2.75rem] w-12 items-center justify-center rounded-[15px] border border-white/15 bg-bg-tertiary text-text-muted transition-colors duration-150 hover:text-text-primary"
+    [class.border-accent-primary]="open()" [class.text-accent-primary]="open()" (click)="toggle()">
+    <ng-container [ngTemplateOutlet]="filterIcon" />
+</button>
+
+@if (open()) {
+<div
+    class="absolute right-0 top-[calc(100%+8px)] z-[500] w-[min(30rem,calc(100vw-2rem))] rounded-[15px] border border-white/10 bg-bg-secondary p-4 shadow-[0_15px_35px_rgba(0,0,0,0.6)]">
+    <ng-container [ngTemplateOutlet]="panel" />
+</div>
+}
+} @else {
+<button type="button" [attr.aria-expanded]="open()"
+    class="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-glass-border bg-bg-primary px-3 text-sm font-semibold text-text-muted"
+    (click)="toggle()">
+    <span class="inline-flex items-center gap-2">
+        <ng-container [ngTemplateOutlet]="filterIcon" />
+        Filters
+    </span>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4 transition-transform duration-200"
+        [class.rotate-180]="open()" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+        stroke-linejoin="round" aria-hidden="true">
+        <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+</button>
+
+@if (open()) {
+<div class="mt-2 rounded-md border border-glass-border bg-bg-primary/40 p-3">
+    <ng-container [ngTemplateOutlet]="panel" />
+</div>
+}
+}
+
+<ng-template #filterIcon>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4 shrink-0" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="4" y1="6" x2="20" y2="6"></line>
+        <line x1="7" y1="12" x2="17" y2="12"></line>
+        <line x1="10" y1="18" x2="14" y2="18"></line>
+    </svg>
+</ng-template>
+
+<ng-template #panel>
+    <div class="space-y-4">
+        @for (directive of directives; track directive.key) {
+        <section>
+            <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-dim">{{ directive.label }}</h3>
+
+            @switch (directive.value.kind) {
+            @case ('options') {
+            <div class="flex flex-wrap gap-1.5">
+                @for (option of directive.value.options; track option.value) {
+                <button type="button" appButton size="sm" [variant]="chipVariant(directive, option.value)"
+                    [appTooltip]="chipHint(directive, option.value)" (click)="toggleValue(directive, option.value)">
+                    {{ option.label }}
+                </button>
+                }
+            </div>
+            }
+            @case ('flag') {
+            <button type="button" appButton size="sm" [variant]="chipVariant(directive, 'true')"
+                [appTooltip]="chipHint(directive, 'true')" (click)="toggleValue(directive, 'true')">
+                {{ directive.value.label }}
+            </button>
+            }
+            @case ('number') {
+            <div class="flex items-center gap-2">
+                <div class="w-24 shrink-0">
+                    <app-form-dropdown [options]="operatorOptions" [value]="operator(directive)"
+                        (valueChange)="setOperator(directive, $event)" />
+                </div>
+                <app-form-number-input class="min-w-0 flex-1" [min]="0" placeholder="Any"
+                    [ngModel]="numberValue(directive)" (ngModelChange)="setNumberValue(directive, $event)" />
+            </div>
+            }
+            @case ('text') {
+            <div class="flex items-center gap-2">
+                <app-form-input class="min-w-0 flex-1" [placeholder]="directive.value.placeholder"
+                    [ngModel]="draft(directive)" (ngModelChange)="setDraft(directive, $event)"
+                    (keydown.enter)="addDraft(directive)" />
+                <button type="button" appButton variant="secondary" [disabled]="!canAddDraft(directive)"
+                    (click)="addDraft(directive)">Add</button>
+            </div>
+            @if (activeValuesOf(directive).length) {
+            <div class="mt-2 flex flex-wrap gap-1.5">
+                @for (active of activeValuesOf(directive); track active.value + active.negated) {
+                @let variant = active.negated ? 'danger' : 'primary';
+                <span class="inline-flex">
+                    <button type="button" appButton size="xs" [variant]="variant" class="rounded-r-none"
+                        [appTooltip]="active.negated ? 'Click to include' : 'Click to exclude'" (click)="flip(active)">
+                        {{ active.negated ? '-' : '' }}{{ active.value }}
+                    </button>
+                    <button type="button" appButton size="xs" [variant]="variant" class="rounded-l-none border-l-0"
+                        [attr.aria-label]="'Remove ' + active.value" (click)="remove(active)">✕</button>
+                </span>
+                }
+            </div>
+            }
+            }
+            @case ('sort') {
+            <div class="flex items-center gap-2">
+                <app-form-dropdown class="min-w-0 flex-1" [options]="sortFieldOptions" [value]="sortField()"
+                    (valueChange)="setSortField($event)" />
+                <app-form-dropdown class="min-w-0 flex-1" [options]="sortDirectionOptions" [value]="sortDirection()"
+                    (valueChange)="setSortDirection($event)" />
+            </div>
+            }
+            }
+        </section>
+        }
+
+        <div class="flex justify-end border-t border-glass-border pt-3">
+            <button type="button" appButton size="sm" (click)="onSearch()">
+                Search
+            </button>
+        </div>
+    </div>
+</ng-template>
