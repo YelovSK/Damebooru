@@ -66,6 +66,13 @@ public class MediaEnrichmentService
     public bool HasGeneratedImages(PostEnrichmentTarget target)
         => HasPreview(target) && HasThumbnail(target);
 
+    public HashSet<string> GetContentHashesWithGeneratedImages()
+    {
+        var hashes = ListGeneratedImageContentHashes(_previewPath);
+        hashes.IntersectWith(ListGeneratedImageContentHashes(Path.Combine(_thumbnailPath, MediaPaths.ThumbnailSizeSegment)));
+        return hashes;
+    }
+
     public async Task GenerateGeneratedImagesAsync(PostEnrichmentTarget target, CancellationToken cancellationToken)
     {
         await GeneratePreviewAsync(target, cancellationToken);
@@ -108,6 +115,13 @@ public class MediaEnrichmentService
         var hashes = await _similarityService.ComputeHashesAsync(target.FullPath, cancellationToken);
         return new PostSimilarityResult(target.PostId, hashes.PdqHash256);
     }
+
+    private static HashSet<string> ListGeneratedImageContentHashes(string directory)
+        => Directory.Exists(directory)
+            ? Directory.EnumerateFiles(directory, MediaPaths.GeneratedImageGlobPattern)
+                .Select(file => Path.GetFileNameWithoutExtension(file))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     private string GetPreviewPath(PostEnrichmentTarget target)
         => MediaPaths.GetPreviewFilePath(_previewPath, target.ContentHash);

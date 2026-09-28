@@ -45,12 +45,8 @@ public class GenerateThumbnailsJob : IJob
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
 
-        var query = db.Posts.AsNoTracking();
-
-        var totalPosts = await query.CountAsync(context.CancellationToken);
-        var totalCandidates = context.Mode == JobMode.All
-            ? totalPosts
-            : await CountMissingGeneratedImageCandidatesAsync(db, totalPosts, context);
+        var (candidateIds, skipped) = await LoadCandidateIdsAsync(db, context);
+        var totalCandidates = candidateIds.Count;
         _logger.LogInformation(
             "Generating thumbnails and previews for up to {Count} posts (mode: {Mode})",
             totalCandidates,
@@ -70,8 +66,6 @@ public class GenerateThumbnailsJob : IJob
 
         int processed = 0;
         int failed = 0;
-        int skipped = 0;
-        int lastId = 0;
 
         var parallelOptions = new ParallelOptions
         {
@@ -86,36 +80,11 @@ public class GenerateThumbnailsJob : IJob
             ProgressTotal = totalCandidates
         };
 
-        while (true)
+        foreach (var batchIds in candidateIds.Chunk(BatchSize))
         {
-            var batchIds = await db.Posts
-                .Where(p => p.Id > lastId)
-                .OrderBy(p => p.Id)
-                .Select(p => p.Id)
-                .Take(BatchSize)
-                .ToListAsync(context.CancellationToken);
-            if (batchIds.Count == 0)
-            {
-                break;
-            }
-
-            lastId = batchIds[^1];
             var batch = await PostEnrichmentTargets.LoadAsync(db.Posts.Where(p => batchIds.Contains(p.Id)), context.CancellationToken);
-            List<PostEnrichmentTarget> toProcess;
-            if (context.Mode == JobMode.All)
-            {
-                toProcess = batch;
-            }
-            else
-            {
-                toProcess = batch
-                    .Where(target => !_mediaEnrichmentService.HasGeneratedImages(target))
-                    .ToList();
 
-                skipped += batch.Count - toProcess.Count;
-            }
-
-            await Parallel.ForEachAsync(toProcess, parallelOptions, async (target, ct) =>
+            await Parallel.ForEachAsync(batch, parallelOptions, async (target, ct) =>
             {
                 try
                 {
@@ -148,45 +117,32 @@ public class GenerateThumbnailsJob : IJob
             skipped);
     }
 
-    private async Task<int> CountMissingGeneratedImageCandidatesAsync(DamebooruDbContext db, int totalPosts, JobContext context)
+    private async Task<(List<int> CandidateIds, int Skipped)> LoadCandidateIdsAsync(DamebooruDbContext db, JobContext context)
     {
-        context.Reporter.Update(new JobState
+        var posts = db.Posts.AsNoTracking().OrderBy(p => p.Id);
+        if (context.Mode == JobMode.All)
         {
-            ActivityText = $"Scanning posts for missing thumbnails/previews... (0/{totalPosts})",
-            ProgressCurrent = 0,
-            ProgressTotal = totalPosts,
-        });
-
-        var lastId = 0;
-        var scanned = 0;
-        var missingCount = 0;
-
-        while (true)
-        {
-            var batchIds = await db.Posts
-                .Where(p => p.Id > lastId)
-                .OrderBy(p => p.Id)
-                .Select(p => p.Id)
-                .Take(BatchSize)
-                .ToListAsync(context.CancellationToken);
-            if (batchIds.Count == 0)
-            {
-                break;
-            }
-
-            lastId = batchIds[^1];
-            var batch = await PostEnrichmentTargets.LoadAsync(db.Posts.Where(p => batchIds.Contains(p.Id)), context.CancellationToken);
-            scanned += batchIds.Count;
-            missingCount += batch.Count(target => !_mediaEnrichmentService.HasGeneratedImages(target));
-
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = $"Scanning posts for missing thumbnails/previews... ({scanned}/{totalPosts})",
-                ProgressCurrent = scanned,
-                ProgressTotal = totalPosts,
-            });
+            return (await posts.Select(p => p.Id).ToListAsync(context.CancellationToken), 0);
         }
 
-        return missingCount;
+        context.Reporter.Update(new JobState
+        {
+            ActivityText = "Checking for missing thumbnails/previews...",
+            ProgressCurrent = null,
+            ProgressTotal = null,
+            ClearProgressCurrent = true,
+            ClearProgressTotal = true,
+        });
+
+        var existingHashes = _mediaEnrichmentService.GetContentHashesWithGeneratedImages();
+        var rows = await posts
+            .Select(p => new { p.Id, p.ContentHash })
+            .ToListAsync(context.CancellationToken);
+        var candidateIds = rows
+            .Where(row => !existingHashes.Contains(row.ContentHash))
+            .Select(row => row.Id)
+            .ToList();
+
+        return (candidateIds, rows.Count - candidateIds.Count);
     }
 }
