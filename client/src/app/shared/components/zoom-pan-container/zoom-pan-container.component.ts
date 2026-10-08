@@ -14,7 +14,6 @@ import {
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ValueAnimator, easeOutCubic, lerpNumber } from '@shared/utils/animation';
 import { fromEvent } from 'rxjs';
 import { VelocityTracker } from '@shared/utils/velocity-tracker';
 
@@ -37,17 +36,15 @@ export class ZoomPanContainerComponent {
   private readonly minMomentumVelocity = 0.02;
   private readonly momentumFriction = 0.004;
   private readonly zoomAnimationDuration = 140;
+  private readonly zoomAnimationEasing = 'cubic-bezier(0.33, 1, 0.68, 1)';
+  private readonly momentumKeyframeCount = 30;
   private readonly destroyRef = inject(DestroyRef);
   private readonly zone = inject(NgZone);
   private readonly container =
     viewChild.required<ElementRef<HTMLElement>>('container');
   private readonly content = viewChild<ElementRef<HTMLElement>>('content');
   private readonly panVelocity = new VelocityTracker(0.65);
-  private readonly viewportAnimator = new ValueAnimator<ZoomPanViewport>({
-    easing: easeOutCubic,
-    interpolate: (from, to, progress) => this.interpolateViewport(from, to, progress),
-    onUpdate: (viewport) => this.render(viewport),
-  });
+  private animation: Animation | null = null;
 
   private readonly targetViewport = signal<ZoomPanViewport>({
     zoomLevel: 1,
@@ -77,10 +74,6 @@ export class ZoomPanContainerComponent {
   private dragStartY = 0;
   private dragStartPanX = 0;
   private dragStartPanY = 0;
-  private momentumVelocityX = 0;
-  private momentumVelocityY = 0;
-  private momentumFrameId: number | null = null;
-  private lastMomentumTime = 0;
   private readonly touchPointers = new Map<number, { x: number; y: number }>();
   private pinchStartDistance = 0;
   private pinchStartZoom = 1;
@@ -100,8 +93,6 @@ export class ZoomPanContainerComponent {
       }
 
       this.applyingExternalViewport = true;
-      this.cancelMomentum();
-      this.cancelViewportAnimation();
       this.setTargetViewport(viewport, this.shouldSmoothExternalViewport(viewport) ? 'smooth' : 'instant');
       this.applyingExternalViewport = false;
     });
@@ -113,10 +104,7 @@ export class ZoomPanContainerComponent {
       );
     });
 
-    this.destroyRef.onDestroy(() => {
-      this.cancelMomentum();
-      this.cancelViewportAnimation();
-    });
+    this.destroyRef.onDestroy(() => this.cancelAnimation());
   }
 
   private listen(el: HTMLElement): void {
@@ -151,9 +139,11 @@ export class ZoomPanContainerComponent {
     const el = this.content()?.nativeElement;
     if (!el) return;
     el.style.transform =
-      scale === 1 && tx === 0 && ty === 0
-        ? 'none'
-        : `translate(${tx}px, ${ty}px) scale(${scale})`;
+      scale === 1 && tx === 0 && ty === 0 ? 'none' : this.toTransform(viewport);
+  }
+
+  private toTransform({ zoomLevel, panX, panY }: ZoomPanViewport): string {
+    return `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
   }
 
   private onDoubleClick(event: MouseEvent): void {
@@ -163,22 +153,19 @@ export class ZoomPanContainerComponent {
       return;
     }
 
-    this.cancelMomentum();
     const isDefault = this.zoomLevel() === 1 && this.panX() === 0 && this.panY() === 0;
     const newZoom = isDefault ? 2 : 1;
     this.setZoomViewport(newZoom, 0, 0);
   }
 
   resetZoom(): void {
-    this.cancelMomentum();
     this.setZoomViewport(1, 0, 0);
   }
 
   private onWheel(event: WheelEvent): void {
     event.preventDefault();
-    this.cancelMomentum();
     const delta = event.deltaY > 0 ? -this.zoomDelta() : this.zoomDelta();
-    const baseViewport = this.getZoomBaseViewport();
+    const baseViewport = this.targetViewport();
     const currentZoom = baseViewport.zoomLevel;
     const newZoom = Math.min(this.maxZoom, Math.max(this.minZoom, currentZoom + delta * currentZoom));
 
@@ -199,8 +186,7 @@ export class ZoomPanContainerComponent {
     if (event.button !== 0) return;
 
     event.preventDefault();
-    this.cancelMomentum();
-    this.interruptViewportAnimation();
+    this.interruptAnimation();
     this.isDragging.set(true);
     this.dragStartX = event.clientX;
     this.dragStartY = event.clientY;
@@ -236,8 +222,7 @@ export class ZoomPanContainerComponent {
 
     event.preventDefault();
     event.stopPropagation();
-    this.cancelMomentum();
-    this.interruptViewportAnimation();
+    this.interruptAnimation();
     this.touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (event.currentTarget instanceof HTMLElement) {
       event.currentTarget.setPointerCapture(event.pointerId);
@@ -326,8 +311,7 @@ export class ZoomPanContainerComponent {
   }
 
   private startPinch(): void {
-    this.cancelMomentum();
-    this.interruptViewportAnimation();
+    this.interruptAnimation();
     const points = Array.from(this.touchPointers.values()).slice(0, 2);
     const midpoint = this.getMidpoint(points[0], points[1]);
     this.pinchStartDistance = Math.max(1, this.getDistance(points[0], points[1]));
@@ -363,67 +347,40 @@ export class ZoomPanContainerComponent {
 
   private startMomentum(): void {
     if (!this.momentumEnabled() || this.zoomLevel() <= 1 || this.touchPointers.size > 0) {
-      this.cancelMomentum();
       return;
     }
 
-    const velocity = this.panVelocity.velocity;
-    if (
-      Math.abs(velocity.x) < this.minMomentumVelocity
-      && Math.abs(velocity.y) < this.minMomentumVelocity
-    ) {
+    const { x: velocityX, y: velocityY } = this.panVelocity.velocity;
+    const peakVelocity = Math.max(Math.abs(velocityX), Math.abs(velocityY));
+    if (peakVelocity < this.minMomentumVelocity) {
       return;
     }
 
-    this.cancelMomentum();
-    this.momentumVelocityX = velocity.x;
-    this.momentumVelocityY = velocity.y;
-    this.lastMomentumTime = performance.now();
-    this.momentumFrameId = requestAnimationFrame((time) => this.stepMomentum(time));
-  }
+    // Velocity decays as v0 * e^(-friction * t) until it drops below the minimum.
+    const duration =
+      Math.log(peakVelocity / this.minMomentumVelocity) / this.momentumFriction;
+    const { zoomLevel, panX, panY } = this.targetViewport();
+    const frames = Array.from(
+      { length: this.momentumKeyframeCount + 1 },
+      (_, i) => {
+        const travel =
+          (1 -
+            Math.exp(
+              (-this.momentumFriction * duration * i) /
+                this.momentumKeyframeCount,
+            )) /
+          this.momentumFriction;
+        const clamped = this.clampPan(
+          panX + velocityX * travel,
+          panY + velocityY * travel,
+          zoomLevel,
+        );
+        return { zoomLevel, panX: clamped.x, panY: clamped.y };
+      },
+    );
 
-  private stepMomentum(time: number): void {
-    const elapsed = Math.min(32, time - this.lastMomentumTime);
-    this.lastMomentumTime = time;
-
-    const nextX = this.panX() + this.momentumVelocityX * elapsed;
-    const nextY = this.panY() + this.momentumVelocityY * elapsed;
-    const clamped = this.clampPan(nextX, nextY, this.zoomLevel());
-
-    if (clamped.x !== nextX) {
-      this.momentumVelocityX = 0;
-    }
-
-    if (clamped.y !== nextY) {
-      this.momentumVelocityY = 0;
-    }
-
-    this.setViewport(this.zoomLevel(), clamped.x, clamped.y);
-
-    const friction = Math.exp(-this.momentumFriction * elapsed);
-    this.momentumVelocityX *= friction;
-    this.momentumVelocityY *= friction;
-
-    if (
-      Math.abs(this.momentumVelocityX) < this.minMomentumVelocity
-      && Math.abs(this.momentumVelocityY) < this.minMomentumVelocity
-    ) {
-      this.cancelMomentum();
-      return;
-    }
-
-    this.momentumFrameId = requestAnimationFrame((nextTime) => this.stepMomentum(nextTime));
-  }
-
-  private cancelMomentum(): void {
-    if (this.momentumFrameId === null) {
-      return;
-    }
-
-    cancelAnimationFrame(this.momentumFrameId);
-    this.momentumFrameId = null;
-    this.momentumVelocityX = 0;
-    this.momentumVelocityY = 0;
+    this.setTargetViewport(frames[frames.length - 1], 'instant');
+    this.animate(frames, duration, 'linear');
   }
 
   private setZoomViewport(zoomLevel: number, panX: number, panY: number): void {
@@ -433,30 +390,51 @@ export class ZoomPanContainerComponent {
     );
   }
 
-  private getZoomBaseViewport(): ZoomPanViewport {
-    return this.viewportAnimator.isAnimating && this.viewportAnimator.target
-      ? this.viewportAnimator.target
-      : this.targetViewport();
-  }
+  private animate(
+    frames: ZoomPanViewport[],
+    duration: number,
+    easing: string,
+  ): void {
+    const el = this.content()?.nativeElement;
+    if (!el) return;
 
-  private animateViewport(to: ZoomPanViewport, duration: number): void {
-    this.zone.runOutsideAngular(() =>
-      this.viewportAnimator.animate(this.renderedViewport, to, duration),
+    const animation = this.zone.runOutsideAngular(() =>
+      el.animate(
+        frames.map((frame) => ({ transform: this.toTransform(frame) })),
+        { duration, easing },
+      ),
     );
+    animation.onfinish = () => {
+      if (this.animation === animation) {
+        this.animation = null;
+      }
+    };
+    this.animation = animation;
   }
 
-  private cancelViewportAnimation(): void {
-    this.viewportAnimator.cancel();
+  private cancelAnimation(): void {
+    this.animation?.cancel();
+    this.animation = null;
   }
 
-  private interruptViewportAnimation(): void {
-    if (!this.viewportAnimator.isAnimating) {
+  // The inline style already holds the animation's end state, so stopping mid-flight
+  // has to read where the animation currently is and commit that.
+  private interruptAnimation(): void {
+    if (!this.animation) {
       return;
     }
 
-    const rendered = this.renderedViewport;
-    this.cancelViewportAnimation();
-    this.setTargetViewport(rendered, 'instant');
+    this.setTargetViewport(this.getRenderedViewport(), 'instant');
+  }
+
+  private getRenderedViewport(): ZoomPanViewport {
+    const el = this.content()?.nativeElement;
+    if (!this.animation || !el) {
+      return this.renderedViewport;
+    }
+
+    const matrix = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+    return { zoomLevel: matrix.a, panX: matrix.e, panY: matrix.f };
   }
 
   private setViewport(zoomLevel: number, panX: number, panY: number): void {
@@ -471,13 +449,16 @@ export class ZoomPanContainerComponent {
       this.viewportChange.emit(next);
     }
 
-    if (mode === 'smooth') {
-      this.animateViewport(next, this.zoomAnimationDuration);
-      return;
-    }
-
-    this.cancelViewportAnimation();
+    const from = this.getRenderedViewport();
+    this.cancelAnimation();
     this.render(next);
+    if (mode === 'smooth') {
+      this.animate(
+        [from, next],
+        this.zoomAnimationDuration,
+        this.zoomAnimationEasing,
+      );
+    }
   }
 
   private clampZoom(zoomLevel: number): number {
@@ -498,14 +479,6 @@ export class ZoomPanContainerComponent {
 
   private isSameViewport(left: ZoomPanViewport, right: ZoomPanViewport): boolean {
     return left.zoomLevel === right.zoomLevel && left.panX === right.panX && left.panY === right.panY;
-  }
-
-  private interpolateViewport(from: ZoomPanViewport, to: ZoomPanViewport, progress: number): ZoomPanViewport {
-    return {
-      zoomLevel: lerpNumber(from.zoomLevel, to.zoomLevel, progress),
-      panX: lerpNumber(from.panX, to.panX, progress),
-      panY: lerpNumber(from.panY, to.panY, progress),
-    };
   }
 
   private getMidpoint(left: { x: number; y: number }, right: { x: number; y: number }): { x: number; y: number } {
