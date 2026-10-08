@@ -59,14 +59,11 @@ public class StatsReadService
         StatsGrowthDateKind dateKind = StatsGrowthDateKind.Imported,
         CancellationToken cancellationToken = default)
     {
-        var monthlyPosts = dateKind == StatsGrowthDateKind.FileModified
-            ? await GetMonthlyPostsByFileModifiedDateAsync(cancellationToken)
-            : await GetMonthlyPostsByImportDateAsync(cancellationToken);
-        var monthlySizeBytes = dateKind == StatsGrowthDateKind.FileModified
-            ? await GetMonthlySizeByFileModifiedDateAsync(cancellationToken)
-            : await GetMonthlySizeByImportDateAsync(cancellationToken);
+        var monthly = await GetMonthlyTotalsAsync(dateKind, cancellationToken);
+        var monthlyPosts = monthly.Select(m => new MonthlyValue(m.Year, m.Month, m.PostCount)).ToList();
+        var monthlySizeBytes = monthly.Select(m => new MonthlyValue(m.Year, m.Month, m.SizeBytes)).ToList();
 
-        var months = BuildMonthRange(monthlyPosts, monthlySizeBytes);
+        var months = BuildMonthRange(monthlyPosts);
         var cumulativePosts = BuildSeries(months, monthlyPosts, cumulative: true);
         var cumulativeSizeBytes = BuildSeries(months, monthlySizeBytes, cumulative: true);
 
@@ -265,33 +262,21 @@ public class StatsReadService
         };
     }
 
-    private async Task<List<MonthlyValue>> GetMonthlyPostsByImportDateAsync(CancellationToken cancellationToken)
-        => await _dbContext.Posts
-            .AsNoTracking()
-            .GroupBy(p => new { p.ImportDate.Year, p.ImportDate.Month })
-            .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.LongCount()))
-            .ToListAsync(cancellationToken);
+    private async Task<List<MonthlyTotals>> GetMonthlyTotalsAsync(StatsGrowthDateKind dateKind, CancellationToken cancellationToken)
+    {
+        var posts = _dbContext.Posts.AsNoTracking();
+        var byMonth = dateKind == StatsGrowthDateKind.FileModified
+            ? posts.GroupBy(p => new { p.FileModifiedDate.Year, p.FileModifiedDate.Month })
+            : posts.GroupBy(p => new { p.ImportDate.Year, p.ImportDate.Month });
 
-    private async Task<List<MonthlyValue>> GetMonthlyPostsByFileModifiedDateAsync(CancellationToken cancellationToken)
-        => await _dbContext.Posts
-            .AsNoTracking()
-            .GroupBy(p => new { p.FileModifiedDate.Year, p.FileModifiedDate.Month })
-            .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.LongCount()))
+        return await byMonth
+            .Select(g => new MonthlyTotals(
+                g.Key.Year,
+                g.Key.Month,
+                g.LongCount(),
+                g.Sum(p => p.SizeBytes * p.PostFiles.Count)))
             .ToListAsync(cancellationToken);
-
-    private async Task<List<MonthlyValue>> GetMonthlySizeByImportDateAsync(CancellationToken cancellationToken)
-        => await _dbContext.PostFiles
-            .AsNoTracking()
-            .GroupBy(pf => new { pf.Post.ImportDate.Year, pf.Post.ImportDate.Month })
-            .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.Sum(pf => pf.Post.SizeBytes)))
-            .ToListAsync(cancellationToken);
-
-    private async Task<List<MonthlyValue>> GetMonthlySizeByFileModifiedDateAsync(CancellationToken cancellationToken)
-        => await _dbContext.PostFiles
-            .AsNoTracking()
-            .GroupBy(pf => new { pf.FileModifiedDate.Year, pf.FileModifiedDate.Month })
-            .Select(g => new MonthlyValue(g.Key.Year, g.Key.Month, g.Sum(pf => pf.Post.SizeBytes)))
-            .ToListAsync(cancellationToken);
+    }
 
     private static List<DateTime> BuildMonthRange(params List<MonthlyValue>[] values)
     {
@@ -350,5 +335,6 @@ public class StatsReadService
     }
 
     private sealed record MonthlyValue(int Year, int Month, long Value);
+    private sealed record MonthlyTotals(int Year, int Month, long PostCount, long SizeBytes);
     private sealed record PostTagCount(int PostId, int TagCount);
 }
