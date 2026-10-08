@@ -76,74 +76,72 @@ public class StatsReadService
 
     public async Task<StatsStorageDto> GetStorageAsync(CancellationToken cancellationToken = default)
     {
-        var files = _dbContext.PostFiles.AsNoTracking();
-        var fileCount = await files.CountAsync(cancellationToken);
-        var totalSizeBytes = await files.SumAsync(pf => (long?)pf.Post.SizeBytes, cancellationToken) ?? 0;
-        var imageFileCount = await files.CountAsync(pf => pf.Post.ContentType.StartsWith("image/"), cancellationToken);
-        var videoFileCount = await files.CountAsync(pf => pf.Post.ContentType.StartsWith("video/"), cancellationToken);
-        var contentTypes = await files
-            .GroupBy(pf => string.IsNullOrEmpty(pf.Post.ContentType) ? "Unknown" : pf.Post.ContentType)
+        var posts = _dbContext.Posts.AsNoTracking();
+        // Grouped over Posts, weighting by file count: grouping PostFiles through the Post navigation
+        // makes EF emit a full-table subquery per group.
+        var contentTypes = await posts
+            .GroupBy(p => string.IsNullOrEmpty(p.ContentType) ? "Unknown" : p.ContentType)
             .Select(g => new StatsStorageBreakdownDto
             {
                 Label = g.Key,
-                FileCount = g.Count(),
-                SizeBytes = g.Sum(pf => pf.Post.SizeBytes)
+                FileCount = g.Sum(p => p.PostFiles.Count),
+                SizeBytes = g.Sum(p => p.SizeBytes * p.PostFiles.Count)
             })
             .OrderByDescending(item => item.SizeBytes)
             .ThenByDescending(item => item.FileCount)
             .ThenBy(item => item.Label)
             .ToListAsync(cancellationToken);
+        var sizeBuckets = await posts
+            .GroupBy(p => p.SizeBytes < 1_048_576 ? 0
+                : p.SizeBytes < 5_242_880 ? 1
+                : p.SizeBytes < 20_971_520 ? 2
+                : p.SizeBytes < 104_857_600 ? 3
+                : 4)
+            .Select(g => new
+            {
+                Index = g.Key,
+                FileCount = g.Sum(p => p.PostFiles.Count),
+                SizeBytes = g.Sum(p => p.SizeBytes * p.PostFiles.Count)
+            })
+            .ToDictionaryAsync(b => b.Index, cancellationToken);
+
+        var fileCount = contentTypes.Sum(c => c.FileCount);
+        var totalSizeBytes = contentTypes.Sum(c => c.SizeBytes);
 
         return new StatsStorageDto
         {
             FileCount = fileCount,
             TotalSizeBytes = totalSizeBytes,
             AverageFileSizeBytes = fileCount == 0 ? 0 : totalSizeBytes / fileCount,
-            ImageFileCount = imageFileCount,
-            VideoFileCount = videoFileCount,
+            ImageFileCount = contentTypes.Where(c => c.Label.StartsWith("image/")).Sum(c => c.FileCount),
+            VideoFileCount = contentTypes.Where(c => c.Label.StartsWith("video/")).Sum(c => c.FileCount),
             ContentTypes = contentTypes,
-            SizeBuckets = await GetSizeBucketsAsync(cancellationToken)
+            SizeBuckets = SizeBucketLabels
+                .Select((label, index) => new StatsStorageBreakdownDto
+                {
+                    Label = label,
+                    FileCount = sizeBuckets.GetValueOrDefault(index)?.FileCount ?? 0,
+                    SizeBytes = sizeBuckets.GetValueOrDefault(index)?.SizeBytes ?? 0
+                })
+                .ToList()
         };
     }
 
-    private async Task<List<StatsStorageBreakdownDto>> GetSizeBucketsAsync(CancellationToken cancellationToken)
-    {
-        var files = _dbContext.PostFiles.AsNoTracking();
-
-        return [
-            await BuildSizeBucketAsync("< 1 MB", pf => pf.Post.SizeBytes < 1_048_576, cancellationToken),
-            await BuildSizeBucketAsync("1-5 MB", pf => pf.Post.SizeBytes >= 1_048_576 && pf.Post.SizeBytes < 5_242_880, cancellationToken),
-            await BuildSizeBucketAsync("5-20 MB", pf => pf.Post.SizeBytes >= 5_242_880 && pf.Post.SizeBytes < 20_971_520, cancellationToken),
-            await BuildSizeBucketAsync("20-100 MB", pf => pf.Post.SizeBytes >= 20_971_520 && pf.Post.SizeBytes < 104_857_600, cancellationToken),
-            await BuildSizeBucketAsync("100 MB+", pf => pf.Post.SizeBytes >= 104_857_600, cancellationToken)
-        ];
-
-        async Task<StatsStorageBreakdownDto> BuildSizeBucketAsync(
-            string label,
-            System.Linq.Expressions.Expression<Func<Damebooru.Core.Entities.PostFile, bool>> predicate,
-            CancellationToken token)
-        {
-            var bucket = files.Where(predicate);
-            return new StatsStorageBreakdownDto
-            {
-                Label = label,
-                FileCount = await bucket.CountAsync(token),
-                SizeBytes = await bucket.SumAsync(pf => (long?)pf.Post.SizeBytes, token) ?? 0
-            };
-        }
-    }
+    private static readonly string[] SizeBucketLabels = ["< 1 MB", "1-5 MB", "5-20 MB", "20-100 MB", "100 MB+"];
 
     public async Task<StatsTagsDto> GetTagsAsync(CancellationToken cancellationToken = default)
     {
         var postCount = await _dbContext.Posts.AsNoTracking().CountAsync(cancellationToken);
         var totalTags = await _dbContext.Tags.AsNoTracking().CountAsync(cancellationToken);
-        var distinctPostTagCounts = await _dbContext.PostTags
+        var tagCountHistogram = await _dbContext.PostTags
             .AsNoTracking()
             .GroupBy(pt => pt.PostId)
-            .Select(g => new PostTagCount(g.Key, g.Select(pt => pt.TagId).Distinct().Count()))
+            .Select(g => g.Select(pt => pt.TagId).Distinct().Count())
+            .GroupBy(tagCount => tagCount)
+            .Select(g => new TagCountFrequency(g.Key, g.Count()))
             .ToListAsync(cancellationToken);
-        var taggedPostCount = distinctPostTagCounts.Count;
-        var totalPostTagCount = distinctPostTagCounts.Sum(item => item.TagCount);
+        var taggedPostCount = tagCountHistogram.Sum(item => item.PostCount);
+        var totalPostTagCount = tagCountHistogram.Sum(item => (long)item.TagCount * item.PostCount);
         var categories = await _dbContext.Tags
             .AsNoTracking()
             .GroupBy(tag => tag.Category)
@@ -162,7 +160,7 @@ public class StatsReadService
             UntaggedPostCount = postCount - taggedPostCount,
             AverageTagsPerPost = postCount == 0 ? 0 : (double)totalPostTagCount / postCount,
             Categories = BuildCategoryBreakdown(categories),
-            DensityBuckets = BuildDensityBuckets(postCount, distinctPostTagCounts)
+            DensityBuckets = BuildDensityBuckets(postCount - taggedPostCount, tagCountHistogram)
         };
     }
 
@@ -178,18 +176,19 @@ public class StatsReadService
     }
 
     private static List<StatsTagDensityBucketDto> BuildDensityBuckets(
-        int postCount,
-        IReadOnlyCollection<PostTagCount> taggedCounts)
+        int untaggedPostCount,
+        IReadOnlyCollection<TagCountFrequency> histogram)
     {
-        var zeroCount = postCount - taggedCounts.Count;
-
         return [
-            new StatsTagDensityBucketDto { Label = "0", PostCount = zeroCount },
-            new StatsTagDensityBucketDto { Label = "1-5", PostCount = taggedCounts.Count(item => item.TagCount >= 1 && item.TagCount <= 5) },
-            new StatsTagDensityBucketDto { Label = "6-15", PostCount = taggedCounts.Count(item => item.TagCount >= 6 && item.TagCount <= 15) },
-            new StatsTagDensityBucketDto { Label = "16-30", PostCount = taggedCounts.Count(item => item.TagCount >= 16 && item.TagCount <= 30) },
-            new StatsTagDensityBucketDto { Label = "30+", PostCount = taggedCounts.Count(item => item.TagCount > 30) }
+            new StatsTagDensityBucketDto { Label = "0", PostCount = untaggedPostCount },
+            new StatsTagDensityBucketDto { Label = "1-5", PostCount = CountPosts(1, 5) },
+            new StatsTagDensityBucketDto { Label = "6-15", PostCount = CountPosts(6, 15) },
+            new StatsTagDensityBucketDto { Label = "16-30", PostCount = CountPosts(16, 30) },
+            new StatsTagDensityBucketDto { Label = "30+", PostCount = CountPosts(31, int.MaxValue) }
         ];
+
+        int CountPosts(int min, int max)
+            => histogram.Where(item => item.TagCount >= min && item.TagCount <= max).Sum(item => item.PostCount);
     }
 
     public async Task<StatsMaintenanceDto> GetMaintenanceAsync(CancellationToken cancellationToken = default)
@@ -336,5 +335,5 @@ public class StatsReadService
 
     private sealed record MonthlyValue(int Year, int Month, long Value);
     private sealed record MonthlyTotals(int Year, int Month, long PostCount, long SizeBytes);
-    private sealed record PostTagCount(int PostId, int TagCount);
+    private sealed record TagCountFrequency(int TagCount, int PostCount);
 }
