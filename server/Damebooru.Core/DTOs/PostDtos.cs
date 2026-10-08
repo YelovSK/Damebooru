@@ -88,12 +88,7 @@ public class PostListDto
 
 public class PostsAroundDto
 {
-    public PostDto? Prev { get; set; }
-    public PostDto? Next { get; set; }
-    public IReadOnlyList<PostDto> PrevItems { get; set; } = [];
-    public IReadOnlyList<PostDto> NextItems { get; set; } = [];
     public IReadOnlyList<PostDto> Items { get; set; } = [];
-    public int AnchorIndex { get; set; }
     public bool HasPrevious { get; set; }
     public bool HasNext { get; set; }
 }

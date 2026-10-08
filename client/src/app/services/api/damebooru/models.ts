@@ -155,12 +155,7 @@ export interface DamebooruPostListDto {
 }
 
 export interface DamebooruPostsAroundDto {
-  prev: DamebooruPostDto | null;
-  next: DamebooruPostDto | null;
-  prevItems?: DamebooruPostDto[];
-  nextItems?: DamebooruPostDto[];
   items?: DamebooruPostDto[];
-  anchorIndex?: number;
   hasPrevious?: boolean;
   hasNext?: boolean;
 }

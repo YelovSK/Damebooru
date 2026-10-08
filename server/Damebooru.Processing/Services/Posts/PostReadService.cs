@@ -155,12 +155,7 @@ public class PostReadService
 
         return Result<PostsAroundDto>.Success(new PostsAroundDto
         {
-            Prev = prevItems.FirstOrDefault(),
-            Next = nextItems.FirstOrDefault(),
-            PrevItems = prevItems,
-            NextItems = nextItems,
             Items = orderedItems,
-            AnchorIndex = prevItems.Count,
             HasPrevious = ids.PrevIds.Count > beforeSize,
             HasNext = ids.NextIds.Count > afterSize,
         });
