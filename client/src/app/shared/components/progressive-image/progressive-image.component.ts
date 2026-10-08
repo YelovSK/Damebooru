@@ -14,6 +14,7 @@ export class ProgressiveImageComponent {
   readonly height = input<number | null>(null);
 
   readonly fullVisible = signal(false);
+  readonly previewHidden = signal(false);
 
   readonly loadToken = signal(0);
 
@@ -23,6 +24,7 @@ export class ProgressiveImageComponent {
       this.previewSrc();
       this.fullSrc();
       this.fullVisible.set(false);
+      this.previewHidden.set(false);
       this.loadToken.update(value => value + 1);
     });
   }
@@ -41,5 +43,11 @@ export class ProgressiveImageComponent {
     }
 
     this.fullVisible.set(true);
+  }
+
+  onPreviewFaded(): void {
+    if (this.fullVisible()) {
+      this.previewHidden.set(true);
+    }
   }
 }
