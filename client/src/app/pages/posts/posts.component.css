@@ -14,10 +14,6 @@
     width: 100%;
 }
 
-.virtual-row {
-    content-visibility: auto;
-}
-
 .fast-scroller-hover-zone {
     bottom: 0;
     pointer-events: none;
