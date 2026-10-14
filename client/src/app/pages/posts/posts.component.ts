@@ -148,6 +148,15 @@ export class PostsComponent implements AfterViewInit {
   readonly isInitialLoading = this.rangeCacheStore.isInitialLoading;
 
   readonly segmentCache = this.rangeCacheStore.segmentCache;
+  private readonly postsById = computed(() => {
+    const posts = new Map<number, DamebooruPostDto>();
+    for (const segment of this.segmentCache().values()) {
+      for (const post of segment.items) {
+        posts.set(post.id, post);
+      }
+    }
+    return posts;
+  });
   readonly hoverPreviewEnabled = this.settingsService.enablePostPreviewOnHover;
   readonly hoverPreviewDelayMs = computed(() => {
     const raw = this.settingsService.postPreviewDelayMs();
@@ -162,7 +171,7 @@ export class PostsComponent implements AfterViewInit {
   columns = signal(1);
   tileSizePx = signal(150);
 
-  currentOffset = signal(0);
+  readonly currentOffset = this.rangeCacheStore.currentOffset;
   isScrolling = signal(false);
   previewPost = signal<DamebooruPostDto | null>(null);
   mobileControlsOpen = signal(false);
@@ -436,10 +445,6 @@ export class PostsComponent implements AfterViewInit {
     this.recalculateLayout(true);
   }
 
-  isDensitySelected(value: GridDensity): boolean {
-    return this.density() === value;
-  }
-
   getRowCells(rowIndex: number): GridCell[] {
     if (rowIndex < 0) {
       return [];
@@ -501,20 +506,6 @@ export class PostsComponent implements AfterViewInit {
     return cells;
   }
 
-  getThumbnailUrl(post: DamebooruPostDto): string {
-    return this.damebooru.getThumbnailUrl(post.contentHash);
-  }
-
-  private findPostById(id: number): DamebooruPostDto | null {
-    for (const segment of this.segmentCache().values()) {
-      if (segment.status === "ready") {
-        const match = segment.items.find((p) => p.id === id);
-        if (match) return match;
-      }
-    }
-    return null;
-  }
-
   private handleViewportMouseOver(event: MouseEvent): void {
     if (!this.hoverPreviewEnabled()) {
       return;
@@ -544,7 +535,7 @@ export class PostsComponent implements AfterViewInit {
     if (idStr) {
       const postId = parseInt(idStr, 10);
       if (!Number.isNaN(postId)) {
-        const post = this.findPostById(postId);
+        const post = this.postsById().get(postId);
         if (post) {
           this.clearHoverPreviewTimer();
           this.hoverPreviewTimer = setTimeout(() => {
@@ -632,11 +623,11 @@ export class PostsComponent implements AfterViewInit {
 
     this.routeAnchorAppliedForQuery = state.query;
 
-    const targetOffset = this.resolveAnchorOffset(state.offset);
+    const targetOffset = state.offset ?? 0;
 
     if (this.totalCount() === null && !this.rangeCacheStore.hasOffset(targetOffset)) {
       this.pendingAnchorOffset = targetOffset;
-      this.ensureOffsetLoaded(targetOffset);
+      this.rangeCacheStore.ensureAroundOffset(targetOffset);
       this.tryApplyPendingAnchor();
       return;
     }
@@ -646,7 +637,7 @@ export class PostsComponent implements AfterViewInit {
     }
 
     this.pendingAnchorOffset = targetOffset;
-    this.ensureOffsetLoaded(targetOffset);
+    this.rangeCacheStore.ensureAroundOffset(targetOffset);
     this.tryApplyPendingAnchor();
   }
 
@@ -659,14 +650,12 @@ export class PostsComponent implements AfterViewInit {
     this.fastScroller.visible.set(false);
     this.fastScroller.dragging.set(false);
 
-    const targetOffset = this.resolveAnchorOffset(state.offset);
+    const targetOffset = state.offset ?? 0;
     this.pendingAnchorOffset = targetOffset;
     this.latestMeasuredOffset = targetOffset;
     this.currentOffset.set(targetOffset);
 
-    this.rangeCacheStore.setCurrentOffsetHint(targetOffset);
-
-    this.ensureOffsetLoaded(targetOffset, true);
+    this.rangeCacheStore.ensureAroundOffset(targetOffset, true);
 
     this.recalculateLayout(false);
   }
@@ -695,7 +684,7 @@ export class PostsComponent implements AfterViewInit {
       totalCount - 1,
     );
 
-    this.ensureOffsetLoaded(targetOffset);
+    this.rangeCacheStore.ensureAroundOffset(targetOffset);
     this.scrollToAbsoluteOffset(targetOffset, true);
   }
 
@@ -715,7 +704,7 @@ export class PostsComponent implements AfterViewInit {
     const columns = Math.max(1, this.columns());
     const startOffset = startIndex * columns;
     const endOffset = (endIndex + 1) * columns;
-    this.ensureWindowLoaded(startOffset, endOffset);
+    this.rangeCacheStore.ensureWindow(startOffset, endOffset);
   }
 
   private loadVisibleRange(): void {
@@ -748,26 +737,9 @@ export class PostsComponent implements AfterViewInit {
     const scrollTop = viewport.measureScrollOffset("top");
     const rowIndex = this.getRowIndexForScrollTop(scrollTop);
     const absoluteOffset = this.getFirstVisiblePostOffsetFromRowIndex(rowIndex);
-    this.rangeCacheStore.setCurrentOffsetHint(absoluteOffset);
 
     this.latestMeasuredOffset = absoluteOffset;
-
-    const isDragging = this.fastScrollerDragging();
     this.currentOffset.set(absoluteOffset);
-
-    if (!isDragging && !this.isScrolling() && this.totalCount() !== null) {
-      this.scheduleUrlSync();
-    }
-  }
-
-  private ensureOffsetLoaded(offset: number, force = false): void {
-    this.rangeCacheStore.setCurrentOffsetHint(this.currentOffset());
-    this.rangeCacheStore.ensureAroundOffset(offset, force);
-  }
-
-  private ensureWindowLoaded(startOffset: number, endOffset: number, force = false): void {
-    this.rangeCacheStore.setCurrentOffsetHint(this.currentOffset());
-    this.rangeCacheStore.ensureWindow(startOffset, endOffset, force);
   }
 
   private tryApplyPendingAnchor(): void {
@@ -889,7 +861,6 @@ export class PostsComponent implements AfterViewInit {
   private handleFastScrollerDragSample(offset: number): void {
     this.latestMeasuredOffset = offset;
     this.currentOffset.set(offset);
-    this.rangeCacheStore.setCurrentOffsetHint(offset);
   }
 
   private onFastScrollerDragCommit(): void {
@@ -1025,14 +996,6 @@ export class PostsComponent implements AfterViewInit {
     );
 
     return this.clamp(desiredColumns, 1, maxColumnsForMinTile);
-  }
-
-  private resolveAnchorOffset(offset: number | null): number {
-    if (offset !== null) {
-      return offset;
-    }
-
-    return 0;
   }
 
   private getFirstVisiblePostOffsetFromRowIndex(rowIndex: number): number {

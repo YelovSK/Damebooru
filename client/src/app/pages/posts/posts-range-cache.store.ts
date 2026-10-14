@@ -26,15 +26,15 @@ export class PostsRangeCacheStore {
     private readonly queuedRanges = new Map<string, OffsetRange>();
 
     private activeQuery = '';
-    private currentOffsetHint = 0;
 
     readonly segmentCache = this.segmentCacheState.asReadonly();
     readonly totalCount = this.totalCountState.asReadonly();
     readonly isInitialLoading = this.initialLoadingState.asReadonly();
+    // The offset the user is looking at; queued ranges closest to it load first.
+    readonly currentOffset = signal(0);
 
     reset(query: string): void {
         this.activeQuery = query;
-        this.currentOffsetHint = 0;
 
         this.inFlightRanges.clear();
         this.queuedRanges.clear();
@@ -53,14 +53,6 @@ export class PostsRangeCacheStore {
 
         const segment = this.segmentCacheState().get(this.offsetToSegmentIndex(normalizedOffset));
         return segment?.status === 'ready';
-    }
-
-    setCurrentOffsetHint(offset: number): void {
-        if (!Number.isFinite(offset)) {
-            return;
-        }
-
-        this.currentOffsetHint = Math.max(0, Math.floor(offset));
     }
 
     ensureAroundOffset(offset: number, force = false): void {
@@ -288,13 +280,14 @@ export class PostsRangeCacheStore {
     }
 
     private getDistanceFromHint(range: OffsetRange): number {
-        if (this.currentOffsetHint >= range.start && this.currentOffsetHint < range.end) {
+        const offset = this.currentOffset();
+        if (offset >= range.start && offset < range.end) {
             return 0;
         }
 
         return Math.min(
-            Math.abs(this.currentOffsetHint - range.start),
-            Math.abs(this.currentOffsetHint - range.end),
+            Math.abs(offset - range.start),
+            Math.abs(offset - range.end),
         );
     }
 

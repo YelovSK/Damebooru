@@ -14,6 +14,13 @@
     width: 100%;
 }
 
+.density-option-selected {
+    background-color: rgba(56, 189, 248, 0.22);
+    border-color: rgba(56, 189, 248, 0.52);
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.18) inset;
+    color: var(--color-accent-primary);
+}
+
 .fast-scroller-hover-zone {
     bottom: 0;
     pointer-events: none;
