@@ -18,21 +18,6 @@
     content-visibility: auto;
 }
 
-.posts-scrolling .post-tile {
-    transition: none;
-}
-
-.posts-scrolling .post-tile:hover {
-    border-color: rgba(148, 163, 184, 0.12);
-    box-shadow: none;
-    transform: none;
-}
-
-.posts-scrolling .post-overlay {
-    opacity: 0;
-    transition: none;
-}
-
 .fast-scroller-hover-zone {
     bottom: 0;
     pointer-events: none;
@@ -100,6 +85,16 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
+    .posts-scrolling .post-tile {
+        transition: none;
+    }
+
+    .posts-scrolling .post-tile:hover {
+        border-color: rgba(148, 163, 184, 0.12);
+        box-shadow: none;
+        transform: none;
+    }
+
     .fast-scroller-hover-zone {
         pointer-events: auto;
     }

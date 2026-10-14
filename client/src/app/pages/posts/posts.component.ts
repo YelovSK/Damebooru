@@ -108,7 +108,6 @@ export class PostsComponent implements AfterViewInit {
   private urlSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private scrollIdleTimer: ReturnType<typeof setTimeout> | null = null;
   private hoverPreviewTimer: ReturnType<typeof setTimeout> | null = null;
-  private scrollRafId: number | null = null;
 
   private readonly damebooru = inject(DamebooruService);
   private readonly router = inject(Router);
@@ -322,10 +321,6 @@ export class PostsComponent implements AfterViewInit {
       this.clearScrollIdleTimer();
       this.clearHoverPreviewTimer();
       this.virtualRowDataSource.disconnect();
-      if (this.scrollRafId !== null) {
-        cancelAnimationFrame(this.scrollRafId);
-        this.scrollRafId = null;
-      }
     });
 
     this.setupHotkeys();
@@ -352,26 +347,11 @@ export class PostsComponent implements AfterViewInit {
         .pipe(auditTime(40), takeUntilDestroyed(this.destroyRef))
         .subscribe((range) => this.handleRenderedRange(range.start, range.end));
 
+      // Emits outside the Angular zone; signal writes schedule change detection only when values change.
       viewport
         .elementScrolled()
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(() => {
-          if (this.fastScrollerDragging()) {
-            return;
-          }
-
-          if (this.scrollRafId !== null) {
-            return;
-          }
-
-          this.scrollRafId = requestAnimationFrame(() => {
-            this.scrollRafId = null;
-            if (this.fastScrollerDragging()) {
-              return;
-            }
-            this.zone.run(() => this.onViewportScrolled());
-          });
-        });
+        .subscribe(() => this.onViewportScrolled());
 
       this.zone.runOutsideAngular(() => {
         const el = viewport.elementRef.nativeElement;
@@ -979,15 +959,17 @@ export class PostsComponent implements AfterViewInit {
       return;
     }
 
-    this.router.navigate([], {
-      queryParams: {
-        query: query.length > 0 ? query : null,
-        page: null,
-        offset,
-      },
-      queryParamsHandling: "merge",
-      replaceUrl: true,
-    });
+    this.zone.run(() =>
+      this.router.navigate([], {
+        queryParams: {
+          query: query.length > 0 ? query : null,
+          page: null,
+          offset,
+        },
+        queryParamsHandling: "merge",
+        replaceUrl: true,
+      }),
+    );
   }
 
   private parseCssPixels(value: string | null | undefined): number {
