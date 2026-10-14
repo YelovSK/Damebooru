@@ -232,13 +232,15 @@ if (authEnabled)
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(previewPath),
-    RequestPath = MediaPaths.PreviewsRequestPath
+    RequestPath = MediaPaths.PreviewsRequestPath,
+    OnPrepareResponse = SetGeneratedImageCacheHeaders
 });
 
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(thumbnailPath),
-    RequestPath = MediaPaths.ThumbnailsRequestPath
+    RequestPath = MediaPaths.ThumbnailsRequestPath,
+    OnPrepareResponse = SetGeneratedImageCacheHeaders
 });
 
 app.UseAuthorization();
@@ -260,6 +262,11 @@ static void TrimSecretLikeValues(DamebooruConfig config)
     config.ExternalApis.Gelbooru.UserId = config.ExternalApis.Gelbooru.UserId?.Trim() ?? string.Empty;
     config.ExternalApis.Gelbooru.ApiKey = config.ExternalApis.Gelbooru.ApiKey?.Trim() ?? string.Empty;
 }
+
+// Keyed by content hash, but not immutable: regenerating thumbnails rewrites files under the same URL.
+// Private because they sit behind auth.
+static void SetGeneratedImageCacheHeaders(Microsoft.AspNetCore.StaticFiles.StaticFileResponseContext context)
+    => context.Context.Response.Headers.CacheControl = "private, max-age=604800";
 
 static bool IsApiOrGeneratedImagePath(PathString path)
     => path.StartsWithSegments("/api") || IsGeneratedImagePath(path);
