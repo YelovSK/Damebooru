@@ -86,18 +86,20 @@
 
         <div #fastScrollerRail class="fast-scroller-rail" [class.fast-scroller-visible]="fastScrollerVisible()"
             [class.fast-scroller-dragging]="fastScrollerDragging()">
-            <div class="fast-scroller-thumb absolute top-0 left-1/2 w-[6px] -translate-x-1/2 rounded-full bg-gradient-to-b from-sky-400/95 to-sky-500/95 shadow-[0_5px_14px_rgba(2,132,199,0.42)]"
+            <div class="fast-scroller-track absolute inset-x-0 top-0"
                 [style.height.px]="fastScrollerThumbHeightPx()"
-                [style.transform]="'translateY(' + fastScrollerThumbTopPx() + 'px)'">
+                [style.--fast-scroller-travel]="fastScrollerThumbTravelPx() + 'px'">
+                <div
+                    class="fast-scroller-thumb absolute inset-y-0 left-1/2 w-[6px] -translate-x-1/2 rounded-full bg-gradient-to-b from-sky-400/95 to-sky-500/95 shadow-[0_5px_14px_rgba(2,132,199,0.42)]">
+                </div>
+
+                @if (showFastScrollerBubble()) {
+                <div class="pointer-events-none absolute top-1/2 right-[calc(100%+3px)] inline-flex h-9 min-w-[74px] -translate-y-1/2 items-center justify-center whitespace-nowrap rounded-full border border-sky-300/45 bg-slate-900/92 px-[0.72rem] text-[0.74rem] font-bold text-text-secondary">
+                    Post {{ fastScrollerBubblePost() | number }}
+                </div>
+                }
             </div>
         </div>
-
-        @if (showFastScrollerBubble()) {
-        <div class="fast-scroller-bubble pointer-events-none absolute top-0 right-[31px] z-[36] inline-flex h-9 min-w-[74px] items-center justify-center whitespace-nowrap rounded-full border border-sky-300/45 bg-slate-900/92 px-[0.72rem] text-[0.74rem] font-bold text-text-secondary"
-            [style.transform]="'translateY(' + fastScrollerBubbleTopPx() + 'px)'">
-            Post {{ fastScrollerBubblePost() | number }}
-        </div>
-        }
     </div>
 
     @if (previewPost(); as preview) {

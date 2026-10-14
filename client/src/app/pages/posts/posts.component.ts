@@ -82,6 +82,7 @@ export class PostsComponent implements AfterViewInit {
   private static readonly GRID_GAP_PX = 8;
   private static readonly MOBILE_BREAKPOINT_PX = 768;
   private static readonly MIN_TILE_SIZE_PX = 56;
+  private static readonly FAST_SCROLLER_MIN_THUMB_PX = 44;
 
   private static readonly MIN_VIEWPORT_HEIGHT_PX = 260;
   private static readonly VIEWPORT_BOTTOM_GUTTER_PX = 0;
@@ -197,10 +198,29 @@ export class PostsComponent implements AfterViewInit {
   readonly fastScrollerVisible = this.fastScroller.visible;
   readonly scrollControlsVisible = this.fastScroller.scrollControlsVisible;
   readonly fastScrollerDragging = this.fastScroller.dragging;
-  readonly fastScrollerThumbTopPx = this.fastScroller.thumbTopPx;
-  readonly fastScrollerThumbHeightPx = this.fastScroller.thumbHeightPx;
-  readonly fastScrollerBubbleTopPx = this.fastScroller.bubbleTopPx;
-  readonly fastScrollerBubblePost = this.fastScroller.bubbleLabel;
+  readonly fastScrollerBubblePost = computed(() => this.currentOffset() + 1);
+
+  private readonly contentHeightPx = computed(
+    () => this.virtualRowCount() * this.rowItemHeightPx(),
+  );
+  private readonly maxScrollTopPx = computed(() =>
+    Math.max(0, this.contentHeightPx() - this.viewportHeightPx()),
+  );
+  readonly fastScrollerThumbHeightPx = computed(() => {
+    const viewportHeight = this.viewportHeightPx();
+    if (this.maxScrollTopPx() <= 0) {
+      return viewportHeight;
+    }
+
+    return this.clamp(
+      viewportHeight * (viewportHeight / this.contentHeightPx()),
+      PostsComponent.FAST_SCROLLER_MIN_THUMB_PX,
+      viewportHeight,
+    );
+  });
+  readonly fastScrollerThumbTravelPx = computed(
+    () => this.viewportHeightPx() - this.fastScrollerThumbHeightPx(),
+  );
 
   readonly showFastScrollerBubble = computed(
     () => this.fastScrollerVisible() && (this.totalCount() ?? 0) > 1,
@@ -251,10 +271,7 @@ export class PostsComponent implements AfterViewInit {
       }
 
       this.clampAnchorsToTotal();
-      queueMicrotask(() => {
-        this.tryApplyPendingAnchor();
-        this.refreshFastScrollerGeometry();
-      });
+      queueMicrotask(() => this.tryApplyPendingAnchor());
     });
 
     effect(() => {
@@ -269,15 +286,15 @@ export class PostsComponent implements AfterViewInit {
     this.fastScroller.configure({
       getRailElement: () => this.fastScrollerRailRef()?.nativeElement ?? null,
       getTotalItems: () => this.totalCount() ?? 0,
-      getViewportMetrics: () => this.getFastScrollerViewportMetrics(),
+      getDragMetrics: () => ({
+        thumbHeight: this.fastScrollerThumbHeightPx(),
+        maxScrollTop: this.maxScrollTopPx(),
+      }),
       scrollToOffset: (scrollTop) =>
         this.viewportRef()?.scrollToOffset(scrollTop, "auto"),
-      resolveBubbleLabelForScrollTop: (scrollTop) =>
-        this.resolveBubbleLabelForScrollTop(scrollTop),
       resolveOffsetForScrollTop: (scrollTop) =>
         this.resolveOffsetForScrollTop(scrollTop),
-      onDragSample: (offset, bubbleLabel) =>
-        this.handleFastScrollerDragSample(offset, bubbleLabel),
+      onDragSample: (offset) => this.handleFastScrollerDragSample(offset),
       onDragCommit: () => this.onFastScrollerDragCommit(),
     });
 
@@ -391,7 +408,6 @@ export class PostsComponent implements AfterViewInit {
     queueMicrotask(() => {
       this.recalculateLayout(false);
       this.tryApplyPendingAnchor();
-      this.refreshFastScrollerGeometry();
     });
   }
 
@@ -674,7 +690,6 @@ export class PostsComponent implements AfterViewInit {
     this.latestMeasuredOffset = targetOffset;
     this.currentOffset.set(targetOffset);
 
-    this.fastScrollerBubblePost.set(targetOffset + 1);
     this.rangeCacheStore.setCurrentOffsetHint(targetOffset);
 
     this.ensureOffsetLoaded(targetOffset, true);
@@ -764,17 +779,7 @@ export class PostsComponent implements AfterViewInit {
     this.latestMeasuredOffset = absoluteOffset;
 
     const isDragging = this.fastScrollerDragging();
-    if (isDragging) {
-      if (absoluteOffset !== this.currentOffset()) {
-        this.currentOffset.set(absoluteOffset);
-      }
-    } else if (absoluteOffset !== this.currentOffset()) {
-      this.currentOffset.set(absoluteOffset);
-    }
-
-    this.fastScrollerBubblePost.set(absoluteOffset + 1);
-
-    this.refreshFastScrollerGeometry();
+    this.currentOffset.set(absoluteOffset);
 
     if (!isDragging && !this.isScrolling() && this.totalCount() !== null) {
       this.scheduleUrlSync();
@@ -838,9 +843,7 @@ export class PostsComponent implements AfterViewInit {
 
     this.latestMeasuredOffset = clampedOffset;
     this.currentOffset.set(clampedOffset);
-    this.fastScrollerBubblePost.set(clampedOffset + 1);
 
-    this.refreshFastScrollerGeometry();
     this.scheduleUrlSync();
   }
 
@@ -895,7 +898,6 @@ export class PostsComponent implements AfterViewInit {
 
     queueMicrotask(() => {
       this.viewportRef()?.checkViewportSize();
-      this.refreshFastScrollerGeometry();
 
       if (anchorOffset !== null && this.totalCount() !== null) {
         this.scrollToAbsoluteOffset(anchorOffset, false);
@@ -905,57 +907,14 @@ export class PostsComponent implements AfterViewInit {
     });
   }
 
-  private refreshFastScrollerGeometry(): void {
-    this.fastScroller.refreshGeometry();
-  }
-
-  private getFastScrollerViewportMetrics(): {
-    viewportHeight: number;
-    railHeight: number;
-    contentHeight: number;
-    scrollTop: number;
-  } | null {
-    const viewport = this.viewportRef();
-    const rail = this.fastScrollerRailRef()?.nativeElement;
-    if (!viewport || !rail) {
-      return null;
-    }
-
-    const viewportHeight = viewport.getViewportSize();
-    const railHeight = rail.clientHeight;
-    const contentHeight = this.virtualRowCount() * this.rowItemHeightPx();
-    const scrollTop = viewport.measureScrollOffset("top");
-
-    if (viewportHeight <= 0 || railHeight <= 0 || contentHeight <= 0) {
-      return null;
-    }
-
-    return {
-      viewportHeight,
-      railHeight,
-      contentHeight,
-      scrollTop,
-    };
-  }
-
-  private resolveBubbleLabelForScrollTop(scrollTop: number): number {
-    const rowIndex = this.getRowIndexForScrollTop(scrollTop);
-    return this.getFirstVisiblePostOffsetFromRowIndex(rowIndex) + 1;
-  }
-
   private resolveOffsetForScrollTop(scrollTop: number): number {
     const rowIndex = this.getRowIndexForScrollTop(scrollTop);
     return this.getFirstVisiblePostOffsetFromRowIndex(rowIndex);
   }
 
-  private handleFastScrollerDragSample(offset: number, bubbleLabel: number): void {
+  private handleFastScrollerDragSample(offset: number): void {
     this.latestMeasuredOffset = offset;
-    if (offset !== this.currentOffset()) {
-      this.currentOffset.set(offset);
-    }
-    if (bubbleLabel !== this.fastScrollerBubblePost()) {
-      this.fastScrollerBubblePost.set(bubbleLabel);
-    }
+    this.currentOffset.set(offset);
     this.rangeCacheStore.setCurrentOffsetHint(offset);
   }
 

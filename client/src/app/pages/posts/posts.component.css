@@ -2,6 +2,14 @@
     display: none;
 }
 
+.posts-viewport-shell {
+    timeline-scope: --posts-scroll;
+}
+
+.posts-virtual-viewport {
+    scroll-timeline: --posts-scroll block;
+}
+
 .posts-virtual-viewport .cdk-virtual-scroll-content-wrapper {
     width: 100%;
 }
@@ -75,9 +83,20 @@
     width: 9px;
 }
 
-.fast-scroller-thumb,
-.fast-scroller-bubble {
-    will-change: transform;
+/* Driven by the viewport's scroll position so the thumb moves with native (compositor) scrolling. */
+.fast-scroller-track {
+    animation: fast-scroller-travel linear both;
+    animation-timeline: --posts-scroll;
+}
+
+@keyframes fast-scroller-travel {
+    from {
+        transform: translateY(0);
+    }
+
+    to {
+        transform: translateY(var(--fast-scroller-travel));
+    }
 }
 
 @media (hover: hover) and (pointer: fine) {

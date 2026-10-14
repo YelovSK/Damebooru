@@ -1,28 +1,23 @@
 import { Injectable, signal } from '@angular/core';
 
-interface FastScrollerViewportMetrics {
-    viewportHeight: number;
-    railHeight: number;
-    contentHeight: number;
-    scrollTop: number;
+interface FastScrollerDragMetrics {
+    thumbHeight: number;
+    maxScrollTop: number;
 }
 
 interface PostsFastScrollerBindings {
     getRailElement: () => HTMLElement | null;
     getTotalItems: () => number;
-    getViewportMetrics: () => FastScrollerViewportMetrics | null;
+    getDragMetrics: () => FastScrollerDragMetrics | null;
     scrollToOffset: (scrollTop: number) => void;
-    resolveBubbleLabelForScrollTop: (scrollTop: number) => number;
     resolveOffsetForScrollTop: (scrollTop: number) => number;
-    onDragSample: (offset: number, bubbleLabel: number) => void;
+    onDragSample: (offset: number) => void;
     onDragCommit: () => void;
 }
 
 @Injectable()
 export class PostsFastScrollerController {
-    private static readonly FAST_SCROLLER_MIN_THUMB_PX = 44;
     private static readonly FAST_SCROLLER_HIDE_DELAY_MS = 1250;
-    private static readonly FAST_SCROLLER_BUBBLE_HEIGHT_PX = 36;
     private static readonly DRAG_SAMPLE_MIN_INTERVAL_MS = 33;
 
     private bindings: PostsFastScrollerBindings | null = null;
@@ -32,18 +27,12 @@ export class PostsFastScrollerController {
     private pendingFastScrollerClientY: number | null = null;
     private fastScrollerPointerId: number | null = null;
     private dragRailRect: DOMRect | null = null;
-    private dragThumbHeightPx = PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX;
-    private dragUsableHeight = 1;
     private lastDragSampleTs = 0;
-    private lastDragSampleBubbleLabel = -1;
+    private lastDragSampleOffset = -1;
 
     readonly visible = signal(false);
     readonly scrollControlsVisible = signal(true);
     readonly dragging = signal(false);
-    readonly thumbTopPx = signal(0);
-    readonly thumbHeightPx = signal(56);
-    readonly bubbleTopPx = signal(0);
-    readonly bubbleLabel = signal(1);
 
     configure(bindings: PostsFastScrollerBindings): void {
         this.bindings = bindings;
@@ -61,8 +50,7 @@ export class PostsFastScrollerController {
 
         const bindings = this.bindings;
         const rail = bindings?.getRailElement() ?? null;
-        const metrics = bindings?.getViewportMetrics() ?? null;
-        if (!bindings || !rail || !metrics || bindings.getTotalItems() <= 1) {
+        if (!bindings || !rail || !bindings.getDragMetrics() || bindings.getTotalItems() <= 1) {
             return;
         }
 
@@ -72,11 +60,8 @@ export class PostsFastScrollerController {
         this.reveal();
 
         this.dragRailRect = rail.getBoundingClientRect();
-        this.dragThumbHeightPx = this.calculateThumbHeight(metrics);
-        this.dragUsableHeight = Math.max(1, this.dragRailRect.height - this.dragThumbHeightPx);
-        this.thumbHeightPx.set(this.dragThumbHeightPx);
         this.lastDragSampleTs = 0;
-        this.lastDragSampleBubbleLabel = -1;
+        this.lastDragSampleOffset = -1;
 
         rail.setPointerCapture(event.pointerId);
         this.pendingFastScrollerClientY = event.clientY;
@@ -103,33 +88,6 @@ export class PostsFastScrollerController {
 
     onScrollActivity(): void {
         this.reveal();
-    }
-
-    refreshGeometry(): void {
-        const bindings = this.bindings;
-        const metrics = bindings?.getViewportMetrics() ?? null;
-        if (!metrics) {
-            this.thumbTopPx.set(0);
-            this.thumbHeightPx.set(0);
-            this.bubbleTopPx.set(0);
-            return;
-        }
-
-        const maxScrollTop = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
-        let thumbHeight = maxScrollTop <= 0
-            ? metrics.railHeight
-            : metrics.railHeight * (metrics.viewportHeight / metrics.contentHeight);
-
-        thumbHeight = Math.max(
-            PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX,
-            Math.min(metrics.railHeight, thumbHeight)
-        );
-
-        const thumbTravel = Math.max(0, metrics.railHeight - thumbHeight);
-        const thumbTop = maxScrollTop <= 0 ? 0 : (metrics.scrollTop / maxScrollTop) * thumbTravel;
-
-        this.thumbHeightPx.set(thumbHeight);
-        this.updateFastScrollerVisual(thumbTop, metrics.railHeight, thumbHeight);
     }
 
     private scheduleFastScrollerFrame(): void {
@@ -161,59 +119,29 @@ export class PostsFastScrollerController {
 
     private applyFastScrollerPointer(clientY: number): void {
         const bindings = this.bindings;
-        const rail = bindings?.getRailElement() ?? null;
-        const metrics = bindings?.getViewportMetrics() ?? null;
-        if (!bindings || !rail || !metrics) {
+        const railRect = this.dragRailRect;
+        const metrics = bindings?.getDragMetrics() ?? null;
+        if (!bindings || !railRect || !metrics) {
             return;
         }
 
-        const railRect = this.dragRailRect ?? rail.getBoundingClientRect();
-        const thumbHeight = this.clamp(this.dragThumbHeightPx, 1, Math.max(1, railRect.height));
-        const usableHeight = this.dragUsableHeight;
-        const clampedCenter = this.clamp(
-            clientY,
-            railRect.top + thumbHeight / 2,
-            railRect.bottom - thumbHeight / 2
-        );
-
-        const ratio = (clampedCenter - railRect.top - thumbHeight / 2) / usableHeight;
-        const thumbTop = ratio * usableHeight;
-        this.updateFastScrollerVisual(thumbTop, railRect.height, thumbHeight);
-
-        const maxScrollTop = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
-        const targetScrollTop = ratio * maxScrollTop;
+        const usableHeight = Math.max(1, railRect.height - metrics.thumbHeight);
+        const ratio = this.clamp((clientY - railRect.top - metrics.thumbHeight / 2) / usableHeight, 0, 1);
+        const targetScrollTop = ratio * metrics.maxScrollTop;
         bindings.scrollToOffset(targetScrollTop);
 
-        const targetBubbleLabel = bindings.resolveBubbleLabelForScrollTop(targetScrollTop);
         const targetOffset = bindings.resolveOffsetForScrollTop(targetScrollTop);
-        if (targetBubbleLabel !== this.bubbleLabel()) {
-            this.bubbleLabel.set(targetBubbleLabel);
-        }
-
         const now = performance.now();
         if (
-            targetBubbleLabel !== this.lastDragSampleBubbleLabel
+            targetOffset !== this.lastDragSampleOffset
             || now - this.lastDragSampleTs >= PostsFastScrollerController.DRAG_SAMPLE_MIN_INTERVAL_MS
         ) {
             this.lastDragSampleTs = now;
-            this.lastDragSampleBubbleLabel = targetBubbleLabel;
-            bindings.onDragSample(targetOffset, targetBubbleLabel);
+            this.lastDragSampleOffset = targetOffset;
+            bindings.onDragSample(targetOffset);
         }
 
         this.reveal();
-    }
-
-    private updateFastScrollerVisual(thumbTop: number, railHeight: number, thumbHeight: number): void {
-        const clampedThumbTop = this.clamp(thumbTop, 0, Math.max(0, railHeight - thumbHeight));
-        this.thumbTopPx.set(clampedThumbTop);
-
-        const bubbleTop = this.clamp(
-            clampedThumbTop + thumbHeight / 2 - PostsFastScrollerController.FAST_SCROLLER_BUBBLE_HEIGHT_PX / 2,
-            0,
-            Math.max(0, railHeight - PostsFastScrollerController.FAST_SCROLLER_BUBBLE_HEIGHT_PX)
-        );
-
-        this.bubbleTopPx.set(bubbleTop);
     }
 
     private finishFastScrollerPointer(event: PointerEvent): void {
@@ -272,18 +200,5 @@ export class PostsFastScrollerController {
 
     private clamp(value: number, min: number, max: number): number {
         return Math.min(max, Math.max(min, value));
-    }
-
-    private calculateThumbHeight(metrics: FastScrollerViewportMetrics): number {
-        const maxScrollTop = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
-        const thumbHeight = maxScrollTop <= 0
-            ? metrics.railHeight
-            : metrics.railHeight * (metrics.viewportHeight / metrics.contentHeight);
-
-        return this.clamp(
-            thumbHeight,
-            PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX,
-            Math.max(PostsFastScrollerController.FAST_SCROLLER_MIN_THUMB_PX, metrics.railHeight)
-        );
     }
 }
