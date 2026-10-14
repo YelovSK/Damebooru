@@ -198,8 +198,43 @@ class ImageSrcScheduler {
   }
 
   private static clearPendingState(element: HTMLImageElement): void {
-    element.removeAttribute("data-scheduled-pending");
     element.style.opacity = "";
+  }
+}
+
+class NearViewportObserver {
+  private static readonly margin = "180px 0px 180px 0px";
+  private static readonly callbacks = new Map<Element, (near: boolean) => void>();
+  private static observer: IntersectionObserver | null = null;
+
+  static observe(element: Element, callback: (near: boolean) => void): void {
+    this.callbacks.set(element, callback);
+    this.getObserver().observe(element);
+  }
+
+  static unobserve(element: Element): void {
+    this.callbacks.delete(element);
+    this.observer?.unobserve(element);
+  }
+
+  private static getObserver(): IntersectionObserver {
+    if (this.observer) {
+      return this.observer;
+    }
+
+    // scrollMargin extends the clip of scroll containers (the posts viewport); rootMargin only extends the window.
+    // TS's DOM lib doesn't know scrollMargin yet.
+    const options: IntersectionObserverInit & { scrollMargin: string } = {
+      rootMargin: this.margin,
+      scrollMargin: this.margin,
+      threshold: 0,
+    };
+    this.observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        this.callbacks.get(entry.target)?.(entry.isIntersecting);
+      }
+    }, options);
+    return this.observer;
   }
 }
 
@@ -208,18 +243,21 @@ class ImageSrcScheduler {
   standalone: true,
 })
 export class ScheduledSrcDirective implements OnDestroy {
-  private static readonly observerRootMargin = "180px 0px 180px 0px";
-
   private readonly elementRef = inject(ElementRef<HTMLImageElement>);
   private readonly settings = inject(SettingsService);
   private readonly token = Symbol("scheduled-image");
-  private intersectionObserver?: IntersectionObserver;
   private isNear = false;
 
   appScheduledSrc = input<string | null | undefined>(null);
 
   constructor() {
-    this.setupIntersectionObserver();
+    if (typeof IntersectionObserver === "undefined") {
+      this.setNear(true);
+    } else {
+      NearViewportObserver.observe(this.elementRef.nativeElement, (near) =>
+        this.setNear(near),
+      );
+    }
 
     effect(() => {
       ImageSrcScheduler.setMaxAssignmentsPerFrame(
@@ -232,8 +270,7 @@ export class ScheduledSrcDirective implements OnDestroy {
 
   ngOnDestroy(): void {
     ImageSrcScheduler.forget(this.token);
-    this.intersectionObserver?.disconnect();
-    this.intersectionObserver = undefined;
+    NearViewportObserver.unobserve(this.elementRef.nativeElement);
   }
 
   private applyScheduledSrc(): void {
@@ -253,13 +290,11 @@ export class ScheduledSrcDirective implements OnDestroy {
     if (!this.settings.useScheduledImageSrc()) {
       ImageSrcScheduler.cancel(this.token);
       element.src = url;
-      element.removeAttribute("data-scheduled-pending");
       element.style.opacity = "";
       return;
     }
 
     ImageSrcScheduler.cancel(this.token);
-    element.setAttribute("data-scheduled-pending", "true");
     element.style.opacity = "0";
 
     ImageSrcScheduler.enqueue({
@@ -271,37 +306,8 @@ export class ScheduledSrcDirective implements OnDestroy {
     });
   }
 
-  private setupIntersectionObserver(): void {
-    const element = this.elementRef.nativeElement;
-
-    if (typeof IntersectionObserver === "undefined") {
-      this.setNear(true);
-      return;
-    }
-
-    const root = element.closest(".posts-virtual-viewport");
-
-    this.intersectionObserver = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[entries.length - 1];
-        this.setNear(entry?.isIntersecting ?? false);
-      },
-      {
-        root,
-        rootMargin: ScheduledSrcDirective.observerRootMargin,
-        threshold: 0,
-      },
-    );
-
-    this.intersectionObserver.observe(element);
-  }
-
   private setNear(near: boolean): void {
     this.isNear = near;
-    this.elementRef.nativeElement.setAttribute(
-      "data-scheduled-near",
-      near ? "true" : "false",
-    );
     ImageSrcScheduler.markNear(this.token, near);
   }
 }
