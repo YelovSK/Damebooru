@@ -11,7 +11,6 @@ export type CacheStatus = 'idle' | 'loading' | 'ready' | 'error';
 export interface GridCell {
     kind: 'post' | 'skeleton' | 'placeholder';
     post: DamebooruPostDto | null;
-    trackKey: string;
 }
 
 export interface CachedPostSegment {

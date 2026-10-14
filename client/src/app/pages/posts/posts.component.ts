@@ -98,7 +98,7 @@ export class PostsComponent implements AfterViewInit {
 
   private gridResizeObserver?: ResizeObserver;
 
-  private readonly rowCellsCache = new Map<string, GridCell[]>();
+  private readonly rowCellsCache = new Map<number, GridCell[]>();
 
   private pendingAnchorOffset: number | null = 0;
   private routeAnchorAppliedForQuery: string | null = null;
@@ -445,9 +445,7 @@ export class PostsComponent implements AfterViewInit {
       return [];
     }
 
-    const rowId = this.getRowIdByIndex(rowIndex);
-
-    const cached = this.rowCellsCache.get(rowId);
+    const cached = this.rowCellsCache.get(rowIndex);
     if (cached) {
       return cached;
     }
@@ -466,7 +464,6 @@ export class PostsComponent implements AfterViewInit {
         cells.push({
           kind: "placeholder",
           post: null,
-          trackKey: `placeholder-${rowId}-${col}`,
         });
         continue;
       }
@@ -481,7 +478,6 @@ export class PostsComponent implements AfterViewInit {
           cells.push({
             kind: "post",
             post,
-            trackKey: `post-${post.id}`,
           });
           continue;
         }
@@ -491,7 +487,6 @@ export class PostsComponent implements AfterViewInit {
         cells.push({
           kind: "skeleton",
           post: null,
-          trackKey: `skeleton-${rowId}-${col}`,
         });
         continue;
       }
@@ -499,11 +494,10 @@ export class PostsComponent implements AfterViewInit {
       cells.push({
         kind: "placeholder",
         post: null,
-        trackKey: `placeholder-${rowId}-${col}`,
       });
     }
 
-    this.rowCellsCache.set(rowId, cells);
+    this.rowCellsCache.set(rowIndex, cells);
     return cells;
   }
 
@@ -1061,10 +1055,6 @@ export class PostsComponent implements AfterViewInit {
   private getRowIndexForScrollTop(scrollTop: number): number {
     const rowHeight = Math.max(1, this.rowItemHeightPx());
     return Math.max(0, Math.floor(Math.max(0, scrollTop) / rowHeight));
-  }
-
-  private getRowIdByIndex(rowIndex: number): string {
-    return `r${rowIndex}`;
   }
 
   private parseNonNegativeInt(value: string | null | undefined): number | null {

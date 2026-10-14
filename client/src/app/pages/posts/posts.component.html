@@ -65,7 +65,7 @@
                 <div class="grid h-full w-full box-border content-start"
                     [style.gridTemplateColumns]="gridTemplateColumns()" [style.columnGap.px]="gridGapPx"
                     [style.paddingTop.px]="gridGapPx / 2" [style.paddingBottom.px]="gridGapPx / 2">
-                    @for (cell of getRowCells(rowIndex); track cell.trackKey) {
+                    @for (cell of getRowCells(rowIndex); track $index) {
                     @if (cell.kind === 'post') {
                     @if (cell.post; as post) {
                     <app-post-tile [post]="post" [queryParams]="activeQueryParams()" />
