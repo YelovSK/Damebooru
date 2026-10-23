@@ -98,16 +98,14 @@ public sealed class AiTaggingService
             return Result<AiTagPreviewDto>.Failure(OperationError.InvalidInput, "AI tagging is not enabled.");
         }
 
-        var candidate = await _db.Posts
+        var candidate = await _db.PostFiles
             .AsNoTracking()
-            .Where(p => p.Id == postId && EF.Functions.Like(p.ContentType, "image/%"))
-            .Select(p => p.PostFiles
-                .OrderBy(pf => pf.Id)
-                .Select(pf => new AiTaggingCandidate(
-                    pf.Library.Path,
-                    pf.RelativePath,
-                    p.ContentType))
-                .FirstOrDefault())
+            .Where(pf => pf.PostId == postId && EF.Functions.Like(pf.Post.ContentType, "image/%"))
+            .OrderBy(pf => pf.Id)
+            .Select(pf => new AiTaggingCandidate(
+                pf.Library.Path,
+                pf.RelativePath,
+                pf.Post.ContentType))
             .FirstOrDefaultAsync(cancellationToken);
 
         if (candidate == null)
