@@ -12,26 +12,20 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 import uvicorn
 
+from .lazy_tagger import LazyTagger
 from .schemas import HealthResponse, ModelsResponse, TagResponse
 from .settings import Settings
-from .tagger import CamieTagger, TaggingError
+from .tagger import TaggingError
 
 settings = Settings()
-_tagger: CamieTagger | None = None
-_tagger_error: str | None = None
+tagger = LazyTagger(settings)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global _tagger, _tagger_error
-    try:
-        _tagger = await asyncio.to_thread(CamieTagger.load, settings)
-        _tagger_error = None
-    except Exception as ex:
-        _tagger = None
-        _tagger_error = str(ex)
-        print(f"Model startup load failed: {_tagger_error}", flush=True)
+    unloader = asyncio.create_task(tagger.unload_when_idle())
     yield
+    unloader.cancel()
 
 
 app = FastAPI(
@@ -45,7 +39,7 @@ app = FastAPI(
 async def health() -> HealthResponse:
     return HealthResponse(
         ok=True,
-        model_loaded=_tagger is not None,
+        model_loaded=tagger.loaded,
         model=settings.model_repo,
         provider=settings.provider,
     )
@@ -53,17 +47,17 @@ async def health() -> HealthResponse:
 
 @app.get("/ready", response_model=HealthResponse)
 async def ready() -> HealthResponse:
-    if _tagger is None:
-        raise HTTPException(
-            status_code=503,
-            detail=_tagger_error or "Model is not loaded yet.",
-        )
+    try:
+        async with tagger.use() as loaded_tagger:
+            provider = loaded_tagger.active_provider
+    except TaggingError as ex:
+        raise HTTPException(status_code=503, detail=str(ex)) from ex
 
     return HealthResponse(
         ok=True,
         model_loaded=True,
         model=settings.model_repo,
-        provider=_tagger.active_provider,
+        provider=provider,
     )
 
 
@@ -118,27 +112,23 @@ async def tag_image(
                     )
                 temp_file.write(chunk)
 
-        if _tagger is None:
-            raise HTTPException(
-                status_code=503,
-                detail=_tagger_error or "Model is not loaded yet.",
+        async with tagger.use() as loaded_tagger:
+            started_at = time.perf_counter()
+            result = await asyncio.to_thread(
+                loaded_tagger.tag_path,
+                temp_path,
+                threshold=effective_threshold,
+                min_confidence=effective_min_confidence,
+                top_k=effective_top_k,
+                include_below_threshold=include_below_threshold,
+                replace_underscores=replace_underscores,
             )
-
-        started_at = time.perf_counter()
-        result = await asyncio.to_thread(
-            _tagger.tag_path,
-            temp_path,
-            threshold=effective_threshold,
-            min_confidence=effective_min_confidence,
-            top_k=effective_top_k,
-            include_below_threshold=include_below_threshold,
-            replace_underscores=replace_underscores,
-        )
-        elapsed_ms = round((time.perf_counter() - started_at) * 1000, 2)
+            elapsed_ms = round((time.perf_counter() - started_at) * 1000, 2)
+            provider = loaded_tagger.active_provider
 
         return TagResponse(
             model=settings.model_repo,
-            provider=_tagger.active_provider,
+            provider=provider,
             threshold=effective_threshold,
             min_confidence=effective_min_confidence,
             elapsed_ms=elapsed_ms,

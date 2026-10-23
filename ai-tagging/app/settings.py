@@ -21,6 +21,7 @@ class Settings:
     max_upload_mb: int = int(os.environ.get("AI_TAGGING_MAX_UPLOAD_MB", "32"))
     openvino_device: str = os.environ.get("AI_TAGGING_OPENVINO_DEVICE", "CPU")
     openvino_cache_dir: str | None = os.environ.get("AI_TAGGING_OPENVINO_CACHE_DIR")
+    idle_unload_seconds: float = float(os.environ.get("AI_TAGGING_IDLE_UNLOAD_SECONDS", "300"))
 
     @property
     def max_upload_bytes(self) -> int:

@@ -40,8 +40,12 @@ GET /models
 POST /tag
 ```
 
-`/health` reports that the web process is alive. `/ready` reports whether the
-model finished loading and inference requests can be served.
+`/health` reports that the web process is alive. `/ready` loads the model if it
+is not loaded and reports whether inference requests can be served.
+
+The model is loaded on the first `/ready` or `/tag` request and unloaded after
+`AI_TAGGING_IDLE_UNLOAD_SECONDS` without requests, so an idle service only holds
+the Python runtime in memory.
 
 `POST /tag` accepts multipart form data:
 
@@ -75,6 +79,7 @@ curl.exe -F "file=@image.png" -F "threshold=0.492" http://127.0.0.1:8000/tag
 | `AI_TAGGING_MIN_CONFIDENCE` | `0.01` | Default confidence floor |
 | `AI_TAGGING_TOP_K` | `256` | Default maximum tags per category |
 | `AI_TAGGING_MAX_UPLOAD_MB` | `32` | Upload limit |
+| `AI_TAGGING_IDLE_UNLOAD_SECONDS` | `300` | Unload the model after this many idle seconds; `0` keeps it loaded |
 
 ## OpenVINO
 
