@@ -72,7 +72,7 @@ curl.exe -F "file=@image.png" -F "threshold=0.492" http://127.0.0.1:8000/tag
 | `AI_TAGGING_MODEL_FILE` | `camie-tagger-v2.onnx` | ONNX model filename |
 | `AI_TAGGING_METADATA_FILE` | `camie-tagger-v2-metadata.json` | Metadata filename |
 | `AI_TAGGING_MODEL_DIR` | `./models` | Runtime model cache |
-| `AI_TAGGING_PROVIDER` | `cpu` | ONNX Runtime provider selector: `cpu`, `cuda`, `directml`, or `openvino` |
+| `AI_TAGGING_PROVIDER` | `cpu` | `cpu`, `cuda` or `directml` run through ONNX Runtime; `openvino` runs through OpenVINO directly |
 | `AI_TAGGING_OPENVINO_DEVICE` | `CPU` | OpenVINO target device, for example `CPU`, `GPU`, or `AUTO` |
 | `AI_TAGGING_OPENVINO_CACHE_DIR` | empty | Optional OpenVINO compiled model cache directory, passed through OpenVINO `CACHE_DIR` |
 | `AI_TAGGING_DEFAULT_THRESHOLD` | `0.492` | Camie v2 macro-optimized threshold from model card |
@@ -84,7 +84,7 @@ curl.exe -F "file=@image.png" -F "threshold=0.492" http://127.0.0.1:8000/tag
 ## OpenVINO
 
 The normal Docker image installs CPU `onnxruntime`. The GHCR workflow also publishes
-an `openvino` image tag with `onnxruntime-openvino` and Intel OpenCL packages.
+an `openvino` image tag with OpenVINO (without ONNX Runtime) and Intel OpenCL packages.
 The Docker base is pinned to Debian Bookworm because the Intel OpenCL package used
 by the OpenVINO image is available there.
 

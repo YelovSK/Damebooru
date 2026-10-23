@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import sys
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-import onnxruntime as ort
 import requests
 from huggingface_hub import hf_hub_url
 from PIL import Image, UnidentifiedImageError
@@ -31,18 +31,21 @@ class RawTaggingResult:
     tags_by_category: dict[str, list[TagResult]]
 
 
+Infer = Callable[[np.ndarray], Sequence[np.ndarray]]
+
+
 class CamieTagger:
     def __init__(
         self,
-        session: ort.InferenceSession,
+        infer: Infer,
+        active_provider: str,
         metadata: dict,
         model_repo: str,
     ) -> None:
-        self.session = session
+        self.infer = infer
+        self.active_provider = active_provider
         self.metadata = metadata
         self.model_repo = model_repo
-        self.input_name = session.get_inputs()[0].name
-        self.active_provider = session.get_providers()[0]
 
         dataset_info = metadata.get("dataset_info", {})
         tag_mapping = dataset_info.get("tag_mapping", {})
@@ -71,26 +74,17 @@ class CamieTagger:
             with Path(metadata_path).open("r", encoding="utf-8") as metadata_file:
                 metadata = json.load(metadata_file)
 
-            if settings.openvino_cache_dir:
-                Path(settings.openvino_cache_dir).mkdir(parents=True, exist_ok=True)
-
-            print("Available ONNX Runtime providers:", ort.get_available_providers(), file=sys.stderr)
-            print("Requested ONNX Runtime providers:", settings.onnx_providers, file=sys.stderr)
-
-            session_options = ort.SessionOptions()
             if settings.provider == "openvino":
-                session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
+                infer, active_provider = load_openvino(model_path, settings)
+            else:
+                infer, active_provider = load_onnxruntime(model_path, settings)
 
-            session = ort.InferenceSession(
-                model_path,
-                sess_options=session_options,
-                providers=settings.onnx_providers,
+            return cls(
+                infer=infer,
+                active_provider=active_provider,
+                metadata=metadata,
+                model_repo=settings.model_repo,
             )
-
-            print("Active ONNX Runtime providers:", session.get_providers(), file=sys.stderr)
-            print("Active ONNX Runtime provider options:", session.get_provider_options(), file=sys.stderr)
-
-            return cls(session=session, metadata=metadata, model_repo=settings.model_repo)
         except Exception as ex:
             raise TaggingError(f"Failed to load {settings.model_repo}: {ex}") from ex
 
@@ -106,7 +100,7 @@ class CamieTagger:
     ) -> RawTaggingResult:
         try:
             image_array = self._preprocess(image_path)
-            outputs = self.session.run(None, {self.input_name: image_array[np.newaxis, :]})
+            outputs = self.infer(image_array[np.newaxis, :])
         except UnidentifiedImageError as ex:
             raise TaggingError("Uploaded file is not a readable image.") from ex
         except Exception as ex:
@@ -181,6 +175,48 @@ class CamieTagger:
             image_array = np.asarray(padded, dtype=np.float32) / 255.0
             image_array = (image_array - IMAGENET_MEAN) / IMAGENET_STD
             return np.transpose(image_array, (2, 0, 1)).astype(np.float32)
+
+
+def load_onnxruntime(model_path: Path, settings: Settings) -> tuple[Infer, str]:
+    import onnxruntime as ort
+
+    print("Available ONNX Runtime providers:", ort.get_available_providers(), file=sys.stderr)
+    print("Requested ONNX Runtime providers:", settings.onnx_providers, file=sys.stderr)
+
+    session = ort.InferenceSession(model_path, providers=settings.onnx_providers)
+    input_name = session.get_inputs()[0].name
+
+    print("Active ONNX Runtime providers:", session.get_providers(), file=sys.stderr)
+
+    return (
+        lambda image_batch: session.run(None, {input_name: image_batch}),
+        session.get_providers()[0],
+    )
+
+
+def load_openvino(model_path: Path, settings: Settings) -> tuple[Infer, str]:
+    import openvino as ov
+
+    core = ov.Core()
+    if settings.openvino_cache_dir:
+        Path(settings.openvino_cache_dir).mkdir(parents=True, exist_ok=True)
+        core.set_property({"CACHE_DIR": settings.openvino_cache_dir})
+
+    # Compiling from the path, not from a read_model() result, lets OpenVINO import a
+    # cached blob without parsing the ONNX file, which would briefly hold several
+    # copies of the weights.
+    compiled_model = core.compile_model(
+        model_path,
+        settings.openvino_device,
+        {"PERFORMANCE_HINT": "LATENCY"},
+    )
+
+    print("OpenVINO device:", settings.openvino_device, file=sys.stderr)
+
+    return (
+        lambda image_batch: compiled_model(image_batch).to_tuple(),
+        f"OpenVINO:{settings.openvino_device}",
+    )
 
 
 def sigmoid(values: np.ndarray) -> np.ndarray:

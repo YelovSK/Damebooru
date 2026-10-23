@@ -22,10 +22,10 @@ RUN apt-get update \
 
 COPY requirements.txt .
 
-ARG ONNXRUNTIME_PACKAGE=onnxruntime==1.20.1
+ARG INFERENCE_PACKAGE=onnxruntime==1.20.1
 
 RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir "${ONNXRUNTIME_PACKAGE}"
+    && pip install --no-cache-dir "${INFERENCE_PACKAGE}"
 
 COPY app ./app
 COPY README.md .

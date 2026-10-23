@@ -126,7 +126,7 @@ jobs:
           tags: ${{ steps.meta_openvino.outputs.tags }}
           labels: ${{ steps.meta_openvino.outputs.labels }}
           build-args: |
-            ONNXRUNTIME_PACKAGE=onnxruntime-openvino==1.24.1
+            INFERENCE_PACKAGE=openvino==2025.4.1
             INSTALL_OPENVINO_GPU_DEPS=true
           cache-from: type=gha,scope=damebooru-ai-tagging-openvino
           cache-to: type=gha,mode=max,scope=damebooru-ai-tagging-openvino
