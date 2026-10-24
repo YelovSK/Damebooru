@@ -40,6 +40,11 @@ class Tagger:
         self.infer = infer
         self.active_provider = active_provider
         self.tags = tags
+        # Requests run in parallel threads, but inference must not: OpenVINO's compiled model
+        # fails with "Infer Request is busy", and ONNX Runtime's CUDA provider can hit
+        # "illegal memory access" with FP16 models, which breaks the session for good.
+        # The device runs one image at a time anyway, so serializing costs nothing.
+        self._infer_lock = threading.Lock()
 
     @classmethod
     def load(cls, spec: ModelSpec, settings: Settings) -> "Tagger":
@@ -81,7 +86,8 @@ class Tagger:
     ) -> RawTaggingResult:
         try:
             image_array = self._preprocess(image_path)
-            outputs = self.infer(image_array[np.newaxis, :])
+            with self._infer_lock:
+                outputs = self.infer(image_array[np.newaxis, :])
         except UnidentifiedImageError as ex:
             raise TaggingError("Uploaded file is not a readable image.") from ex
         except Exception as ex:
@@ -197,15 +203,10 @@ def load_openvino(model_path: Path, settings: Settings) -> tuple[Infer, str]:
 
     print("OpenVINO device:", settings.openvino_device, file=sys.stderr)
 
-    # Calling the compiled model reuses one implicit infer request, which fails with
-    # "Infer Request is busy" when requests overlap.
-    infer_lock = threading.Lock()
-
-    def infer(image_batch: np.ndarray) -> Sequence[np.ndarray]:
-        with infer_lock:
-            return compiled_model(image_batch).to_tuple()
-
-    return infer, f"OpenVINO:{settings.openvino_device}"
+    return (
+        lambda image_batch: compiled_model(image_batch).to_tuple(),
+        f"OpenVINO:{settings.openvino_device}",
+    )
 
 
 def sigmoid(values: np.ndarray) -> np.ndarray:
