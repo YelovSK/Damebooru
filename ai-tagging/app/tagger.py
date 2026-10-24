@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -213,10 +214,15 @@ def load_openvino(model_path: Path, settings: Settings) -> tuple[Infer, str]:
 
     print("OpenVINO device:", settings.openvino_device, file=sys.stderr)
 
-    return (
-        lambda image_batch: compiled_model(image_batch).to_tuple(),
-        f"OpenVINO:{settings.openvino_device}",
-    )
+    # Calling the compiled model reuses one implicit infer request, which fails with
+    # "Infer Request is busy" when requests overlap.
+    infer_lock = threading.Lock()
+
+    def infer(image_batch: np.ndarray) -> Sequence[np.ndarray]:
+        with infer_lock:
+            return compiled_model(image_batch).to_tuple()
+
+    return infer, f"OpenVINO:{settings.openvino_device}"
 
 
 def sigmoid(values: np.ndarray) -> np.ndarray:
