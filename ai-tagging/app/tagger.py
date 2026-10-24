@@ -162,6 +162,11 @@ def load_onnxruntime(model_path: Path, settings: Settings) -> tuple[Infer, str]:
     print("Available ONNX Runtime providers:", ort.get_available_providers(), file=sys.stderr)
     print("Requested ONNX Runtime providers:", settings.onnx_providers, file=sys.stderr)
 
+    if settings.provider == "cuda":
+        # Makes CUDA/cuDNN from the nvidia-* pip packages loadable; without this ONNX
+        # Runtime silently falls back to the CPU when no system-wide CUDA is installed.
+        ort.preload_dlls()
+
     session = ort.InferenceSession(model_path, providers=settings.onnx_providers)
     input_name = session.get_inputs()[0].name
 
