@@ -13,13 +13,12 @@ import requests
 from huggingface_hub import hf_hub_url
 from PIL import Image, UnidentifiedImageError
 
+from .models import ModelSpec, TagList
 from .schemas import TagResult
 from .settings import Settings
 
-CATEGORY_ORDER = ["general", "character", "copyright", "artist", "meta", "year", "rating"]
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
-PAD_COLOR = (124, 116, 104)
+CATEGORY_ORDER = ["general", "character", "copyright", "artist", "style", "meta", "year", "rating"]
+WHITE = (255, 255, 255)
 
 
 class TaggingError(Exception):
@@ -35,65 +34,46 @@ class RawTaggingResult:
 Infer = Callable[[np.ndarray], Sequence[np.ndarray]]
 
 
-class CamieTagger:
-    def __init__(
-        self,
-        infer: Infer,
-        active_provider: str,
-        metadata: dict,
-        model_repo: str,
-    ) -> None:
+class Tagger:
+    def __init__(self, spec: ModelSpec, infer: Infer, active_provider: str, tags: TagList) -> None:
+        self.spec = spec
         self.infer = infer
         self.active_provider = active_provider
-        self.metadata = metadata
-        self.model_repo = model_repo
-
-        dataset_info = metadata.get("dataset_info", {})
-        tag_mapping = dataset_info.get("tag_mapping", {})
-        self.idx_to_tag: dict[str, str] = tag_mapping.get("idx_to_tag", {})
-        self.tag_to_category: dict[str, str] = tag_mapping.get("tag_to_category", {})
-        self.image_size = int(metadata.get("model_info", {}).get("img_size", 512))
-
-        if not self.idx_to_tag or not self.tag_to_category:
-            raise TaggingError("Camie metadata is missing tag mappings.")
+        self.tags = tags
 
     @classmethod
-    def load(cls, settings: Settings) -> "CamieTagger":
+    def load(cls, spec: ModelSpec, settings: Settings) -> "Tagger":
         try:
-            settings.model_dir.mkdir(parents=True, exist_ok=True)
+            model_dir = settings.model_dir / spec.id
+            model_dir.mkdir(parents=True, exist_ok=True)
             model_path = download_file_with_progress(
-                repo_id=settings.model_repo,
-                filename=settings.model_file,
-                destination=settings.model_dir / settings.model_file,
+                repo_id=spec.repo,
+                filename=spec.model_file,
+                destination=model_dir / spec.model_file,
             )
-            metadata_path = download_file_with_progress(
-                repo_id=settings.model_repo,
-                filename=settings.metadata_file,
-                destination=settings.model_dir / settings.metadata_file,
+            tags_path = download_file_with_progress(
+                repo_id=spec.repo,
+                filename=spec.tags_file,
+                destination=model_dir / spec.tags_file,
             )
 
-            with Path(metadata_path).open("r", encoding="utf-8") as metadata_file:
-                metadata = json.load(metadata_file)
+            with Path(tags_path).open("r", encoding="utf-8") as tags_file:
+                tags = spec.read_tags(json.load(tags_file))
 
             if settings.provider == "openvino":
                 infer, active_provider = load_openvino(model_path, settings)
             else:
                 infer, active_provider = load_onnxruntime(model_path, settings)
 
-            return cls(
-                infer=infer,
-                active_provider=active_provider,
-                metadata=metadata,
-                model_repo=settings.model_repo,
-            )
+            return cls(spec=spec, infer=infer, active_provider=active_provider, tags=tags)
         except Exception as ex:
-            raise TaggingError(f"Failed to load {settings.model_repo}: {ex}") from ex
+            raise TaggingError(f"Failed to load {spec.id}: {ex}") from ex
 
     def tag_path(
         self,
         image_path: Path,
         *,
-        threshold: float,
+        threshold: float | None,
         min_confidence: float,
         top_k: int,
         include_below_threshold: bool,
@@ -107,27 +87,22 @@ class CamieTagger:
         except Exception as ex:
             raise TaggingError(f"Inference failed: {ex}") from ex
 
-        logits = outputs[1] if len(outputs) >= 2 else outputs[0]
-        probabilities = sigmoid(logits)[0]
+        output = outputs[self.spec.output_index]
+        probabilities = (output if self.spec.outputs_probabilities else sigmoid(output))[0]
 
         tags_by_category: dict[str, list[TagResult]] = {}
-        for idx, score in enumerate(probabilities):
-            score_float = float(score)
-            if score_float < min_confidence:
-                continue
-            if not include_below_threshold and score_float < threshold:
-                continue
-
-            tag_name = self.idx_to_tag.get(str(idx))
-            if tag_name is None:
+        for idx in np.flatnonzero(probabilities >= min_confidence):
+            score = float(probabilities[idx])
+            name, category = self.tags[idx]
+            category_threshold = self.spec.threshold_for(category) if threshold is None else threshold
+            if not include_below_threshold and score < category_threshold:
                 continue
 
             if replace_underscores:
-                tag_name = tag_name.replace("_", " ")
+                name = name.replace("_", " ")
 
-            category = self.tag_to_category.get(self.idx_to_tag[str(idx)], "general")
             tags_by_category.setdefault(category, []).append(
-                TagResult(name=tag_name, score=round(score_float, 6), category=category)
+                TagResult(name=name, score=round(score, 6), category=category)
             )
 
         for category, tags in tags_by_category.items():
@@ -152,29 +127,32 @@ class CamieTagger:
         return RawTaggingResult(tags=flat_tags, tags_by_category=ordered_by_category)
 
     def _preprocess(self, image_path: Path) -> np.ndarray:
+        spec = self.spec
         with Image.open(image_path) as image:
-            image = image.convert("RGB")
             width, height = image.size
             if width <= 0 or height <= 0:
                 raise TaggingError("Image has invalid dimensions.")
 
-            aspect_ratio = width / height
-            if aspect_ratio > 1:
-                new_width = self.image_size
-                new_height = max(1, int(new_width / aspect_ratio))
+            if image.mode in ("RGBA", "LA", "PA") or "transparency" in image.info:
+                rgba = image.convert("RGBA")
+                image = Image.new("RGB", rgba.size, WHITE)
+                image.paste(rgba, mask=rgba.getchannel("A"))
             else:
-                new_height = self.image_size
-                new_width = max(1, int(new_height * aspect_ratio))
+                image = image.convert("RGB")
 
-            resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            padded = Image.new("RGB", (self.image_size, self.image_size), PAD_COLOR)
+            scale = spec.image_size / max(width, height)
+            new_width = max(1, round(width * scale))
+            new_height = max(1, round(height * scale))
+
+            resized = image.resize((new_width, new_height), spec.resample)
+            padded = Image.new("RGB", (spec.image_size, spec.image_size), spec.pad_color)
             padded.paste(
                 resized,
-                ((self.image_size - new_width) // 2, (self.image_size - new_height) // 2),
+                ((spec.image_size - new_width) // 2, (spec.image_size - new_height) // 2),
             )
 
             image_array = np.asarray(padded, dtype=np.float32) / 255.0
-            image_array = (image_array - IMAGENET_MEAN) / IMAGENET_STD
+            image_array = (image_array - np.array(spec.mean, dtype=np.float32)) / np.array(spec.std, dtype=np.float32)
             return np.transpose(image_array, (2, 0, 1)).astype(np.float32)
 
 

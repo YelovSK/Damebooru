@@ -10,9 +10,18 @@ class HealthResponse(BaseModel):
     provider: str
 
 
+class ModelInfo(BaseModel):
+    id: str
+    repo: str
+    license: str
+    default_threshold: float
+    category_thresholds: dict[str, float]
+
+
 class ModelsResponse(BaseModel):
     default_model: str
-    models: list[dict[str, object]]
+    loaded_model: str | None
+    models: list[ModelInfo]
 
 
 class TagResult(BaseModel):
@@ -24,7 +33,7 @@ class TagResult(BaseModel):
 class TagResponse(BaseModel):
     model: str
     provider: str
-    threshold: float
+    threshold: float | None
     min_confidence: float
     elapsed_ms: float
     tags: list[TagResult]

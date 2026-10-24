@@ -1,10 +1,17 @@
 # Damebooru AI Tagging API
 
-Standalone FastAPI service for local image tagging with Camie Tagger v2.
+Standalone FastAPI service for local image tagging.
 
-This service downloads Camie Tagger v2 at runtime. The model is not included in
-this repository or Docker image. Camie Tagger v2 is licensed separately under
-GPL-3.0: https://huggingface.co/Camais03/camie-tagger-v2
+Models are downloaded at runtime and are not included in this repository or
+Docker image. Each is licensed separately:
+
+| Id | Source | License |
+| --- | --- | --- |
+| `camie-v2` | [Camais03/camie-tagger-v2](https://huggingface.co/Camais03/camie-tagger-v2) | GPL-3.0 |
+| `pixai-v1` | [nocturna/pixai-tagger-v1.0-onnx](https://huggingface.co/nocturna/pixai-tagger-v1.0-onnx), an FP16 ONNX export of [pixai-labs/pixai-tagger-v1.0](https://huggingface.co/pixai-labs/pixai-tagger-v1.0) | Apache-2.0 |
+
+PixAI is more accurate (especially for characters) but much slower: it runs at
+1008×1008 with about 3× the parameters of Camie.
 
 ## Run Locally
 
@@ -16,12 +23,8 @@ pip install -r requirements.txt
 python -m app.main
 ```
 
-The first model load downloads:
-
-- `camie-tagger-v2.onnx`
-- `camie-tagger-v2-metadata.json`
-
-By default, files are cached under `./models`.
+The first load of a model downloads its ONNX file and tag list into
+`./models/<id>/`.
 
 ## Run With Docker
 
@@ -40,17 +43,20 @@ GET /models
 POST /tag
 ```
 
-`/health` reports that the web process is alive. `/ready` loads the model if it
-is not loaded and reports whether inference requests can be served.
+`/health` reports that the web process is alive. `/ready` loads the default
+model if it is not loaded and reports whether inference requests can be served.
+`/models` lists the available models and their default thresholds.
 
-The model is loaded on the first `/ready` or `/tag` request and unloaded after
-`AI_TAGGING_IDLE_UNLOAD_SECONDS` without requests, so an idle service only holds
-the Python runtime in memory.
+At most one model is loaded at a time. It is loaded on first use, swapped when a
+request names a different model (after in-flight requests finish), and unloaded
+after `AI_TAGGING_IDLE_UNLOAD_SECONDS` without requests. Swapping is slow, so
+batch requests per model instead of interleaving them.
 
 `POST /tag` accepts multipart form data:
 
 - `file`: image upload
-- `threshold`: optional probability threshold, default `0.492`
+- `model`: optional model id, default `AI_TAGGING_MODEL`
+- `threshold`: optional probability threshold applied to every category; when omitted, each category uses the model's default (see `/models`)
 - `min_confidence`: optional minimum returned confidence before filtering, default `0.01`
 - `top_k`: optional maximum tags per category, default `256`
 - `include_below_threshold`: optional boolean, default `false`
@@ -59,7 +65,7 @@ the Python runtime in memory.
 Example:
 
 ```powershell
-curl.exe -F "file=@image.png" -F "threshold=0.492" http://127.0.0.1:8000/tag
+curl.exe -F "file=@image.png" -F "model=pixai-v1" http://127.0.0.1:8000/tag
 ```
 
 ## Runtime Settings
@@ -68,14 +74,11 @@ curl.exe -F "file=@image.png" -F "threshold=0.492" http://127.0.0.1:8000/tag
 | --- | --- | --- |
 | `AI_TAGGING_HOST` | `127.0.0.1` locally, `0.0.0.0` in Docker | Bind host |
 | `AI_TAGGING_PORT` | `8000` | Bind port |
-| `AI_TAGGING_MODEL_REPO` | `Camais03/camie-tagger-v2` | Hugging Face repo |
-| `AI_TAGGING_MODEL_FILE` | `camie-tagger-v2.onnx` | ONNX model filename |
-| `AI_TAGGING_METADATA_FILE` | `camie-tagger-v2-metadata.json` | Metadata filename |
+| `AI_TAGGING_MODEL` | `camie-v2` | Model used when a request doesn't name one |
 | `AI_TAGGING_MODEL_DIR` | `./models` | Runtime model cache |
 | `AI_TAGGING_PROVIDER` | `cpu` | `cpu`, `cuda` or `directml` run through ONNX Runtime; `openvino` runs through OpenVINO directly |
 | `AI_TAGGING_OPENVINO_DEVICE` | `CPU` | OpenVINO target device, for example `CPU`, `GPU`, or `AUTO` |
 | `AI_TAGGING_OPENVINO_CACHE_DIR` | empty | Optional OpenVINO compiled model cache directory, passed through OpenVINO `CACHE_DIR` |
-| `AI_TAGGING_DEFAULT_THRESHOLD` | `0.492` | Camie v2 macro-optimized threshold from model card |
 | `AI_TAGGING_MIN_CONFIDENCE` | `0.01` | Default confidence floor |
 | `AI_TAGGING_TOP_K` | `256` | Default maximum tags per category |
 | `AI_TAGGING_MAX_UPLOAD_MB` | `32` | Upload limit |

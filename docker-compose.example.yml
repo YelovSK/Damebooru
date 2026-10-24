@@ -46,6 +46,7 @@ services:
     profiles:
       - ai
     environment:
+      AI_TAGGING_MODEL: "${AI_TAGGING_MODEL:-camie-v2}"
       AI_TAGGING_PROVIDER: "${AI_TAGGING_PROVIDER:-cpu}"
       AI_TAGGING_OPENVINO_DEVICE: "${AI_TAGGING_OPENVINO_DEVICE:-CPU}"
       AI_TAGGING_OPENVINO_CACHE_DIR: "${AI_TAGGING_OPENVINO_CACHE_DIR:-/openvino-cache}"

@@ -117,7 +117,7 @@ internal sealed class AiTaggingClient(HttpClient httpClient, DamebooruConfig con
     private static TagCategoryKind MapCategory(string category)
         => category.ToLowerInvariant() switch
         {
-            "artist" => TagCategoryKind.Artist,
+            "artist" or "style" => TagCategoryKind.Artist,
             "copyright" => TagCategoryKind.Copyright,
             "character" => TagCategoryKind.Character,
             "meta" => TagCategoryKind.Meta,

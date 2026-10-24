@@ -13,11 +13,14 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from .lazy_tagger import LazyTagger
-from .schemas import HealthResponse, ModelsResponse, TagResponse
+from .models import MODELS, ModelSpec
+from .schemas import HealthResponse, ModelInfo, ModelsResponse, TagResponse
 from .settings import Settings
 from .tagger import TaggingError
 
 settings = Settings()
+if settings.default_model not in MODELS:
+    raise ValueError(f"AI_TAGGING_MODEL must be one of: {', '.join(MODELS)}.")
 tagger = LazyTagger(settings)
 
 
@@ -37,10 +40,11 @@ app = FastAPI(
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
+    loaded_model = tagger.loaded_model
     return HealthResponse(
         ok=True,
-        model_loaded=tagger.loaded,
-        model=settings.model_repo,
+        model_loaded=loaded_model is not None,
+        model=loaded_model or settings.default_model,
         provider=settings.provider,
     )
 
@@ -48,7 +52,7 @@ async def health() -> HealthResponse:
 @app.get("/ready", response_model=HealthResponse)
 async def ready() -> HealthResponse:
     try:
-        async with tagger.use() as loaded_tagger:
+        async with tagger.use(MODELS[settings.default_model]) as loaded_tagger:
             provider = loaded_tagger.active_provider
     except TaggingError as ex:
         raise HTTPException(status_code=503, detail=str(ex)) from ex
@@ -56,7 +60,7 @@ async def ready() -> HealthResponse:
     return HealthResponse(
         ok=True,
         model_loaded=True,
-        model=settings.model_repo,
+        model=settings.default_model,
         provider=provider,
     )
 
@@ -64,15 +68,17 @@ async def ready() -> HealthResponse:
 @app.get("/models", response_model=ModelsResponse)
 async def models() -> ModelsResponse:
     return ModelsResponse(
-        default_model=settings.model_repo,
+        default_model=settings.default_model,
+        loaded_model=tagger.loaded_model,
         models=[
-            {
-                "id": settings.model_repo,
-                "file": settings.model_file,
-                "metadata_file": settings.metadata_file,
-                "license": "gpl-3.0",
-                "default_threshold": settings.default_threshold,
-            }
+            ModelInfo(
+                id=spec.id,
+                repo=spec.repo,
+                license=spec.license,
+                default_threshold=spec.default_threshold,
+                category_thresholds=spec.category_thresholds,
+            )
+            for spec in MODELS.values()
         ],
     )
 
@@ -80,6 +86,7 @@ async def models() -> ModelsResponse:
 @app.post("/tag", response_model=TagResponse)
 async def tag_image(
     file: Annotated[UploadFile, File()],
+    model: Annotated[str | None, Form()] = None,
     threshold: Annotated[float | None, Form()] = None,
     min_confidence: Annotated[float | None, Form()] = None,
     top_k: Annotated[int | None, Form()] = None,
@@ -89,11 +96,12 @@ async def tag_image(
     if file.content_type and not file.content_type.startswith("image/"):
         raise HTTPException(status_code=415, detail=f"Unsupported media type: {file.content_type}")
 
-    effective_threshold = settings.default_threshold if threshold is None else threshold
+    spec = resolve_model(model)
     effective_min_confidence = settings.min_confidence if min_confidence is None else min_confidence
     effective_top_k = settings.top_k if top_k is None else top_k
 
-    validate_probability("threshold", effective_threshold)
+    if threshold is not None:
+        validate_probability("threshold", threshold)
     validate_probability("min_confidence", effective_min_confidence)
     if effective_top_k <= 0:
         raise HTTPException(status_code=422, detail="top_k must be greater than zero.")
@@ -112,12 +120,12 @@ async def tag_image(
                     )
                 temp_file.write(chunk)
 
-        async with tagger.use() as loaded_tagger:
+        async with tagger.use(spec) as loaded_tagger:
             started_at = time.perf_counter()
             result = await asyncio.to_thread(
                 loaded_tagger.tag_path,
                 temp_path,
-                threshold=effective_threshold,
+                threshold=threshold,
                 min_confidence=effective_min_confidence,
                 top_k=effective_top_k,
                 include_below_threshold=include_below_threshold,
@@ -127,9 +135,9 @@ async def tag_image(
             provider = loaded_tagger.active_provider
 
         return TagResponse(
-            model=settings.model_repo,
+            model=spec.id,
             provider=provider,
-            threshold=effective_threshold,
+            threshold=threshold,
             min_confidence=effective_min_confidence,
             elapsed_ms=elapsed_ms,
             tags=result.tags,
@@ -149,6 +157,17 @@ async def http_exception_handler(_, exc: HTTPException) -> JSONResponse:
         status_code=exc.status_code,
         content={"error": True, "detail": exc.detail},
     )
+
+
+def resolve_model(model: str | None) -> ModelSpec:
+    model_id = model or settings.default_model
+    spec = MODELS.get(model_id)
+    if spec is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown model '{model_id}'. Available: {', '.join(MODELS)}.",
+        )
+    return spec
 
 
 def validate_probability(name: str, value: float) -> None:

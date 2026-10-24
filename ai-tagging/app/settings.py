@@ -9,12 +9,9 @@ from pathlib import Path
 class Settings:
     host: str = os.environ.get("AI_TAGGING_HOST", "127.0.0.1")
     port: int = int(os.environ.get("AI_TAGGING_PORT", "8000"))
-    model_repo: str = os.environ.get("AI_TAGGING_MODEL_REPO", "Camais03/camie-tagger-v2")
-    model_file: str = os.environ.get("AI_TAGGING_MODEL_FILE", "camie-tagger-v2.onnx")
-    metadata_file: str = os.environ.get("AI_TAGGING_METADATA_FILE", "camie-tagger-v2-metadata.json")
+    default_model: str = os.environ.get("AI_TAGGING_MODEL", "camie-v2")
     model_dir: Path = Path(os.environ.get("AI_TAGGING_MODEL_DIR", "models"))
     provider: str = os.environ.get("AI_TAGGING_PROVIDER", "cpu").lower()
-    default_threshold: float = float(os.environ.get("AI_TAGGING_DEFAULT_THRESHOLD", "0.492"))
     min_confidence: float = float(os.environ.get("AI_TAGGING_MIN_CONFIDENCE", "0.01"))
     top_k: int = int(os.environ.get("AI_TAGGING_TOP_K", "256"))
     max_upload_mb: int = int(os.environ.get("AI_TAGGING_MAX_UPLOAD_MB", "32"))
