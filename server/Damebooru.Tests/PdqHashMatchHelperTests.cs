@@ -57,6 +57,24 @@ public class PdqHashMatchHelperTests
     }
 
     [Fact]
+    public void OrderBySimilarity_PutsMostSimilarPairFirstThenClosestMatches()
+    {
+        var zero = new string('0', 64);
+        var items = new (string Name, string? Hash)[]
+        {
+            ("far", new string('f', 16) + new string('0', 48)),
+            ("noHash", null),
+            ("a", zero),
+            ("near", "0000000000000fff" + new string('0', 48)),
+            ("b", zero),
+        };
+
+        var ordered = PdqHashMatchHelper.OrderBySimilarity(items, item => item.Hash);
+
+        Assert.Equal(["a", "b", "near", "far", "noHash"], ordered.Select(item => item.Name));
+    }
+
+    [Fact]
     public void TryComputeSimilarity_HalfTheBitsDifferent_IsNoMatch()
     {
         var left = new PdqHashWords(0, 0, 0, 0);

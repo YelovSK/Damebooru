@@ -42,7 +42,9 @@ public class DuplicateReadService
             .Where(g => g.Entries.Count >= 2)
             .Select(g =>
             {
-                var posts = g.Entries.Select(e => e.Post).ToList();
+                var posts = PdqHashMatchHelper.OrderBySimilarity(
+                    g.Entries.Select(e => e.Post).OrderBy(p => p.Id).ToList(),
+                    p => p.PdqHash256);
                 return new DuplicateGroupDto
                 {
                     Id = g.Id,
