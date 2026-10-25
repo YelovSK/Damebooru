@@ -3,8 +3,8 @@ import { CommonModule } from '@angular/common';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { finalize } from 'rxjs/operators';
-import { filter, map, startWith } from 'rxjs';
+import { catchError, finalize, switchMap } from 'rxjs/operators';
+import { type Observable, type Subscription, defer, filter, map, startWith, throwError } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import {
   type DamebooruPostDto,
@@ -108,6 +108,7 @@ export class DuplicatesPageComponent {
   lookupLoading = signal(false);
   lookupLoadingText = signal('Finding Matches...');
   lookupDropActive = signal(false);
+  private lookupSubscription?: Subscription;
   readonly lookupExactMatches = computed(() => this.lookupResult()?.exactMatches ?? []);
   readonly lookupPerceptualMatches = computed(() => this.lookupResult()?.perceptualMatches ?? []);
   readonly lookupPerceptualReason = computed(() => this.lookupResult()?.perceptualUnavailableReason ?? null);
@@ -210,48 +211,44 @@ export class DuplicatesPageComponent {
   }
 
   runLookup() {
+    this.lookupSubscription?.unsubscribe();
     const file = this.lookupSelectedFile();
-    if (!file || this.lookupLoading()) {
+    if (!file) {
       return;
     }
 
     this.lookupLoading.set(true);
     this.lookupError.set(null);
-
-    if (this.isLookupImageFile(file)) {
-      this.lookupLoadingText.set('Finding Matches...');
-      this.damebooru.lookupDuplicates(file)
-        .pipe(
-          takeUntilDestroyed(this.destroyRef),
-          finalize(() => {
-            this.lookupLoading.set(false);
-            this.lookupLoadingText.set('Finding Matches...');
-          }),
-        )
-        .subscribe({
-          next: result => {
-            this.lookupResult.set(result);
-          },
-          error: () => {
-            this.lookupResult.set(null);
-            this.lookupError.set('Lookup failed. Please try a different file or check the server logs.');
-            this.toast.error('Failed to look up similar posts.');
+    this.lookupLoadingText.set(this.isLookupImageFile(file) ? 'Finding Matches...' : 'Hashing File...');
+    this.lookupSubscription = this.createLookupRequest(file)
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => {
+          this.lookupLoading.set(false);
+          this.lookupLoadingText.set('Finding Matches...');
+        }),
+      )
+      .subscribe({
+        next: result => {
+          this.lookupResult.set(result);
+        },
+        error: (error: unknown) => {
+          this.lookupResult.set(null);
+          if (error instanceof LookupHashError) {
+            this.lookupError.set('Could not hash this file in the browser.');
+            this.toast.error('Failed to hash file locally.');
+            return;
           }
-        });
-      return;
-    }
 
-    this.lookupLoadingText.set('Hashing File...');
-    void this.runExactHashLookup(file);
+          this.lookupError.set('Lookup failed. Please try a different file or check the server logs.');
+          this.toast.error('Failed to look up similar posts.');
+        }
+      });
   }
 
   clearLookup() {
-    this.lookupSelectedFile.set(null);
-    this.lookupResult.set(null);
-    this.lookupError.set(null);
     this.lookupDropActive.set(false);
-    this.lookupLoadingText.set('Finding Matches...');
-    this.revokeLookupPreviewUrl();
+    this.setLookupFile(null);
   }
 
   hasLookupImagePreview(): boolean {
@@ -1002,6 +999,8 @@ export class DuplicatesPageComponent {
     if (file && this.isLookupImageFile(file)) {
       this.lookupPreviewUrl.set(URL.createObjectURL(file));
     }
+
+    this.runLookup();
   }
 
   private revokeLookupPreviewUrl() {
@@ -1038,40 +1037,24 @@ export class DuplicatesPageComponent {
     }
   }
 
-  private async runExactHashLookup(file: File): Promise<void> {
-    try {
-      const contentHash = await computeLookupContentHash(file);
-      this.lookupLoadingText.set('Finding Exact Matches...');
-
-      this.damebooru.lookupDuplicatesByHash({
-        fileName: file.name,
-        contentType: file.type || 'application/octet-stream',
-        sizeBytes: file.size,
-        contentHash,
-      })
-        .pipe(
-          takeUntilDestroyed(this.destroyRef),
-          finalize(() => {
-            this.lookupLoading.set(false);
-            this.lookupLoadingText.set('Finding Matches...');
-          }),
-        )
-        .subscribe({
-          next: result => {
-            this.lookupResult.set(result);
-          },
-          error: () => {
-            this.lookupResult.set(null);
-            this.lookupError.set('Lookup failed. Please try a different file or check the server logs.');
-            this.toast.error('Failed to look up similar posts.');
-          }
-        });
-    } catch {
-      this.lookupLoading.set(false);
-      this.lookupLoadingText.set('Finding Matches...');
-      this.lookupResult.set(null);
-      this.lookupError.set('Could not hash this file in the browser.');
-      this.toast.error('Failed to hash file locally.');
+  private createLookupRequest(file: File): Observable<DuplicateLookupResponse> {
+    if (this.isLookupImageFile(file)) {
+      return this.damebooru.lookupDuplicates(file);
     }
+
+    return defer(() => computeLookupContentHash(file)).pipe(
+      catchError(() => throwError(() => new LookupHashError())),
+      switchMap(contentHash => {
+        this.lookupLoadingText.set('Finding Exact Matches...');
+        return this.damebooru.lookupDuplicatesByHash({
+          fileName: file.name,
+          contentType: file.type || 'application/octet-stream',
+          sizeBytes: file.size,
+          contentHash,
+        });
+      }),
+    );
   }
 }
+
+class LookupHashError extends Error {}
