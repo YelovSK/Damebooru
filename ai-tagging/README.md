@@ -43,6 +43,9 @@ GET /models
 POST /tag
 ```
 
+`GET /` serves a small test page: pick a model, drop or paste an image, and
+adjust the threshold live.
+
 `/health` reports that the web process is alive. `/ready` loads the default
 model if it is not loaded and reports whether inference requests can be served.
 `/models` lists the available models and their default thresholds.

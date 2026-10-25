@@ -17,7 +17,7 @@ from .models import ModelSpec, TagList
 from .schemas import TagResult
 from .settings import Settings
 
-CATEGORY_ORDER = ["general", "character", "copyright", "artist", "style", "meta", "year", "rating"]
+CATEGORY_ORDER = ["copyright", "character", "artist", "general", "style", "meta", "rating", "year"]
 WHITE = (255, 255, 255)
 
 
