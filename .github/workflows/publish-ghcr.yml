@@ -27,14 +27,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Detect changed paths
         id: filter
         if: github.event_name != 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/')
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             ai_tagging:
@@ -61,22 +61,35 @@ jobs:
           fi
 
   publish_ai_tagging:
+    name: publish_ai_tagging (${{ matrix.default_tag }})
     needs: detect_changes
     if: needs.detect_changes.outputs.ai_tagging == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suffix: ""
+            default_tag: latest
+            build_args: ""
+          - suffix: -openvino
+            default_tag: openvino
+            build_args: |
+              INFERENCE_PACKAGE=openvino==2025.4.1
+              INSTALL_OPENVINO_GPU_DEPS=true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Normalize owner
         id: vars
         run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -84,17 +97,17 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ steps.vars.outputs.owner }}/damebooru-ai-tagging
           tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch,suffix=${{ matrix.suffix }}
+            type=ref,event=tag,suffix=${{ matrix.suffix }}
+            type=sha,suffix=${{ matrix.suffix }}
+            type=raw,value=${{ matrix.default_tag }},enable={{is_default_branch}}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./ai-tagging
           file: ./ai-tagging/Dockerfile
@@ -102,34 +115,9 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=damebooru-ai-tagging
-          cache-to: type=gha,mode=max,scope=damebooru-ai-tagging
-
-      - name: Docker metadata OpenVINO
-        id: meta_openvino
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ steps.vars.outputs.owner }}/damebooru-ai-tagging
-          tags: |
-            type=ref,event=branch,suffix=-openvino
-            type=ref,event=tag,suffix=-openvino
-            type=sha,suffix=-openvino
-            type=raw,value=openvino,enable={{is_default_branch}}
-
-      - name: Build and push OpenVINO
-        uses: docker/build-push-action@v6
-        with:
-          context: ./ai-tagging
-          file: ./ai-tagging/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: ${{ steps.meta_openvino.outputs.tags }}
-          labels: ${{ steps.meta_openvino.outputs.labels }}
-          build-args: |
-            INFERENCE_PACKAGE=openvino==2025.4.1
-            INSTALL_OPENVINO_GPU_DEPS=true
-          cache-from: type=gha,scope=damebooru-ai-tagging-openvino
-          cache-to: type=gha,mode=max,scope=damebooru-ai-tagging-openvino
+          build-args: ${{ matrix.build_args }}
+          cache-from: type=gha,scope=damebooru-ai-tagging${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=damebooru-ai-tagging${{ matrix.suffix }}
 
   publish_server:
     needs: detect_changes
@@ -137,17 +125,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Normalize owner
         id: vars
         run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -155,7 +143,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ steps.vars.outputs.owner }}/damebooru-server
           tags: |
@@ -165,7 +153,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./server
           file: ./server/Dockerfile
@@ -182,17 +170,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Normalize owner
         id: vars
         run: echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -200,7 +188,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ steps.vars.outputs.owner }}/damebooru-client
           tags: |
@@ -210,7 +198,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./client
           file: ./client/Dockerfile
