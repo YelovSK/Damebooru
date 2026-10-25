@@ -143,29 +143,8 @@ public class SimilarPostDto
     public int Height { get; set; }
     public long SizeBytes { get; set; }
     public string ContentType { get; set; } = string.Empty;
-    public int? SimilarityPercent { get; set; }
-    public bool GroupIsResolved { get; set; }
-
-    public static SimilarPostDto FromDuplicateGroupEntry(DuplicateGroupEntry entry)
-    {
-        var post = entry.Post;
-        var displayFile = PostDto.GetDisplayFile(post);
-
-        return new SimilarPostDto
-        {
-            Id = post.Id,
-            LibraryId = displayFile?.LibraryId ?? 0,
-            LibraryName = displayFile?.Library?.Name ?? string.Empty,
-            RelativePath = displayFile?.RelativePath ?? string.Empty,
-            ContentHash = post.ContentHash,
-            Width = post.Width,
-            Height = post.Height,
-            SizeBytes = post.SizeBytes,
-            ContentType = post.ContentType,
-            SimilarityPercent = entry.DuplicateGroup.SimilarityPercent,
-            GroupIsResolved = entry.DuplicateGroup.IsResolved,
-        };
-    }
+    public int SimilarityPercent { get; set; }
+    public bool IsInDuplicateGroup { get; set; }
 }
 
 public class DuplicateLookupMatchDto

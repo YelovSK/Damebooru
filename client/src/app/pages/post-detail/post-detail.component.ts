@@ -212,7 +212,9 @@ export class PostDetailComponent {
     };
   });
 
-  similarPosts = computed<SimilarPost[]>(() => this.post()?.similarPosts ?? []);
+  similarPosts = signal<SimilarPost[]>([]);
+  isSimilarPostsLoading = signal(false);
+  private similarPostsLoadedForPostId: number | null = null;
 
   suppressFullImage = signal(false);
   imageLoading = signal(true);
@@ -703,7 +705,17 @@ export class PostDetailComponent {
     this.loadAudit(id, false);
   }
 
-  onSidebarTabOpen(tabId: "info" | "similar"): void {
+  onSimilarTabOpen(): void {
+    this.activeSidebarTabId = "similar";
+    const id = Number(this.id());
+    if (!Number.isInteger(id) || id < 1 || this.similarPostsLoadedForPostId === id) {
+      return;
+    }
+
+    this.loadSimilarPosts(id);
+  }
+
+  onSidebarTabOpen(tabId: "info"): void {
     this.activeSidebarTabId = tabId;
   }
 
@@ -1249,6 +1261,32 @@ export class PostDetailComponent {
       });
   }
 
+  private loadSimilarPosts(postId: number) {
+    this.similarPostsLoadedForPostId = postId;
+    this.isSimilarPostsLoading.set(true);
+    this.damebooru
+      .getSimilarPosts(postId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: posts => {
+          if (this.similarPostsLoadedForPostId !== postId) {
+            return;
+          }
+
+          this.similarPosts.set(posts);
+          this.isSimilarPostsLoading.set(false);
+        },
+        error: () => {
+          if (this.similarPostsLoadedForPostId !== postId) {
+            return;
+          }
+
+          this.similarPostsLoadedForPostId = null;
+          this.isSimilarPostsLoading.set(false);
+        },
+      });
+  }
+
   private loadAutoTagStatus(postId: number) {
     if (this.autoTagStatusRequestInFlight) {
       return;
@@ -1327,8 +1365,18 @@ export class PostDetailComponent {
       this.isAutoTagStatusLoading.set(false);
     }
 
+    if (this.similarPostsLoadedForPostId !== postId) {
+      this.similarPosts.set([]);
+      this.similarPostsLoadedForPostId = null;
+      this.isSimilarPostsLoading.set(false);
+    }
+
     if (postId === null) {
       return;
+    }
+
+    if (this.activeSidebarTabId === "similar") {
+      this.loadSimilarPosts(postId);
     }
 
     if (this.activeSidebarTabId === "audit") {

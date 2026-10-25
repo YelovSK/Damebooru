@@ -105,6 +105,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<DuplicateWriteService>();
         services.AddScoped<DuplicateReadService>();
         services.AddScoped<DuplicateLookupService>();
+        services.AddScoped<SimilarPostsService>();
         services.AddScoped<JobScheduleService>();
         services.AddScoped<StatsReadService>();
 

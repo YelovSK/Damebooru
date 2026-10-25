@@ -32,7 +32,7 @@ import {
   type ExactDuplicateCluster,
   type ExcludedFile,
   type ClearExcludedFilesResponse,
-  SimilarPost,
+  type SimilarPost,
   type DuplicateLookupResponse,
   type DuplicateHashLookupRequest,
   type AppLogList,
@@ -332,6 +332,10 @@ export class DamebooruService {
 
   getPost(id: number): Observable<DamebooruPostDto> {
     return this.http.get<DamebooruPostDto>(`${this.baseUrl}/posts/${id}`);
+  }
+
+  getSimilarPosts(id: number): Observable<SimilarPost[]> {
+    return this.http.get<SimilarPost[]>(`${this.baseUrl}/posts/${id}/similar`);
   }
 
   getPostAudit(

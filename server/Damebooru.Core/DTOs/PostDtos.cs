@@ -22,7 +22,6 @@ public class PostDto
     public List<string> Sources { get; set; } = [];
     public List<PostFileDto> PostFiles { get; set; } = [];
     public List<TagDto> Tags { get; set; } = [];
-    public List<SimilarPostDto> SimilarPosts { get; set; } = [];
 
     public static PostDto FromPost(Post post)
     {
@@ -48,12 +47,6 @@ public class PostDto
                 .Select(PostFileDto.FromPostFile)
                 .ToList(),
             Tags = TagDto.FromPostTags(post.PostTags),
-            SimilarPosts = post.DuplicateGroupEntries
-                .Select(dge => dge.DuplicateGroup)
-                .SelectMany(g => g.Entries)
-                .Where(e => e.PostId != post.Id)
-                .Select(SimilarPostDto.FromDuplicateGroupEntry)
-                .ToList()
         };
     }
 

@@ -263,7 +263,7 @@
                     }
                 </app-tab>
 
-                <!-- Similar Tab -->
+                <!-- Audit Tab -->
                 <app-tab id="audit" label="Audit" (open)="onAuditTabOpen()">
                     @if (auditEntries().length > 0) {
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
@@ -294,8 +294,10 @@
                 </app-tab>
 
                 <!-- Similar Tab -->
-                <app-tab id="similar" label="Similar" (open)="onSidebarTabOpen('similar')">
-                    @if (similarPosts().length > 0) {
+                <app-tab id="similar" label="Similar" (open)="onSimilarTabOpen()">
+                    @if (isSimilarPostsLoading()) {
+                    <span class="text-text-muted text-[0.85rem]">Loading...</span>
+                    } @else if (similarPosts().length > 0) {
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                         @for (similar of similarPosts(); track similar.id) {
                         <a class="flex items-center gap-2 rounded-sm border border-white/10 bg-glass-bg p-2 no-underline transition-colors hover:bg-glass-bg-hover"
@@ -308,11 +310,9 @@
                                     {{ similar.libraryName }} · {{ similar.width }}x{{ similar.height }} · {{ similar.sizeBytes | fileSize }}
                                 </div>
                                 <div class="mt-1 flex items-center gap-1.5">
-                                    @if (similar.similarityPercent !== null) {
                                     <span class="text-[0.68rem] text-text-muted">~{{ similar.similarityPercent }}%</span>
-                                    }
-                                    @if (similar.groupIsResolved) {
-                                    <span class="text-[0.68rem] text-text-muted">resolved group</span>
+                                    @if (similar.isInDuplicateGroup) {
+                                    <span class="text-[0.68rem] text-text-muted">duplicate</span>
                                     }
                                 </div>
                             </div>
@@ -320,7 +320,7 @@
                         }
                     </div>
                     } @else {
-                    <span class="text-text-muted text-[0.85rem]">No similar posts found from duplicate groups.</span>
+                    <span class="text-text-muted text-[0.85rem]">No similar posts found.</span>
                     }
                 </app-tab>
             </app-tabs>

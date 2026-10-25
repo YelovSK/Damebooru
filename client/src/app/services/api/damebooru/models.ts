@@ -137,7 +137,6 @@ export interface DamebooruPostDto {
   sources: string[];
   postFiles: DamebooruPostFileDto[];
   tags: DamebooruTagDto[];
-  similarPosts: SimilarPost[];
 }
 
 export interface DamebooruPostFileDto {
@@ -335,8 +334,8 @@ export interface SimilarPost {
   sizeBytes: number;
   contentType: string;
   contentHash: string;
-  similarityPercent: number | null;
-  groupIsResolved: boolean;
+  similarityPercent: number;
+  isInDuplicateGroup: boolean;
 }
 
 export interface DuplicateLookupMatch {

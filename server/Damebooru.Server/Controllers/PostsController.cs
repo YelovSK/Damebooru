@@ -2,6 +2,7 @@ using Damebooru.Core.DTOs;
 using Damebooru.Processing.Services;
 using Damebooru.Processing.Services.AiTagging;
 using Damebooru.Processing.Services.AutoTagging;
+using Damebooru.Processing.Services.Duplicates;
 using Damebooru.Server.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,19 +17,22 @@ public class PostsController : ControllerBase
     private readonly PostContentService _postContentService;
     private readonly PostAutoTaggingService _postAutoTaggingService;
     private readonly AiTaggingService _aiTaggingService;
+    private readonly SimilarPostsService _similarPostsService;
 
     public PostsController(
         PostReadService postReadService,
         PostWriteService postWriteService,
         PostContentService postContentService,
         PostAutoTaggingService postAutoTaggingService,
-        AiTaggingService aiTaggingService)
+        AiTaggingService aiTaggingService,
+        SimilarPostsService similarPostsService)
     {
         _postReadService = postReadService;
         _postWriteService = postWriteService;
         _postContentService = postContentService;
         _postAutoTaggingService = postAutoTaggingService;
         _aiTaggingService = aiTaggingService;
+        _similarPostsService = similarPostsService;
     }
 
     [HttpGet]
@@ -57,6 +61,12 @@ public class PostsController : ControllerBase
     public async Task<IActionResult> GetPost(int id, CancellationToken cancellationToken = default)
     {
         return await _postReadService.GetPostAsync(id, cancellationToken).ToHttpResult();
+    }
+
+    [HttpGet("{id}/similar")]
+    public async Task<IActionResult> GetSimilarPosts(int id, CancellationToken cancellationToken = default)
+    {
+        return await _similarPostsService.GetSimilarPostsAsync(id, cancellationToken).ToHttpResult();
     }
 
     [HttpPut("{id}")]

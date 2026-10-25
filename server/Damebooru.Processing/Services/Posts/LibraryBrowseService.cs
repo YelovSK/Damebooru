@@ -102,7 +102,6 @@ public class LibraryBrowseService
                     .ToList(),
                 Sources = new List<string>(),
                 Tags = new List<TagDto>(),
-                SimilarPosts = new List<SimilarPostDto>(),
             })
             .ToListAsync(cancellationToken);
 
