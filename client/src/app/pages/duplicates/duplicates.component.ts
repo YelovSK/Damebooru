@@ -109,6 +109,7 @@ export class DuplicatesPageComponent {
   lookupLoadingText = signal('Finding Matches...');
   lookupDropActive = signal(false);
   private lookupSubscription?: Subscription;
+  private lastExternalLookupId: string | null = null;
   readonly lookupExactMatches = computed(() => this.lookupResult()?.exactMatches ?? []);
   readonly lookupPerceptualMatches = computed(() => this.lookupResult()?.perceptualMatches ?? []);
   readonly lookupPerceptualReason = computed(() => this.lookupResult()?.perceptualUnavailableReason ?? null);
@@ -845,6 +846,26 @@ export class DuplicatesPageComponent {
     this.closePreview();
   }
 
+  // Used by the browser extension (chrome-extension/) to hand over an image. It retries until it gets the
+  // acknowledgement, so the same request id can arrive more than once.
+  @HostListener('window:message', ['$event'])
+  onWindowMessage(event: MessageEvent) {
+    const data: unknown = event.data;
+    if (!this.isLookupTabActive()
+      || event.source !== window
+      || !isExternalLookupMessage(data)) {
+      return;
+    }
+
+    window.postMessage({ type: 'damebooru:lookup-file-received', id: data.id }, window.location.origin);
+    if (this.lastExternalLookupId === data.id) {
+      return;
+    }
+
+    this.lastExternalLookupId = data.id;
+    this.setLookupFile(data.file);
+  }
+
   @HostListener('document:paste', ['$event'])
   onPaste(event: ClipboardEvent) {
     if (!this.isLookupTabActive()) {
@@ -1058,3 +1079,14 @@ export class DuplicatesPageComponent {
 }
 
 class LookupHashError extends Error {}
+
+function isExternalLookupMessage(data: unknown): data is { id: string; file: File } {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const message = data as Record<string, unknown>;
+  return message['type'] === 'damebooru:lookup-file'
+    && typeof message['id'] === 'string'
+    && message['file'] instanceof File;
+}

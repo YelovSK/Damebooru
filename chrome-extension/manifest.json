@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Damebooru Lookup",
+  "version": "1.0.0",
+  "description": "Look up images from any page in Damebooru.",
+  "permissions": ["contextMenus", "scripting", "storage", "declarativeNetRequestWithHostAccess"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Damebooru Lookup",
+    "default_popup": "options.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
+}
