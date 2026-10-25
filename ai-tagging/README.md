@@ -71,6 +71,9 @@ Example:
 curl.exe -F "file=@image.png" -F "model=pixai-v1" http://127.0.0.1:8000/tag
 ```
 
+The response reports `elapsed_ms` for the whole tagging call, split into
+`preprocess_ms` (decode and resize) and `inference_ms` (the model run alone).
+
 ## Runtime Settings
 
 | Variable | Default | Notes |

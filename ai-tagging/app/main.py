@@ -16,7 +16,7 @@ from .lazy_tagger import LazyTagger
 from .models import MODELS, ModelSpec
 from .schemas import HealthResponse, ModelInfo, ModelsResponse, TagResponse
 from .settings import Settings
-from .tagger import TaggingError
+from .tagger import TaggingError, elapsed_ms_since
 
 settings = Settings()
 if settings.default_model not in MODELS:
@@ -136,7 +136,7 @@ async def tag_image(
                 include_below_threshold=include_below_threshold,
                 replace_underscores=replace_underscores,
             )
-            elapsed_ms = round((time.perf_counter() - started_at) * 1000, 2)
+            elapsed_ms = elapsed_ms_since(started_at)
             provider = loaded_tagger.active_provider
 
         return TagResponse(
@@ -145,6 +145,8 @@ async def tag_image(
             threshold=threshold,
             min_confidence=effective_min_confidence,
             elapsed_ms=elapsed_ms,
+            preprocess_ms=result.preprocess_ms,
+            inference_ms=result.inference_ms,
             tags=result.tags,
             tags_by_category=result.tags_by_category,
         )

@@ -36,5 +36,7 @@ class TagResponse(BaseModel):
     threshold: float | None
     min_confidence: float
     elapsed_ms: float
+    preprocess_ms: float
+    inference_ms: float
     tags: list[TagResult]
     tags_by_category: dict[str, list[TagResult]]

@@ -234,7 +234,10 @@
       if (id !== requestId) return;
       if (!res.ok) throw new Error(data.detail ?? res.statusText);
       response = data;
-      setStatus(`${data.model} · ${data.provider} · ${data.elapsed_ms} ms`);
+      setStatus(
+        `${data.model} · ${data.provider} · ${data.elapsed_ms} ms ` +
+        `(preprocess ${data.preprocess_ms} ms, inference ${data.inference_ms} ms)`,
+      );
     } catch (ex) {
       if (id !== requestId) return;
       response = null;

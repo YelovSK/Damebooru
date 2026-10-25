@@ -29,6 +29,8 @@ class TaggingError(Exception):
 class RawTaggingResult:
     tags: list[TagResult]
     tags_by_category: dict[str, list[TagResult]]
+    preprocess_ms: float
+    inference_ms: float
 
 
 Infer = Callable[[np.ndarray], Sequence[np.ndarray]]
@@ -40,6 +42,14 @@ class Tagger:
         self.infer = infer
         self.active_provider = active_provider
         self.tags = tags
+        present = {category for _, category in tags}
+        self.categories = [
+            *[category for category in CATEGORY_ORDER if category in present],
+            *sorted(present.difference(CATEGORY_ORDER)),
+        ]
+        category_codes = {category: code for code, category in enumerate(self.categories)}
+        self.category_codes = np.array([category_codes[category] for _, category in tags])
+        self.category_thresholds = np.array([spec.threshold_for(category) for category in self.categories])
         # Requests run in parallel threads, but inference must not: OpenVINO's compiled model
         # fails with "Infer Request is busy", and ONNX Runtime's CUDA provider can hit
         # "illegal memory access" with FP16 models, which breaks the session for good.
@@ -85,9 +95,13 @@ class Tagger:
         replace_underscores: bool,
     ) -> RawTaggingResult:
         try:
+            started_at = time.perf_counter()
             image_array = self._preprocess(image_path)
+            preprocess_ms = elapsed_ms_since(started_at)
             with self._infer_lock:
+                started_at = time.perf_counter()
                 outputs = self.infer(image_array[np.newaxis, :])
+                inference_ms = elapsed_ms_since(started_at)
         except UnidentifiedImageError as ex:
             raise TaggingError("Uploaded file is not a readable image.") from ex
         except Exception as ex:
@@ -96,41 +110,42 @@ class Tagger:
         output = outputs[self.spec.output_index]
         probabilities = (output if self.spec.outputs_probabilities else sigmoid(output))[0]
 
-        tags_by_category: dict[str, list[TagResult]] = {}
-        for idx in np.flatnonzero(probabilities >= min_confidence):
-            score = float(probabilities[idx])
-            name, category = self.tags[idx]
-            category_threshold = self.spec.threshold_for(category) if threshold is None else threshold
-            if not include_below_threshold and score < category_threshold:
-                continue
-
-            if replace_underscores:
-                name = name.replace("_", " ")
-
-            tags_by_category.setdefault(category, []).append(
-                TagResult(name=name, score=round(score, 6), category=category)
+        candidates = np.flatnonzero(probabilities >= min_confidence)
+        if not include_below_threshold:
+            thresholds = (
+                self.category_thresholds[self.category_codes[candidates]]
+                if threshold is None
+                else threshold
             )
+            candidates = candidates[probabilities[candidates] >= thresholds]
+        candidates = candidates[np.argsort(-probabilities[candidates], kind="stable")]
+        candidate_codes = self.category_codes[candidates]
 
-        for category, tags in tags_by_category.items():
-            tags.sort(key=lambda tag: tag.score, reverse=True)
-            tags_by_category[category] = tags[:top_k]
+        tags_by_category: dict[str, list[TagResult]] = {}
+        for code, category in enumerate(self.categories):
+            indices = candidates[candidate_codes == code][:top_k]
+            if indices.size:
+                tags_by_category[category] = [
+                    TagResult(
+                        name=self.tags[idx][0].replace("_", " ") if replace_underscores else self.tags[idx][0],
+                        score=round(float(probabilities[idx]), 6),
+                        category=category,
+                    )
+                    for idx in indices
+                ]
 
-        ordered_categories = [
-            *[category for category in CATEGORY_ORDER if category in tags_by_category],
-            *sorted(category for category in tags_by_category if category not in CATEGORY_ORDER),
-        ]
-        ordered_by_category = {
-            category: tags_by_category[category]
-            for category in ordered_categories
-        }
-        flat_tags = [
-            tag
-            for category in ordered_categories
-            for tag in ordered_by_category[category]
-        ]
-        flat_tags.sort(key=lambda tag: tag.score, reverse=True)
+        flat_tags = sorted(
+            (tag for tags in tags_by_category.values() for tag in tags),
+            key=lambda tag: tag.score,
+            reverse=True,
+        )
 
-        return RawTaggingResult(tags=flat_tags, tags_by_category=ordered_by_category)
+        return RawTaggingResult(
+            tags=flat_tags,
+            tags_by_category=tags_by_category,
+            preprocess_ms=preprocess_ms,
+            inference_ms=inference_ms,
+        )
 
     def _preprocess(self, image_path: Path) -> np.ndarray:
         spec = self.spec
@@ -207,6 +222,10 @@ def load_openvino(model_path: Path, settings: Settings) -> tuple[Infer, str]:
         lambda image_batch: compiled_model(image_batch).to_tuple(),
         f"OpenVINO:{settings.openvino_device}",
     )
+
+
+def elapsed_ms_since(started_at: float) -> float:
+    return round((time.perf_counter() - started_at) * 1000, 2)
 
 
 def sigmoid(values: np.ndarray) -> np.ndarray:
