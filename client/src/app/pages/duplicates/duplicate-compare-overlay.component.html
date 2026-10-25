@@ -56,7 +56,7 @@
               </a>
             </div>
             <div class="min-h-0 flex-1 bg-black">
-              <app-zoom-pan-container [viewport]="viewport()" [touchEnabled]="true" (viewportChange)="onViewportChange($event)">
+              <app-zoom-pan-container [sync]="zoomSync" [touchEnabled]="true">
                 @if (isVideo(leftPost)) {
                 <video [src]="getPostContentUrl(leftPost)" class="h-full w-full object-contain" muted loop controls playsinline></video>
                 } @else {
@@ -91,7 +91,7 @@
               </a>
             </div>
             <div class="min-h-0 flex-1 bg-black">
-              <app-zoom-pan-container [viewport]="viewport()" [touchEnabled]="true" (viewportChange)="onViewportChange($event)">
+              <app-zoom-pan-container [sync]="zoomSync" [touchEnabled]="true">
                 @if (isVideo(rightPost)) {
                 <video [src]="getPostContentUrl(rightPost)" class="h-full w-full object-contain" muted loop controls playsinline></video>
                 } @else {
@@ -132,7 +132,7 @@
             </div>
           </div>
           <div class="min-h-0 flex-1 bg-black">
-            <app-zoom-pan-container [viewport]="viewport()" [touchEnabled]="true" (viewportChange)="onViewportChange($event)">
+            <app-zoom-pan-container [sync]="zoomSync" [touchEnabled]="true">
               @if (isVideo(activePost)) {
               <video [src]="getPostContentUrl(activePost)" class="h-full w-full object-contain" muted loop controls playsinline></video>
               } @else {

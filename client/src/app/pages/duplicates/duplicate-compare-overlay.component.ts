@@ -6,7 +6,7 @@ import { type DuplicatePostFile } from '@models';
 import { ButtonDirective } from '@shared/directives';
 import { FormDropdownComponent, type FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
 import { ModalComponent } from '@shared/components/modal/modal.component';
-import { ZoomPanContainerComponent, type ZoomPanViewport } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
+import { ZoomPanContainerComponent, ZoomPanSync } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
 import { getFileNameFromPath } from '@shared/utils/utils';
@@ -63,7 +63,7 @@ export class DuplicateCompareOverlayComponent {
   readonly mode = signal<DuplicateCompareMode>('side-by-side');
   readonly isCompactViewport = signal(this.resolveIsCompactViewport());
   readonly flipShowingRight = signal(false);
-  readonly viewport = signal<ZoomPanViewport>({ zoomLevel: 1, panX: 0, panY: 0 });
+  readonly zoomSync = new ZoomPanSync();
 
   readonly activeMode = computed<DuplicateCompareMode>(() => this.isCompactViewport() ? 'flip' : this.mode());
 
@@ -168,12 +168,8 @@ export class DuplicateCompareOverlayComponent {
     this.flipShowingRight.update(value => !value);
   }
 
-  onViewportChange(viewport: ZoomPanViewport): void {
-    this.viewport.set(viewport);
-  }
-
   resetZoom(): void {
-    this.viewport.set({ zoomLevel: 1, panX: 0, panY: 0 });
+    this.zoomSync.publish({ zoomLevel: 1, panX: 0, panY: 0 });
   }
 
   getThumbnailUrl(post: DuplicateComparePost): string {

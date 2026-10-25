@@ -9,8 +9,8 @@ import {
   effect,
   inject,
   input,
-  output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -21,6 +21,41 @@ export interface ZoomPanViewport {
   zoomLevel: number;
   panX: number;
   panY: number;
+}
+
+export interface ZoomPanMotion {
+  frames: ZoomPanViewport[];
+  duration: number;
+  easing: string;
+}
+
+type ZoomPanSyncListener = (viewport: ZoomPanViewport, motion: ZoomPanMotion | null) => void;
+
+/**
+ * Keeps several zoom-pan containers on the same viewport. Changes are applied to every member synchronously,
+ * so their animations start on the same frame.
+ */
+export class ZoomPanSync {
+  private readonly listeners = new Set<ZoomPanSyncListener>();
+  private current: ZoomPanViewport = { zoomLevel: 1, panX: 0, panY: 0 };
+
+  get viewport(): ZoomPanViewport {
+    return this.current;
+  }
+
+  join(listener: ZoomPanSyncListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  publish(viewport: ZoomPanViewport, motion: ZoomPanMotion | null = null, source?: ZoomPanSyncListener): void {
+    this.current = viewport;
+    for (const listener of this.listeners) {
+      if (listener !== source) {
+        listener(viewport, motion);
+      }
+    }
+  }
 }
 
 @Component({
@@ -62,8 +97,7 @@ export class ZoomPanContainerComponent {
   readonly momentumEnabled = input(true);
   readonly touchEnabled = input(false);
   readonly doubleClickZoomEnabled = input(true);
-  readonly viewport = input<ZoomPanViewport | null>(null);
-  readonly viewportChange = output<ZoomPanViewport>();
+  readonly sync = input<ZoomPanSync | null>(null);
 
   readonly zoomLevel = computed(() => this.targetViewport().zoomLevel);
   readonly panX = computed(() => this.targetViewport().panX);
@@ -79,22 +113,17 @@ export class ZoomPanContainerComponent {
   private pinchStartZoom = 1;
   private pinchContentX = 0;
   private pinchContentY = 0;
-  private applyingExternalViewport = false;
+  private readonly applySynced: ZoomPanSyncListener = (viewport, motion) => this.apply(viewport, motion);
 
   constructor() {
-    effect(() => {
-      const viewport = this.viewport();
-      if (!viewport) {
+    effect((onCleanup) => {
+      const sync = this.sync();
+      if (!sync) {
         return;
       }
 
-      if (this.isSameViewport(viewport, this.targetViewport())) {
-        return;
-      }
-
-      this.applyingExternalViewport = true;
-      this.setTargetViewport(viewport, this.shouldSmoothExternalViewport(viewport) ? 'smooth' : 'instant');
-      this.applyingExternalViewport = false;
+      untracked(() => this.apply(sync.viewport, null));
+      onCleanup(sync.join(this.applySynced));
     });
 
     afterNextRender(() => {
@@ -379,22 +408,24 @@ export class ZoomPanContainerComponent {
       },
     );
 
-    this.setTargetViewport(frames[frames.length - 1], 'instant');
-    this.animate(frames, duration, 'linear');
+    this.setTargetViewport(frames[frames.length - 1], { frames, duration, easing: 'linear' });
   }
 
   private setZoomViewport(zoomLevel: number, panX: number, panY: number): void {
+    const next = this.normalizeViewport({ zoomLevel, panX, panY });
     this.setTargetViewport(
-      { zoomLevel, panX, panY },
-      this.smoothZoomEnabled() ? 'smooth' : 'instant',
+      next,
+      this.smoothZoomEnabled()
+        ? {
+            frames: [this.getRenderedViewport(), next],
+            duration: this.zoomAnimationDuration,
+            easing: this.zoomAnimationEasing,
+          }
+        : null,
     );
   }
 
-  private animate(
-    frames: ZoomPanViewport[],
-    duration: number,
-    easing: string,
-  ): void {
+  private animate({ frames, duration, easing }: ZoomPanMotion): void {
     const el = this.content()?.nativeElement;
     if (!el) return;
 
@@ -424,7 +455,7 @@ export class ZoomPanContainerComponent {
       return;
     }
 
-    this.setTargetViewport(this.getRenderedViewport(), 'instant');
+    this.setTargetViewport(this.getRenderedViewport(), null);
   }
 
   private getRenderedViewport(): ZoomPanViewport {
@@ -438,26 +469,21 @@ export class ZoomPanContainerComponent {
   }
 
   private setViewport(zoomLevel: number, panX: number, panY: number): void {
-    this.setTargetViewport({ zoomLevel, panX, panY }, 'instant');
+    this.setTargetViewport({ zoomLevel, panX, panY }, null);
   }
 
-  private setTargetViewport(viewport: ZoomPanViewport, mode: 'instant' | 'smooth'): void {
+  private setTargetViewport(viewport: ZoomPanViewport, motion: ZoomPanMotion | null): void {
     const next = this.normalizeViewport(viewport);
-    this.targetViewport.set(next);
+    this.apply(next, motion);
+    this.sync()?.publish(next, motion, this.applySynced);
+  }
 
-    if (!this.applyingExternalViewport) {
-      this.viewportChange.emit(next);
-    }
-
-    const from = this.getRenderedViewport();
+  private apply(viewport: ZoomPanViewport, motion: ZoomPanMotion | null): void {
+    this.targetViewport.set(viewport);
     this.cancelAnimation();
-    this.render(next);
-    if (mode === 'smooth') {
-      this.animate(
-        [from, next],
-        this.zoomAnimationDuration,
-        this.zoomAnimationEasing,
-      );
+    this.render(viewport);
+    if (motion) {
+      this.animate(motion);
     }
   }
 
@@ -471,14 +497,6 @@ export class ZoomPanContainerComponent {
       panX: viewport.panX,
       panY: viewport.panY,
     };
-  }
-
-  private shouldSmoothExternalViewport(viewport: ZoomPanViewport): boolean {
-    return this.smoothZoomEnabled() && viewport.zoomLevel !== this.targetViewport().zoomLevel;
-  }
-
-  private isSameViewport(left: ZoomPanViewport, right: ZoomPanViewport): boolean {
-    return left.zoomLevel === right.zoomLevel && left.panX === right.panX && left.panY === right.panY;
   }
 
   private getMidpoint(left: { x: number; y: number }, right: { x: number; y: number }): { x: number; y: number } {
