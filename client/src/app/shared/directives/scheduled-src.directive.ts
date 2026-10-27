@@ -17,6 +17,22 @@ interface ScheduledImageJob {
   farNotBeforeMs: number;
 }
 
+// A reused <img> keeps painting its previous image until the new one loads, so hide it in between.
+function assignSrc(element: HTMLImageElement, url: string): void {
+  element.src = url;
+  if (element.complete) {
+    element.onload = element.onerror = null;
+    element.style.opacity = "";
+    return;
+  }
+
+  element.style.opacity = "0";
+  element.onload = element.onerror = () => {
+    element.onload = element.onerror = null;
+    element.style.opacity = "";
+  };
+}
+
 class ImageSrcScheduler {
   private static readonly jobs: (ScheduledImageJob | null)[] = [];
   private static readonly pendingByToken = new Map<symbol, ScheduledImageJob>();
@@ -132,8 +148,7 @@ class ImageSrcScheduler {
         continue;
       }
 
-      job.element.src = job.url;
-      this.clearPendingState(job.element);
+      assignSrc(job.element, job.url);
       if (!job.near) {
         remainingFar -= 1;
       }
@@ -289,12 +304,12 @@ export class ScheduledSrcDirective implements OnDestroy {
 
     if (!this.settings.useScheduledImageSrc()) {
       ImageSrcScheduler.cancel(this.token);
-      element.src = url;
-      element.style.opacity = "";
+      assignSrc(element, url);
       return;
     }
 
     ImageSrcScheduler.cancel(this.token);
+    element.onload = element.onerror = null;
     element.style.opacity = "0";
 
     ImageSrcScheduler.enqueue({
