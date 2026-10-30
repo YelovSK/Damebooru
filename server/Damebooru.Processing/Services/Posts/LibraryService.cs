@@ -88,6 +88,7 @@ public class LibraryService
                 Id = l.Id,
                 Name = l.Name,
                 Path = l.Path,
+                Kind = l.Kind,
                 ScanIntervalHours = l.ScanInterval.TotalHours,
                 PostCount = s?.PostCount ?? 0,
                 TotalSizeBytes = s?.TotalSizeBytes ?? 0,
@@ -122,6 +123,7 @@ public class LibraryService
                 ? Path.GetFileName(Path.TrimEndingDirectorySeparator(dto.Path))
                 : dto.Name.Trim(),
             Path = dto.Path,
+            Kind = dto.Kind,
             ScanInterval = TimeSpan.FromHours(1)
         };
 
@@ -133,6 +135,7 @@ public class LibraryService
             Id = library.Id,
             Name = library.Name,
             Path = library.Path,
+            Kind = library.Kind,
             ScanIntervalHours = library.ScanInterval.TotalHours,
             PostCount = 0,
             TotalSizeBytes = 0,
@@ -367,6 +370,26 @@ public class LibraryService
         return Result<LibraryDto>.Success(await BuildLibraryDtoAsync(library, CancellationToken.None));
     }
 
+    public async Task<Result<LibraryDto>> SetLibraryKindAsync(int id, SetLibraryKindDto dto)
+    {
+        var library = await _context.Libraries.FindAsync(new object[] { id });
+        if (library == null)
+        {
+            return Result<LibraryDto>.Failure(OperationError.NotFound, "Library not found.");
+        }
+
+        if (library.Kind != dto.Kind)
+        {
+            library.Kind = dto.Kind;
+            await _context.SaveChangesAsync();
+
+            // The scan reconciles folder tags, which depend on the kind.
+            await ScanLibraryAsync(id);
+        }
+
+        return Result<LibraryDto>.Success(await BuildLibraryDtoAsync(library, CancellationToken.None));
+    }
+
     private async Task<LibraryDto> BuildLibraryDtoAsync(Library library, CancellationToken cancellationToken)
     {
         var ignoredPaths = await _context.LibraryIgnoredPaths
@@ -398,6 +421,7 @@ public class LibraryService
             Id = library.Id,
             Name = library.Name,
             Path = library.Path,
+            Kind = library.Kind,
             ScanIntervalHours = library.ScanInterval.TotalHours,
             PostCount = await _context.PostFiles.Where(pf => pf.LibraryId == library.Id).Select(pf => pf.PostId).Distinct().CountAsync(cancellationToken),
             TotalSizeBytes = await _context.PostFiles

@@ -177,6 +177,18 @@ public sealed class LibrarySyncServiceTests
     }
 
     [Fact]
+    public async Task Scan_InboxGetsNoFolderTags()
+    {
+        await using var h = await SyncHarness.CreateAsync(LibraryKind.Inbox);
+        h.WriteFile("artist name/series/a.png", "a");
+
+        await h.ScanAsync();
+
+        var postId = (await h.GetFilesAsync()).Single().PostId;
+        Assert.Empty(await h.GetFolderTagsAsync(postId));
+    }
+
+    [Fact]
     public async Task Watcher_ChangedFile_CreatesThenUpdatesPost()
     {
         await using var h = await SyncHarness.CreateAsync();
@@ -328,7 +340,7 @@ public sealed class LibrarySyncServiceTests
         public ILibrarySyncProcessor Sync { get; }
         private string LibraryPath => Path.Combine(_root, "library");
 
-        public static async Task<SyncHarness> CreateAsync()
+        public static async Task<SyncHarness> CreateAsync(LibraryKind kind = LibraryKind.Library)
         {
             var root = Path.Combine(Path.GetTempPath(), "damebooru-sync-tests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(Path.Combine(root, "library"));
@@ -354,7 +366,7 @@ public sealed class LibrarySyncServiceTests
             await using var scope = provider.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
             await db.Database.MigrateAsync();
-            var library = new Library { Name = "Library", Path = Path.Combine(root, "library") };
+            var library = new Library { Name = "Library", Path = Path.Combine(root, "library"), Kind = kind };
             db.Libraries.Add(library);
             await db.SaveChangesAsync();
 

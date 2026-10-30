@@ -62,7 +62,7 @@ public class FolderTaggingService
 
         var postFiles = await dbContext.PostFiles
             .AsNoTracking()
-            .Where(pf => normalizedPostIds.Contains(pf.PostId))
+            .Where(pf => normalizedPostIds.Contains(pf.PostId) && pf.Library.Kind != LibraryKind.Inbox)
             .Select(pf => new { pf.PostId, pf.RelativePath })
             .ToListAsync(cancellationToken);
 

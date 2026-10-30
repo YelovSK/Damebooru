@@ -115,6 +115,15 @@ export const SEARCH_DIRECTIVES: readonly SearchDirective[] = [
     examples: ['favorite:true', 'fav:false'],
   },
   {
+    key: 'inbox',
+    aliases: [],
+    label: 'Inbox',
+    description: 'Show only posts whose files are all in inbox libraries. These are hidden otherwise.',
+    negatable: true,
+    value: { kind: 'flag', label: 'Inbox' },
+    examples: ['inbox:true'],
+  },
+  {
     key: 'tag-count',
     aliases: ['tagcount'],
     label: 'Tag count',

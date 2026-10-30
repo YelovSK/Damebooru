@@ -6,17 +6,18 @@ import { toSignal, toObservable } from '@angular/core/rxjs-interop';
 import { catchError, of, switchMap } from 'rxjs';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { type Library } from '@services/api/damebooru/models';
+import { type Library, LibraryKind } from '@services/api/damebooru/models';
 import { ButtonDirective } from '@shared/directives';
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
+import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 import { AppPaths } from '@app/app.paths';
 
 @Component({
     selector: 'app-libraries',
     standalone: true,
-    imports: [CommonModule, FormsModule, RouterLink, ButtonDirective, FileSizePipe],
+    imports: [CommonModule, FormsModule, RouterLink, ButtonDirective, FileSizePipe, FormCheckboxComponent],
     templateUrl: './libraries.component.html',
     styleUrl: './libraries.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,13 +27,16 @@ export class LibrariesComponent {
     private readonly toast = inject(ToastService);
     private readonly confirmService = inject(ConfirmService);
     readonly appPaths = AppPaths;
+    readonly libraryKind = LibraryKind;
 
     newLibraryName = signal('');
     newLibraryPath = signal('');
+    newLibraryIsInbox = signal(false);
     isCreating = signal(false);
     isLoading = signal(false);
     scanningLibraryId = signal<number | null>(null);
     renamingLibraryId = signal<number | null>(null);
+    changingKindLibraryId = signal<number | null>(null);
     editingLibraryId = signal<number | null>(null);
     addingIgnoredPathLibraryId = signal<number | null>(null);
     removingIgnoredPathId = signal<number | null>(null);
@@ -61,11 +65,13 @@ export class LibrariesComponent {
         if (!name || !path) return;
 
         this.isCreating.set(true);
-        this.damebooru.createLibrary(name, path).subscribe({
+        const kind = this.newLibraryIsInbox() ? LibraryKind.Inbox : LibraryKind.Library;
+        this.damebooru.createLibrary(name, path, kind).subscribe({
             next: () => {
                 this.toast.success(`Library "${name}" created`);
                 this.newLibraryName.set('');
                 this.newLibraryPath.set('');
+                this.newLibraryIsInbox.set(false);
                 this.refreshTrigger.update(v => v + 1);
                 this.isCreating.set(false);
             },
@@ -139,6 +145,24 @@ export class LibrariesComponent {
             error: (err) => {
                 this.toast.error(err.error?.description || 'Failed to rename library');
                 this.renamingLibraryId.set(null);
+            }
+        });
+    }
+
+    toggleInbox(lib: Library) {
+        const kind = lib.kind === LibraryKind.Inbox ? LibraryKind.Library : LibraryKind.Inbox;
+        this.changingKindLibraryId.set(lib.id);
+        this.damebooru.setLibraryKind(lib.id, kind).subscribe({
+            next: () => {
+                this.toast.success(kind === LibraryKind.Inbox
+                    ? `"${lib.name}" is now an inbox; rescan queued`
+                    : `"${lib.name}" is now a library; rescan queued`);
+                this.changingKindLibraryId.set(null);
+                this.refreshTrigger.update(v => v + 1);
+            },
+            error: (err) => {
+                this.toast.error(err.error?.description || 'Failed to change library kind');
+                this.changingKindLibraryId.set(null);
             }
         });
     }

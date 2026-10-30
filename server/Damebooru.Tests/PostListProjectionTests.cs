@@ -152,6 +152,50 @@ public sealed class PostListProjectionTests
         Assert.Equal(2, post.PostFiles.Count);
     }
 
+    [Theory]
+    [InlineData(null, new[] { "both", "sorted" })]
+    [InlineData("inbox:true", new[] { "unsorted" })]
+    [InlineData("-inbox:true", new[] { "both", "sorted" })]
+    public async Task GetPostsAsync_HidesInboxOnlyPostsUnlessAskedFor(string? query, string[] expectedHashes)
+    {
+        await using var db = await CreateContextAsync();
+        var library = new Library { Name = "Library", Path = "A:\\library" };
+        var inbox = new Library { Name = "Inbox", Path = "A:\\inbox", Kind = LibraryKind.Inbox };
+        AddPost(db, "sorted", library);
+        AddPost(db, "unsorted", inbox);
+        AddPost(db, "both", library, inbox);
+        await db.SaveChangesAsync();
+        var service = new PostReadService(db);
+
+        var result = await service.GetPostsAsync(query, offset: 0, limit: 20, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expectedHashes, result.Value!.Items.Select(p => p.ContentHash).Order());
+    }
+
+    private static void AddPost(DamebooruDbContext db, string contentHash, params Library[] libraries)
+    {
+        var date = new DateTime(2026, 5, 18, 12, 0, 0, DateTimeKind.Utc);
+        var post = new Post
+        {
+            ImportDate = date,
+            FileModifiedDate = date,
+            ContentHash = contentHash,
+            ContentType = "image/png",
+        };
+        foreach (var library in libraries)
+        {
+            post.PostFiles.Add(new PostFile
+            {
+                Library = library,
+                RelativePath = $"{contentHash}.png",
+                FileModifiedDate = date,
+            });
+        }
+
+        db.Posts.Add(post);
+    }
+
     private static async Task<DamebooruDbContext> CreateContextAsync()
     {
         var connection = new SqliteConnection("Data Source=:memory:");

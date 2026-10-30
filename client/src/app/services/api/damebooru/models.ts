@@ -26,10 +26,16 @@ export interface LibraryAutoTagExcludedPath {
   createdDate: string;
 }
 
+export enum LibraryKind {
+  Library = 0,
+  Inbox = 1,
+}
+
 export interface Library {
   id: number;
   name: string;
   path: string;
+  kind: LibraryKind;
   scanIntervalHours: number;
   postCount: number;
   totalSizeBytes: number;
@@ -161,6 +167,7 @@ export interface DamebooruPostsAroundDto {
 
 export interface StatsOverviewDto {
   postCount: number;
+  unsortedPostCount: number;
   fileCount: number;
   totalSizeBytes: number;
   tagCount: number;

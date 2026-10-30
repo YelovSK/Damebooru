@@ -12,6 +12,7 @@ public enum StatsGrowthDateKind
 public class StatsOverviewDto
 {
     public int PostCount { get; set; }
+    public int UnsortedPostCount { get; set; }
     public int FileCount { get; set; }
     public long TotalSizeBytes { get; set; }
     public int TagCount { get; set; }

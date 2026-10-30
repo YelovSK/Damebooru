@@ -8,6 +8,7 @@ import {
   type AddLibraryIgnoredPathResult,
   type AuthSessionResponse,
   type Library,
+  type LibraryKind,
   type LibraryAutoTagExcludedPath,
   type LibraryIgnoredPath,
   type LibraryBrowseResponse,
@@ -143,8 +144,8 @@ export class DamebooruService {
     return this.http.get<Library[]>(`${this.baseUrl}/libraries`);
   }
 
-  createLibrary(name: string, path: string): Observable<Library> {
-    return this.http.post<Library>(`${this.baseUrl}/libraries`, { name, path });
+  createLibrary(name: string, path: string, kind: LibraryKind): Observable<Library> {
+    return this.http.post<Library>(`${this.baseUrl}/libraries`, { name, path, kind });
   }
 
   deleteLibrary(id: number): Observable<void> {
@@ -154,6 +155,12 @@ export class DamebooruService {
   renameLibrary(id: number, name: string): Observable<void> {
     return this.http.patch<void>(`${this.baseUrl}/libraries/${id}/name`, {
       name,
+    });
+  }
+
+  setLibraryKind(id: number, kind: LibraryKind): Observable<void> {
+    return this.http.patch<void>(`${this.baseUrl}/libraries/${id}/kind`, {
+      kind,
     });
   }
 

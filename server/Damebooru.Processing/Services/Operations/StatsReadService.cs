@@ -3,6 +3,7 @@ using Damebooru.Core.DTOs;
 using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
+using Damebooru.Processing.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Damebooru.Processing.Services;
@@ -18,14 +19,15 @@ public class StatsReadService
 
     public async Task<StatsOverviewDto> GetOverviewAsync(CancellationToken cancellationToken = default)
     {
-        var postCount = await _dbContext.Posts.AsNoTracking().CountAsync(cancellationToken);
-        var fileCount = await _dbContext.PostFiles.AsNoTracking().CountAsync(cancellationToken);
-        var totalSizeBytes = await _dbContext.PostFiles.AsNoTracking().SumAsync(pf => (long?)pf.Post.SizeBytes, cancellationToken) ?? 0;
+        var sortedPosts = _dbContext.Posts.AsNoTracking().WhereSorted();
+        var sortedFiles = _dbContext.PostFiles.AsNoTracking().Where(pf => pf.Library.Kind != LibraryKind.Inbox);
+        var postCount = await sortedPosts.CountAsync(cancellationToken);
+        var unsortedPostCount = await _dbContext.Posts.AsNoTracking().WhereInboxOnly().CountAsync(cancellationToken);
+        var fileCount = await sortedFiles.CountAsync(cancellationToken);
+        var totalSizeBytes = await sortedFiles.SumAsync(pf => (long?)pf.Post.SizeBytes, cancellationToken) ?? 0;
         var tagCount = await _dbContext.Tags.AsNoTracking().CountAsync(cancellationToken);
-        var favoritePostCount = await _dbContext.Posts.AsNoTracking().CountAsync(p => p.IsFavorite, cancellationToken);
-        var untaggedPostCount = await _dbContext.Posts
-            .AsNoTracking()
-            .CountAsync(p => !p.PostTags.Any(), cancellationToken);
+        var favoritePostCount = await sortedPosts.CountAsync(p => p.IsFavorite, cancellationToken);
+        var untaggedPostCount = await sortedPosts.CountAsync(p => !p.PostTags.Any(), cancellationToken);
         var sourceCount = await _dbContext.PostSources.AsNoTracking().CountAsync(cancellationToken);
         var duplicateGroupCount = await _dbContext.DuplicateGroups.AsNoTracking().CountAsync(cancellationToken);
         var unresolvedDuplicateGroupCount = await _dbContext.DuplicateGroups
@@ -41,6 +43,7 @@ public class StatsReadService
         return new StatsOverviewDto
         {
             PostCount = postCount,
+            UnsortedPostCount = unsortedPostCount,
             FileCount = fileCount,
             TotalSizeBytes = totalSizeBytes,
             TagCount = tagCount,
@@ -131,16 +134,16 @@ public class StatsReadService
 
     public async Task<StatsTagsDto> GetTagsAsync(CancellationToken cancellationToken = default)
     {
-        var postCount = await _dbContext.Posts.AsNoTracking().CountAsync(cancellationToken);
         var totalTags = await _dbContext.Tags.AsNoTracking().CountAsync(cancellationToken);
-        var tagCountHistogram = await _dbContext.PostTags
+        var tagCountHistogram = await _dbContext.Posts
             .AsNoTracking()
-            .GroupBy(pt => pt.PostId)
-            .Select(g => g.Select(pt => pt.TagId).Distinct().Count())
+            .WhereSorted()
+            .Select(p => p.PostTags.Select(pt => pt.TagId).Distinct().Count())
             .GroupBy(tagCount => tagCount)
             .Select(g => new TagCountFrequency(g.Key, g.Count()))
             .ToListAsync(cancellationToken);
-        var taggedPostCount = tagCountHistogram.Sum(item => item.PostCount);
+        var postCount = tagCountHistogram.Sum(item => item.PostCount);
+        var taggedPostCount = tagCountHistogram.Where(item => item.TagCount > 0).Sum(item => item.PostCount);
         var totalPostTagCount = tagCountHistogram.Sum(item => (long)item.TagCount * item.PostCount);
         var categories = await _dbContext.Tags
             .AsNoTracking()
@@ -263,7 +266,7 @@ public class StatsReadService
 
     private async Task<List<MonthlyTotals>> GetMonthlyTotalsAsync(StatsGrowthDateKind dateKind, CancellationToken cancellationToken)
     {
-        var posts = _dbContext.Posts.AsNoTracking();
+        var posts = _dbContext.Posts.AsNoTracking().WhereSorted();
         var byMonth = dateKind == StatsGrowthDateKind.FileModified
             ? posts.GroupBy(p => new { p.FileModifiedDate.Year, p.FileModifiedDate.Month })
             : posts.GroupBy(p => new { p.ImportDate.Year, p.ImportDate.Month });
@@ -273,7 +276,7 @@ public class StatsReadService
                 g.Key.Year,
                 g.Key.Month,
                 g.LongCount(),
-                g.Sum(p => p.SizeBytes * p.PostFiles.Count)))
+                g.Sum(p => p.SizeBytes * p.PostFiles.Count(pf => pf.Library.Kind != LibraryKind.Inbox))))
             .ToListAsync(cancellationToken);
     }
 

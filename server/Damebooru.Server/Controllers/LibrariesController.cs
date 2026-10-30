@@ -133,4 +133,10 @@ public class LibrariesController : ControllerBase
     {
         return await _libraryService.RenameLibraryAsync(id, dto).ToHttpResult(_ => NoContent());
     }
+
+    [HttpPatch("{id}/kind")]
+    public async Task<IActionResult> SetLibraryKind(int id, [FromBody] SetLibraryKindDto dto)
+    {
+        return await _libraryService.SetLibraryKindAsync(id, dto).ToHttpResult(_ => NoContent());
+    }
 }

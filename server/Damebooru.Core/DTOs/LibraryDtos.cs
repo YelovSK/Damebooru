@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Damebooru.Core.Entities;
 
 namespace Damebooru.Core.DTOs;
 
@@ -8,6 +9,8 @@ public class CreateLibraryDto
 
     [Required]
     public string Path { get; set; } = string.Empty;
+
+    public LibraryKind Kind { get; set; } = LibraryKind.Library;
 }
 
 public class RenameLibraryDto
@@ -15,6 +18,12 @@ public class RenameLibraryDto
     [Required]
     [MinLength(1)]
     public string Name { get; set; } = string.Empty;
+}
+
+public class SetLibraryKindDto
+{
+    [EnumDataType(typeof(LibraryKind))]
+    public LibraryKind Kind { get; set; }
 }
 
 public class AddLibraryIgnoredPathDto
@@ -61,6 +70,7 @@ public class LibraryDto
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Path { get; set; } = string.Empty;
+    public LibraryKind Kind { get; set; }
     public double ScanIntervalHours { get; set; }
     public int PostCount { get; set; }
     public long TotalSizeBytes { get; set; }

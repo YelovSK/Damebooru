@@ -33,6 +33,16 @@
             </div>
         </div>
 
+        <div class="flex items-start gap-4 mb-4">
+            <app-form-checkbox
+                [ngModel]="newLibraryIsInbox()"
+                (ngModelChange)="newLibraryIsInbox.set($event)"
+                label="Inbox" />
+            <p class="text-text-muted text-sm mt-0.5">
+                Unsorted files waiting to be moved into libraries. They get no folder tags and are hidden from search unless you add <code>inbox:true</code>.
+            </p>
+        </div>
+
         <div class="flex gap-3 items-center">
             <button appButton type="button"
                 (click)="createLibrary()"
@@ -77,7 +87,12 @@
                                 <button appButton type="button" size="sm" variant="secondary" (click)="cancelRename()">Cancel</button>
                             </div>
                         } @else {
-                            <h3 class="text-lg font-semibold text-text-primary">{{ lib.name }}</h3>
+                            <h3 class="text-lg font-semibold text-text-primary flex items-center gap-2">
+                                {{ lib.name }}
+                                @if (lib.kind === libraryKind.Inbox) {
+                                    <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-primary/20 text-accent-primary">Inbox</span>
+                                }
+                            </h3>
                         }
                         <p class="text-sm text-text-dim break-all">{{ lib.path }}</p>
                     </div>
@@ -96,6 +111,13 @@
                             [disabled]="editingLibraryId() === lib.id"
                             (click)="startRename(lib)">
                             Rename
+                        </button>
+                        <button appButton type="button"
+                            variant="secondary"
+                            size="sm"
+                            [disabled]="changingKindLibraryId() === lib.id || editingLibraryId() === lib.id"
+                            (click)="toggleInbox(lib)">
+                            {{ lib.kind === libraryKind.Inbox ? 'Make Library' : 'Make Inbox' }}
                         </button>
                         <button appButton type="button"
                             variant="secondary"

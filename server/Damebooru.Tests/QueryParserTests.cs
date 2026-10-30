@@ -64,6 +64,20 @@ public class QueryParserTests
     }
 
     [Theory]
+    [InlineData("", false)]
+    [InlineData("inbox:true", true)]
+    [InlineData("inbox:yes", true)]
+    [InlineData("-inbox:true", false)]
+    [InlineData("-inbox:false", true)]
+    public void Parse_InboxDirective_DefaultsToSortedPosts(string query, bool expected)
+    {
+        var parsed = QueryParser.Parse(query);
+
+        Assert.Equal(expected, parsed.InboxFilter);
+        Assert.Empty(parsed.IncludedTags);
+    }
+
+    [Theory]
     [InlineData("sort:new", SearchSortField.FileModifiedDate, SearchSortDirection.Desc)]
     [InlineData("sort:old", SearchSortField.FileModifiedDate, SearchSortDirection.Asc)]
     [InlineData("sort:id:desc", SearchSortField.Id, SearchSortDirection.Desc)]
