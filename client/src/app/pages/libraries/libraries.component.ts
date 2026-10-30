@@ -155,8 +155,8 @@ export class LibrariesComponent {
         this.damebooru.setLibraryKind(lib.id, kind).subscribe({
             next: () => {
                 this.toast.success(kind === LibraryKind.Inbox
-                    ? `"${lib.name}" is now an inbox; rescan queued`
-                    : `"${lib.name}" is now a library; rescan queued`);
+                    ? `"${lib.name}" is now an inbox; updating folder tags`
+                    : `"${lib.name}" is now a library; updating folder tags`);
                 this.changingKindLibraryId.set(null);
                 this.refreshTrigger.update(v => v + 1);
             },

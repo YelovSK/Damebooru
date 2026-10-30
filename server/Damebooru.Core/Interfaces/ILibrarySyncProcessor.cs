@@ -34,4 +34,9 @@ public interface ILibrarySyncProcessor
     /// Processes all files in a directory.
     /// </summary>
     Task<ScanResult> ProcessDirectoryAsync(Library library, string directoryPath, IProgress<float>? progress = null, IProgress<string>? status = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reconciles folder tags of every post with a file in the library, without touching the file system.
+    /// </summary>
+    Task ReconcileLibraryFolderTagsAsync(int libraryId, CancellationToken cancellationToken);
 }

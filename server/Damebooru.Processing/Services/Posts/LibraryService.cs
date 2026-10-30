@@ -380,11 +380,23 @@ public class LibraryService
 
         if (library.Kind != dto.Kind)
         {
+            var reconcileJobKey = JobKey.Parse($"reconcile-folder-tags-{id}");
+            if (_jobService.IsRunning(reconcileJobKey))
+            {
+                return Result<LibraryDto>.Failure(OperationError.Conflict, "Folder tags are still updating for this library.");
+            }
+
             library.Kind = dto.Kind;
             await _context.SaveChangesAsync();
 
-            // The scan reconciles folder tags, which depend on the kind.
-            await ScanLibraryAsync(id);
+            await _jobService.StartJobAsync(
+                reconcileJobKey,
+                async ct =>
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var syncService = scope.ServiceProvider.GetRequiredService<ILibrarySyncProcessor>();
+                    await syncService.ReconcileLibraryFolderTagsAsync(id, ct);
+                });
         }
 
         return Result<LibraryDto>.Success(await BuildLibraryDtoAsync(library, CancellationToken.None));

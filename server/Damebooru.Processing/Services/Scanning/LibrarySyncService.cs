@@ -424,7 +424,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task ReconcileLibraryFolderTagsAsync(int libraryId, CancellationToken cancellationToken)
+    public async Task ReconcileLibraryFolderTagsAsync(int libraryId, CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();

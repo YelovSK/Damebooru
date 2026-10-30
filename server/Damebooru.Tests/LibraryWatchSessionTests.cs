@@ -113,5 +113,6 @@ public sealed class LibraryWatchSessionTests : IDisposable
         public Task ProcessMovedDirectoryAsync(Library library, string oldRelativePathPrefix, string newRelativePathPrefix, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<ScanResult> ProcessDirectoryAsync(Library library, string directoryPath, IProgress<float>? progress = null, IProgress<string>? status = null, CancellationToken cancellationToken = default)
             => Task.FromResult(ScanResult.Empty);
+        public Task ReconcileLibraryFolderTagsAsync(int libraryId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
