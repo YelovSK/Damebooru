@@ -65,6 +65,13 @@ internal static class PostFileWriter
         return contentChanged;
     }
 
+    /// <summary>
+    /// Whether a file still looks like the tracked one, in which case its content is trusted without rehashing.
+    /// </summary>
+    public static bool IsUnchanged(MediaSourceItem item, long trackedSizeBytes, DateTime trackedModifiedUtc)
+        => item.SizeBytes == trackedSizeBytes
+            && Math.Abs((item.LastModifiedUtc - trackedModifiedUtc).TotalSeconds) <= 1;
+
     public static Task<int> DeleteEmptyPostsAsync(DamebooruDbContext dbContext, CancellationToken cancellationToken)
         => dbContext.Posts
             .Where(p => !p.PostFiles.Any())

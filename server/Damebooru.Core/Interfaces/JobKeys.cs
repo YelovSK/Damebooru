@@ -13,4 +13,6 @@ public static class JobKeys
     public static readonly JobKey SanitizeTagNames = JobKey.Parse("sanitize-tag-names");
     public static readonly JobKey AutoTagPosts = JobKey.Parse("auto-tag-posts");
     public static readonly JobKey AiTagPosts = JobKey.Parse("ai-tag-posts");
+
+    public static JobKey ScanLibrary(int libraryId) => JobKey.Parse($"scan-library-{libraryId}");
 }

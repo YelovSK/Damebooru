@@ -101,6 +101,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AiTaggingSettingsService>();
         services.AddScoped<LibraryService>();
         services.AddScoped<LibraryBrowseService>();
+        services.AddScoped<InboxSortService>();
         services.AddScoped<TagService>();
         services.AddScoped<DuplicateWriteService>();
         services.AddScoped<DuplicateReadService>();

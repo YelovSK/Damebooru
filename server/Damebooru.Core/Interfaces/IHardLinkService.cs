@@ -9,4 +9,5 @@ public sealed record HardLinkResult(bool Success, string? FailureReason = null)
 public interface IHardLinkService
 {
     HardLinkResult ReplaceWithHardLink(string existingFilePath, string canonicalFilePath);
+    HardLinkResult CreateHardLink(string linkPath, string existingPath);
 }

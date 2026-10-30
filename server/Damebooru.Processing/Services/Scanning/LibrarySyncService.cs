@@ -164,7 +164,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
 
         var postFile = await FindPostFileAsync(dbContext, library.Id, item.RelativePath, cancellationToken);
-        var snapshot = await ReadIndexableFileAsync(dbContext, library.Id, item, cancellationToken);
+        var snapshot = await ReadIndexableFileAsync(dbContext, library.Id, item, postFile, cancellationToken);
 
         if (snapshot == null)
         {
@@ -251,7 +251,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         }
 
         var previousPostIds = new List<int> { source.PostId };
-        var snapshot = await ReadIndexableFileAsync(dbContext, library.Id, item, cancellationToken);
+        var snapshot = await ReadIndexableFileAsync(dbContext, library.Id, item, source, cancellationToken);
         if (snapshot == null)
         {
             dbContext.PostFiles.Remove(source);
@@ -317,6 +317,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         DamebooruDbContext dbContext,
         int libraryId,
         MediaSourceItem item,
+        PostFile? tracked,
         CancellationToken cancellationToken)
     {
         var relativePath = RelativePathMatcher.NormalizePath(item.RelativePath);
@@ -326,7 +327,17 @@ public class LibrarySyncService : ILibrarySyncProcessor
             return null;
         }
 
-        var hash = await _hasher.ComputeContentHashAsync(item.FullPath, cancellationToken);
+        string? hash = null;
+        if (tracked != null)
+        {
+            await dbContext.Entry(tracked).Reference(pf => pf.Post).LoadAsync(cancellationToken);
+            if (PostFileWriter.IsUnchanged(item, tracked.Post.SizeBytes, tracked.FileModifiedDate))
+            {
+                hash = tracked.Post.ContentHash;
+            }
+        }
+
+        hash ??= await _hasher.ComputeContentHashAsync(item.FullPath, cancellationToken);
         if (string.IsNullOrEmpty(hash) || rules.IsExcluded(relativePath, hash))
         {
             return null;

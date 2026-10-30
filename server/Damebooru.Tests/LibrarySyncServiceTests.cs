@@ -210,6 +210,22 @@ public sealed class LibrarySyncServiceTests
     }
 
     [Fact]
+    public async Task Watcher_ChangedFile_TrustsTrackedHashWhileSizeAndDateMatch()
+    {
+        await using var h = await SyncHarness.CreateAsync();
+        h.WriteFile("a.png", "a");
+        await h.ScanAsync();
+        var originalHash = (await h.GetFilesAsync()).Single().Post.ContentHash;
+        var modifiedUtc = File.GetLastWriteTimeUtc(h.Item("a.png").FullPath);
+        File.WriteAllText(h.Item("a.png").FullPath, "b");
+        File.SetLastWriteTimeUtc(h.Item("a.png").FullPath, modifiedUtc);
+
+        await h.Sync.ProcessChangedFileAsync(h.Library, h.Item("a.png"), CancellationToken.None);
+
+        Assert.Equal(originalHash, (await h.GetFilesAsync()).Single().Post.ContentHash);
+    }
+
+    [Fact]
     public async Task Watcher_ChangedFile_JoinsExistingPostWithSameContent()
     {
         await using var h = await SyncHarness.CreateAsync();

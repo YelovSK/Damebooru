@@ -322,7 +322,7 @@ public class LibraryService
             return Result<string>.Failure(OperationError.NotFound, "Library not found.");
         }
 
-        var jobKey = JobKey.Parse($"scan-library-{libraryId}");
+        var jobKey = JobKeys.ScanLibrary(libraryId);
         var jobId = await _jobService.StartJobAsync(
             jobKey,
             async ct =>

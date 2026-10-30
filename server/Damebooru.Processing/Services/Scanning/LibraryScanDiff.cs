@@ -180,10 +180,7 @@ internal sealed class LibraryScanDiff
 
     private async Task InspectTrackedAsync(MediaSourceItem item, TrackedFile tracked, string? hash, CancellationToken cancellationToken)
     {
-        var fileChanged = item.SizeBytes != tracked.SizeBytes
-            || Math.Abs((item.LastModifiedUtc - tracked.ModifiedUtc).TotalSeconds) > 1;
-
-        if (!fileChanged)
+        if (PostFileWriter.IsUnchanged(item, tracked.SizeBytes, tracked.ModifiedUtc))
         {
             // Files indexed before identity tracking existed get their identity backfilled.
             if (tracked.Identity != null)

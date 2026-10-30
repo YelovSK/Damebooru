@@ -33,7 +33,7 @@ public sealed partial class PlatformHardLinkService : IHardLinkService
 
         try
         {
-            var createResult = CreateHardLinkInternal(tempLinkPath, canonicalFilePath);
+            var createResult = CreateHardLink(tempLinkPath, canonicalFilePath);
             if (!createResult.Success)
             {
                 return createResult;
@@ -67,7 +67,7 @@ public sealed partial class PlatformHardLinkService : IHardLinkService
         }
     }
 
-    private static HardLinkResult CreateHardLinkInternal(string linkPath, string existingPath)
+    public HardLinkResult CreateHardLink(string linkPath, string existingPath)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
