@@ -69,6 +69,7 @@ public sealed class AiTaggingService
                 .Where(tag => tag.Score >= settings.ApplyThreshold)
                 .Select(tag => new PostTagReconciliationTarget(tag.Name, tag.Category)),
             cancellationToken);
+        await ReplacePredictionsAsync(postId, previewResult.Value.Tags, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         var postResult = await _postReadService.GetPostAsync(postId, cancellationToken);
@@ -85,6 +86,37 @@ public sealed class AiTaggingService
             Preview = previewResult.Value,
             Post = postResult.Value
         });
+    }
+
+    private static readonly TagCategoryKind[] PredictedCategories = [TagCategoryKind.Character, TagCategoryKind.Copyright, TagCategoryKind.Artist];
+
+    private async Task ReplacePredictionsAsync(int postId, IEnumerable<AiTagSuggestionDto> tags, CancellationToken cancellationToken)
+    {
+        var existing = await _db.PostAiPredictions
+            .Where(p => p.PostId == postId)
+            .ToDictionaryAsync(p => p.TagName, cancellationToken);
+
+        var latest = tags
+            .Where(tag => PredictedCategories.Contains(tag.Category))
+            .Select(tag => (Name: Tag.NormalizeName(tag.Name), tag.Category, tag.Score))
+            .Where(tag => tag.Name.Length > 0)
+            .GroupBy(tag => tag.Name)
+            .Select(group => group.MaxBy(tag => tag.Score));
+
+        foreach (var (name, category, score) in latest)
+        {
+            if (existing.Remove(name, out var prediction))
+            {
+                prediction.Category = category;
+                prediction.Score = score;
+            }
+            else
+            {
+                _db.PostAiPredictions.Add(new PostAiPrediction { PostId = postId, TagName = name, Category = category, Score = score });
+            }
+        }
+
+        _db.PostAiPredictions.RemoveRange(existing.Values);
     }
 
     private async Task<Result<AiTagPreviewDto>> GeneratePreviewAsync(

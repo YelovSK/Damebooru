@@ -386,6 +386,26 @@ namespace Damebooru.Data.Migrations
                     b.ToTable("Posts");
                 });
 
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAiPrediction", b =>
+                {
+                    b.Property<int>("PostId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TagName")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("Score")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("PostId", "TagName");
+
+                    b.ToTable("PostAiPredictions");
+                });
+
             modelBuilder.Entity("Damebooru.Core.Entities.PostAuditEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -789,6 +809,17 @@ namespace Damebooru.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Library");
+                });
+
+            modelBuilder.Entity("Damebooru.Core.Entities.PostAiPrediction", b =>
+                {
+                    b.HasOne("Damebooru.Core.Entities.Post", "Post")
+                        .WithMany()
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Post");
                 });
 
             modelBuilder.Entity("Damebooru.Core.Entities.PostAuditEntry", b =>

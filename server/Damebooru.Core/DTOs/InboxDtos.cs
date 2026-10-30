@@ -44,3 +44,37 @@ public class SortedFileLocationDto
     public int LibraryId { get; set; }
     public string RelativePath { get; set; } = string.Empty;
 }
+
+public class FolderLocationDto
+{
+    public int LibraryId { get; set; }
+    public string Folder { get; set; } = string.Empty;
+}
+
+public class FolderSuggestionDto : FolderLocationDto
+{
+    public double Score { get; set; }
+    public List<string> Reasons { get; set; } = [];
+}
+
+public class PostFolderSuggestionsDto
+{
+    public int PostId { get; set; }
+    public List<FolderSuggestionDto> Suggestions { get; set; } = [];
+}
+
+public class FolderSuggestionEvaluationDto
+{
+    public int Sampled { get; set; }
+    public int Top1Hits { get; set; }
+    public int Top3Hits { get; set; }
+    public int WithoutSuggestions { get; set; }
+    public List<FolderSuggestionMissDto> Misses { get; set; } = [];
+}
+
+public class FolderSuggestionMissDto
+{
+    public int PostId { get; set; }
+    public List<FolderLocationDto> Actual { get; set; } = [];
+    public List<FolderSuggestionDto> Suggested { get; set; } = [];
+}

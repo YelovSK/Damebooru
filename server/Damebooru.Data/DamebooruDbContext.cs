@@ -14,6 +14,7 @@ public class DamebooruDbContext : DbContext
     public DbSet<PostFile> PostFiles { get; set; } = null!;
     public DbSet<Tag> Tags { get; set; } = null!;
     public DbSet<PostTag> PostTags { get; set; } = null!;
+    public DbSet<PostAiPrediction> PostAiPredictions { get; set; } = null!;
     public DbSet<PostSource> PostSources { get; set; } = null!;
     public DbSet<PostAutoTagScan> PostAutoTagScans { get; set; } = null!;
     public DbSet<PostAutoTagScanStep> PostAutoTagScanSteps { get; set; } = null!;
@@ -60,6 +61,15 @@ public class DamebooruDbContext : DbContext
             .HasOne(pt => pt.Tag)
             .WithMany(t => t.PostTags)
             .HasForeignKey(pt => pt.TagId);
+
+        modelBuilder.Entity<PostAiPrediction>()
+            .HasKey(p => new { p.PostId, p.TagName });
+
+        modelBuilder.Entity<PostAiPrediction>()
+            .HasOne(p => p.Post)
+            .WithMany()
+            .HasForeignKey(p => p.PostId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<PostSource>()
             .HasOne(ps => ps.Post)
