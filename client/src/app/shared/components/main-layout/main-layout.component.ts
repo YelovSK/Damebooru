@@ -1,11 +1,16 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { Router, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationCancel, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router, RouterOutlet } from '@angular/router';
+import { filter, map, of, switchMap, timer } from 'rxjs';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ToastsComponent } from '@shared/components/toasts/toasts.component';
 import { ConfirmDialogComponent } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { NavbarComponent, type NavbarLink } from '@shared/components/navbar/navbar.component';
 import { AppLinks } from '@app/app.paths';
+
+// Fast navigations finish before the indicator would show, so they swap pages without any flash.
+const NAVIGATION_INDICATOR_DELAY_MS = 200;
 
 @Component({
   selector: 'app-main-layout',
@@ -19,6 +24,20 @@ export class MainLayoutComponent {
   private readonly router = inject(Router);
 
   readonly mobileNavOpen = signal(false);
+
+  readonly navigating = toSignal(
+    this.router.events.pipe(
+      filter(event => event instanceof NavigationStart
+        || event instanceof NavigationEnd
+        || event instanceof NavigationCancel
+        || event instanceof NavigationError
+        || event instanceof NavigationSkipped),
+      switchMap(event => event instanceof NavigationStart
+        ? timer(NAVIGATION_INDICATOR_DELAY_MS).pipe(map(() => true))
+        : of(false)),
+    ),
+    { initialValue: false },
+  );
 
   readonly navLinks: NavbarLink[] = [
     { route: AppLinks.posts(), icon: 'icon-posts', label: 'Posts' },

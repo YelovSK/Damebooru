@@ -1,143 +1,119 @@
 <app-page heading="Jobs" description="Run and schedule background processing tasks." width="wide">
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-10">
-    @for (job of jobs(); track job.name) {
-      <div class="bg-surface border border-line rounded-lg p-5 flex flex-col">
-        <div class="flex justify-between items-start mb-2">
-          <h3 class="text-lg font-semibold text-fg">{{ job.name }}</h3>
-          @if (job.isRunning) {
-            <span class="bg-warning/20 text-warning border border-warning/40 px-2 py-0.5 rounded text-xs font-bold shrink-0 ml-2">
-              RUNNING
-            </span>
-          }
-        </div>
-        <p class="text-sm text-fg-muted mb-4 flex-1">{{ job.description }}</p>
-
-        @if (job.isRunning && job.activeJobInfo) {
-          <div class="mb-4">
-            <app-progress-bar
-              class="mb-1.5"
-              [progress]="getProgressPercent(job.activeJobInfo.state)"
-              [indeterminate]="!isDeterminateProgress(job.activeJobInfo.state)"
-              [trackClass]="'bg-raised'"
-              [fillClass]="'bg-accent'">
-            </app-progress-bar>
-            <p class="text-xs text-fg-muted">
-              {{ job.activeJobInfo.state.activityText || 'Running...' }}
-            </p>
-            @if (getStateDetail(job.activeJobInfo.state); as detail) {
-              <p class="text-xs text-fg-subtle mt-1">{{ detail }}</p>
+  <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    @for (row of rows(); track row.job.key) {
+      @let job = row.job;
+      @let schedule = row.schedule;
+      <div class="card flex flex-col overflow-hidden">
+        <div class="flex flex-1 flex-col p-5">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="font-semibold text-fg">{{ job.name }}</h3>
+            @if (job.isRunning) {
+              <span class="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">Running</span>
             }
           </div>
-        }
-
-        <div class="flex gap-2 mt-auto">
-          @if (!job.isRunning) {
-            @if (job.supportsAllMode) {
-              <button appButton type="button" variant="secondary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'missing')">Missing</button>
-              <button appButton type="button" variant="secondary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'all')">All</button>
-            } @else {
-              <button appButton type="button" variant="secondary" size="sm" [fullWidth]="true" (click)="runJob(job.key, 'missing')">Run</button>
-            }
-          }
+          <p class="mt-1 flex-1 text-sm text-fg-muted">{{ job.description }}</p>
 
           @if (job.isRunning && job.activeJobInfo) {
-            <button appButton type="button" variant="danger" size="sm" [fullWidth]="true" (click)="cancelJob(job.activeJobInfo.id)">Cancel</button>
+            <div class="mt-4">
+              <app-progress-bar
+                class="mb-1.5"
+                [progress]="getProgressPercent(job.activeJobInfo.state)"
+                [indeterminate]="!isDeterminateProgress(job.activeJobInfo.state)"
+                [trackClass]="'bg-raised'"
+                [fillClass]="'bg-accent'">
+              </app-progress-bar>
+              <p class="text-xs text-fg-muted">{{ job.activeJobInfo.state.activityText || 'Running...' }}</p>
+            </div>
           }
+
+          <div class="mt-4 flex gap-2">
+            @if (job.isRunning && job.activeJobInfo) {
+              <button appButton type="button" variant="danger" size="sm" fullWidth (click)="cancelJob(job.activeJobInfo.id)">Cancel</button>
+            } @else if (job.supportsAllMode) {
+              <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'missing')" appTooltip="Only items that haven't been processed yet">Run missing</button>
+              <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'all')" appTooltip="Reprocess everything">Run all</button>
+            } @else {
+              <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'missing')">Run</button>
+            }
+          </div>
         </div>
+
+        @if (schedule) {
+          @let draft = cronDraft()?.scheduleId === schedule.id ? cronDraft() : null;
+          <div class="flex min-h-12 items-center gap-3 border-t border-line bg-sunken/40 px-5 py-2">
+            @if (draft) {
+              <input
+                #cronEditor
+                appInput
+                class="!h-7 !w-36 shrink-0 !px-2 font-mono text-[0.8125rem]"
+                [invalid]="draft.preview?.isValid === false"
+                [attr.aria-label]="job.name + ' schedule'"
+                spellcheck="false"
+                [value]="draft.text"
+                (input)="onCronInput($any($event.target).value)"
+                (keydown.enter)="commitCron(schedule)"
+                (keydown.escape)="closeCronEditor()"
+                (blur)="commitCron(schedule)" />
+              <span class="min-w-0 flex-1 truncate text-xs">
+                @if (draft.preview; as preview) {
+                  @if (preview.isValid) {
+                    <span class="text-fg-muted" [appTooltip]="formatRuns(preview.nextRuns)">{{ (preview.nextRuns[0] | relativeDuration: now()).toLowerCase() }}</span>
+                  } @else {
+                    <span class="text-danger">{{ preview.error }}</span>
+                  }
+                }
+              </span>
+            } @else {
+              <div class="flex min-w-0 flex-1 flex-col items-start">
+                <button type="button"
+                  class="max-w-full cursor-pointer truncate text-left text-sm hover:text-accent"
+                  [class.text-fg]="schedule.isEnabled"
+                  [class.text-fg-subtle]="!schedule.isEnabled"
+                  [appTooltip]="schedule.cronExpression + (schedule.lastRun ? ' · last run ' + (schedule.lastRun | relativeDuration: now()) : '') + ' · click to edit'"
+                  (click)="editCron(schedule)">
+                  {{ scheduleDescriptions().get(schedule.id) }}
+                </button>
+                @if (schedule.isEnabled && schedule.upcomingRuns.length > 0) {
+                  <span class="text-xs text-fg-muted" [appTooltip]="formatRuns(schedule.upcomingRuns)">Next run {{ (schedule.upcomingRuns[0] | relativeDuration: now()).toLowerCase() }}</span>
+                }
+              </div>
+            }
+            <app-form-checkbox
+              class="shrink-0"
+              [ngModel]="schedule.isEnabled"
+              (ngModelChange)="setEnabled(schedule, $event)"
+              [appTooltip]="schedule.isEnabled ? 'Scheduled' : 'Not scheduled'"
+              [id]="'schedule-enabled-' + schedule.id">
+            </app-form-checkbox>
+          </div>
+        }
       </div>
     }
-  </div>
-
-  <h2 class="text-2xl font-bold mb-4 text-fg">Schedules</h2>
-  <div class="bg-surface border border-line rounded-lg p-6 mb-8">
-    <div class="mb-4 border border-line rounded-md overflow-hidden bg-sunken">
-      <app-collapsible title="Cron format & examples" [(expanded)]="cronHelpExpanded">
-        <div class="text-xs text-fg">
-          <p class="mb-2 font-mono">minute hour day-of-month month day-of-week (UTC)</p>
-          <ul class="list-disc pl-5 space-y-1">
-            @for (example of cronExamples; track example) {
-              <li>{{ example }}</li>
-            }
-          </ul>
-          <p class="mt-2 text-fg-muted">Type in the cron input to see live validation and upcoming run times.</p>
-        </div>
-      </app-collapsible>
-    </div>
-
-    <div class="overflow-x-auto">
-      <table class="min-w-[760px] w-full text-left text-fg">
-        <thead>
-          <tr class="border-b border-line">
-            <th class="py-2">Job Name</th>
-            <th class="py-2">Cron Expression</th>
-            <th class="py-2">Next Runs</th>
-            <th class="py-2">Last Run</th>
-            <th class="py-2">Enabled</th>
-            <th class="py-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (schedule of schedules(); track schedule.id) {
-            <tr class="border-b border-line">
-              <td class="py-2">{{ schedule.jobName }}</td>
-              <td class="py-2">
-                <div class="w-44">
-                  <app-form-input
-                    [id]="'cron-' + schedule.id"
-                    [placeholder]="'0 */6 * * *'"
-                    [(ngModel)]="schedule.cronExpression"
-                    (ngModelChange)="onCronExpressionChange(schedule)">
-                  </app-form-input>
-                </div>
-
-                @if (getCronPreview(schedule.id); as preview) {
-                  @if (!preview.isValid) {
-                    <p class="mt-1 text-xs text-danger">{{ preview.error }}</p>
-                  }
-                }
-              </td>
-              <td class="py-2 text-sm align-top">
-                @if (getCronPreview(schedule.id); as preview) {
-                  @if (preview.isValid && preview.nextRuns.length > 0) {
-                    <ul class="list-disc pl-4 text-xs text-fg">
-                      @for (nextRun of preview.nextRuns; track nextRun) {
-                        <li [appTooltip]="nextRun | dateTime" [tooltipFollowCursor]="true">{{ nextRun | relativeDuration: now() }}</li>
-                      }
-                    </ul>
-                  } @else {
-                    <span class="text-fg-subtle">-</span>
-                  }
-                } @else {
-                  <span class="text-fg-subtle">-</span>
-                }
-              </td>
-              <td class="py-2 text-sm" [appTooltip]="schedule.lastRun | dateTime" [tooltipFollowCursor]="true">{{ schedule.lastRun | relativeDuration: now() }}</td>
-              <td class="py-2">
-                <app-form-checkbox [ngModel]="schedule.isEnabled" (ngModelChange)="schedule.isEnabled = $event"
-                  id="schedule-enabled-{{schedule.id}}"></app-form-checkbox>
-              </td>
-              <td class="py-2">
-                <button appButton type="button" variant="secondary" size="sm" (click)="updateSchedule(schedule)">Save</button>
-              </td>
-            </tr>
+  </section>
+  <div class="mt-4 overflow-hidden rounded-lg border border-line bg-sunken">
+    <app-collapsible title="Cron format & examples">
+      <div class="text-xs text-fg">
+        <p class="mb-2 font-mono">minute hour day-of-month month day-of-week (server time)</p>
+        <ul class="list-disc space-y-1 pl-5">
+          @for (example of cronExamples; track example) {
+            <li>{{ example }}</li>
           }
-        </tbody>
-      </table>
-    </div>
+        </ul>
+        <p class="mt-2 text-fg-muted">Click a schedule to edit it. You'll see live validation and the next run; Enter or leaving the field saves, Escape cancels.</p>
+      </div>
+    </app-collapsible>
   </div>
 
-  <h2 class="text-2xl font-bold mb-4 text-fg">Execution History</h2>
-  <div class="bg-surface border border-line rounded-lg p-6 overflow-x-auto">
-    <app-data-table
-      [columns]="historyColumns"
-      [rows]="history()"
-      [trackBy]="trackHistoryRow"
-      [rowClickable]="false"
-      emptyText="No execution history yet.">
-    </app-data-table>
-
+  <h2 class="mb-3 mt-10 text-lg font-semibold text-fg">History</h2>
+  <app-data-table
+    [columns]="historyColumns"
+    [rows]="history()"
+    [trackBy]="trackHistoryRow"
+    [rowClickable]="false"
+    emptyText="No execution history yet.">
     @if (historyTotalPages() > 1) {
-      <div class="flex justify-center mt-4 pt-4 border-t border-line">
+      <div tableFooter class="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+        <span class="text-xs text-fg-subtle">{{ historyTotal() | number }} runs</span>
         <app-paginator
           [currentPage]="historyPage()"
           [totalPages]="historyTotalPages()"
@@ -145,6 +121,5 @@
         </app-paginator>
       </div>
     }
-  </div>
-
+  </app-data-table>
 </app-page>

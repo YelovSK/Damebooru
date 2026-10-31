@@ -40,11 +40,13 @@ public class JobHistoryResponseDto
 public class ScheduledJobDto
 {
     public int Id { get; set; }
+    public string JobKey { get; set; } = string.Empty;
     public string JobName { get; set; } = string.Empty;
     public string CronExpression { get; set; } = string.Empty;
     public bool IsEnabled { get; set; }
     public DateTime? LastRun { get; set; }
     public DateTime? NextRun { get; set; }
+    public List<DateTime> UpcomingRuns { get; set; } = [];
 }
 
 public class ScheduledJobUpdateDto

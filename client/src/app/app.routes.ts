@@ -6,6 +6,7 @@ import { LibrariesComponent } from '@pages/libraries/libraries.component';
 import { SettingsComponent } from '@pages/settings/settings.component';
 import { MainLayoutComponent } from '@shared/components/main-layout/main-layout.component';
 import { authGuard } from '@services/auth.guard';
+import { jobsResolver } from '@pages/jobs/jobs.resolver';
 
 import { AppPaths } from './app.paths';
 
@@ -17,7 +18,7 @@ export const routes: Routes = [
         canActivate: [authGuard],
         children: [
             { path: '', pathMatch: 'full', redirectTo: AppPaths.posts },
-            { path: 'jobs', loadComponent: () => import('./pages/jobs/jobs.component').then(m => m.JobsPageComponent) },
+            { path: 'jobs', loadComponent: () => import('./pages/jobs/jobs.component').then(m => m.JobsPageComponent), resolve: { data: jobsResolver } },
             { path: AppPaths.logs, loadComponent: () => import('./pages/logs/logs.component').then(m => m.LogsPageComponent) },
             { path: 'duplicates', redirectTo: 'duplicates/exact', pathMatch: 'full' },
             { path: 'duplicates/:tab', loadComponent: () => import('./pages/duplicates/duplicates.component').then(m => m.DuplicatesPageComponent) },

@@ -1,15 +1,15 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, type ElementRef, computed, effect, inject, input, linkedSignal, signal, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, interval, of } from 'rxjs';
 import { FormsModule } from '@angular/forms';
+import cronstrue from 'cronstrue';
 
 import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
 import { type CronPreview, type JobExecution, type JobKey, type JobMode, type JobState, JobStatus, type JobViewModel, type ScheduledJob } from '../../services/api/damebooru/models';
-import { ButtonDirective } from '@shared/directives';
+import { ButtonDirective, InputDirective } from '@shared/directives';
 import { FormCheckboxComponent } from '../../shared/components/form-checkbox/form-checkbox.component';
 import { CollapsibleComponent } from '../../shared/components/collapsible/collapsible.component';
-import { FormInputComponent } from '../../shared/components/form-input/form-input.component';
 import { PaginatorComponent } from '../../shared/components/paginator/paginator.component';
 import { ProgressBarComponent } from '../../shared/components/progress-bar/progress-bar.component';
 import { type DataTableColumn, DataTableComponent } from '../../shared/components/data-table/data-table.component';
@@ -19,10 +19,12 @@ import { RelativeDurationPipe } from '../../shared/pipes/relative-duration.pipe'
 import { ToastService } from '../../services/toast.service';
 import { ConfirmService } from '../../services/confirm.service';
 import { PageComponent } from '@shared/components/page/page.component';
+import { JOB_HISTORY_PAGE_SIZE, type JobsPageData } from './jobs.resolver';
 
 const LIVE_JOBS_POLL_MS = 2000;
 const CLOCK_TICK_MS = 1000;
-const HISTORY_PAGE_SIZE = 20;
+const CRON_PREVIEW_DEBOUNCE_MS = 350;
+const UPCOMING_RUN_COUNT = 3;
 
 const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   [JobStatus.Idle]: 'Idle',
@@ -32,31 +34,66 @@ const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   [JobStatus.Cancelled]: 'Cancelled'
 };
 
+const JOB_STATUS_CLASSES: Partial<Record<JobStatus, string>> = {
+  [JobStatus.Running]: 'text-accent',
+  [JobStatus.Failed]: 'text-danger',
+  [JobStatus.Cancelled]: 'text-warning',
+};
+
+function describeCron(expression: string): string {
+  try {
+    return cronstrue.toString(expression, { use24HourTimeFormat: true });
+  } catch {
+    return expression;
+  }
+}
+
+interface CronDraft {
+  scheduleId: number;
+  text: string;
+  preview?: CronPreview;
+}
+
+interface JobRow {
+  job: JobViewModel;
+  schedule?: ScheduledJob;
+}
+
 @Component({
   selector: 'app-jobs-page',
   standalone: true,
-  imports: [PageComponent, CommonModule, FormsModule, ButtonDirective, FormCheckboxComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, DataTableComponent, TooltipDirective, DateTimePipe, RelativeDurationPipe],
+  imports: [PageComponent, CommonModule, FormsModule, ButtonDirective, InputDirective, FormCheckboxComponent, CollapsibleComponent, PaginatorComponent, ProgressBarComponent, DataTableComponent, TooltipDirective, RelativeDurationPipe],
   templateUrl: './jobs.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class JobsPageComponent {
-  private static readonly CRON_PREVIEW_DEBOUNCE_MS = 350;
-  private static readonly CRON_PREVIEW_COUNT = 3;
-
   private readonly damebooru = inject(DamebooruService);
   private readonly toast = inject(ToastService);
   private readonly confirmService = inject(ConfirmService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly dateTimePipe = new DateTimePipe();
 
-  readonly jobs = signal<JobViewModel[]>([]);
-  readonly schedules = signal<ScheduledJob[]>([]);
-  readonly cronPreviews = signal<Record<number, CronPreview>>({});
-  readonly history = signal<JobExecution[]>([]);
-  readonly now = signal(Date.now());
+  readonly data = input.required<JobsPageData>();
+
+  readonly jobs = linkedSignal(() => this.data().jobs);
+  readonly schedules = linkedSignal(() => this.data().schedules);
+  readonly history = linkedSignal(() => this.data().history.items);
+  readonly historyTotal = linkedSignal(() => this.data().history.total);
   readonly historyPage = signal(1);
-  readonly historyTotal = signal(0);
-  readonly historyTotalPages = computed(() => Math.max(1, Math.ceil(this.historyTotal() / HISTORY_PAGE_SIZE)));
+  readonly historyTotalPages = computed(() => Math.max(1, Math.ceil(this.historyTotal() / JOB_HISTORY_PAGE_SIZE)));
+
+  readonly rows = computed<JobRow[]>(() => {
+    const schedulesByKey = new Map(this.schedules().map(schedule => [schedule.jobKey, schedule]));
+    return this.jobs().map(job => ({ job, schedule: schedulesByKey.get(job.key) }));
+  });
+
+  readonly scheduleDescriptions = computed(() => new Map(this.schedules().map(schedule => [schedule.id, describeCron(schedule.cronExpression)])));
+
+  /** The schedule whose cron expression is open for editing; only one at a time. */
+  readonly cronDraft = signal<CronDraft | null>(null);
+  private readonly cronEditor = viewChild<ElementRef<HTMLInputElement>>('cronEditor');
+  readonly now = signal(Date.now());
+
   readonly historyColumns: DataTableColumn<JobExecution>[] = [
     {
       key: 'jobName',
@@ -67,43 +104,40 @@ export class JobsPageComponent {
       key: 'status',
       label: 'Status',
       value: run => this.getStatusText(run.status),
+      cellClass: run => JOB_STATUS_CLASSES[run.status] ?? 'text-fg-muted',
     },
     {
       key: 'startTime',
-      label: 'Start Time',
+      label: 'Started',
       value: run => this.dateTimePipe.transform(run.startTime),
+      cellClass: () => 'text-fg-muted whitespace-nowrap',
     },
     {
       key: 'duration',
       label: 'Duration',
       value: run => this.getHistoryDuration(run),
+      cellClass: () => 'text-fg-muted',
     },
     {
       key: 'result',
       label: 'Result',
-      value: run => this.formatHistoryState(run),
-    },
-    {
-      key: 'error',
-      label: 'Error',
-      value: run => run.errorMessage?.trim() || '-',
+      value: run => run.status === JobStatus.Failed && run.errorMessage?.trim() ? run.errorMessage.trim() : this.formatHistoryState(run),
+      cellClass: run => run.status === JobStatus.Failed ? 'text-danger' : 'text-fg',
     },
   ];
-  cronHelpExpanded = false;
+
   readonly cronExamples = [
     'Every 6 hours: 0 */6 * * *',
-    'Every day at 03:00 UTC: 0 3 * * *',
-    'Every Sunday at 03:00 UTC: 0 3 * * 0',
+    'Every day at 03:00: 0 3 * * *',
+    'Every Sunday at 03:00: 0 3 * * 0',
     'Every 15 minutes: */15 * * * *'
   ];
 
-  private lastRunningExecutionIds = new Set<number>();
-  private cronPreviewTimers = new Map<number, ReturnType<typeof setTimeout>>();
-  private latestCronExpressions = new Map<number, string>();
+  private cronPreviewTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
-    this.refreshData();
-    this.destroyRef.onDestroy(() => this.clearCronPreviewTimers());
+    this.destroyRef.onDestroy(() => clearTimeout(this.cronPreviewTimer));
+    effect(() => this.cronEditor()?.nativeElement.focus());
 
     interval(LIVE_JOBS_POLL_MS)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -114,22 +148,8 @@ export class JobsPageComponent {
       .subscribe(() => this.now.set(Date.now()));
   }
 
-  refreshData() {
-    this.refreshLiveJobs(false);
-    this.damebooru.getJobSchedules().subscribe(data => {
-      this.schedules.set(data);
-      this.cronPreviews.set({});
-      this.clearCronPreviewTimers();
-
-      for (const schedule of data) {
-        this.queueCronPreview(schedule.id, schedule.cronExpression, 0);
-      }
-    });
-    this.loadHistory();
-  }
-
   loadHistory() {
-    this.damebooru.getJobHistory(HISTORY_PAGE_SIZE, this.historyPage()).subscribe(data => {
+    this.damebooru.getJobHistory(JOB_HISTORY_PAGE_SIZE, this.historyPage()).subscribe(data => {
       this.history.set(data.items);
       this.historyTotal.set(data.total);
     });
@@ -142,9 +162,7 @@ export class JobsPageComponent {
 
   runJob(key: JobKey, mode: JobMode) {
     this.damebooru.startJob(key, mode).subscribe({
-      next: () => {
-        this.refreshLiveJobs();
-      },
+      next: () => this.refreshLiveJobs(),
       error: (err) => this.toast.error('Failed to start job: ' + err.message)
     });
   }
@@ -161,28 +179,42 @@ export class JobsPageComponent {
     });
   }
 
-  updateSchedule(schedule: ScheduledJob) {
-    const preview = this.cronPreviews()[schedule.id];
-    if (preview && !preview.isValid) {
-      this.toast.error(preview.error ?? 'Invalid cron expression.');
+  editCron(schedule: ScheduledJob): void {
+    clearTimeout(this.cronPreviewTimer);
+    this.cronDraft.set({ scheduleId: schedule.id, text: schedule.cronExpression });
+  }
+
+  onCronInput(value: string): void {
+    this.cronDraft.update(draft => draft && { ...draft, text: value });
+    this.queueCronPreview(value);
+  }
+
+  commitCron(schedule: ScheduledJob): void {
+    const draft = this.cronDraft();
+    if (draft?.scheduleId !== schedule.id) {
       return;
     }
 
-    this.damebooru.updateJobSchedule(schedule.id, schedule).subscribe({
-      next: () => {
-        this.toast.success('Schedule updated');
-        this.refreshData();
-      },
-      error: (err) => this.toast.error('Failed to update: ' + err.message)
-    });
+    const text = draft.text.trim();
+    if (text === schedule.cronExpression) {
+      this.closeCronEditor();
+      return;
+    }
+
+    this.saveSchedule(schedule, { cronExpression: text, isEnabled: schedule.isEnabled });
   }
 
-  onCronExpressionChange(schedule: ScheduledJob): void {
-    this.queueCronPreview(schedule.id, schedule.cronExpression);
+  closeCronEditor(): void {
+    clearTimeout(this.cronPreviewTimer);
+    this.cronDraft.set(null);
   }
 
-  getCronPreview(scheduleId: number): CronPreview | undefined {
-    return this.cronPreviews()[scheduleId];
+  setEnabled(schedule: ScheduledJob, isEnabled: boolean): void {
+    this.saveSchedule(schedule, { cronExpression: schedule.cronExpression, isEnabled });
+  }
+
+  formatRuns(runs: string[]): string {
+    return runs.map(run => this.dateTimePipe.transform(run)).join('  ·  ');
   }
 
   getStatusText(status: JobStatus): string {
@@ -204,15 +236,6 @@ export class JobsPageComponent {
       && state.progressTotal > 0;
   }
 
-  getStateDetail(state?: JobState): string | null {
-    if (!state) return null;
-
-    const finalText = state.finalText?.trim();
-    if (finalText) return finalText;
-
-    return null;
-  }
-
   formatHistoryState(run: JobExecution): string {
     const state = run.state;
     if (!state) return '-';
@@ -229,15 +252,26 @@ export class JobsPageComponent {
     const activityText = state.activityText?.trim();
     if (activityText) return activityText;
 
-    const parts: string[] = [];
     if (typeof state.progressCurrent === 'number' && typeof state.progressTotal === 'number') {
-      parts.push(`processed ${state.progressCurrent} of ${state.progressTotal}`);
+      return `processed ${state.progressCurrent} of ${state.progressTotal}`;
     }
 
-    return parts.length > 0 ? parts.join(', ') : '-';
+    return '-';
   }
 
   trackHistoryRow = (row: JobExecution): number => row.id;
+
+  private saveSchedule(schedule: ScheduledJob, update: Pick<ScheduledJob, 'cronExpression' | 'isEnabled'>): void {
+    this.damebooru.updateJobSchedule(schedule.id, update).subscribe({
+      next: saved => {
+        this.schedules.update(schedules => schedules.map(s => s.id === saved.id ? saved : s));
+        if (this.cronDraft()?.scheduleId === saved.id) {
+          this.closeCronEditor();
+        }
+      },
+      error: (err) => this.toast.error('Failed to update schedule: ' + err.message)
+    });
+  }
 
   private getHistoryDuration(run: JobExecution): string {
     const startMs = Date.parse(run.startTime);
@@ -258,22 +292,19 @@ export class JobsPageComponent {
     return `${mins}m ${secs}s`;
   }
 
-  private refreshLiveJobs(refreshHistoryOnFinished = true): void {
+  private refreshLiveJobs(): void {
     this.damebooru.getJobs().pipe(
       takeUntilDestroyed(this.destroyRef),
       catchError(() => of([]))
     ).subscribe(data => {
+      const previousRunningIds = this.getRunningExecutionIds(this.jobs());
       this.jobs.set(data);
       this.patchHistoryWithRunningJobs(data);
 
-      const currentRunningExecutionIds = this.getRunningExecutionIds(data);
-      const hasFinishedExecution = this.hasFinishedExecution(this.lastRunningExecutionIds, currentRunningExecutionIds);
-
-      if (refreshHistoryOnFinished && hasFinishedExecution) {
+      const currentRunningIds = this.getRunningExecutionIds(data);
+      if ([...previousRunningIds].some(id => !currentRunningIds.has(id))) {
         this.loadHistory();
       }
-
-      this.lastRunningExecutionIds = currentRunningExecutionIds;
     });
   }
 
@@ -339,7 +370,7 @@ export class JobsPageComponent {
         return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
       });
 
-      return [...missingRunningRows, ...patched].slice(0, HISTORY_PAGE_SIZE);
+      return [...missingRunningRows, ...patched].slice(0, JOB_HISTORY_PAGE_SIZE);
     });
   }
 
@@ -353,75 +384,32 @@ export class JobsPageComponent {
     return ids;
   }
 
-  private hasFinishedExecution(previous: Set<number>, current: Set<number>): boolean {
-    if (previous.size === 0) {
-      return false;
-    }
-
-    for (const executionId of previous) {
-      if (!current.has(executionId)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  private queueCronPreview(scheduleId: number, expression: string, delayMs = JobsPageComponent.CRON_PREVIEW_DEBOUNCE_MS): void {
+  private queueCronPreview(expression: string): void {
     const normalized = expression.trim();
-    this.latestCronExpressions.set(scheduleId, normalized);
-
-    if (this.cronPreviewTimers.has(scheduleId)) {
-      clearTimeout(this.cronPreviewTimers.get(scheduleId)!);
-    }
+    clearTimeout(this.cronPreviewTimer);
 
     if (!normalized) {
-      this.updateCronPreview(scheduleId, {
-        isValid: false,
-        error: 'Cron expression is required.',
-        nextRuns: []
-      });
+      this.setCronPreview({ isValid: false, error: 'Cron expression is required.', nextRuns: [] });
       return;
     }
 
-    const timer = setTimeout(() => {
-      this.damebooru.previewCronExpression(normalized, JobsPageComponent.CRON_PREVIEW_COUNT).subscribe({
+    this.cronPreviewTimer = setTimeout(() => {
+      this.damebooru.previewCronExpression(normalized, UPCOMING_RUN_COUNT).subscribe({
         next: preview => {
-          if (this.latestCronExpressions.get(scheduleId) !== normalized) {
-            return;
+          if (this.cronDraft()?.text.trim() === normalized) {
+            this.setCronPreview(preview);
           }
-
-          this.updateCronPreview(scheduleId, preview);
         },
         error: () => {
-          if (this.latestCronExpressions.get(scheduleId) !== normalized) {
-            return;
+          if (this.cronDraft()?.text.trim() === normalized) {
+            this.setCronPreview({ isValid: false, error: 'Failed to validate cron expression.', nextRuns: [] });
           }
-
-          this.updateCronPreview(scheduleId, {
-            isValid: false,
-            error: 'Failed to validate cron expression.',
-            nextRuns: []
-          });
         }
       });
-    }, delayMs);
-
-    this.cronPreviewTimers.set(scheduleId, timer);
+    }, CRON_PREVIEW_DEBOUNCE_MS);
   }
 
-  private updateCronPreview(scheduleId: number, preview: CronPreview): void {
-    this.cronPreviews.update(current => ({
-      ...current,
-      [scheduleId]: preview
-    }));
+  private setCronPreview(preview: CronPreview): void {
+    this.cronDraft.update(draft => draft && { ...draft, preview });
   }
-
-  private clearCronPreviewTimers(): void {
-    for (const timer of this.cronPreviewTimers.values()) {
-      clearTimeout(timer);
-    }
-    this.cronPreviewTimers.clear();
-  }
-
 }

@@ -422,11 +422,13 @@ export interface DuplicateHashLookupRequest {
 
 export interface ScheduledJob {
   id: number;
+  jobKey: JobKey;
   jobName: string;
   cronExpression: string;
   isEnabled: boolean;
   lastRun?: string;
   nextRun?: string;
+  upcomingRuns: string[];
 }
 
 export interface CronPreview {

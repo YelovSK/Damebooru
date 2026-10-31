@@ -41,6 +41,9 @@ importers:
       '@microsoft/signalr':
         specifier: ^10.0.0
         version: 10.0.0(encoding@0.1.13)
+      cronstrue:
+        specifier: ^3.38.0
+        version: 3.38.0
       dayjs:
         specifier: ^1.11.19
         version: 1.11.19
@@ -2073,6 +2076,10 @@ packages:
   cors@2.8.6:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
     engines: {node: '>= 0.10'}
+
+  cronstrue@3.38.0:
+    resolution: {integrity: sha512-i10xR7fS4AH9LKwmt3gYdt/5lSsB2qFGSNfC8aeyYybxo48DCMz+nUrSVI4kUj8yo+SgTbMJqp/BWEem9avlcA==}
+    hasBin: true
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -5638,6 +5645,8 @@ snapshots:
     dependencies:
       object-assign: 4.1.1
       vary: 1.1.2
+
+  cronstrue@3.38.0: {}
 
   cross-spawn@7.0.6:
     dependencies:

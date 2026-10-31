@@ -16,6 +16,9 @@
             "outputPath": "dist/damebooru-angular",
             "index": "src/index.html",
             "browser": "src/main.ts",
+            "allowedCommonJsDependencies": [
+              "cronstrue"
+            ],
             "polyfills": [
               "zone.js"
             ],

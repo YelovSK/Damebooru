@@ -1,7 +1,12 @@
 <app-toasts></app-toasts>
 <app-confirm-dialog></app-confirm-dialog>
 
-<div class="flex h-dvh overflow-hidden flex-col bg-canvas">
+<div class="relative flex h-dvh overflow-hidden flex-col bg-canvas">
+    @if (navigating()) {
+        <div class="pointer-events-none absolute inset-x-0 top-0 z-[1000] h-0.5 overflow-hidden" role="progressbar" aria-label="Loading page">
+            <div class="h-full w-1/3 bg-accent animate-loading-move"></div>
+        </div>
+    }
     <app-navbar
         [links]="navLinks"
         [currentUser]="currentUser"

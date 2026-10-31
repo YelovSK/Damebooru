@@ -32,6 +32,14 @@ const CATEGORY_OPTIONS: FormDropdownOption<TagCategoryKind>[] = [
   { label: 'Meta', value: TagCategoryKind.Meta },
 ];
 
+const CATEGORY_TEXT_CLASSES: Record<TagCategoryKind, string> = {
+  [TagCategoryKind.General]: 'text-tag-general',
+  [TagCategoryKind.Artist]: 'text-tag-artist',
+  [TagCategoryKind.Character]: 'text-tag-character',
+  [TagCategoryKind.Copyright]: 'text-tag-copyright',
+  [TagCategoryKind.Meta]: 'text-tag-meta',
+};
+
 @Component({
   selector: 'app-tag-management-page',
   standalone: true,
@@ -68,8 +76,8 @@ export class TagManagementPageComponent {
 
   tagColumns: DataTableColumn<ManagedTag, TagSortKey>[] = [
     { key: 'name', label: 'Name', sortable: true, value: row => row.name },
-    { key: 'category', label: 'Category', sortable: true, value: row => this.getCategoryLabel(row.category) },
-    { key: 'usages', label: 'Usages', sortable: true, align: 'right', value: row => row.usages },
+    { key: 'category', label: 'Category', sortable: true, value: row => this.getCategoryLabel(row.category), cellClass: row => CATEGORY_TEXT_CLASSES[row.category] },
+    { key: 'usages', label: 'Usages', sortable: true, align: 'right', value: row => row.usages, cellClass: () => 'text-fg-muted tabular-nums' },
   ];
 
   createTagOpen = signal(false);

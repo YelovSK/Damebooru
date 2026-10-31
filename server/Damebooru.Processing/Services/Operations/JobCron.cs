@@ -12,4 +12,17 @@ public static class JobCron
 
     public static DateTime? GetNextRun(string cronExpression)
         => GetNextRun(cronExpression, DateTime.UtcNow);
+
+    public static List<DateTime> GetUpcomingRuns(string cronExpression, int count)
+    {
+        var runs = new List<DateTime>();
+        var cursor = DateTime.UtcNow;
+        while (runs.Count < count && GetNextRun(cronExpression, cursor) is { } next)
+        {
+            runs.Add(next);
+            cursor = next;
+        }
+
+        return runs;
+    }
 }

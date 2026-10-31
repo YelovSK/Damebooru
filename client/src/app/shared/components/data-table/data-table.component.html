@@ -1,50 +1,55 @@
-<div class="overflow-x-auto rounded-lg border border-line">
-  <table class="min-w-full border-collapse bg-surface text-sm">
-    <thead class="bg-sunken">
-      <tr>
-        @for (column of columns(); track column.key) {
-          <th
-            scope="col"
-            class="px-3 py-2 font-semibold text-fg-muted"
-            [class.cursor-pointer]="column.sortable"
-            [class.select-none]="column.sortable"
-            [class.hover:text-fg]="column.sortable"
-            [class]="getAlignClass(column)"
-            (click)="onHeaderClick(column)">
-            <span class="inline-flex items-center gap-1">
-              {{ column.label }}
-              @if (column.sortable && isSorted(column)) {
-                <span class="text-[0.7rem] text-accent">
-                  {{ sortDirection(column) === 'asc' ? '▲' : '▼' }}
-                </span>
-              }
-            </span>
-          </th>
-        }
-      </tr>
-    </thead>
-    <tbody>
-      @if (sortedRows().length === 0) {
-        <tr>
-          <td [attr.colspan]="columns().length" class="px-3 py-8 text-center text-fg-muted">
-            {{ emptyText() }}
-          </td>
+<div class="overflow-hidden rounded-xl border border-line bg-surface">
+  <div class="overflow-x-auto">
+    <table class="min-w-full border-collapse text-sm">
+      <thead>
+        <tr class="border-b border-line">
+          @for (column of columns(); track column.key) {
+            <th
+              scope="col"
+              class="px-4 py-2.5 text-xs font-medium text-fg-subtle"
+              [class.cursor-pointer]="column.sortable"
+              [class.select-none]="column.sortable"
+              [class.hover:text-fg]="column.sortable"
+              [class]="getAlignClass(column)"
+              (click)="onHeaderClick(column)">
+              <span class="inline-flex items-center gap-1">
+                {{ column.label }}
+                @if (column.sortable && isSorted(column)) {
+                  <span class="text-[0.65rem] text-accent">
+                    {{ sortDirection(column) === 'asc' ? '▲' : '▼' }}
+                  </span>
+                }
+              </span>
+            </th>
+          }
         </tr>
-      } @else {
-        @for (row of sortedRows(); track trackBy()(row, $index)) {
-          <tr
-            class="border-t border-line transition-colors"
-            [class.cursor-pointer]="rowClickable()"
-            [class.hover:bg-raised]="rowClickable()"
-            (click)="onRowClick(row)">
-            @for (column of columns(); track column.key) {
-              <td class="px-3 py-2 text-fg" [class]="getAlignClass(column)">
-                {{ column.value(row) }}
-              </td>
-            }
+      </thead>
+      <tbody>
+        @if (sortedRows().length === 0) {
+          <tr>
+            <td [attr.colspan]="columns().length" class="px-4 py-10 text-center text-fg-muted">
+              {{ emptyText() }}
+            </td>
           </tr>
+        } @else {
+          @for (row of sortedRows(); track trackBy()(row, $index)) {
+            <tr
+              class="border-t border-line first:border-t-0 transition-colors"
+              [class.cursor-pointer]="rowClickable()"
+              [class.hover:bg-raised]="rowClickable()"
+              (click)="onRowClick(row)">
+              @for (column of columns(); track column.key) {
+                <td class="px-4 py-2.5" [class]="getAlignClass(column) + ' ' + (column.cellClass?.(row) ?? 'text-fg')">
+                  {{ column.value(row) }}
+                </td>
+              }
+            </tr>
+          }
         }
-      }
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+  </div>
+  <div class="border-t border-line px-4 py-2 empty:hidden">
+    <ng-content select="[tableFooter]" />
+  </div>
 </div>

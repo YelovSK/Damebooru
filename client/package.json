@@ -24,6 +24,7 @@
     "@angular/router": "^21.1.2",
     "@angular/service-worker": "^21.1.2",
     "@microsoft/signalr": "^10.0.0",
+    "cronstrue": "^3.38.0",
     "dayjs": "^1.11.19",
     "idb": "^8.0.3",
     "rxjs": "~7.8.0",

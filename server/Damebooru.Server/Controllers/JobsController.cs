@@ -136,7 +136,7 @@ public class JobsController : ControllerBase
     [HttpPut("schedules/{id}")]
     public async Task<IActionResult> UpdateSchedule(int id, [FromBody] ScheduledJobUpdateDto update)
     {
-        return await _jobScheduleService.UpdateScheduleAsync(id, update).ToHttpResult(_ => NoContent());
+        return await _jobScheduleService.UpdateScheduleAsync(id, update).ToHttpResult();
     }
 
     [HttpGet("cron-preview")]

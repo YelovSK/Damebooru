@@ -334,9 +334,9 @@ export class DamebooruService {
 
   updateJobSchedule(
     id: number,
-    schedule: Partial<ScheduledJob>,
-  ): Observable<void> {
-    return this.http.put<void>(
+    schedule: Pick<ScheduledJob, "cronExpression" | "isEnabled">,
+  ): Observable<ScheduledJob> {
+    return this.http.put<ScheduledJob>(
       `${this.baseUrl}/jobs/schedules/${id}`,
       schedule,
     );

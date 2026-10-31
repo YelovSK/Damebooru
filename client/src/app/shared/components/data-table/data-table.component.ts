@@ -10,6 +10,8 @@ export interface DataTableColumn<T, K extends string = string> {
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
   value: (row: T) => string | number | null | undefined;
+  /** Text color and other classes for this column's cells; defaults to `text-fg`. */
+  cellClass?: (row: T) => string;
 }
 
 export interface DataTableSort<K extends string = string> {

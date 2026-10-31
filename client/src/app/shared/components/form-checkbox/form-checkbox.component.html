@@ -10,9 +10,9 @@
     (keydown.space)="toggle()"
   >
     <div
-      class="relative w-10 h-6 transition-colors duration-200 rounded-full border border-line shrink-0"
+      class="relative w-10 h-6 transition-colors duration-200 rounded-full shrink-0"
       [class.bg-accent]="value"
-      [class.bg-surface]="!value"
+      [class.bg-line-strong]="!value"
     >
       <div
         class="absolute top-1/2 left-1 h-4 w-4 -translate-y-1/2 rounded-full bg-white transition-transform duration-200"

@@ -1,11 +1,11 @@
-<div class="bg-surface border border-line rounded-xl flex items-center gap-1.5 md:gap-2 px-4 py-3 select-none">
+<div class="flex items-center gap-1 select-none">
     <!-- Previous Button -->
     <button type="button"
             [disabled]="currentPage() === 1" 
             (click)="onPrev()" 
-            class="pagination-btn arrow-btn"
+            class="pagination-btn"
             aria-label="Previous page">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
         </svg>
     </button>
@@ -13,7 +13,7 @@
     <!-- Page Numbers -->
     @for (page of pages(); track $index) {
         @if (page === '...') {
-            <span class="inline-block w-8 text-center text-fg-muted">...</span>
+            <span class="inline-block w-6 text-center text-fg-subtle">…</span>
         } @else {
             <button type="button"
                     (click)="onPageClick(page)" 
@@ -29,9 +29,9 @@
     <button type="button"
             [disabled]="currentPage() === totalPages()" 
             (click)="onNext()" 
-            class="pagination-btn arrow-btn"
+            class="pagination-btn"
             aria-label="Next page">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="9 18 15 12 9 6"></polyline>
         </svg>
     </button>

@@ -1,5 +1,6 @@
 using Cronos;
 using Damebooru.Core.DTOs;
+using Damebooru.Core.Entities;
 using Damebooru.Core.Interfaces;
 using Damebooru.Core.Results;
 using Damebooru.Data;
@@ -9,6 +10,8 @@ namespace Damebooru.Processing.Services;
 
 public class JobScheduleService
 {
+    private const int UpcomingRunCount = 3;
+
     private readonly DamebooruDbContext _context;
     private readonly Dictionary<JobKey, IJob> _jobsByKey;
 
@@ -23,24 +26,13 @@ public class JobScheduleService
     private IJob? FindJob(string storedJobKey)
         => JobKey.TryParse(storedJobKey, out var key) && _jobsByKey.TryGetValue(key, out var job) ? job : null;
 
-    private string ResolveDisplayName(string storedJobKey)
-        => FindJob(storedJobKey)?.Name ?? storedJobKey;
-
     public async Task<List<ScheduledJobDto>> GetSchedulesAsync(CancellationToken cancellationToken = default)
     {
         var schedules = await _context.ScheduledJobs.ToListAsync(cancellationToken);
         return schedules
             .OrderBy(s => FindJob(s.JobName)?.DisplayOrder ?? int.MaxValue)
             .ThenBy(s => s.JobName, StringComparer.OrdinalIgnoreCase)
-            .Select(s => new ScheduledJobDto
-        {
-            Id = s.Id,
-            JobName = ResolveDisplayName(s.JobName),
-            CronExpression = s.CronExpression,
-            IsEnabled = s.IsEnabled,
-            LastRun = s.LastRun,
-            NextRun = s.NextRun
-        })
+            .Select(ToDto)
             .ToList();
     }
 
@@ -66,15 +58,23 @@ public class JobScheduleService
 
         await _context.SaveChangesAsync();
 
-        return Result<ScheduledJobDto>.Success(new ScheduledJobDto
+        return Result<ScheduledJobDto>.Success(ToDto(schedule));
+    }
+
+    private ScheduledJobDto ToDto(ScheduledJob schedule)
+    {
+        var job = FindJob(schedule.JobName);
+        return new ScheduledJobDto
         {
             Id = schedule.Id,
-            JobName = ResolveDisplayName(schedule.JobName),
+            JobKey = job?.Key.Value ?? schedule.JobName,
+            JobName = job?.Name ?? schedule.JobName,
             CronExpression = schedule.CronExpression,
             IsEnabled = schedule.IsEnabled,
             LastRun = schedule.LastRun,
-            NextRun = schedule.NextRun
-        });
+            NextRun = schedule.NextRun,
+            UpcomingRuns = JobCron.GetUpcomingRuns(schedule.CronExpression, UpcomingRunCount)
+        };
     }
 
     public CronPreviewDto PreviewCron(string cronExpression, int count = 5)
@@ -91,25 +91,10 @@ public class JobScheduleService
 
         try
         {
-            var nextRuns = new List<DateTime>();
-            var cursor = DateTime.UtcNow;
-
-            for (var i = 0; i < Math.Clamp(count, 1, 10); i++)
-            {
-                var next = JobCron.GetNextRun(expression, cursor);
-                if (!next.HasValue)
-                {
-                    break;
-                }
-
-                nextRuns.Add(next.Value);
-                cursor = next.Value;
-            }
-
             return new CronPreviewDto
             {
                 IsValid = true,
-                NextRuns = nextRuns
+                NextRuns = JobCron.GetUpcomingRuns(expression, Math.Clamp(count, 1, 10))
             };
         }
         catch (CronFormatException)
@@ -117,7 +102,7 @@ public class JobScheduleService
             return new CronPreviewDto
             {
                 IsValid = false,
-                Error = $"Invalid cron expression: '{expression}'"
+                Error = "Invalid cron expression"
             };
         }
     }

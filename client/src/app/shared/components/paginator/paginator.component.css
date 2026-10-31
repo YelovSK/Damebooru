@@ -1,24 +1,14 @@
 @reference "../../../../styles.css";
 
 .pagination-btn {
-    @apply flex items-center justify-center min-w-[42px] h-[38px] px-2 rounded-lg bg-raised border border-line text-[0.9rem] font-medium text-fg-muted transition-all cursor-pointer hover:bg-line-strong hover:text-fg hover:-translate-y-0.5;
+    @apply flex h-8 min-w-8 cursor-pointer items-center justify-center rounded-md px-2 text-sm text-fg-muted transition-colors hover:bg-raised hover:text-fg;
     font-variant-numeric: tabular-nums;
 }
 
 .pagination-btn.active {
-    @apply bg-accent/15 border-accent/40 text-accent translate-y-0 cursor-default;
+    @apply cursor-default bg-raised font-semibold text-fg;
 }
 
 .pagination-btn:disabled {
-    @apply opacity-20 cursor-not-allowed transform-none hover:bg-surface hover:text-fg-muted;
-}
-
-.arrow-btn {
-    @apply px-2.5;
-}
-
-@media (max-width: 640px) {
-    .pagination-btn {
-        @apply min-w-[34px] h-[34px] text-[0.85rem];
-    }
+    @apply cursor-not-allowed opacity-30 hover:bg-transparent hover:text-fg-muted;
 }
