@@ -40,17 +40,21 @@ export class MainLayoutComponent {
   );
 
   readonly navLinks: NavbarLink[] = [
-    { route: AppLinks.posts(), icon: 'icon-posts', label: 'Posts' },
-    { route: AppLinks.inbox(), icon: 'icon-posts', label: 'Inbox' },
-    { route: AppLinks.libraries(), icon: 'icon-settings', label: 'Libraries' },
-    { route: AppLinks.tags(), icon: 'icon-settings', label: 'Tags' },
-    { route: AppLinks.jobs(), icon: 'icon-settings', label: 'Jobs' },
-    { route: AppLinks.logs(), icon: 'icon-settings', label: 'Logs' },
-    { route: AppLinks.duplicates(), icon: 'icon-settings', label: 'Duplicates' },
-    { route: AppLinks.settings(), icon: 'icon-settings', label: 'Settings' },
-    { route: AppLinks.stats(), icon: 'icon-info', label: 'Stats' },
-    { route: AppLinks.help(), icon: 'icon-info', label: 'Help' },
+    { route: AppLinks.posts(), label: 'Posts' },
+    { route: AppLinks.inbox(), label: 'Inbox' },
+    { route: AppLinks.tags(), label: 'Tags' },
+    { route: AppLinks.duplicates(), label: 'Duplicates' },
+    { route: AppLinks.stats(), label: 'Stats' },
   ];
+
+  readonly manageLinks: NavbarLink[] = [
+    { route: AppLinks.libraries(), label: 'Libraries' },
+    { route: AppLinks.jobs(), label: 'Jobs' },
+    { route: AppLinks.logs(), label: 'Logs' },
+  ];
+
+  readonly helpRoute = AppLinks.help();
+  readonly settingsRoute = AppLinks.settings();
 
   get currentUser() {
     return this.damebooru.currentUser();

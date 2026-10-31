@@ -9,6 +9,9 @@
     }
     <app-navbar
         [links]="navLinks"
+        [manageLinks]="manageLinks"
+        [helpRoute]="helpRoute"
+        [settingsRoute]="settingsRoute"
         [currentUser]="currentUser"
         [authEnabled]="authEnabled"
         (drawerOpenChange)="mobileNavOpen.set($event)"
