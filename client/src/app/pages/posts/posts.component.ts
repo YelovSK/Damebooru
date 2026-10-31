@@ -15,6 +15,8 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { Router } from "@angular/router";
+import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from "@angular/cdk/menu";
+import { ButtonDirective, TooltipDirective } from "@shared/directives";
 import {
   type CdkVirtualScrollViewport,
   ScrollingModule,
@@ -72,6 +74,11 @@ import {
     PostTileComponent,
     MobileBottomSheetComponent,
     PostSearchFiltersComponent,
+    ButtonDirective,
+    TooltipDirective,
+    CdkMenu,
+    CdkMenuItem,
+    CdkMenuTrigger,
   ],
   providers: [PostsRangeCacheStore, PostsFastScrollerController],
   templateUrl: "./posts.component.html",

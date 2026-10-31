@@ -4,6 +4,7 @@ import {
   computed,
   inject,
   input,
+  linkedSignal,
 } from "@angular/core";
 import { RouterLink, type Params } from "@angular/router";
 
@@ -35,4 +36,6 @@ export class PostTileComponent {
     return this.damebooru.getThumbnailUrl(post.contentHash);
   });
   readonly mediaType = computed(() => getMediaType(this.post().contentType));
+  /** Resets whenever the tile is reused for another post. */
+  readonly thumbnailFailed = linkedSignal({ source: this.thumbnailUrl, computation: () => false });
 }

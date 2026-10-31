@@ -1,7 +1,15 @@
 <a class="post-tile relative block aspect-square overflow-hidden rounded-md bg-surface transition-transform duration-150 hover:-translate-y-1"
   [routerLink]="['/', appPaths.post, postId()]" [queryParams]="queryParams()" [attr.data-post-id]="postId()">
   <img [appScheduledSrc]="thumbnailUrl()" [alt]="'Post ' + postId()" class="block h-full w-full object-cover"
+    [class.invisible]="thumbnailFailed()" (error)="thumbnailFailed.set(true)"
     decoding="async" loading="lazy" fetchpriority="low" />
+  @if (thumbnailFailed()) {
+  <div class="absolute inset-0 flex items-center justify-center text-fg-subtle" [attr.title]="'Post ' + postId() + ': no thumbnail'">
+    <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" />
+    </svg>
+  </div>
+  }
 
   @if (isFavorite()) {
   <div
