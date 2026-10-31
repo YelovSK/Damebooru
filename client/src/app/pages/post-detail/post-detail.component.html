@@ -385,7 +385,7 @@
 }
 
 @if (aiTagPreview(); as preview) {
-<app-modal [open]="true" title="AI Auto-Tag Results" maxWidthClass="max-w-2xl" (closed)="closeAiTagPreview()">
+<app-modal [open]="true" title="AI Auto-Tag Results" sizeClass="w-full max-w-2xl" (closed)="closeAiTagPreview()">
     <div class="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm text-fg-muted">
         <span>{{ preview.model }} · {{ preview.elapsedMilliseconds | number:'1.0-0' }}ms</span>
         <span>

@@ -64,14 +64,14 @@
                         </button>
                         <ng-template #libraryMenu>
                             <div class="min-w-44 rounded-lg border border-line-strong bg-surface p-1 shadow-xl" cdkMenu>
-                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised disabled:cursor-not-allowed disabled:opacity-40 text-fg" cdkMenuItem (cdkMenuItemTriggered)="startRename(lib)">Rename</button>
-                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised disabled:cursor-not-allowed disabled:opacity-40 text-fg" cdkMenuItem
+                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised aria-disabled:cursor-not-allowed aria-disabled:bg-transparent aria-disabled:opacity-40 text-fg" cdkMenuItem (cdkMenuItemTriggered)="startRename(lib)">Rename</button>
+                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised aria-disabled:cursor-not-allowed aria-disabled:bg-transparent aria-disabled:opacity-40 text-fg" cdkMenuItem
                                     [cdkMenuItemDisabled]="changingKindLibraryId() === lib.id"
                                     (cdkMenuItemTriggered)="toggleInbox(lib)">
                                     {{ lib.kind === libraryKind.Inbox ? 'Make regular library' : 'Make inbox' }}
                                 </button>
                                 <div class="my-1 border-t border-line"></div>
-                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised disabled:cursor-not-allowed disabled:opacity-40 text-danger" cdkMenuItem
+                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised aria-disabled:cursor-not-allowed aria-disabled:bg-transparent aria-disabled:opacity-40 text-danger" cdkMenuItem
                                     [cdkMenuItemDisabled]="isLoading()"
                                     (cdkMenuItemTriggered)="deleteLibrary(lib)">Delete</button>
                             </div>

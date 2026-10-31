@@ -24,17 +24,17 @@ import { ConfirmService } from '@services/confirm.service';
 import { ToastService } from '@services/toast.service';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
-import { ButtonDirective } from '@shared/directives';
+import { ButtonDirective, TooltipDirective } from '@shared/directives';
+import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { DisplayPathPipe } from '@shared/pipes/display-path.pipe';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
 import { PostHoverPreview } from '@shared/components/post-preview-overlay/post-hover-preview';
 import { computeLookupContentHash } from './lookup-hash';
 import { type DuplicateCompareGroup, DuplicateCompareOverlayComponent, type DuplicateComparePost } from './duplicate-compare-overlay.component';
-import { DuplicateFolderBucketsComponent, type DuplicateFolderBucketView, type DuplicateFolderItemView } from './duplicate-folder-buckets.component';
 import { PageComponent } from '@shared/components/page/page.component';
 
-type DuplicateViewFilter = 'all' | 'same-folder' | 'different-folder';
+type DuplicateViewFilter = 'same-folder' | 'different-folder';
 
 interface VisibleDuplicatePost {
   id: number;
@@ -51,18 +51,41 @@ interface VisibleDuplicatePost {
   contentType?: string;
 }
 
+interface ExactClusterFileView {
+  file: ExactDuplicateFile;
+  location: string;
+  /** Set only when it differs from the cluster's title name. */
+  fileName: string | null;
+}
+
+interface ExactClusterView {
+  contentHash: string;
+  /** The file name most copies share, if a majority does. */
+  title: string | null;
+  postId: number;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  folderCount: number;
+  hasSameFolderDuplicates: boolean;
+  files: ExactClusterFileView[];
+}
+
 interface VisibleDuplicateGroup {
   key: string;
   duplicateGroupId: number;
   similarityPercent: number | null;
   detectedDate: string | null;
   posts: VisibleDuplicatePost[];
+  /** Folder segments every file in the group shares; shown once in the header and left out of the tiles. */
+  commonFolder: string[];
+  spansLibraries: boolean;
 }
 
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, DateTimePipe, TabsComponent, TabComponent, ButtonDirective, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
+  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, DateTimePipe, TabsComponent, TabComponent, ButtonDirective, TooltipDirective, CdkMenu, CdkMenuItem, CdkMenuTrigger, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent],
   providers: [PostHoverPreview],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
@@ -86,7 +109,6 @@ export class DuplicatesPageComponent {
 
   groups = signal<DuplicateGroup[]>([]);
   exactClusters = signal<ExactDuplicateCluster[]>([]);
-  exactCount = signal(0);
 
   resolvedGroups = signal<DuplicateGroup[]>([]);
 
@@ -106,7 +128,10 @@ export class DuplicatesPageComponent {
   readonly lookupPerceptualReason = computed(() => this.lookupResult()?.perceptualUnavailableReason ?? null);
   readonly lookupHasResults = computed(() => this.lookupResult() !== null);
 
-  exactViewFilter = signal<DuplicateViewFilter>('all');
+  private readonly exactFilterChoice = signal<DuplicateViewFilter | null>(null);
+  /** Same-folder copies are the actionable kind, so they're shown first unless there are none. */
+  readonly exactViewFilter = computed<DuplicateViewFilter>(() => this.exactFilterChoice()
+    ?? (this.exactClusters().some(cluster => cluster.hasSameFolderDuplicates) ? 'same-folder' : 'different-folder'));
   compareGroupKey = signal<string | null>(null);
   readonly visiblePageSize = 25;
   exactPage = signal(1);
@@ -115,7 +140,6 @@ export class DuplicatesPageComponent {
   resolvedPage = signal(1);
   private exactTabInitialized = false;
   private perceptualTabInitialized = false;
-  private groupsTabInitialized = false;
   private resolvedTabInitialized = false;
   private excludedTabInitialized = false;
 
@@ -141,16 +165,6 @@ export class DuplicatesPageComponent {
     this.loadGroups();
   }
 
-  onGroupsTabInit() {
-    if (this.groupsTabInitialized) {
-      return;
-    }
-
-    this.groupsTabInitialized = true;
-    this.loadExactClusters();
-    this.loadGroups();
-  }
-
   onResolvedTabInit() {
     if (this.resolvedTabInitialized) {
       return;
@@ -170,7 +184,7 @@ export class DuplicatesPageComponent {
   }
 
   onExactViewFilterChange(filter: DuplicateViewFilter) {
-    this.exactViewFilter.set(filter);
+    this.exactFilterChoice.set(filter);
     this.exactPage.set(1);
   }
 
@@ -262,8 +276,12 @@ export class DuplicatesPageComponent {
   readonly visibleGroups = computed<VisibleDuplicateGroup[]>(() => {
     return this.groups().map(group => {
       const recommendedKeepPostId = this.selectBestQualityVisiblePostId(group.posts);
+      const files = group.posts.flatMap(post => this.getDuplicatePostFiles(post));
+      const spansLibraries = new Set(files.map(file => file.libraryId)).size > 1;
 
       return {
+        commonFolder: spansLibraries ? [] : getCommonPrefix(files.map(file => splitPath(file.relativePath).slice(0, -1))),
+        spansLibraries,
         key: `${group.id}`,
         duplicateGroupId: group.id,
         similarityPercent: group.similarityPercent,
@@ -288,10 +306,22 @@ export class DuplicatesPageComponent {
 
   readonly filteredExactClusters = computed(() => this.exactClusters().filter(cluster => {
     const filter = this.exactViewFilter();
-    return filter === 'all'
-      || (filter === 'same-folder' && cluster.hasSameFolderDuplicates)
-      || (filter === 'different-folder' && cluster.hasCrossFolderDuplicates);
+    return filter === 'same-folder' ? cluster.hasSameFolderDuplicates : cluster.hasCrossFolderDuplicates;
   }));
+
+  readonly exactFilterCards = computed(() => {
+    const clusters = this.exactClusters();
+    const card = (value: DuplicateViewFilter, label: string, matching: ExactDuplicateCluster[]) => ({
+      value,
+      label,
+      setCount: matching.length,
+      fileCount: matching.reduce((sum, cluster) => sum + cluster.fileCount, 0),
+    });
+    return [
+      card('same-folder', 'Sets with copies in the same folder', clusters.filter(cluster => cluster.hasSameFolderDuplicates)),
+      card('different-folder', 'Sets with copies across folders', clusters.filter(cluster => cluster.hasCrossFolderDuplicates)),
+    ];
+  });
 
   readonly exactTotalPages = computed(() =>
     Math.max(1, Math.ceil(this.filteredExactClusters().length / this.visiblePageSize)));
@@ -299,9 +329,9 @@ export class DuplicatesPageComponent {
   readonly exactCurrentPage = computed(() =>
     Math.min(this.exactPage(), this.exactTotalPages()));
 
-  readonly pagedExactClusters = computed(() => {
+  readonly pagedExactClusters = computed<ExactClusterView[]>(() => {
     const start = (this.exactCurrentPage() - 1) * this.visiblePageSize;
-    return this.filteredExactClusters().slice(start, start + this.visiblePageSize);
+    return this.filteredExactClusters().slice(start, start + this.visiblePageSize).map(toExactClusterView);
   });
 
   readonly visibleStats = computed(() => {
@@ -343,10 +373,6 @@ export class DuplicatesPageComponent {
     return this.resolvedGroups().slice(start, start + this.resolvedPageSize);
   });
 
-  getVisibleGroups(): VisibleDuplicateGroup[] {
-    return this.visibleGroups();
-  }
-
   getVisibleGroupCount(): number {
     return this.visibleStats().groupCount;
   }
@@ -357,39 +383,6 @@ export class DuplicatesPageComponent {
 
   getExactClusterCount(): number {
     return this.filteredExactClusters().length;
-  }
-
-  getExactFileCount(): number {
-    return this.filteredExactClusters().reduce((sum, cluster) => sum + cluster.fileCount, 0);
-  }
-
-  getExactSameFolderCount(): number {
-    return this.exactClusters().filter(cluster => cluster.hasSameFolderDuplicates).length;
-  }
-
-  getExactCrossFolderCount(): number {
-    return this.exactClusters().filter(cluster => cluster.hasCrossFolderDuplicates).length;
-  }
-
-  getExactFolderBucketViews(cluster: ExactDuplicateCluster): DuplicateFolderBucketView[] {
-    return cluster.folders.map(folder => ({
-      key: `${folder.libraryId}:${folder.folderPath}`,
-      libraryName: folder.libraryName,
-      folderPath: folder.folderPath,
-      items: folder.files.map(file => ({
-        key: `exact:${file.postFileId}`,
-        kind: 'exact-file' as const,
-        postId: file.postId,
-        actionTargetId: file.postFileId,
-        relativePath: file.relativePath,
-        width: file.width,
-        height: file.height,
-        sizeBytes: file.sizeBytes,
-        thumbnailUrl: this.getExactFileThumbnailUrl(file),
-        canDelete: true,
-        isRecommendedKeep: false,
-      })),
-    }));
   }
 
   openCompareGroup(group: VisibleDuplicateGroup): void {
@@ -407,38 +400,6 @@ export class DuplicatesPageComponent {
 
   onCompareDeletePost(group: DuplicateCompareGroup, post: DuplicateComparePost): void {
     this.onDeletePost(group, post);
-  }
-
-  onExcludeExactFolderItem(item: DuplicateFolderItemView): void {
-    this.onExcludeExactFile({
-      postId: item.postId,
-      postFileId: item.actionTargetId,
-      libraryId: 0,
-      libraryName: '',
-      relativePath: item.relativePath,
-      contentHash: '',
-      width: item.width,
-      height: item.height,
-      contentType: '',
-      sizeBytes: item.sizeBytes,
-      fileModifiedDate: '',
-    });
-  }
-
-  onDeleteExactFolderItem(item: DuplicateFolderItemView): void {
-    this.onDeleteExactFile({
-      postId: item.postId,
-      postFileId: item.actionTargetId,
-      libraryId: 0,
-      libraryName: '',
-      relativePath: item.relativePath,
-      contentHash: '',
-      width: item.width,
-      height: item.height,
-      contentType: '',
-      sizeBytes: item.sizeBytes,
-      fileModifiedDate: '',
-    });
   }
 
   onAutoResolveGroup(group: DuplicateCompareGroup) {
@@ -672,7 +633,6 @@ export class DuplicatesPageComponent {
     this.damebooru.getExactDuplicateClusters().subscribe({
       next: (clusters) => {
         this.exactClusters.set(clusters);
-        this.exactCount.set(clusters.length);
         this.exactPage.set(Math.min(this.exactPage(), this.exactTotalPages()));
       },
       error: () => void 0
@@ -739,22 +699,6 @@ export class DuplicatesPageComponent {
     return this.damebooru.getThumbnailUrl(post.contentHash);
   }
 
-  getExactFileThumbnailUrl(file: Pick<ExactDuplicateFile, 'contentHash'>): string {
-    return this.damebooru.getThumbnailUrl(file.contentHash);
-  }
-
-  trackExactCluster(_: number, cluster: ExactDuplicateCluster) {
-    return cluster.contentHash;
-  }
-
-  trackExactFolder(_: number, folder: ExactDuplicateCluster['folders'][number]) {
-    return `${folder.libraryId}:${folder.folderPath}`;
-  }
-
-  trackExactFile(_: number, file: ExactDuplicateFile) {
-    return file.postFileId;
-  }
-
   trackPostFile(_: number, file: DuplicatePostFile): string {
     return file.postFileId > 0 ? `${file.postFileId}` : `${file.libraryId}:${file.relativePath}`;
   }
@@ -767,6 +711,21 @@ export class DuplicatesPageComponent {
     return Math.max(0, post.files.length - 3);
   }
 
+  /** Splits a tile's file into its folder below the group's common folder (null when there is none) and its name. */
+  getGroupFileParts(group: VisibleDuplicateGroup, file: DuplicatePostFile): { folder: string | null; name: string } {
+    const segments = splitPath(file.relativePath);
+    const folder = segments.slice(group.commonFolder.length, -1);
+    if (group.spansLibraries) {
+      folder.unshift(file.libraryName || `Library #${file.libraryId}`);
+    }
+    return { folder: folder.length > 0 ? folder.join(' / ') : null, name: segments[segments.length - 1] ?? file.relativePath };
+  }
+
+  getFormat(post: VisibleDuplicatePost): string {
+    const extension = /\.([a-z0-9]+)$/i.exec(post.relativePath)?.[1];
+    return (extension ?? post.contentType?.split('/')[1] ?? '').toUpperCase();
+  }
+
   getPostFilePlacementLabel(file: DuplicatePostFile): string {
     const libraryName = file.libraryName || `Library #${file.libraryId}`;
     return `${libraryName} / ${formatPathForDisplay(file.relativePath)}`;
@@ -777,10 +736,6 @@ export class DuplicatesPageComponent {
   }
 
   onImageError(event: Event) {
-    (event.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23374151" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239CA3AF" font-size="12">No image</text></svg>';
-  }
-
-  onExcludedImageError(event: Event) {
     (event.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23374151" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239CA3AF" font-size="12">No image</text></svg>';
   }
 
@@ -900,12 +855,8 @@ export class DuplicatesPageComponent {
   }
 
   private reloadDuplicatesAndExcluded() {
-    if (this.exactTabInitialized || this.groupsTabInitialized) {
+    if (this.exactTabInitialized) {
       this.loadExactClusters();
-    }
-
-    if (this.groupsTabInitialized) {
-      this.loadGroups();
     }
 
     if (this.perceptualTabInitialized) {
@@ -989,6 +940,61 @@ export class DuplicatesPageComponent {
 }
 
 class LookupHashError extends Error {}
+
+function splitPath(path: string): string[] {
+  return path.split(/[/\\]/).filter(segment => segment.length > 0);
+}
+
+function getCommonPrefix(paths: string[][]): string[] {
+  if (paths.length === 0) {
+    return [];
+  }
+
+  let length = paths[0].length;
+  for (const path of paths) {
+    length = Math.min(length, path.length);
+    while (length > 0 && path[length - 1] !== paths[0][length - 1]) {
+      length--;
+    }
+  }
+  return paths[0].slice(0, length);
+}
+
+function toExactClusterView(cluster: ExactDuplicateCluster): ExactClusterView {
+  const entries = cluster.folders.flatMap(folder => folder.files.map(file => ({
+    file,
+    folder,
+    name: getFileNameFromPath(file.relativePath),
+  })));
+
+  const nameCounts = new Map<string, number>();
+  for (const entry of entries) {
+    nameCounts.set(entry.name, (nameCounts.get(entry.name) ?? 0) + 1);
+  }
+  const [topName, topCount] = [...nameCounts].reduce((best, current) => current[1] > best[1] ? current : best);
+  const title = topCount * 2 > entries.length ? topName : null;
+  const spansLibraries = new Set(cluster.folders.map(folder => folder.libraryId)).size > 1;
+
+  const first = entries[0].file;
+  return {
+    contentHash: cluster.contentHash,
+    title,
+    postId: first.postId,
+    width: first.width,
+    height: first.height,
+    sizeBytes: first.sizeBytes,
+    folderCount: cluster.folderCount,
+    hasSameFolderDuplicates: cluster.hasSameFolderDuplicates,
+    files: entries.map(({ file, folder, name }) => {
+      const folderLabel = formatPathForDisplay(folder.folderPath) || '(library root)';
+      return {
+        file,
+        location: spansLibraries ? `${folder.libraryName} / ${folderLabel}` : folderLabel,
+        fileName: name === title ? null : name,
+      };
+    }),
+  };
+}
 
 function isExternalLookupMessage(data: unknown): data is { id: string; file: File } {
   if (typeof data !== 'object' || data === null) {

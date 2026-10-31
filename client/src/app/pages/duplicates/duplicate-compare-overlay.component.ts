@@ -1,15 +1,15 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, HostListener, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { type DuplicatePostFile } from '@models';
-import { ButtonDirective } from '@shared/directives';
-import { FormDropdownComponent, type FormDropdownOption } from '@shared/components/dropdown/form-dropdown.component';
+import { ButtonDirective, TooltipDirective } from '@shared/directives';
 import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ZoomPanContainerComponent, ZoomPanSync } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
-import { getFileNameFromPath } from '@shared/utils/utils';
+import { formatPathForDisplay } from '@shared/utils/utils';
 
 export type DuplicateCompareMode = 'side-by-side' | 'flip';
 
@@ -39,8 +39,11 @@ export interface DuplicateCompareGroup {
   imports: [
     CommonModule,
     RouterLink,
+    CdkMenu,
+    CdkMenuItem,
+    CdkMenuTrigger,
     ButtonDirective,
-    FormDropdownComponent,
+    TooltipDirective,
     ModalComponent,
     ZoomPanContainerComponent,
     FileNamePipe,
@@ -66,6 +69,8 @@ export class DuplicateCompareOverlayComponent {
   readonly zoomSync = new ZoomPanSync();
 
   readonly activeMode = computed<DuplicateCompareMode>(() => this.isCompactViewport() ? 'flip' : this.mode());
+  /** With only two posts there is nothing to pick, so the panels show plain names instead of selectors. */
+  readonly canChoosePosts = computed(() => this.group().posts.length > 2);
 
   readonly selectedLeftPost = computed(() => {
     const group = this.group();
@@ -83,29 +88,7 @@ export class DuplicateCompareOverlayComponent {
     return group.posts.find(post => post.id !== left?.id) ?? left ?? null;
   });
 
-  readonly activeFlipPost = computed(() => {
-    if (this.flipShowingRight()) {
-      return this.selectedRightPost();
-    }
-
-    return this.selectedLeftPost();
-  });
-
-  readonly selectedLeftValue = computed(() => this.selectedLeftPost()?.id ?? null);
-
-  readonly selectedRightValue = computed(() => this.selectedRightPost()?.id ?? null);
-
-  readonly leftPostOptions = computed<FormDropdownOption<number>[]>(() => this.group().posts.map(post => ({
-    label: `#${post.id} · ${getFileNameFromPath(post.relativePath)} · ${post.width}x${post.height} · ${this.formatBytes(post.sizeBytes)}`,
-    value: post.id,
-    disabled: post.id === this.selectedRightPost()?.id,
-  })));
-
-  readonly rightPostOptions = computed<FormDropdownOption<number>[]>(() => this.group().posts.map(post => ({
-    label: `#${post.id} · ${getFileNameFromPath(post.relativePath)} · ${post.width}x${post.height} · ${this.formatBytes(post.sizeBytes)}`,
-    value: post.id,
-    disabled: post.id === this.selectedLeftPost()?.id,
-  })));
+  readonly activeFlipPost = computed(() => this.flipShowingRight() ? this.selectedRightPost() : this.selectedLeftPost());
 
   constructor() {
     effect(() => {
@@ -130,50 +113,27 @@ export class DuplicateCompareOverlayComponent {
     this.isCompactViewport.set(this.resolveIsCompactViewport());
   }
 
-  setLeft(post: DuplicateComparePost): void {
-    if (post.id === this.selectedRightPost()?.id) {
+  @HostListener('document:keydown.space', ['$event'])
+  onSpace(event: Event): void {
+    if (this.activeMode() !== 'flip' || (event.target as HTMLElement | null)?.closest('input, textarea, [contenteditable]')) {
       return;
     }
 
-    this.selectedLeftId.set(post.id);
-  }
-
-  setRight(post: DuplicateComparePost): void {
-    if (post.id === this.selectedLeftPost()?.id) {
-      return;
-    }
-
-    this.selectedRightId.set(post.id);
-  }
-
-  onLeftValueChange(postId: number | null): void {
-    const post = this.getPostById(postId);
-    if (!post) {
-      return;
-    }
-
-    this.setLeft(post);
-  }
-
-  onRightValueChange(postId: number | null): void {
-    const post = this.getPostById(postId);
-    if (!post) {
-      return;
-    }
-
-    this.setRight(post);
-  }
-
-  toggleFlipPost(): void {
+    event.preventDefault();
     this.flipShowingRight.update(value => !value);
+  }
+
+  selectPost(side: 'left' | 'right', post: DuplicateComparePost): void {
+    const other = side === 'left' ? this.selectedRightPost() : this.selectedLeftPost();
+    if (post.id === other?.id) {
+      return;
+    }
+
+    (side === 'left' ? this.selectedLeftId : this.selectedRightId).set(post.id);
   }
 
   resetZoom(): void {
     this.zoomSync.publish({ zoomLevel: 1, panX: 0, panY: 0 });
-  }
-
-  getThumbnailUrl(post: DuplicateComparePost): string {
-    return this.damebooru.getThumbnailUrl(post.contentHash);
   }
 
   getPostContentUrl(post: DuplicateComparePost): string {
@@ -184,29 +144,18 @@ export class DuplicateCompareOverlayComponent {
     return post.contentType?.startsWith('video/') ?? false;
   }
 
-  trackPost(_: number, post: DuplicateComparePost): number {
-    return post.id;
+  getFormat(post: DuplicateComparePost): string {
+    const extension = /\.([a-z0-9]+)$/i.exec(post.relativePath)?.[1];
+    return (extension ?? post.contentType?.split('/')[1] ?? '').toUpperCase();
   }
 
-  private getPostById(postId: number | null): DuplicateComparePost | null {
-    if (postId === null) {
-      return null;
-    }
-
-    return this.group().posts.find(post => post.id === postId) ?? null;
+  getFolder(post: DuplicateComparePost): string {
+    const separator = Math.max(post.relativePath.lastIndexOf('/'), post.relativePath.lastIndexOf('\\'));
+    return formatPathForDisplay(separator < 0 ? '' : post.relativePath.slice(0, separator)) || '(library root)';
   }
 
-  private formatBytes(bytes: number): string {
-    if (!Number.isFinite(bytes) || bytes <= 0) {
-      return '0 B';
-    }
-
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const unitIndex = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-    const value = bytes / Math.pow(1024, unitIndex);
-    const precision = unitIndex === 0 || value >= 10 ? 0 : 1;
-
-    return `${value.toFixed(precision)} ${units[unitIndex]}`;
+  hasMorePixels(post: DuplicateComparePost, other: DuplicateComparePost | null): boolean {
+    return !!other && post.width * post.height > other.width * other.height;
   }
 
   private resolveIsCompactViewport(): boolean {

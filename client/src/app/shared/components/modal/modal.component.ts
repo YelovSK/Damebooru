@@ -38,7 +38,8 @@ export class ModalComponent implements AfterViewInit {
 
   open = input(false);
   title = input('');
-  maxWidthClass = input('max-w-xl');
+  /** Width classes for the dialog box; the overlay shrinks to fit, so content with a large natural width needs a fixed width here. */
+  sizeClass = input('w-full max-w-xl');
   closeOnBackdrop = input(true);
   showCloseButton = input(true);
 
@@ -98,6 +99,16 @@ export class ModalComponent implements AfterViewInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         if (this.closeOnBackdrop()) {
+          this.close();
+        }
+      });
+    overlayRef
+      .keydownEvents()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(event => {
+        // A confirm dialog opened from inside this modal sits above it and handles its own Escape.
+        const isTopmost = overlayRef.hostElement.parentElement?.lastElementChild === overlayRef.hostElement;
+        if (event.key === 'Escape' && isTopmost) {
           this.close();
         }
       });

@@ -1,18 +1,21 @@
 <ng-template #modalOverlay>
   <div
-    class="w-full rounded-xl border border-line bg-surface p-4 shadow-xl"
-    [ngClass]="maxWidthClass()">
-    <div class="mb-4 flex items-start justify-between gap-3">
+    class="rounded-xl border border-line bg-surface p-4 shadow-xl"
+    [ngClass]="sizeClass()">
+    <div class="mb-4 flex items-center justify-between gap-3">
       <h2 class="text-xl font-semibold text-fg">{{ title() }}</h2>
-      @if (showCloseButton()) {
-        <button
-          type="button"
-          class="rounded px-2 py-1 text-fg-muted transition-colors hover:text-fg"
-          aria-label="Close modal"
-          (click)="close()">
-          ×
-        </button>
-      }
+      <div class="flex items-center gap-3">
+        <ng-content select="[modalHeaderActions]" />
+        @if (showCloseButton()) {
+          <button
+            type="button"
+            class="rounded px-2 py-1 text-fg-muted transition-colors hover:text-fg"
+            aria-label="Close modal"
+            (click)="close()">
+            ×
+          </button>
+        }
+      </div>
     </div>
 
     <ng-content></ng-content>

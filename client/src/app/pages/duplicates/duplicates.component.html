@@ -1,487 +1,407 @@
 <app-page heading="Duplicates" description="Review and resolve duplicate posts, or manage excluded files." width="wide">
     <app-tabs route>
-        <app-tab id="exact" label="Exact Duplicates" (init)="onExactTabInit()">
-                <div class="mb-6 flex flex-wrap gap-3">
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-line bg-surface px-6 py-4">
-                        <div class="text-3xl font-bold text-fg">{{ getExactClusterCount() }}</div>
-                        <div class="text-sm text-fg-muted">Exact Clusters</div>
-                    </div>
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-line bg-surface px-6 py-4">
-                        <div class="text-3xl font-bold text-fg">{{ getExactFileCount() }}</div>
-                        <div class="text-sm text-fg-muted">Files</div>
-                    </div>
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-line bg-surface px-6 py-4">
-                        <div class="text-3xl font-bold text-fg">{{ getExactSameFolderCount() }}</div>
-                        <div class="text-sm text-fg-muted">Same-Folder</div>
-                    </div>
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-line bg-surface px-6 py-4">
-                        <div class="text-3xl font-bold text-fg">{{ getExactCrossFolderCount() }}</div>
-                        <div class="text-sm text-fg-muted">Cross-Folder</div>
-                    </div>
-                </div>
-
-                <div class="mb-6 rounded-lg border border-line bg-surface px-4 py-3 text-sm text-fg-muted">
-                    Exact duplicates are shown as file clusters grouped by folder. Use this view to inspect where identical files exist; use the hardlink job for bulk maintenance.
-                </div>
-
-                <div class="mb-6 flex flex-wrap gap-2">
-                    <button appButton type="button" [variant]="exactViewFilter() === 'all' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('all')">All</button>
-                    <button appButton type="button" [variant]="exactViewFilter() === 'same-folder' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('same-folder')">Same Folder</button>
-                    <button appButton type="button" [variant]="exactViewFilter() === 'different-folder' ? 'primary' : 'secondary'" size="sm" (click)="onExactViewFilterChange('different-folder')">Different Folder</button>
-                </div>
-
-                @if (getExactClusterCount() === 0) {
-                <div class="text-center py-16">
-                    <div class="text-6xl mb-4">✓</div>
-                    <h2 class="text-xl font-semibold text-fg mb-2">No exact duplicate files found</h2>
-                    <p class="text-fg-muted">Exact duplicate file clusters will appear here after scanning.</p>
-                </div>
-                } @else {
-                @for (cluster of pagedExactClusters(); track trackExactCluster($index, cluster)) {
-                <div class="bg-surface border border-line rounded-lg p-4 md:p-5 mb-6">
-                    <div class="mb-4 flex flex-wrap items-center gap-3">
-                        <span class="bg-accent/15 text-accent px-2 py-1 rounded text-xs font-bold">EXACT</span>
-                        @if (cluster.hasSameFolderDuplicates) {
-                        <span class="rounded border border-warning/30 bg-warning/10 px-2 py-1 text-xs font-semibold text-warning">same-folder duplicates</span>
-                        }
-                        @if (cluster.hasCrossFolderDuplicates) {
-                        <span class="rounded border border-line bg-raised px-2 py-1 text-xs font-semibold text-fg-muted">cross-folder duplicates</span>
-                        }
-                        <span class="text-sm text-fg-subtle">{{ cluster.fileCount }} files</span>
-                        <span class="text-sm text-fg-subtle">{{ cluster.folderCount }} folders</span>
-                        <span class="truncate text-sm text-fg-muted" [title]="cluster.contentHash">{{ cluster.contentHash }}</span>
-                    </div>
-
-                    <app-duplicate-folder-buckets
-                        [buckets]="getExactFolderBucketViews(cluster)"
-                        hoverTone="accent"
-                        (itemMouseEnter)="hoverPreview.enter($event)"
-                        (itemMouseMove)="hoverPreview.move($event)"
-                        (itemMouseLeave)="hoverPreview.leave($event)"
-                        (imageError)="onImageError($event)"
-                        (excludeItem)="onExcludeExactFolderItem($event)"
-                        (deleteItem)="onDeleteExactFolderItem($event)" />
-                </div>
+        <app-tab id="exact" label="Exact" (init)="onExactTabInit()">
+            <div class="mb-5 grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Filter identical files">
+                @for (filterCard of exactFilterCards(); track filterCard.value) {
+                    @let selected = exactViewFilter() === filterCard.value;
+                    <button type="button" role="radio" [attr.aria-checked]="selected"
+                        class="cursor-pointer rounded-xl border px-5 py-4 text-left transition-colors"
+                        [class.border-accent]="selected"
+                        [class.bg-accent/10]="selected"
+                        [class.border-line]="!selected"
+                        [class.bg-surface]="!selected"
+                        [class.hover:border-line-strong]="!selected"
+                        (click)="onExactViewFilterChange(filterCard.value)">
+                        <div class="text-3xl font-semibold text-fg">{{ filterCard.setCount | number }}</div>
+                        <div class="mt-0.5 text-sm text-fg-muted">{{ filterCard.label }}</div>
+                        <div class="text-xs text-fg-subtle">{{ filterCard.fileCount | number }} files</div>
+                    </button>
                 }
+            </div>
+
+            @if (getExactClusterCount() === 0) {
+                <div class="card px-5 py-10 text-center text-fg-muted">
+                    {{ exactViewFilter() === 'same-folder' ? 'No identical files within the same folder.' : 'No identical files across folders.' }}
+                </div>
+            } @else {
+                <div class="space-y-3">
+                    @for (cluster of pagedExactClusters(); track cluster.contentHash) {
+                        <article class="card flex gap-5 p-4">
+                            <a [routerLink]="['/post', cluster.postId]"
+                                class="block h-32 w-32 shrink-0 overflow-hidden rounded-lg bg-sunken sm:h-40 sm:w-40"
+                                (mouseenter)="hoverPreview.enter(cluster.postId)"
+                                (mousemove)="hoverPreview.move(cluster.postId)"
+                                (mouseleave)="hoverPreview.leave($event)">
+                                <img [src]="getThumbnailUrl(cluster)" alt="" class="h-full w-full object-cover" loading="lazy" (error)="onImageError($event)">
+                            </a>
+
+                            <div class="min-w-0 flex-1">
+                                @if (cluster.title) {
+                                    <h3 class="truncate font-medium text-fg" [title]="cluster.title">{{ cluster.title }}</h3>
+                                }
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-muted" [class.mt-0.5]="cluster.title">
+                                    <span>{{ cluster.files.length }} copies in {{ cluster.folderCount }} {{ cluster.folderCount === 1 ? 'folder' : 'folders' }}</span>
+                                    @if (cluster.width > 0) {
+                                        <span class="text-fg-subtle">·</span>
+                                        <span>{{ cluster.width }}×{{ cluster.height }}</span>
+                                    }
+                                    <span class="text-fg-subtle">·</span>
+                                    <span>{{ cluster.sizeBytes | fileSize }}</span>
+                                    @if (cluster.hasSameFolderDuplicates) {
+                                        <span class="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-medium text-warning">same folder</span>
+                                    }
+                                </div>
+
+                                <ul class="mt-3 divide-y divide-line">
+                                    @for (entry of cluster.files; track entry.file.postFileId) {
+                                        <li class="flex items-center gap-3 py-1.5">
+                                            <span class="min-w-0 flex-1 truncate text-sm" [title]="entry.file.relativePath">
+                                                <span class="text-fg">{{ entry.location }}</span>
+                                                @if (entry.fileName) {
+                                                    <span class="text-fg-subtle"> / {{ entry.fileName }}</span>
+                                                }
+                                            </span>
+                                            <div class="flex shrink-0 gap-1">
+                                                <button appButton type="button" variant="ghost" size="sm" class="!text-fg" (click)="onExcludeExactFile(entry.file)">Exclude</button>
+                                                <button appButton type="button" variant="ghost" size="sm" class="!text-danger" (click)="onDeleteExactFile(entry.file)">Delete</button>
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        </article>
+                    }
+                </div>
                 @if (exactTotalPages() > 1) {
-                <div class="mt-4 flex justify-center">
-                    <app-paginator [currentPage]="exactCurrentPage()" [totalPages]="exactTotalPages()"
-                        (pageChange)="onExactPageChange($event)">
-                    </app-paginator>
-                </div>
+                    <div class="mt-4 flex justify-center">
+                        <app-paginator [currentPage]="exactCurrentPage()" [totalPages]="exactTotalPages()" (pageChange)="onExactPageChange($event)" />
+                    </div>
                 }
-                }
+            }
         </app-tab>
 
-        <app-tab id="perceptual" label="Perceptual Duplicates" (init)="onPerceptualTabInit()">
-                <div class="mb-6 flex flex-wrap gap-3">
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-line bg-surface px-6 py-4">
-                        <div class="text-3xl font-bold text-fg">{{ getVisibleGroupCount() }}</div>
-                        <div class="text-sm text-fg-muted">Perceptual Groups</div>
-                    </div>
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-line bg-surface px-6 py-4">
-                        <div class="text-3xl font-bold text-fg">{{ getVisiblePostCount() }}</div>
-                        <div class="text-sm text-fg-muted">Posts</div>
-                    </div>
+        <app-tab id="perceptual" label="Perceptual" (init)="onPerceptualTabInit()">
+            <div class="mb-5 grid gap-3 sm:grid-cols-2">
+                <div class="card px-5 py-4">
+                    <div class="text-3xl font-semibold text-fg">{{ getVisibleGroupCount() | number }}</div>
+                    <div class="mt-0.5 text-sm text-fg-muted">Groups</div>
                 </div>
-
-                @if (getVisibleGroupCount() === 0) {
-                <div class="text-center py-16">
-                    <div class="text-6xl mb-4">✓</div>
-                    <h2 class="text-xl font-semibold text-fg mb-2">No perceptual duplicates found</h2>
-                    <p class="text-fg-muted">Run "Find Duplicates" from the Jobs page to refresh perceptual duplicate groups.</p>
+                <div class="card px-5 py-4">
+                    <div class="text-3xl font-semibold text-fg">{{ getVisiblePostCount() | number }}</div>
+                    <div class="mt-0.5 text-sm text-fg-muted">Posts</div>
                 </div>
-                } @else {
-                @for (group of pagedVisibleGroups(); track trackVisibleGroup($index, group)) {
-                <div class="bg-surface border border-line rounded-lg p-4 md:p-5 mb-6">
-                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <span class="bg-accent/15 text-accent px-2 py-1 rounded text-xs font-bold">PERCEPTUAL</span>
-                            @if (group.similarityPercent) {
-                            <span class="text-sm text-fg-muted">~{{ group.similarityPercent }}% similar</span>
-                            }
-                            <span class="text-sm text-fg-subtle">{{ group.posts.length }} posts</span>
-                            @if (group.detectedDate) {
-                            <span class="text-sm text-fg-subtle">detected {{ group.detectedDate | dateTime }}</span>
-                            }
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button appButton type="button" (click)="openCompareGroup(group)" variant="secondary" size="sm">
-                                Compare
-                            </button>
-                            <button appButton type="button" (click)="onAutoResolveGroup(group)" variant="secondary" size="sm">
-                                Auto Resolve
-                            </button>
-                            <button appButton type="button" (click)="onDismissGroup(group)" variant="secondary" size="sm">
-                                Dismiss
-                            </button>
-                        </div>
-                    </div>
+            </div>
 
-                    <div class="flex flex-wrap gap-3">
-                        @for (post of group.posts; track trackVisiblePost($index, post)) {
-                        <div
-                            class="relative flex w-full flex-col overflow-hidden rounded-lg border border-line bg-raised transition-colors hover:border-accent sm:w-56 md:w-60">
-                            <div
-                                class="relative aspect-square overflow-hidden"
-                                (mouseenter)="hoverPreview.enter(post.id)"
-                                (mousemove)="hoverPreview.move(post.id)"
-                                (mouseleave)="hoverPreview.leave($event)">
-                                <img
-                                    [src]="getThumbnailUrl(post)"
-                                    [alt]="post.relativePath"
-                                    class="w-full h-full object-cover"
-                                    loading="lazy"
-                                    (error)="onImageError($event)">
-                            </div>
-
-                            <div class="flex flex-1 flex-col gap-2 p-2">
-                                <a [routerLink]="['/post', post.id]" class="block hover:bg-raised transition-colors rounded px-1 py-1">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <div class="truncate text-xs font-semibold text-fg" [title]="post.relativePath">
-                                            {{ post.relativePath | fileName }}
+            @if (getVisibleGroupCount() === 0) {
+                <div class="card px-5 py-10 text-center text-fg-muted">
+                    No similar images found. Run "Find Duplicates" from the Jobs page to refresh.
+                </div>
+            } @else {
+                <div class="space-y-3">
+                    @for (group of pagedVisibleGroups(); track trackVisibleGroup($index, group)) {
+                        <article class="card p-4">
+                            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                                    @if (group.similarityPercent) {
+                                        <span class="font-medium text-fg">~{{ group.similarityPercent }}% similar</span>
+                                        <span class="text-fg-subtle">·</span>
+                                    }
+                                    <span class="text-fg-muted">{{ group.posts.length }} posts</span>
+                                    @if (group.commonFolder.length > 0) {
+                                        <span class="text-fg-subtle">·</span>
+                                        <span class="text-fg-muted">in {{ group.commonFolder.join(' / ') }}</span>
+                                    }
+                                    @if (group.detectedDate) {
+                                        <span class="text-fg-subtle">·</span>
+                                        <span class="text-fg-muted">detected {{ group.detectedDate | dateTime }}</span>
+                                    }
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button appButton type="button" size="sm" variant="ghost" (click)="onDismissGroup(group)"
+                                        appTooltip="Not duplicates: keep every post and close the group">Keep all</button>
+                                    <button appButton type="button" size="sm" variant="primary" (click)="openCompareGroup(group)">Compare</button>
+                                    <button appButton type="button" variant="ghost" size="icon" aria-label="More actions" [cdkMenuTriggerFor]="groupMenu">
+                                        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+                                        </svg>
+                                    </button>
+                                    <ng-template #groupMenu>
+                                        <div class="min-w-44 rounded-lg border border-line-strong bg-surface p-1 shadow-xl" cdkMenu>
+                                            <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm text-fg outline-none hover:bg-raised focus:bg-raised" cdkMenuItem
+                                                (cdkMenuItemTriggered)="onAutoResolveGroup(group)">Auto resolve</button>
                                         </div>
-                                        @if (post.files.length > 1) {
-                                        <span class="shrink-0 rounded bg-raised px-1.5 py-0.5 text-[10px] font-semibold text-fg">
-                                            {{ post.files.length }} files
-                                        </span>
-                                        }
-                                    </div>
-                                    <div class="mt-1 flex justify-between text-xs text-fg-subtle">
-                                        <span>{{ post.width }}x{{ post.height }}</span>
-                                        <span>{{ post.sizeBytes | fileSize }}</span>
-                                    </div>
-                                </a>
-
-                                <div class="space-y-1">
-                                    @for (file of getDisplayedPostFiles(post); track trackPostFile($index, file)) {
-                                    <div class="truncate text-[11px] text-fg-muted" [title]="getPostFilePlacementLabel(file)">
-                                        {{ file.libraryName || ('Library #' + file.libraryId) }} / {{ file.relativePath | displayPath }}
-                                    </div>
-                                    }
-                                    @if (getHiddenPostFileCount(post) > 0) {
-                                    <div class="text-[11px] font-medium text-fg-muted">
-                                        +{{ getHiddenPostFileCount(post) }} more
-                                    </div>
-                                    }
-                                </div>
-
-                                <div class="mt-auto grid gap-1">
-                                    <button appButton type="button" variant="warning" size="sm" [fullWidth]="true" (click)="onExcludePost(group, post)">
-                                        Exclude
-                                    </button>
-                                    <button appButton type="button" variant="danger" size="sm" [fullWidth]="true" (click)="onDeletePost(group, post)">
-                                        Delete
-                                    </button>
+                                    </ng-template>
                                 </div>
                             </div>
 
-                            @if (post.isRecommendedKeep) {
-                            <div class="pointer-events-none absolute left-2 top-2 rounded bg-success px-2 py-0.5 text-[10px] font-bold text-on-accent">
-                                KEEP (AUTO)
+                            <div class="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">
+                                @for (post of group.posts; track trackVisiblePost($index, post)) {
+                                    <div class="relative flex flex-col overflow-hidden rounded-lg border border-line bg-sunken">
+                                        <button type="button"
+                                            class="relative block aspect-square cursor-zoom-in overflow-hidden"
+                                            aria-label="Compare"
+                                            (click)="openCompareGroup(group)"
+                                            (mouseenter)="hoverPreview.enter(post.id)"
+                                            (mousemove)="hoverPreview.move(post.id)"
+                                            (mouseleave)="hoverPreview.leave($event)">
+                                            <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath" class="h-full w-full object-cover" loading="lazy" (error)="onImageError($event)">
+                                        </button>
+                                        <div class="flex flex-1 flex-col gap-1.5 px-3 pb-2 pt-3">
+                                            <div>
+                                                <div class="flex items-center justify-between gap-2 whitespace-nowrap">
+                                                    <span class="text-sm font-semibold text-fg">{{ post.width }}×{{ post.height }}</span>
+                                                    @if (post.isRecommendedKeep) {
+                                                        <span class="text-xs font-medium text-success" appTooltip="Highest quality; Auto resolve keeps this one">✓ Best</span>
+                                                    }
+                                                </div>
+                                                <div class="whitespace-nowrap text-xs text-fg-muted">{{ getFormat(post) }} · {{ post.sizeBytes | fileSize }}</div>
+                                            </div>
+                                            @for (file of getDisplayedPostFiles(post); track trackPostFile($index, file)) {
+                                                @let parts = getGroupFileParts(group, file);
+                                                <div class="text-xs" [title]="getPostFilePlacementLabel(file)">
+                                                    @if (parts.folder) {
+                                                        <div class="flex items-center gap-1 text-fg-subtle">
+                                                            <svg class="h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+                                                                <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+                                                            </svg>
+                                                            <span class="truncate">{{ parts.folder }}</span>
+                                                        </div>
+                                                    }
+                                                    <a [routerLink]="['/post', post.id]" class="line-clamp-2 break-all text-fg-muted hover:text-fg hover:underline">{{ parts.name }}</a>
+                                                </div>
+                                            }
+                                            @if (getHiddenPostFileCount(post) > 0) {
+                                                <div class="text-xs text-fg-subtle">+{{ getHiddenPostFileCount(post) }} more</div>
+                                            }
+                                            <div class="mt-auto flex justify-between pt-2">
+                                                <button appButton type="button" variant="ghost" size="sm" class="!text-fg" (click)="onExcludePost(group, post)">Exclude</button>
+                                                <button appButton type="button" variant="ghost" size="sm" class="!text-danger" (click)="onDeletePost(group, post)">Delete</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
                             </div>
-                            }
-                        </div>
-                        }
-                    </div>
+                        </article>
+                    }
                 </div>
-                }
                 @if (visibleTotalPages() > 1) {
-                <div class="mt-4 flex justify-center">
-                    <app-paginator [currentPage]="visibleCurrentPage()" [totalPages]="visibleTotalPages()"
-                        (pageChange)="onVisiblePageChange($event)">
-                    </app-paginator>
-                </div>
+                    <div class="mt-4 flex justify-center">
+                        <app-paginator [currentPage]="visibleCurrentPage()" [totalPages]="visibleTotalPages()" (pageChange)="onVisiblePageChange($event)" />
+                    </div>
                 }
-                }
+            }
         </app-tab>
 
         <app-tab id="lookup" label="Lookup">
-                <div class="space-y-6">
-                    <div>
-                        <h2 class="text-xl font-semibold text-fg">Find Existing Posts by Upload</h2>
-                        <p class="mt-1 text-sm text-fg-muted">
-                            Upload a file to check whether the same post already exists. Image uploads also attempt perceptual matching.
-                        </p>
-                    </div>
+            <p class="mb-4 text-sm text-fg-muted">
+                Check whether a file already exists. Any file is matched exactly; images are also matched by similarity. You can also paste an image.
+            </p>
 
-                    <label
-                        class="block rounded-xl border border-dashed px-5 py-6 transition-colors cursor-pointer"
-                        [class.border-accent]="lookupDropActive()"
-                        [class.bg-accent/5]="lookupDropActive()"
-                        [class.border-line]="!lookupDropActive()"
-                        [class.bg-surface]="!lookupDropActive()"
-                        (dragover)="onLookupDragOver($event)"
-                        (dragleave)="onLookupDragLeave($event)"
-                        (drop)="onLookupDrop($event)">
-                        <input type="file" class="hidden" (change)="onLookupFileInputChange($event)">
+            <label
+                class="flex cursor-pointer flex-col gap-4 rounded-xl border border-dashed p-4 transition-colors sm:flex-row sm:items-center"
+                [class.border-accent]="lookupDropActive()"
+                [class.bg-accent/5]="lookupDropActive()"
+                [class.border-line-strong]="!lookupDropActive()"
+                [class.bg-surface]="!lookupDropActive()"
+                (dragover)="onLookupDragOver($event)"
+                (dragleave)="onLookupDragLeave($event)"
+                (drop)="onLookupDrop($event)">
+                <input type="file" class="hidden" (change)="onLookupFileInputChange($event)">
 
-                        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                            <div class="space-y-2">
-                                <div class="text-sm font-semibold text-fg">Choose or drop a file</div>
-                                <div class="text-sm text-fg-muted">
-                                    Exact matching works for any file. Perceptual matching is image-only.
-                                </div>
-                            </div>
-                            <div class="shrink-0 text-sm font-medium text-accent">Click to browse</div>
-                        </div>
-
-                        @if (lookupSelectedFile(); as file) {
-                        <div class="mt-5 grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)] lg:items-start">
-                            <div class="overflow-hidden rounded-lg border border-line bg-sunken">
-                                @if (hasLookupImagePreview()) {
-                                <img [src]="lookupPreviewUrl()!" [alt]="file.name" class="aspect-square w-full object-cover">
-                                } @else {
-                                <div class="flex aspect-square items-center justify-center px-4 text-center text-sm text-fg-muted">
-                                    No local preview available
-                                </div>
-                                }
-                            </div>
-
-                            <div class="space-y-2 rounded-lg border border-line bg-sunken p-4">
-                                <div class="break-all text-sm font-semibold text-fg">{{ getLookupFileName() }}</div>
-                                <div class="text-xs text-fg-muted">{{ getLookupFileType() }} · {{ getLookupFileSize() | fileSize }}</div>
-                            </div>
-                        </div>
-                        }
-                    </label>
-
-                    <div class="flex flex-wrap gap-3">
-                        <button appButton type="button" variant="primary" size="md" [disabled]="!lookupSelectedFile() || lookupLoading()" (click)="runLookup()">
-                            {{ lookupLoading() ? lookupLoadingText() : 'Find Matches' }}
-                        </button>
-                        <button appButton type="button" variant="secondary" size="md" [disabled]="!lookupSelectedFile() && !lookupHasResults()"
-                            (click)="clearLookup()">
-                            Clear
-                        </button>
-                    </div>
-
-                    @if (lookupError()) {
-                    <div class="rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">
-                        {{ lookupError() }}
-                    </div>
-                    }
-
-                    @if (lookupResult(); as result) {
-                    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <div class="rounded-lg border border-line bg-surface px-5 py-4">
-                            <div class="text-3xl font-bold text-fg">{{ lookupExactMatches().length }}</div>
-                            <div class="text-sm text-fg-muted">Exact Matches</div>
-                        </div>
-                        <div class="rounded-lg border border-line bg-surface px-5 py-4">
-                            <div class="text-3xl font-bold text-fg">{{ lookupPerceptualMatches().length }}</div>
-                            <div class="text-sm text-fg-muted">Perceptual Matches</div>
-                        </div>
-                        <div class="rounded-lg border border-line bg-surface px-5 py-4">
-                            <div class="truncate text-sm font-semibold text-fg" [title]="result.contentHash">{{ result.contentHash }}</div>
-                            <div class="text-sm text-fg-muted">Content Hash</div>
-                        </div>
-                        <div class="rounded-lg border border-line bg-surface px-5 py-4">
-                            <div class="text-3xl font-bold" [class.text-success]="result.perceptualHashComputed"
-                                [class.text-fg-subtle]="!result.perceptualHashComputed">
-                                {{ result.perceptualHashComputed ? 'YES' : 'NO' }}
-                            </div>
-                            <div class="text-sm text-fg-muted">PDQ Computed</div>
-                        </div>
-                    </div>
-
-                    @if (lookupPerceptualReason()) {
-                    <div class="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
-                        {{ lookupPerceptualReason() }}
-                    </div>
-                    }
-
-                    <section class="space-y-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <h3 class="text-lg font-semibold text-fg">Exact Matches</h3>
-                            <span class="text-sm text-fg-muted">{{ lookupExactMatches().length }} found</span>
-                        </div>
-
-                        @if (lookupExactMatches().length === 0) {
-                        <div class="rounded-lg border border-line bg-surface px-4 py-6 text-sm text-fg-muted">
-                            No exact matches found for this content hash.
-                        </div>
+                @if (lookupSelectedFile(); as file) {
+                    <div class="h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-sunken">
+                        @if (hasLookupImagePreview()) {
+                            <img [src]="lookupPreviewUrl()!" [alt]="file.name" class="h-full w-full object-cover">
                         } @else {
-                        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                            @for (match of lookupExactMatches(); track trackLookupMatch($index, match)) {
-                            <a [routerLink]="['/post', match.id]"
-                                class="block overflow-hidden rounded-lg border border-line bg-surface transition-colors hover:border-accent">
-                                <img [src]="getLookupThumbnailUrl(match)" [alt]="match.relativePath" class="aspect-square w-full object-cover"
-                                    loading="lazy" (error)="onImageError($event)">
-                                <div class="space-y-1 p-3">
-                                    <div class="truncate text-sm font-semibold text-fg" [title]="match.relativePath">{{ match.relativePath | fileName }}</div>
-                                    <div class="text-xs text-fg-muted">{{ match.libraryName }}</div>
-                                    <div class="text-xs text-fg-muted break-all">{{ match.relativePath }}</div>
-                                    <div class="flex justify-between text-xs text-fg-subtle">
-                                        <span>{{ match.width }}×{{ match.height }}</span>
-                                        <span>{{ match.sizeBytes | fileSize }}</span>
-                                    </div>
-                                </div>
-                            </a>
-                            }
-                        </div>
+                            <div class="flex h-full items-center justify-center px-2 text-center text-xs text-fg-subtle">No preview</div>
                         }
-                    </section>
-
-                    <section class="space-y-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <h3 class="text-lg font-semibold text-fg">Perceptual Matches</h3>
-                            <span class="text-sm text-fg-muted">{{ lookupPerceptualMatches().length }} found</span>
-                        </div>
-
-                        @if (lookupPerceptualMatches().length === 0) {
-                        <div class="rounded-lg border border-line bg-surface px-4 py-6 text-sm text-fg-muted">
-                            No perceptual matches found for this upload.
-                        </div>
-                        } @else {
-                        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                            @for (match of lookupPerceptualMatches(); track trackLookupMatch($index, match)) {
-                            <a [routerLink]="['/post', match.id]"
-                                class="block overflow-hidden rounded-lg border border-line bg-surface transition-colors hover:border-accent">
-                                <img [src]="getLookupThumbnailUrl(match)" [alt]="match.relativePath" class="aspect-square w-full object-cover"
-                                    loading="lazy" (error)="onImageError($event)">
-                                <div class="space-y-1 p-3">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <div class="truncate text-sm font-semibold text-fg" [title]="match.relativePath">{{ match.relativePath | fileName }}</div>
-                                        <span class="rounded bg-accent/15 px-2 py-0.5 text-[11px] font-semibold text-accent">
-                                            {{ match.similarityPercent }}%
-                                        </span>
-                                    </div>
-                                    <div class="text-xs text-fg-muted">{{ match.libraryName }}</div>
-                                    <div class="text-xs text-fg-muted break-all">{{ match.relativePath }}</div>
-                                    <div class="flex justify-between text-xs text-fg-subtle">
-                                        <span>{{ match.width }}×{{ match.height }}</span>
-                                        <span>{{ match.sizeBytes | fileSize }}</span>
-                                    </div>
-                                </div>
-                            </a>
-                            }
-                        </div>
-                        }
-                    </section>
-                    }
-                </div>
-        </app-tab>
-
-        <app-tab id="resolved" label="Resolved Groups" (init)="onResolvedTabInit()">
-                <div class="mb-6 flex flex-wrap gap-3">
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-line bg-surface px-6 py-4">
-                        <div class="text-3xl font-bold text-fg">{{ getResolvedGroupCount() }}</div>
-                        <div class="text-sm text-fg-muted">Resolved Groups</div>
                     </div>
-                    <div class="flex-1 min-w-[12rem] rounded-lg border border-line bg-surface px-6 py-4">
-                        <div class="text-3xl font-bold text-fg">{{ getResolvedPostCount() }}</div>
-                        <div class="text-sm text-fg-muted">Resolved Posts</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="break-all text-sm font-medium text-fg">{{ getLookupFileName() }}</div>
+                        <div class="mt-0.5 text-xs text-fg-muted">{{ getLookupFileType() }} · {{ getLookupFileSize() | fileSize }}</div>
+                        <div class="mt-2 text-sm text-accent">Choose a different file</div>
                     </div>
-                </div>
-
-                @if (getResolvedGroupCount() > 0) {
-                <div class="mb-6">
-                    <button appButton type="button" variant="secondary" size="md" (click)="unresolveAllGroups()">
-                        Unresolve All Groups ({{ getResolvedGroupCount() }})
-                    </button>
-                </div>
-                }
-
-                @if (resolvedGroups().length === 0) {
-                <div class="text-center py-16">
-                    <div class="text-6xl mb-4">🧹</div>
-                    <h2 class="text-xl font-semibold text-fg mb-2">No resolved groups</h2>
-                    <p class="text-fg-muted">Dismissed duplicate groups will appear here.</p>
-                </div>
                 } @else {
-                @for (group of pagedResolvedGroups(); track group.id) {
-                <div class="bg-surface border border-line rounded-lg p-4 md:p-5 mb-6">
-                    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div class="flex flex-wrap items-center gap-3">
-                            @if (group.similarityPercent) {
-                            <span class="text-sm text-fg-muted">~{{ group.similarityPercent }}% similar</span>
-                            }
-                            <span class="text-sm text-fg-subtle">{{ group.posts.length }} posts</span>
-                            <span class="text-sm text-fg-subtle">resolved {{ group.detectedDate | dateTime }}</span>
-                        </div>
-                        <button appButton type="button" variant="secondary" size="sm" (click)="unresolveGroup(group)">
-                            Mark Unresolved
-                        </button>
+                    <div class="flex-1 py-4 text-center text-sm">
+                        <span class="font-medium text-fg">Drop a file here</span>
+                        <span class="text-fg-muted"> or </span>
+                        <span class="text-accent">browse</span>
                     </div>
-
-                    <div class="flex flex-wrap gap-3">
-                        @for (post of group.posts; track post.id) {
-                        <div
-                            class="relative w-36 sm:w-40 md:w-44 group/card bg-raised rounded-lg overflow-hidden border border-line hover:border-warning transition-colors">
-                            <div class="relative aspect-square overflow-hidden"
-                                (mouseenter)="hoverPreview.enter(post.id)" (mousemove)="hoverPreview.move(post.id)"
-                                (mouseleave)="hoverPreview.leave($event)">
-                                <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
-                                    class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
-                            </div>
-
-                            <a [routerLink]="['/post', post.id]" class="block p-2 hover:bg-raised transition-colors">
-                                <div class="text-xs text-fg-muted truncate mb-1" [title]="post.relativePath">{{
-                                    post.relativePath | fileName }}</div>
-                                <div class="flex justify-between text-xs text-fg-subtle">
-                                    <span>{{ post.width }}×{{ post.height }}</span>
-                                    <span>{{ post.sizeBytes | fileSize }}</span>
-                                </div>
-                            </a>
-                        </div>
-                        }
-                    </div>
-                </div>
                 }
-                @if (resolvedTotalPages() > 1) {
-                <div class="mt-4 flex justify-center">
-                    <app-paginator [currentPage]="resolvedCurrentPage()" [totalPages]="resolvedTotalPages()"
-                        (pageChange)="onResolvedPageChange($event)">
-                    </app-paginator>
-                </div>
-                }
-                }
-        </app-tab>
+            </label>
 
-        <app-tab id="excluded" label="Excluded Files" (init)="onExcludedTabInit()">
-                <p class="text-sm text-fg-muted mb-4">
-                    Files excluded during duplicate resolution. The files still exist on disk but are not imported.
-                    Click "Restore" to remove from the exclusion list - the file will be re-imported on the next scan.
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+                <button appButton type="button" variant="primary" [disabled]="!lookupSelectedFile() || lookupLoading()" (click)="runLookup()">
+                    {{ lookupLoading() ? lookupLoadingText() : 'Find matches' }}
+                </button>
+                <button appButton type="button" variant="ghost" [disabled]="!lookupSelectedFile() && !lookupHasResults()" (click)="clearLookup()">Clear</button>
+            </div>
+
+            @if (lookupError()) {
+                <div class="mt-4 rounded-lg border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-danger">{{ lookupError() }}</div>
+            }
+
+            @if (lookupResult(); as result) {
+                <p class="mt-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-muted">
+                    <span><span class="font-medium text-fg">{{ lookupExactMatches().length }}</span> exact</span>
+                    <span class="text-fg-subtle">·</span>
+                    <span><span class="font-medium text-fg">{{ lookupPerceptualMatches().length }}</span> similar</span>
+                    <span class="text-fg-subtle">·</span>
+                    <span>{{ result.perceptualHashComputed ? 'PDQ hash computed' : 'no PDQ hash' }}</span>
+                    <span class="text-fg-subtle">·</span>
+                    <span class="truncate font-mono text-xs text-fg-subtle" [title]="result.contentHash">{{ result.contentHash }}</span>
                 </p>
 
-                @if (excludedFiles().length === 0) {
-                <div class="text-center py-16">
-                    <div class="text-6xl mb-4">📂</div>
-                    <h2 class="text-xl font-semibold text-fg mb-2">No excluded files</h2>
-                    <p class="text-fg-muted">Files removed during duplicate resolution will appear here.</p>
-                </div>
-                } @else {
-                <div class="mb-3 flex items-center justify-between gap-3">
-                    <div class="text-sm text-fg-muted">{{ excludedFiles().length }} excluded file(s)</div>
-                    <button appButton type="button" variant="danger" size="sm" (click)="clearAllExcludedFiles()">
-                        Remove All Exclusions
-                    </button>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    @for (file of excludedFiles(); track file.id) {
-                    <div
-                        class="bg-surface border border-line rounded-lg overflow-hidden hover:border-line-strong transition-colors">
-                        <div class="aspect-square overflow-hidden bg-raised">
-                            <img [src]="getExcludedFileContentUrl(file)" [alt]="file.relativePath"
-                                class="w-full h-full object-cover" loading="lazy" (error)="onExcludedImageError($event)">
-                        </div>
+                @if (lookupPerceptualReason()) {
+                    <div class="mt-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">{{ lookupPerceptualReason() }}</div>
+                }
 
-                        <div class="p-3">
-                            <div class="text-xs text-fg-muted truncate mb-1" [title]="file.relativePath">
-                                {{ file.relativePath | fileName }}
-                            </div>
-                            <div class="text-xs text-fg-subtle mb-2">
-                                {{ file.libraryName }} · {{ file.excludedDate | dateTime }}
-                            </div>
-                            <button appButton type="button" variant="secondary" size="sm" (click)="onExcludedRowClick(file)" [fullWidth]="true">
-                                Restore
-                            </button>
+                <h3 class="mb-3 mt-6 font-semibold text-fg">Exact matches</h3>
+                @if (lookupExactMatches().length === 0) {
+                    <p class="text-sm text-fg-subtle">None.</p>
+                } @else {
+                    <div class="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3">
+                        @for (match of lookupExactMatches(); track trackLookupMatch($index, match)) {
+                            <ng-container [ngTemplateOutlet]="lookupMatchCard" [ngTemplateOutletContext]="{ $implicit: match }" />
+                        }
+                    </div>
+                }
+
+                <h3 class="mb-3 mt-6 font-semibold text-fg">Similar images</h3>
+                @if (lookupPerceptualMatches().length === 0) {
+                    <p class="text-sm text-fg-subtle">None.</p>
+                } @else {
+                    <div class="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3">
+                        @for (match of lookupPerceptualMatches(); track trackLookupMatch($index, match)) {
+                            <ng-container [ngTemplateOutlet]="lookupMatchCard" [ngTemplateOutletContext]="{ $implicit: match }" />
+                        }
+                    </div>
+                }
+            }
+
+            <ng-template #lookupMatchCard let-match>
+                <a [routerLink]="['/post', match.id]"
+                    class="block overflow-hidden rounded-lg border border-line bg-surface transition-colors hover:border-line-strong">
+                    <div class="relative">
+                        <img [src]="getLookupThumbnailUrl(match)" [alt]="match.relativePath" class="aspect-square w-full object-cover" loading="lazy" (error)="onImageError($event)">
+                        @if (match.similarityPercent) {
+                            <span class="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-xs font-semibold text-white">{{ match.similarityPercent }}%</span>
+                        }
+                    </div>
+                    <div class="space-y-1 p-2.5">
+                        <div class="truncate text-xs" [title]="match.libraryName + ' / ' + match.relativePath">
+                            <span class="text-fg-subtle">{{ match.libraryName }} /</span>
+                            <span class="text-fg"> {{ match.relativePath | displayPath }}</span>
+                        </div>
+                        <div class="flex justify-between text-xs text-fg-muted">
+                            <span>{{ match.width }}×{{ match.height }}</span>
+                            <span>{{ match.sizeBytes | fileSize }}</span>
                         </div>
                     </div>
+                </a>
+            </ng-template>
+        </app-tab>
+
+        <app-tab id="resolved" label="Resolved" (init)="onResolvedTabInit()">
+            <div class="mb-5 grid gap-3 sm:grid-cols-2">
+                <div class="card flex items-start justify-between gap-3 px-5 py-4">
+                    <div>
+                        <div class="text-3xl font-semibold text-fg">{{ getResolvedGroupCount() | number }}</div>
+                        <div class="mt-0.5 text-sm text-fg-muted">Groups</div>
+                    </div>
+                    @if (getResolvedGroupCount() > 0) {
+                        <button appButton type="button" size="sm" (click)="unresolveAllGroups()">Unresolve all</button>
                     }
                 </div>
+                <div class="card px-5 py-4">
+                    <div class="text-3xl font-semibold text-fg">{{ getResolvedPostCount() | number }}</div>
+                    <div class="mt-0.5 text-sm text-fg-muted">Posts</div>
+                </div>
+            </div>
+
+            @if (resolvedGroups().length === 0) {
+                <div class="card px-5 py-10 text-center text-fg-muted">
+                    No resolved groups. Dismissed duplicate groups show up here.
+                </div>
+            } @else {
+                <div class="space-y-3">
+                    @for (group of pagedResolvedGroups(); track group.id) {
+                        <article class="card p-4">
+                            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                                    @if (group.similarityPercent) {
+                                        <span class="font-medium text-fg">~{{ group.similarityPercent }}% similar</span>
+                                        <span class="text-fg-subtle">·</span>
+                                    }
+                                    <span class="text-fg-muted">{{ group.posts.length }} posts</span>
+                                    <span class="text-fg-subtle">·</span>
+                                    <span class="text-fg-muted">resolved {{ group.detectedDate | dateTime }}</span>
+                                </div>
+                                <button appButton type="button" size="sm" variant="ghost" (click)="unresolveGroup(group)">Mark unresolved</button>
+                            </div>
+
+                            <div class="flex flex-wrap gap-3">
+                                @for (post of group.posts; track post.id) {
+                                    <a [routerLink]="['/post', post.id]" class="block w-36 overflow-hidden rounded-lg border border-line bg-sunken transition-colors hover:border-line-strong sm:w-40">
+                                        <div class="aspect-square overflow-hidden"
+                                            (mouseenter)="hoverPreview.enter(post.id)" (mousemove)="hoverPreview.move(post.id)"
+                                            (mouseleave)="hoverPreview.leave($event)">
+                                            <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath" class="h-full w-full object-cover" loading="lazy" (error)="onImageError($event)">
+                                        </div>
+                                        <div class="p-2">
+                                            <div class="mb-0.5 truncate text-xs text-fg" [title]="post.relativePath">{{ post.relativePath | fileName }}</div>
+                                            <div class="flex justify-between text-xs text-fg-muted">
+                                                <span>{{ post.width }}×{{ post.height }}</span>
+                                                <span>{{ post.sizeBytes | fileSize }}</span>
+                                            </div>
+                                        </div>
+                                    </a>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+                @if (resolvedTotalPages() > 1) {
+                    <div class="mt-4 flex justify-center">
+                        <app-paginator [currentPage]="resolvedCurrentPage()" [totalPages]="resolvedTotalPages()" (pageChange)="onResolvedPageChange($event)" />
+                    </div>
                 }
+            }
+        </app-tab>
+
+        <app-tab id="excluded" label="Excluded" (init)="onExcludedTabInit()">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <p class="text-sm text-fg-muted">
+                    <span class="font-medium text-fg">{{ excludedFiles().length | number }}</span> excluded files. They stay on disk but are not imported; restoring one re-imports it on the next scan.
+                </p>
+                @if (excludedFiles().length > 0) {
+                    <button appButton type="button" variant="danger" size="sm" (click)="clearAllExcludedFiles()">Remove all exclusions</button>
+                }
+            </div>
+
+            @if (excludedFiles().length === 0) {
+                <div class="card px-5 py-10 text-center text-fg-muted">
+                    No excluded files. Files excluded while resolving duplicates show up here.
+                </div>
+            } @else {
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-3">
+                    @for (file of excludedFiles(); track file.id) {
+                        <div class="overflow-hidden rounded-lg border border-line bg-surface">
+                            <div class="aspect-square overflow-hidden bg-sunken">
+                                <img [src]="getExcludedFileContentUrl(file)" [alt]="file.relativePath" class="h-full w-full object-cover" loading="lazy" (error)="onImageError($event)">
+                            </div>
+                            <div class="space-y-2 p-2.5">
+                                <div class="truncate text-xs" [title]="file.libraryName + ' / ' + file.relativePath">
+                                    <span class="text-fg-subtle">{{ file.libraryName }} /</span>
+                                    <span class="text-fg"> {{ file.relativePath | displayPath }}</span>
+                                </div>
+                                <div class="text-xs text-fg-muted">excluded {{ file.excludedDate | dateTime }}</div>
+                                <button appButton type="button" size="sm" fullWidth (click)="onExcludedRowClick(file)">Restore</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
         </app-tab>
     </app-tabs>
 
