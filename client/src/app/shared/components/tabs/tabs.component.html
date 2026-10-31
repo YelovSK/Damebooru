@@ -1,6 +1,6 @@
-<div #tabList class="relative mb-4 flex shrink-0 gap-1 overflow-auto rounded-lg bg-black/20 p-1" role="tablist">
+<div #tabList class="relative mb-4 flex shrink-0 gap-1 overflow-auto rounded-lg bg-sunken p-1" role="tablist">
   <div
-    class="pointer-events-none absolute bottom-1 left-0 top-1 z-0 rounded-md bg-white/10 transition-[transform,width,opacity] duration-200 ease-out"
+    class="pointer-events-none absolute bottom-1 left-0 top-1 z-0 rounded-md bg-raised transition-[transform,width,opacity] duration-200 ease-out"
     [class.opacity-0]="!indicatorVisible()"
     [style.transform]="indicatorTransform()"
     [style.width.px]="indicatorWidth()">
@@ -13,8 +13,8 @@
         role="tab"
         [routerLink]="[basePath(), tab.id()]"
         [replaceUrl]="true"
-        routerLinkActive="!text-white"
-        class="relative z-10 flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-3 py-2 text-center text-sm font-medium text-white/60 no-underline transition-colors hover:text-white/80"
+        routerLinkActive="!text-fg"
+        class="relative z-10 flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-3 py-2 text-center text-sm font-medium text-fg-muted no-underline transition-colors hover:text-fg"
         [attr.aria-selected]="tab === activeTab()">
         @if (tab.icon()) {
           <i [class]="tab.icon()"></i>
@@ -26,8 +26,8 @@
         #tabControl
         type="button"
         role="tab"
-        class="relative z-10 flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-3 py-2 text-center text-sm font-medium text-white/60 transition-colors hover:text-white/80"
-        [class.!text-white]="tab === activeTab()"
+        class="relative z-10 flex min-h-12 flex-1 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-3 py-2 text-center text-sm font-medium text-fg-muted transition-colors hover:text-fg"
+        [class.!text-fg]="tab === activeTab()"
         [attr.aria-selected]="tab === activeTab()"
         (click)="selectTab(tab.id())">
         @if (tab.icon()) {

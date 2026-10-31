@@ -10,7 +10,7 @@ import { getFileNameFromPath, getMediaType } from '@shared/utils/utils';
   selector: 'app-inbox-media',
   standalone: true,
   imports: [ProgressiveImageComponent],
-  host: { class: 'relative block overflow-hidden rounded-lg bg-bg-tertiary' },
+  host: { class: 'relative block overflow-hidden rounded-lg bg-sunken' },
   templateUrl: './inbox-media.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

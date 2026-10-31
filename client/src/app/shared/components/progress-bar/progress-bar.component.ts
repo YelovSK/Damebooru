@@ -10,8 +10,8 @@ export class ProgressBarComponent {
   progress = input<number>(0);
   normalizeRatio = input<boolean>(false);
   heightClass = input<string>('h-2');
-  trackClass = input<string>('bg-black/10');
-  fillClass = input<string>('bg-accent-primary');
+  trackClass = input<string>('bg-sunken');
+  fillClass = input<string>('bg-accent');
   roundedClass = input<string>('rounded-full');
   animated = input<boolean>(true);
   indeterminate = input<boolean>(false);

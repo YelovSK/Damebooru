@@ -1,6 +1,6 @@
 <div class="relative w-full">
   @if (label()) {
-    <label [for]="inputId" class="mb-1.5 ml-1 block text-[0.85rem] font-medium text-text-muted">{{ label() }}</label>
+    <label [for]="inputId" class="mb-1.5 ml-1 block text-[0.85rem] font-medium text-fg-muted">{{ label() }}</label>
   }
 
   <input
@@ -9,13 +9,13 @@
     [value]="query()"
     (input)="onInput($event)"
     [placeholder]="placeholder()"
-    class="w-full rounded-xl border border-glass-border bg-glass-bg px-4 py-2.5 pr-10 text-[0.9rem] text-text-primary outline-none transition-colors focus:border-accent-primary/60" />
+    class="w-full rounded-xl border border-line bg-surface px-4 py-2.5 pr-10 text-[0.9rem] text-fg outline-none transition-colors focus:border-accent/60" />
 
   @if (query()) {
     <button
       type="button"
       (click)="clear()"
-      class="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-sm text-text-muted hover:text-text-primary">
+      class="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-sm text-fg-muted hover:text-fg">
       ×
     </button>
   }

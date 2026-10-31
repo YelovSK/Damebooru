@@ -1,14 +1,14 @@
 @if (view(); as v) {
 <div class="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(24rem,2fr)] lg:h-full">
-    <section class="flex min-h-0 flex-col rounded-lg border border-glass-border bg-glass-bg">
-        <div class="flex flex-wrap items-center gap-3 border-b border-glass-border px-4 py-3 text-sm">
-            <strong class="text-text-primary">{{ v.ordered.length | number }} to sort</strong>
+    <section class="flex min-h-0 flex-col rounded-lg border border-line bg-surface">
+        <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3 text-sm">
+            <strong class="text-fg">{{ v.ordered.length | number }} to sort</strong>
             @if (v.pending > 0) {
-            <span class="text-text-dim italic">Getting suggestions for {{ v.pending | number }}…</span>
+            <span class="text-fg-subtle italic">Getting suggestions for {{ v.pending | number }}…</span>
             }
             <div class="ml-auto flex items-center gap-2">
                 @if (store.predictingCount() > 0) {
-                <span class="text-text-muted">AI tagging… {{ store.predictingCount() | number }} left</span>
+                <span class="text-fg-muted">AI tagging… {{ store.predictingCount() | number }} left</span>
                 <button appButton type="button" variant="secondary" size="sm" (click)="store.cancelPredictions()">Stop</button>
                 } @else {
                 @if (store.unpredictedCount() > 0) {
@@ -29,14 +29,14 @@
 
         <div class="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
             @for (group of v.groups; track group.key) {
-            <section class="rounded-lg border bg-bg-primary"
-                [class]="activeGroup() === group.key ? 'border-accent-primary' : 'border-glass-border'">
-                <div class="sticky -top-3 z-10 flex items-center gap-3 rounded-t-lg border-b border-glass-border bg-bg-primary px-3 py-2">
+            <section class="rounded-lg border bg-canvas"
+                [class]="activeGroup() === group.key ? 'border-accent' : 'border-line'">
+                <div class="sticky -top-3 z-10 flex items-center gap-3 rounded-t-lg border-b border-line bg-canvas px-3 py-2">
                     <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left font-semibold cursor-pointer"
-                        [class.text-accent-primary]="group.key !== ''" [class.text-text-muted]="group.key === ''"
+                        [class.text-fg]="group.key !== ''" [class.text-fg-muted]="group.key === ''"
                         title="Select the whole group" (click)="activateGroup(group)">
                         <span class="break-all">{{ group.label }}</span>
-                        <span class="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-text-muted">{{ group.posts.length }}</span>
+                        <span class="shrink-0 rounded-full bg-raised px-2 py-0.5 text-xs font-medium text-fg-muted">{{ group.posts.length }}</span>
                     </button>
                     @if (group.key === alreadyInLibraryGroup) {
                     <button appButton type="button" variant="danger" size="sm" [disabled]="store.busy()" (click)="discardGroup(group)"
@@ -54,36 +54,36 @@
                 @for (post of group.posts; track post.id) {
                 <div class="flex gap-3 rounded-md border p-2 cursor-pointer transition-colors" [attr.data-post-id]="post.id"
                     role="option" tabindex="-1" [attr.aria-selected]="activeIds().has(post.id)"
-                    [class]="activeIds().has(post.id) ? 'border-accent-primary bg-accent-primary-glow/40' : 'border-transparent hover:bg-glass-bg-hover'"
+                    [class]="activeIds().has(post.id) ? 'border-accent bg-accent/10' : 'border-transparent hover:bg-raised'"
                     (click)="activate(post)" (keydown.enter)="activate(post)">
-                    <div class="relative h-28 w-28 shrink-0 overflow-hidden rounded bg-bg-secondary"
+                    <div class="relative h-28 w-28 shrink-0 overflow-hidden rounded bg-surface"
                         (mouseenter)="hoverPreview.enter(post)" (mousemove)="hoverPreview.move(post)" (mouseleave)="hoverPreview.leave($event)">
                         <img [src]="thumbnailUrl(post)" [alt]="'Post ' + post.id" class="h-full w-full object-cover" loading="lazy" decoding="async" />
                         @if (predictionOf(post); as state) {
                         <div class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/60">
                             @if (state === 'running') {
-                            <div class="h-8 w-8 animate-spin rounded-full border-3 border-accent-primary-glow border-t-accent-primary"></div>
+                            <div class="h-8 w-8 animate-spin rounded-full border-3 border-accent/30 border-t-accent"></div>
                             }
                         </div>
                         }
                     </div>
                     <div class="min-w-0 flex-1 space-y-1.5">
-                        <p class="truncate text-sm text-text-muted">{{ fileName(post) }}</p>
+                        <p class="truncate text-sm text-fg-muted">{{ fileName(post) }}</p>
                         @for (location of existingOf(post); track location.libraryId + location.folder) {
-                        <p class="truncate text-xs text-status-warning">Already in {{ store.label(location) }}</p>
+                        <p class="truncate text-xs text-warning">Already in {{ store.label(location) }}</p>
                         }
                         <div class="flex flex-wrap gap-1.5">
                             @for (location of draftOf(post); track location.libraryId + location.folder) {
-                            <span class="inline-flex items-center gap-1.5 rounded-full border border-accent-primary/40 bg-accent-primary-glow px-2.5 py-0.5 text-sm text-text-primary">
+                            <span class="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/15 px-2.5 py-0.5 text-sm text-fg">
                                 {{ store.label(location) }}
-                                @if (scoreOf(post, location); as score) {<span class="text-xs text-text-muted">{{ score * 100 | number:'1.0-0' }}%</span>}
-                                <button type="button" class="text-text-dim hover:text-status-error cursor-pointer" [disabled]="store.busy()"
+                                @if (scoreOf(post, location); as score) {<span class="text-xs text-fg-muted">{{ score * 100 | number:'1.0-0' }}%</span>}
+                                <button type="button" class="text-fg-subtle hover:text-danger cursor-pointer" [disabled]="store.busy()"
                                     (click)="removeFromRow(post, location); $event.stopPropagation()" aria-label="Remove">×</button>
                             </span>
                             }
                             @for (suggestion of extraSuggestions(post); track suggestion.libraryId + suggestion.folder) {
                             <button type="button" [disabled]="store.busy()"
-                                class="rounded-full border border-dashed border-glass-border px-2.5 py-0.5 text-sm text-text-muted hover:text-text-primary cursor-pointer"
+                                class="rounded-full border border-dashed border-line px-2.5 py-0.5 text-sm text-fg-muted hover:text-fg cursor-pointer"
                                 (click)="addToRow(post, suggestion); $event.stopPropagation()">
                                 + {{ store.label(suggestion) }} {{ suggestion.score * 100 | number:'1.0-0' }}%
                             </button>
@@ -95,7 +95,7 @@
                 </div>
             </section>
             } @empty {
-            <p class="text-text-dim italic">{{ store.loading() || v.pending > 0 ? 'Loading inbox…' : 'The inbox is empty. Nice.' }}</p>
+            <p class="text-fg-subtle italic">{{ store.loading() || v.pending > 0 ? 'Loading inbox…' : 'The inbox is empty. Nice.' }}</p>
             }
         </div>
     </section>
@@ -104,26 +104,26 @@
         @if (preview(); as post) {
         <app-inbox-media class="min-h-72 flex-1" [post]="post" />
         <div class="flex items-start justify-between gap-2">
-            <p class="text-sm text-text-muted break-all">
+            <p class="text-sm text-fg-muted break-all">
                 {{ activeRows().length > 1 ? (activeRows().length + ' files selected') : fileName(post) }}
             </p>
             <button appButton type="button" variant="ghost" size="sm" (click)="showHelp.set(!showHelp())" [attr.aria-expanded]="showHelp()" title="Keyboard shortcuts">?</button>
         </div>
 
         @if (showHelp()) {
-        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-glass-border bg-glass-bg p-3 text-xs">
-            <dt class="text-text-primary">↑ / ↓</dt><dd class="text-text-muted">Move between posts</dd>
-            <dt class="text-text-primary">Enter</dt><dd class="text-text-muted">Accept the selection</dd>
-            <dt class="text-text-primary">Ctrl+Enter</dt><dd class="text-text-muted">Accept the whole group</dd>
-            <dt class="text-text-primary">Backspace</dt><dd class="text-text-muted">Clear destinations, moving the selection to Unsure</dd>
-            <dt class="text-text-primary">Del</dt><dd class="text-text-muted">Delete from the inbox</dd>
-            <dt class="text-text-primary">Type</dt><dd class="text-text-muted">Search folders for the selection</dd>
-            <dt class="text-text-primary">Group title</dt><dd class="text-text-muted">Select the whole group to edit it at once</dd>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-line bg-surface p-3 text-xs">
+            <dt class="text-fg">↑ / ↓</dt><dd class="text-fg-muted">Move between posts</dd>
+            <dt class="text-fg">Enter</dt><dd class="text-fg-muted">Accept the selection</dd>
+            <dt class="text-fg">Ctrl+Enter</dt><dd class="text-fg-muted">Accept the whole group</dd>
+            <dt class="text-fg">Backspace</dt><dd class="text-fg-muted">Clear destinations, moving the selection to Unsure</dd>
+            <dt class="text-fg">Del</dt><dd class="text-fg-muted">Delete from the inbox</dd>
+            <dt class="text-fg">Type</dt><dd class="text-fg-muted">Search folders for the selection</dd>
+            <dt class="text-fg">Group title</dt><dd class="text-fg-muted">Select the whole group to edit it at once</dd>
         </dl>
         }
 
         <section class="space-y-2">
-            <h2 class="text-sm font-semibold text-text-primary">Destinations</h2>
+            <h2 class="text-sm font-semibold text-fg">Destinations</h2>
             <app-destination-picker [selected]="commonDestinations()" [disabled]="store.busy()"
                 (added)="addToSelection($event)" (removed)="removeFromSelection($event)" (commit)="acceptSelection()" />
         </section>

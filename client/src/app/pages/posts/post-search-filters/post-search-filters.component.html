@@ -1,19 +1,19 @@
 @if (layout() === 'popover') {
 <button type="button" aria-label="Search filters" [attr.aria-expanded]="open()"
-    class="inline-flex h-full min-h-[2.75rem] w-12 items-center justify-center rounded-[15px] border border-white/15 bg-bg-tertiary text-text-muted transition-colors duration-150 hover:text-text-primary"
-    [class.border-accent-primary]="open()" [class.text-accent-primary]="open()" (click)="toggle()">
+    class="inline-flex h-full min-h-[2.75rem] w-12 items-center justify-center rounded-[15px] border border-line bg-sunken text-fg-muted transition-colors duration-150 hover:text-fg"
+    [class.border-accent]="open()" [class.text-accent]="open()" (click)="toggle()">
     <ng-container [ngTemplateOutlet]="filterIcon" />
 </button>
 
 @if (open()) {
 <div
-    class="absolute right-0 top-[calc(100%+8px)] z-[500] w-[min(30rem,calc(100vw-2rem))] rounded-[15px] border border-white/10 bg-bg-secondary p-4 shadow-[0_15px_35px_rgba(0,0,0,0.6)]">
+    class="absolute right-0 top-[calc(100%+8px)] z-[500] w-[min(30rem,calc(100vw-2rem))] rounded-[15px] border border-line bg-surface p-4 shadow-[0_15px_35px_rgba(0,0,0,0.6)]">
     <ng-container [ngTemplateOutlet]="panel" />
 </div>
 }
 } @else {
 <button type="button" [attr.aria-expanded]="open()"
-    class="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-glass-border bg-bg-primary px-3 text-sm font-semibold text-text-muted"
+    class="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-line bg-canvas px-3 text-sm font-semibold text-fg-muted"
     (click)="toggle()">
     <span class="inline-flex items-center gap-2">
         <ng-container [ngTemplateOutlet]="filterIcon" />
@@ -27,7 +27,7 @@
 </button>
 
 @if (open()) {
-<div class="mt-2 rounded-md border border-glass-border bg-bg-primary/40 p-3">
+<div class="mt-2 rounded-md border border-line bg-canvas/40 p-3">
     <ng-container [ngTemplateOutlet]="panel" />
 </div>
 }
@@ -46,7 +46,7 @@
     <div class="space-y-4">
         @for (directive of directives; track directive.key) {
         <section>
-            <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-text-dim">{{ directive.label }}</h3>
+            <h3 class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle">{{ directive.label }}</h3>
 
             @switch (directive.value.kind) {
             @case ('options') {
@@ -111,7 +111,7 @@
         </section>
         }
 
-        <div class="flex justify-end border-t border-glass-border pt-3">
+        <div class="flex justify-end border-t border-line pt-3">
             <button type="button" appButton size="sm" (click)="onSearch()">
                 Search
             </button>

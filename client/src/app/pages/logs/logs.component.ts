@@ -68,19 +68,19 @@ export class LogsPageComponent {
   getLevelClass(level: string): string {
     switch (level.toLowerCase()) {
       case 'critical':
-        return 'border-red-300/60 bg-red-500/20 text-red-200';
+        return 'border-danger/60 bg-danger/20 text-danger';
       case 'error':
-        return 'border-rose-300/60 bg-rose-500/20 text-rose-200';
+        return 'border-danger/40 bg-danger/10 text-danger';
       case 'warning':
-        return 'border-amber-300/60 bg-amber-500/20 text-amber-200';
+        return 'border-warning/40 bg-warning/10 text-warning';
       case 'information':
-        return 'border-sky-300/60 bg-sky-500/20 text-sky-200';
+        return 'border-accent/40 bg-accent/10 text-accent';
       case 'debug':
-        return 'border-emerald-300/60 bg-emerald-500/20 text-emerald-200';
+        return 'border-line-strong bg-raised text-fg-muted';
       case 'trace':
-        return 'border-slate-300/50 bg-slate-500/20 text-slate-200';
+        return 'border-line bg-raised text-fg-subtle';
       default:
-        return 'border-gray-300/40 bg-gray-500/20 text-gray-200';
+        return 'border-line bg-raised text-fg-subtle';
     }
   }
 

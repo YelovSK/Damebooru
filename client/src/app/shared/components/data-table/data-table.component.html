@@ -1,20 +1,20 @@
-<div class="overflow-x-auto rounded-lg border border-glass-border">
-  <table class="min-w-full border-collapse bg-glass-bg text-sm">
-    <thead class="bg-black/20">
+<div class="overflow-x-auto rounded-lg border border-line">
+  <table class="min-w-full border-collapse bg-surface text-sm">
+    <thead class="bg-sunken">
       <tr>
         @for (column of columns(); track column.key) {
           <th
             scope="col"
-            class="px-3 py-2 font-semibold text-text-muted"
+            class="px-3 py-2 font-semibold text-fg-muted"
             [class.cursor-pointer]="column.sortable"
             [class.select-none]="column.sortable"
-            [class.hover:text-text-primary]="column.sortable"
+            [class.hover:text-fg]="column.sortable"
             [class]="getAlignClass(column)"
             (click)="onHeaderClick(column)">
             <span class="inline-flex items-center gap-1">
               {{ column.label }}
               @if (column.sortable && isSorted(column)) {
-                <span class="text-[0.7rem] text-accent-primary">
+                <span class="text-[0.7rem] text-accent">
                   {{ sortDirection(column) === 'asc' ? '▲' : '▼' }}
                 </span>
               }
@@ -26,19 +26,19 @@
     <tbody>
       @if (sortedRows().length === 0) {
         <tr>
-          <td [attr.colspan]="columns().length" class="px-3 py-8 text-center text-text-muted">
+          <td [attr.colspan]="columns().length" class="px-3 py-8 text-center text-fg-muted">
             {{ emptyText() }}
           </td>
         </tr>
       } @else {
         @for (row of sortedRows(); track trackBy()(row, $index)) {
           <tr
-            class="border-t border-glass-border transition-colors"
+            class="border-t border-line transition-colors"
             [class.cursor-pointer]="rowClickable()"
-            [class.hover:bg-glass-bg-hover]="rowClickable()"
+            [class.hover:bg-raised]="rowClickable()"
             (click)="onRowClick(row)">
             @for (column of columns(); track column.key) {
-              <td class="px-3 py-2 text-text-primary" [class]="getAlignClass(column)">
+              <td class="px-3 py-2 text-fg" [class]="getAlignClass(column)">
                 {{ column.value(row) }}
               </td>
             }

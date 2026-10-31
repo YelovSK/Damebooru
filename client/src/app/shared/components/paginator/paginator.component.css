@@ -1,16 +1,16 @@
 @reference "../../../../styles.css";
 
 .pagination-btn {
-    @apply flex items-center justify-center min-w-[42px] h-[38px] px-2 rounded-lg bg-[#2d3e5a] border border-white/10 text-[0.9rem] font-medium text-text-muted transition-all cursor-pointer hover:bg-[#3b4d6c] hover:text-text-primary hover:-translate-y-0.5;
+    @apply flex items-center justify-center min-w-[42px] h-[38px] px-2 rounded-lg bg-raised border border-line text-[0.9rem] font-medium text-fg-muted transition-all cursor-pointer hover:bg-line-strong hover:text-fg hover:-translate-y-0.5;
     font-variant-numeric: tabular-nums;
 }
 
 .pagination-btn.active {
-    @apply bg-accent-primary-glow border-accent-primary/40 text-accent-primary shadow-[0_0_15px_rgba(56,189,248,0.15)] translate-y-0 cursor-default;
+    @apply bg-accent/15 border-accent/40 text-accent translate-y-0 cursor-default;
 }
 
 .pagination-btn:disabled {
-    @apply opacity-20 cursor-not-allowed transform-none hover:bg-glass-bg hover:text-text-muted;
+    @apply opacity-20 cursor-not-allowed transform-none hover:bg-surface hover:text-fg-muted;
 }
 
 .arrow-btn {

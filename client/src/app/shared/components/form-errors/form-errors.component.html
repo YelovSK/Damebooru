@@ -2,7 +2,7 @@
   @if (vm.show) {
     <div class="mt-1 ml-1 space-y-1">
       @for (error of vm.errors; track error.key) {
-        <p class="text-[0.75rem] text-red-400 font-medium animate-in fade-in slide-in-from-top-1 duration-200">
+        <p class="text-[0.75rem] text-danger font-medium animate-in fade-in slide-in-from-top-1 duration-200">
           @switch (error.key) {
             @case ('required') { {{ label() || 'Field' }} is required }
             @case ('email') { Invalid email format }

@@ -1,8 +1,8 @@
 <div class="p-3">
-  <h1 class="mb-2 text-3xl font-bold text-accent-primary">Tag Management</h1>
-  <p class="mb-6 text-text-muted">Manage tags and assign fixed categories.</p>
+  <h1 class="mb-2 text-3xl font-bold text-fg">Tag Management</h1>
+  <p class="mb-6 text-fg-muted">Manage tags and assign fixed categories.</p>
 
-  <section class="glass-card p-4">
+  <section class="card p-4">
     <div class="mb-4 flex flex-wrap items-center gap-3">
       <div class="min-w-[280px] grow">
         <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (searchChange)="onTagsSearch($event)">
@@ -11,7 +11,7 @@
       <button appButton type="button" (click)="openCreateTagModal()">New Tag</button>
     </div>
 
-    <div class="mb-3 text-sm text-text-muted">Showing {{ tags().length }} of {{ tagsTotal() }} tags</div>
+    <div class="mb-3 text-sm text-fg-muted">Showing {{ tags().length }} of {{ tagsTotal() }} tags</div>
     <app-data-table [columns]="tagColumns" [rows]="tags()" [trackBy]="trackTagRow"
       sortMode="external" [initialSort]="tagsSort()" (sortChange)="onTagsSortChange($event)"
       (rowClick)="openEditTagModal($event)">
@@ -50,7 +50,7 @@
       (valueChange)="updateEditTag({ category: $event ?? 0 })">
     </app-form-dropdown>
 
-    <span class="text-sm text-text-muted">Merge Into</span>
+    <span class="text-sm text-fg-muted">Merge Into</span>
     <div class="flex items-end gap-2">
       <div class="grow">
         <app-autocomplete [value]="model.mergeTargetName" [suggestions]="mergeTagSuggestions()"
@@ -58,7 +58,7 @@
           (selection)="onMergeSelection($event)" (valueChange)="updateEditTag({ mergeTargetName: $event })">
           <ng-template let-tag>
             <div class="flex w-full items-center justify-between gap-3">
-              <span class="truncate text-accent-primary">{{ tag.name }}</span>
+              <span class="truncate text-fg">{{ tag.name }}</span>
               <span class="badge">{{ tag.usages | number }}</span>
             </div>
           </ng-template>

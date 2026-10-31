@@ -21,20 +21,12 @@ export class ThemeSettingsComponent {
   readonly settings = this.settingsService.themeSettings;
   readonly themeOptions: readonly ThemeOption[] = [
     {
+      value: 'graphite',
+      label: 'Graphite',
+    },
+    {
       value: 'midnight',
       label: 'Midnight',
-    },
-    {
-      value: 'charcoal',
-      label: 'Charcoal',
-    },
-    {
-      value: 'ember',
-      label: 'Ember',
-    },
-    {
-      value: 'forest',
-      label: 'Forest',
     },
     {
       value: 'catppuccin-frappe',

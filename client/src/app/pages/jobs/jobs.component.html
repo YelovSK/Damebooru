@@ -1,19 +1,19 @@
 <div class="p-3">
-  <h1 class="mb-2 text-3xl font-bold text-accent-primary">Job Queues</h1>
-  <p class="mb-8 text-gray-400">Run and schedule background processing tasks.</p>
+  <h1 class="mb-2 text-3xl font-bold text-fg">Job Queues</h1>
+  <p class="mb-8 text-fg-muted">Run and schedule background processing tasks.</p>
 
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-10">
     @for (job of jobs(); track job.name) {
-      <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg flex flex-col">
+      <div class="bg-surface border border-line rounded-lg p-5 flex flex-col">
         <div class="flex justify-between items-start mb-2">
-          <h3 class="text-lg font-semibold text-white">{{ job.name }}</h3>
+          <h3 class="text-lg font-semibold text-fg">{{ job.name }}</h3>
           @if (job.isRunning) {
-            <span class="bg-yellow-600/20 text-yellow-400 border border-yellow-600/40 px-2 py-0.5 rounded text-xs font-bold shrink-0 ml-2">
+            <span class="bg-warning/20 text-warning border border-warning/40 px-2 py-0.5 rounded text-xs font-bold shrink-0 ml-2">
               RUNNING
             </span>
           }
         </div>
-        <p class="text-sm text-gray-400 mb-4 flex-1">{{ job.description }}</p>
+        <p class="text-sm text-fg-muted mb-4 flex-1">{{ job.description }}</p>
 
         @if (job.isRunning && job.activeJobInfo) {
           <div class="mb-4">
@@ -21,14 +21,14 @@
               class="mb-1.5"
               [progress]="getProgressPercent(job.activeJobInfo.state)"
               [indeterminate]="!isDeterminateProgress(job.activeJobInfo.state)"
-              [trackClass]="'bg-gray-700'"
-              [fillClass]="'bg-accent-primary'">
+              [trackClass]="'bg-raised'"
+              [fillClass]="'bg-accent'">
             </app-progress-bar>
-            <p class="text-xs text-gray-400">
+            <p class="text-xs text-fg-muted">
               {{ job.activeJobInfo.state.activityText || 'Running...' }}
             </p>
             @if (getStateDetail(job.activeJobInfo.state); as detail) {
-              <p class="text-xs text-gray-500 mt-1">{{ detail }}</p>
+              <p class="text-xs text-fg-subtle mt-1">{{ detail }}</p>
             }
           </div>
         }
@@ -51,26 +51,26 @@
     }
   </div>
 
-  <h2 class="text-2xl font-bold mb-4 text-white">Schedules</h2>
-  <div class="bg-gray-900 border border-gray-700 rounded-lg p-6 shadow-lg mb-8">
-    <div class="mb-4 border border-gray-700 rounded-md overflow-hidden bg-gray-800/30">
+  <h2 class="text-2xl font-bold mb-4 text-fg">Schedules</h2>
+  <div class="bg-surface border border-line rounded-lg p-6 mb-8">
+    <div class="mb-4 border border-line rounded-md overflow-hidden bg-sunken">
       <app-collapsible title="Cron format & examples" [(expanded)]="cronHelpExpanded">
-        <div class="text-xs text-gray-300">
+        <div class="text-xs text-fg">
           <p class="mb-2 font-mono">minute hour day-of-month month day-of-week (UTC)</p>
           <ul class="list-disc pl-5 space-y-1">
             @for (example of cronExamples; track example) {
               <li>{{ example }}</li>
             }
           </ul>
-          <p class="mt-2 text-gray-400">Type in the cron input to see live validation and upcoming run times.</p>
+          <p class="mt-2 text-fg-muted">Type in the cron input to see live validation and upcoming run times.</p>
         </div>
       </app-collapsible>
     </div>
 
     <div class="overflow-x-auto">
-      <table class="min-w-[760px] w-full text-left text-gray-300">
+      <table class="min-w-[760px] w-full text-left text-fg">
         <thead>
-          <tr class="border-b border-gray-700">
+          <tr class="border-b border-line">
             <th class="py-2">Job Name</th>
             <th class="py-2">Cron Expression</th>
             <th class="py-2">Next Runs</th>
@@ -81,7 +81,7 @@
         </thead>
         <tbody>
           @for (schedule of schedules(); track schedule.id) {
-            <tr class="border-b border-gray-800">
+            <tr class="border-b border-line">
               <td class="py-2">{{ schedule.jobName }}</td>
               <td class="py-2">
                 <div class="w-44">
@@ -95,23 +95,23 @@
 
                 @if (getCronPreview(schedule.id); as preview) {
                   @if (!preview.isValid) {
-                    <p class="mt-1 text-xs text-red-400">{{ preview.error }}</p>
+                    <p class="mt-1 text-xs text-danger">{{ preview.error }}</p>
                   }
                 }
               </td>
               <td class="py-2 text-sm align-top">
                 @if (getCronPreview(schedule.id); as preview) {
                   @if (preview.isValid && preview.nextRuns.length > 0) {
-                    <ul class="list-disc pl-4 text-xs text-gray-300">
+                    <ul class="list-disc pl-4 text-xs text-fg">
                       @for (nextRun of preview.nextRuns; track nextRun) {
                         <li [appTooltip]="nextRun | dateTime" [tooltipFollowCursor]="true">{{ nextRun | relativeDuration: now() }}</li>
                       }
                     </ul>
                   } @else {
-                    <span class="text-gray-500">-</span>
+                    <span class="text-fg-subtle">-</span>
                   }
                 } @else {
-                  <span class="text-gray-500">-</span>
+                  <span class="text-fg-subtle">-</span>
                 }
               </td>
               <td class="py-2 text-sm" [appTooltip]="schedule.lastRun | dateTime" [tooltipFollowCursor]="true">{{ schedule.lastRun | relativeDuration: now() }}</td>
@@ -129,8 +129,8 @@
     </div>
   </div>
 
-  <h2 class="text-2xl font-bold mb-4 text-white">Execution History</h2>
-  <div class="bg-gray-900 border border-gray-700 rounded-lg p-6 shadow-lg overflow-x-auto">
+  <h2 class="text-2xl font-bold mb-4 text-fg">Execution History</h2>
+  <div class="bg-surface border border-line rounded-lg p-6 overflow-x-auto">
     <app-data-table
       [columns]="historyColumns"
       [rows]="history()"
@@ -140,7 +140,7 @@
     </app-data-table>
 
     @if (historyTotalPages() > 1) {
-      <div class="flex justify-center mt-4 pt-4 border-t border-gray-700">
+      <div class="flex justify-center mt-4 pt-4 border-t border-line">
         <app-paginator
           [currentPage]="historyPage()"
           [totalPages]="historyTotalPages()"

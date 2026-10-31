@@ -12,12 +12,12 @@ interface ButtonClassOptions {
 const baseClasses = 'inline-flex items-center text-center justify-center font-semibold cursor-pointer transition-all duration-200 rounded-md border disabled:opacity-30 disabled:cursor-not-allowed disabled:transform-none';
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-accent-primary-glow text-accent-primary border-accent-primary/20 hover:bg-accent-primary hover:text-bg-primary hover:-translate-y-0.5 hover:shadow-[0_5px_15px_var(--color-accent-primary-glow)]',
-  secondary: 'bg-[#1e3a5f] text-text-primary border-[#2a4d6e] hover:bg-[#264a6e] hover:text-white hover:-translate-y-0.5',
-  danger: 'bg-transparent border-status-error/50 text-status-error hover:bg-status-error hover:text-white hover:shadow-[0_0_15px_rgba(239,68,68,0.2)]',
-  ghost: 'bg-transparent border-transparent text-text-dim hover:text-status-error',
-  success: 'bg-transparent border-status-success/50 text-status-success hover:bg-status-success hover:text-white',
-  warning: 'bg-transparent border-status-warning/50 text-status-warning hover:bg-status-warning hover:text-white',
+  primary: 'bg-accent/15 text-accent border-accent/20 hover:bg-accent hover:text-on-accent hover:-translate-y-0.5',
+  secondary: 'bg-raised text-fg border-line-strong hover:bg-line-strong hover:-translate-y-0.5',
+  danger: 'bg-transparent border-danger/50 text-danger hover:bg-danger hover:text-on-accent',
+  ghost: 'bg-transparent border-transparent text-fg-subtle hover:text-danger',
+  success: 'bg-transparent border-success/50 text-success hover:bg-success hover:text-on-accent',
+  warning: 'bg-transparent border-warning/50 text-warning hover:bg-warning hover:text-on-accent',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {

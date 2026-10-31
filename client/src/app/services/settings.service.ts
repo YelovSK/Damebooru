@@ -22,10 +22,8 @@ export interface ThemeSettings {
 
 export type ImagePreloadMode = 'adaptive' | 'off' | 'conservative' | 'aggressive';
 export type AppTheme =
+  | 'graphite'
   | 'midnight'
-  | 'charcoal'
-  | 'ember'
-  | 'forest'
   | 'catppuccin-frappe'
   | 'catppuccin-macchiato'
   | 'catppuccin-mocha';
@@ -44,14 +42,12 @@ const DEFAULT_PERFORMANCE_SETTINGS: PerformanceSettings = {
 };
 
 const DEFAULT_THEME_SETTINGS: ThemeSettings = {
-  theme: 'midnight',
+  theme: 'graphite',
 };
 
 const APP_THEMES = new Set<AppTheme>([
+  'graphite',
   'midnight',
-  'charcoal',
-  'ember',
-  'forest',
   'catppuccin-frappe',
   'catppuccin-macchiato',
   'catppuccin-mocha',

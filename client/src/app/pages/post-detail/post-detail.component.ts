@@ -662,17 +662,17 @@ export class PostDetailComponent {
   getTagCategoryColor(tag: { category?: TagCategoryKind | null }): string {
     switch (tag.category) {
       case TagCategoryKind.General:
-        return '#7dd3fc';
+        return 'var(--color-tag-general)';
       case TagCategoryKind.Artist:
-        return '#f9a8d4';
+        return 'var(--color-tag-artist)';
       case TagCategoryKind.Character:
-        return '#86efac';
+        return 'var(--color-tag-character)';
       case TagCategoryKind.Copyright:
-        return '#fcd34d';
+        return 'var(--color-tag-copyright)';
       case TagCategoryKind.Meta:
-        return '#c4b5fd';
+        return 'var(--color-tag-meta)';
       default:
-        return 'var(--color-text-dim)';
+        return 'var(--color-fg-subtle)';
     }
   }
 
@@ -1124,20 +1124,20 @@ export class PostDetailComponent {
 
   getAutoTagStatusClass(status: PostAutoTagStatus | null): string {
     if (!status || !status.hasScan || status.scanStatus === null) {
-      return 'bg-white/10 text-text-muted border-white/15';
+      return 'bg-raised text-fg-muted border-line';
     }
 
     switch (status.scanStatus) {
       case AutoTagScanStatus.Completed:
-        return 'bg-status-success/15 text-status-success border-status-success/30';
+        return 'bg-success/15 text-success border-success/30';
       case AutoTagScanStatus.Partial:
-        return 'bg-status-warning/15 text-status-warning border-status-warning/30';
+        return 'bg-warning/15 text-warning border-warning/30';
       case AutoTagScanStatus.Failed:
-        return 'bg-status-error/15 text-status-error border-status-error/30';
+        return 'bg-danger/15 text-danger border-danger/30';
       case AutoTagScanStatus.InProgress:
-        return 'bg-accent-primary/15 text-accent-primary border-accent-primary/30';
+        return 'bg-accent/15 text-accent border-accent/30';
       default:
-        return 'bg-white/10 text-text-muted border-white/15';
+        return 'bg-raised text-fg-muted border-line';
     }
   }
 
@@ -1183,19 +1183,19 @@ export class PostDetailComponent {
 
   getProviderStatusClass(providerStatus: PostAutoTagProviderStatus): string {
     if (!providerStatus.isEnabled) {
-      return 'text-text-muted';
+      return 'text-fg-muted';
     }
 
     switch (providerStatus.status) {
       case AutoTagScanStepStatus.Succeeded:
-        return 'text-status-success';
+        return 'text-success';
       case AutoTagScanStepStatus.RetryableFailure:
       case AutoTagScanStepStatus.PermanentFailure:
-        return 'text-status-error';
+        return 'text-danger';
       case AutoTagScanStepStatus.Running:
-        return 'text-accent-primary';
+        return 'text-accent';
       default:
-        return 'text-text-muted';
+        return 'text-fg-muted';
     }
   }
 

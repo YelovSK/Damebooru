@@ -1,6 +1,6 @@
 <section class="relative w-full">
     <header
-        class="posts-toolbar sticky top-3 z-30 mx-3 mb-3 hidden overflow-visible rounded-xl border border-glass-border bg-bg-secondary px-3 py-3 shadow-none md:block lg:px-4">
+        class="posts-toolbar sticky top-3 z-30 mx-3 mb-3 hidden overflow-visible rounded-xl border border-line bg-surface px-3 py-3 shadow-none md:block lg:px-4">
         <div class="flex flex-col gap-[0.55rem] md:gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div class="relative z-20 flex w-full items-stretch gap-2 lg:max-w-[600px]">
                 <app-autocomplete class="min-w-0 flex-1" [value]="currentSearchValue()" [suggestions]="searchSuggestions()" [multi]="true" [suggestAfterSelection]="true"
@@ -19,10 +19,10 @@
             <div
                 class="flex w-full min-w-0 flex-nowrap items-stretch justify-between gap-1.5 lg:w-auto lg:flex-wrap lg:items-center lg:justify-end lg:gap-2">
                 <div
-                    class="inline-flex h-[1.9rem] min-h-[1.9rem] flex-none items-center gap-1 rounded-lg border border-glass-border bg-bg-primary p-[0.2rem] box-border md:h-[2.05rem] md:min-h-[2.05rem] md:gap-2 md:p-0">
+                    class="inline-flex h-[1.9rem] min-h-[1.9rem] flex-none items-center gap-1 rounded-lg border border-line bg-canvas p-[0.2rem] box-border md:h-[2.05rem] md:min-h-[2.05rem] md:gap-2 md:p-0">
                     @for (densityOption of densityOptions; track densityOption.value) {
                     <button type="button"
-                        class="inline-flex h-full items-center justify-center whitespace-nowrap rounded-[0.45rem] border border-transparent bg-transparent px-[0.56rem] text-[0.72rem] font-semibold text-text-muted transition-all duration-150 hover:bg-white/5 hover:text-text-primary md:rounded-[0.55rem] md:px-[0.72rem] md:text-[0.76rem]"
+                        class="inline-flex h-full items-center justify-center whitespace-nowrap rounded-[0.45rem] border border-transparent bg-transparent px-[0.56rem] text-[0.72rem] font-semibold text-fg-muted transition-all duration-150 hover:bg-raised hover:text-fg md:rounded-[0.55rem] md:px-[0.72rem] md:text-[0.76rem]"
                         [class.density-option-selected]="density() === densityOption.value"
                         (click)="onDensitySelect(densityOption.value)">
                         {{ densityOption.label }}
@@ -31,7 +31,7 @@
                 </div>
 
                 <div
-                    class="inline-flex h-[1.9rem] min-h-[1.9rem] flex-none items-center overflow-hidden whitespace-nowrap rounded-[0.7rem] border border-glass-border bg-bg-primary px-[0.56rem] text-[0.74rem] font-semibold text-text-muted text-ellipsis box-border md:h-[2.05rem] md:min-h-[2.05rem] md:px-[0.7rem] md:text-[0.8rem]">
+                    class="inline-flex h-[1.9rem] min-h-[1.9rem] flex-none items-center overflow-hidden whitespace-nowrap rounded-[0.7rem] border border-line bg-canvas px-[0.56rem] text-[0.74rem] font-semibold text-fg-muted text-ellipsis box-border md:h-[2.05rem] md:min-h-[2.05rem] md:px-[0.7rem] md:text-[0.8rem]">
                     @if (totalCount() !== null) {
                     <span>{{ totalCount()! | number }} posts</span>
                     } @else {
@@ -43,7 +43,7 @@
     </header>
 
     @if (hasNoResults()) {
-    <div class="rounded-xl border border-glass-border bg-glass-bg p-10 text-center text-text-muted">
+    <div class="rounded-xl border border-line bg-surface p-10 text-center text-fg-muted">
         No posts match your search.
     </div>
     }
@@ -68,7 +68,7 @@
                     <app-post-tile [post]="post" [queryParams]="activeQueryParams()" />
                     }
                     } @else if (cell.kind === 'skeleton') {
-                    <div class="aspect-square rounded-md bg-bg-secondary">
+                    <div class="aspect-square rounded-md bg-surface">
                     </div>
                     } @else {
                     <!-- Leave this empty -->
@@ -87,11 +87,11 @@
                 [style.height.px]="fastScrollerThumbHeightPx()"
                 [style.--fast-scroller-travel]="fastScrollerThumbTravelPx() + 'px'">
                 <div
-                    class="fast-scroller-thumb absolute inset-y-0 left-1/2 w-[6px] -translate-x-1/2 rounded-full bg-gradient-to-b from-sky-400/95 to-sky-500/95 shadow-[0_5px_14px_rgba(2,132,199,0.42)]">
+                    class="fast-scroller-thumb absolute inset-y-0 left-1/2 w-[6px] -translate-x-1/2 rounded-full bg-accent">
                 </div>
 
                 @if (showFastScrollerBubble()) {
-                <div class="pointer-events-none absolute top-1/2 right-[calc(100%+3px)] inline-flex h-9 min-w-[74px] -translate-y-1/2 items-center justify-center whitespace-nowrap rounded-full border border-sky-300/45 bg-slate-900/92 px-[0.72rem] text-[0.74rem] font-bold text-text-secondary">
+                <div class="pointer-events-none absolute top-1/2 right-[calc(100%+3px)] inline-flex h-9 min-w-[74px] -translate-y-1/2 items-center justify-center whitespace-nowrap rounded-full border border-line-strong bg-surface px-[0.72rem] text-[0.74rem] font-bold text-fg">
                     Post {{ fastScrollerBubblePost() | number }}
                 </div>
                 }
@@ -104,7 +104,7 @@
     }
 
     <button type="button"
-        class="fixed right-4 z-[70] inline-flex h-12 w-12 touch-none items-center justify-center rounded-full border border-white/10 bg-bg-secondary/95 text-text-secondary shadow-glass backdrop-blur-sm transition-[opacity,translate,background-color] duration-200 will-change-[opacity,translate] hover:bg-bg-secondary md:hidden"
+        class="fixed right-4 z-[70] inline-flex h-12 w-12 touch-none items-center justify-center rounded-full border border-line bg-surface/95 text-fg backdrop-blur-sm transition-[opacity,translate,background-color] duration-200 will-change-[opacity,translate] hover:bg-surface md:hidden"
         aria-label="Open post controls" [attr.aria-expanded]="mobileControlsOpen()"
         [class.pointer-events-none]="!scrollControlsVisible() && !mobileControlsOpen()"
         [class.opacity-0]="!scrollControlsVisible() && !mobileControlsOpen()"
@@ -122,8 +122,8 @@
     <app-mobile-bottom-sheet [open]="mobileControlsOpen()" (openChange)="mobileControlsOpen.set($event)">
             <div class="mb-3 flex items-center justify-between gap-3">
                 <div class="min-w-0">
-                    <div class="truncate text-sm font-semibold text-text-secondary">{{ mobileControlsLabel() }}</div>
-                    <div class="text-xs font-medium text-text-muted">
+                    <div class="truncate text-sm font-semibold text-fg">{{ mobileControlsLabel() }}</div>
+                    <div class="text-xs font-medium text-fg-muted">
                         @if (totalCount() !== null) {
                         {{ totalCount()! | number }} posts
                         } @else {
@@ -133,7 +133,7 @@
                 </div>
 
                 <button type="button"
-                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-text-muted transition-colors hover:bg-white/5 hover:text-text-secondary"
+                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line text-fg-muted transition-colors hover:bg-raised hover:text-fg"
                     aria-label="Close post controls" (click)="closeMobileControls()">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none"
                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -161,10 +161,10 @@
 
             <div class="mt-3 flex items-center justify-between gap-3">
                 <div
-                    class="inline-flex h-10 min-h-10 flex-1 items-center gap-1 rounded-md border border-glass-border bg-bg-primary p-1">
+                    class="inline-flex h-10 min-h-10 flex-1 items-center gap-1 rounded-md border border-line bg-canvas p-1">
                     @for (densityOption of densityOptions; track densityOption.value) {
                     <button type="button"
-                        class="inline-flex h-full flex-1 items-center justify-center whitespace-nowrap rounded-sm border border-transparent bg-transparent px-2 text-xs font-semibold text-text-muted transition-all duration-150 hover:bg-white/5 hover:text-text-primary"
+                        class="inline-flex h-full flex-1 items-center justify-center whitespace-nowrap rounded-sm border border-transparent bg-transparent px-2 text-xs font-semibold text-fg-muted transition-all duration-150 hover:bg-raised hover:text-fg"
                         [class.density-option-selected]="density() === densityOption.value"
                         (click)="onDensitySelect(densityOption.value)">
                         {{ densityOption.label }}
@@ -179,14 +179,14 @@
     @switch (suggestion.kind) {
     @case ('tag') {
     <div class="flex w-full items-center justify-between gap-3">
-        <span class="truncate text-accent-primary">{{ suggestion.tag.name }}</span>
+        <span class="truncate text-fg">{{ suggestion.tag.name }}</span>
         <span class="badge">{{ suggestion.tag.usages | number }}</span>
     </div>
     }
     @case ('syntax') {
     <div class="flex w-full items-center justify-between gap-3">
-        <code class="truncate text-text-secondary">{{ suggestion.syntax.text }}</code>
-        <span class="shrink-0 text-xs text-text-dim">{{ suggestion.syntax.label }}</span>
+        <code class="truncate text-fg">{{ suggestion.syntax.text }}</code>
+        <span class="shrink-0 text-xs text-fg-subtle">{{ suggestion.syntax.label }}</span>
     </div>
     }
     }

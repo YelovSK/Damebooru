@@ -1,7 +1,7 @@
 :host {
     display: block;
-    background: var(--color-bg-primary);
+    background: var(--color-canvas);
     min-height: 100dvh;
-    color: var(--color-text-primary);
+    color: var(--color-fg);
     font-family: 'Inter', sans-serif;
 }

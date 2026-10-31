@@ -1,30 +1,29 @@
-<h2 class="mb-2 text-2xl font-bold text-text-secondary">Theme Settings</h2>
-<p class="mb-6 text-text-muted">Choose the base color theme for the client.</p>
+<h2 class="mb-2 text-2xl font-bold text-fg">Theme Settings</h2>
+<p class="mb-6 text-fg-muted">Choose the base color theme for the client.</p>
 
-<div class="rounded-lg border border-glass-border bg-bg-secondary p-6">
-  <div class="grid gap-3 sm:grid-cols-2">
-    @for (theme of themeOptions; track theme.value) {
-      <button
-        type="button"
-        class="group flex min-h-32 flex-col rounded-lg border p-4 text-left transition-all hover:-translate-y-0.5 hover:bg-glass-bg-hover"
-        [class.border-accent-primary]="settings().theme === theme.value"
-        [class.bg-accent-primary-glow]="settings().theme === theme.value"
-        [class.border-glass-border]="settings().theme !== theme.value"
-        [class.bg-glass-bg]="settings().theme !== theme.value"
-        (click)="selectTheme(theme.value)">
-        <span class="mb-3 flex items-center gap-2" [attr.data-theme]="theme.value">
-          <span class="h-5 w-5 rounded-full border border-white/20 bg-bg-primary"></span>
-          <span class="h-5 w-5 rounded-full border border-white/20 bg-bg-secondary"></span>
-          <span class="h-5 w-5 rounded-full border border-white/20 bg-accent-primary"></span>
-          <span class="h-5 w-5 rounded-full border border-white/20 bg-accent-secondary"></span>
-        </span>
-        <span class="text-base font-semibold text-text-primary">{{ theme.label }}</span>
+<div class="grid gap-3 sm:grid-cols-2">
+  @for (theme of themeOptions; track theme.value) {
+    <button
+      type="button"
+      class="flex flex-col gap-3 rounded-lg border p-4 text-left transition-colors"
+      [class.border-accent]="settings().theme === theme.value"
+      [class.border-line]="settings().theme !== theme.value"
+      [class.hover:border-line-strong]="settings().theme !== theme.value"
+      [attr.data-theme]="theme.value"
+      (click)="selectTheme(theme.value)">
+      <span class="flex h-14 overflow-hidden rounded-md border border-line">
+        <span class="flex-1 bg-sunken"></span>
+        <span class="flex-1 bg-canvas"></span>
+        <span class="flex-1 bg-surface"></span>
+        <span class="flex-1 bg-raised"></span>
+        <span class="flex-1 bg-accent"></span>
+      </span>
+      <span class="flex items-center justify-between">
+        <span class="font-semibold text-fg">{{ theme.label }}</span>
         @if (settings().theme === theme.value) {
-          <span class="mt-auto pt-4 text-xs font-semibold uppercase tracking-wide text-accent-primary">
-            Active
-          </span>
+          <span class="text-xs font-semibold uppercase tracking-wide text-accent">Active</span>
         }
-      </button>
-    }
-  </div>
+      </span>
+    </button>
+  }
 </div>

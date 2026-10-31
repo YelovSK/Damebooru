@@ -12,11 +12,11 @@ interface SourceBadgeViewModel {
 }
 
 const SOURCE_BADGES: Record<PostTagSource, Omit<SourceBadgeViewModel, 'source'>> = {
-  [PostTagSource.Manual]: { label: 'Manual', icon: 'M', className: 'border-emerald-500/35 bg-emerald-500/12 text-emerald-200' },
-  [PostTagSource.Folder]: { label: 'Folder', icon: 'F', className: 'border-sky-500/35 bg-sky-500/12 text-sky-200' },
-  [PostTagSource.Ai]: { label: 'AI', icon: 'AI', className: 'border-fuchsia-500/35 bg-fuchsia-500/12 text-fuchsia-200' },
-  [PostTagSource.Danbooru]: { label: 'Danbooru', icon: 'D', className: 'border-amber-500/35 bg-amber-500/12 text-amber-100' },
-  [PostTagSource.Gelbooru]: { label: 'Gelbooru', icon: 'G', className: 'border-violet-500/35 bg-violet-500/12 text-violet-100' },
+  [PostTagSource.Manual]: { label: 'Manual', icon: 'M', className: 'border-success/35 bg-success/12 text-success' },
+  [PostTagSource.Folder]: { label: 'Folder', icon: 'F', className: 'border-accent/35 bg-accent/12 text-accent' },
+  [PostTagSource.Ai]: { label: 'AI', icon: 'AI', className: 'border-tag-artist/35 bg-tag-artist/12 text-tag-artist' },
+  [PostTagSource.Danbooru]: { label: 'Danbooru', icon: 'D', className: 'border-warning/35 bg-warning/12 text-warning' },
+  [PostTagSource.Gelbooru]: { label: 'Gelbooru', icon: 'G', className: 'border-tag-meta/35 bg-tag-meta/12 text-tag-meta' },
 };
 
 @Component({

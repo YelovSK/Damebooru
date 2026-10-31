@@ -1,8 +1,8 @@
 <div class="space-y-4">
   @for (bucket of buckets(); track trackBucket($index, bucket)) {
-  <div class="rounded-lg border border-gray-800 bg-gray-950/50 p-3">
+  <div class="rounded-lg border border-line bg-sunken p-3">
     <div class="mb-3 flex flex-wrap items-center gap-3">
-      <div class="text-sm font-semibold text-white">
+      <div class="text-sm font-semibold text-fg">
         {{ bucket.libraryName }} / {{ bucket.folderPath | displayPath:'(library root)' }}
       </div>
     </div>
@@ -10,9 +10,9 @@
     <div class="flex flex-wrap gap-3">
       @for (item of bucket.items; track trackItem($index, item)) {
       <div
-        class="relative flex w-full flex-col overflow-hidden rounded-lg border border-gray-700 bg-gray-800 transition-colors sm:w-48 md:w-56"
-        [class.hover:border-accent-primary]="hoverTone() === 'accent'"
-        [class.hover:border-red-500]="hoverTone() === 'danger'">
+        class="relative flex w-full flex-col overflow-hidden rounded-lg border border-line bg-raised transition-colors sm:w-48 md:w-56"
+        [class.hover:border-accent]="hoverTone() === 'accent'"
+        [class.hover:border-danger]="hoverTone() === 'danger'">
         <div
           class="relative aspect-square overflow-hidden"
           (mouseenter)="itemMouseEnter.emit(item.postId)"
@@ -27,11 +27,11 @@
         </div>
 
         <div class="flex flex-1 flex-col gap-2 p-2">
-          <a [routerLink]="['/post', item.postId]" class="block hover:bg-gray-700/50 transition-colors rounded px-1 py-1">
-            <div class="text-xs text-gray-400 truncate mb-1" [title]="item.relativePath">
+          <a [routerLink]="['/post', item.postId]" class="block hover:bg-raised transition-colors rounded px-1 py-1">
+            <div class="text-xs text-fg-muted truncate mb-1" [title]="item.relativePath">
               {{ item.relativePath | fileName }}
             </div>
-            <div class="flex justify-between text-xs text-gray-500">
+            <div class="flex justify-between text-xs text-fg-subtle">
               <span>{{ item.width }}x{{ item.height }}</span>
               <span>{{ item.sizeBytes | fileSize }}</span>
             </div>
@@ -50,7 +50,7 @@
         </div>
 
         @if (item.isRecommendedKeep) {
-        <div class="pointer-events-none absolute left-2 top-2 rounded bg-green-600 px-2 py-0.5 text-[10px] font-bold text-white">
+        <div class="pointer-events-none absolute left-2 top-2 rounded bg-success px-2 py-0.5 text-[10px] font-bold text-on-accent">
           KEEP (AUTO)
         </div>
         }

@@ -1,11 +1,11 @@
-<figure class="rounded-xl border border-white/10 bg-surface-card/35 p-4">
+<figure class="rounded-xl border border-line bg-sunken p-4">
   @if (title() || description()) {
     <figcaption class="mb-4 flex flex-col gap-1">
       @if (title()) {
-        <h3 class="text-sm font-semibold text-text-primary">{{ title() }}</h3>
+        <h3 class="text-sm font-semibold text-fg">{{ title() }}</h3>
       }
       @if (description()) {
-        <p class="text-xs text-text-muted">{{ description() }}</p>
+        <p class="text-xs text-fg-muted">{{ description() }}</p>
       }
     </figcaption>
   }
@@ -13,7 +13,7 @@
   <div #chartSurface class="relative overflow-hidden rounded-lg">
     @if (hasData()) {
       <svg
-        class="block h-auto w-full overflow-visible text-accent-primary"
+        class="block h-auto w-full overflow-visible text-accent"
         [attr.viewBox]="viewBox()"
         [attr.height]="height()"
         role="img"
@@ -35,7 +35,7 @@
           </filter>
         </defs>
 
-        <g class="text-text-muted">
+        <g class="text-fg-muted">
           @for (tick of yTicks(); track tick.index) {
             <line
               [attr.x1]="padding.left"
@@ -85,7 +85,7 @@
             [attr.cx]="point.x"
             [attr.cy]="point.y"
             r="3.5"
-            class="fill-surface-card stroke-accent-primary"
+            class="fill-surface stroke-accent"
             stroke-width="2" />
         }
 
@@ -94,11 +94,11 @@
             [attr.cx]="active.x"
             [attr.cy]="active.y"
             r="6"
-            class="fill-bg-primary stroke-accent-primary"
+            class="fill-canvas stroke-accent"
             stroke-width="3" />
         }
 
-        <g class="text-text-muted">
+        <g class="text-fg-muted">
           @for (label of xLabels(); track label.index) {
             <text
               [attr.x]="label.x"
@@ -113,17 +113,17 @@
 
       @if (activePoint(); as active) {
         <div
-          class="pointer-events-none absolute z-10 rounded-lg border border-accent-primary/30 bg-bg-primary/95 px-3 py-2 text-xs shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur"
+          class="pointer-events-none absolute z-10 rounded-lg border border-accent/30 bg-canvas/95 px-3 py-2 text-xs shadow-[0_10px_30px_rgba(0,0,0,0.35)] backdrop-blur"
           [style.transform]="active.tooltipTransform"
           [style.left.%]="active.tooltipXPercent"
           [style.top.%]="active.tooltipYPercent">
-          <p class="font-semibold text-text-primary">{{ active.formattedValue }}</p>
-          <p class="mt-0.5 whitespace-nowrap text-text-muted">{{ active.label }}</p>
+          <p class="font-semibold text-fg">{{ active.formattedValue }}</p>
+          <p class="mt-0.5 whitespace-nowrap text-fg-muted">{{ active.label }}</p>
         </div>
       }
     } @else {
       <div
-        class="flex items-center justify-center rounded-lg border border-dashed border-white/10 text-sm text-text-muted"
+        class="flex items-center justify-center rounded-lg border border-dashed border-line text-sm text-fg-muted"
         [style.height.px]="height()">
         {{ emptyLabel() }}
       </div>

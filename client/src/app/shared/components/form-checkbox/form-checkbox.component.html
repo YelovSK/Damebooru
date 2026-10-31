@@ -10,9 +10,9 @@
     (keydown.space)="toggle()"
   >
     <div
-      class="relative w-10 h-6 transition-colors duration-200 rounded-full border border-glass-border shrink-0"
-      [class.bg-accent-primary]="value"
-      [class.bg-glass-bg]="!value"
+      class="relative w-10 h-6 transition-colors duration-200 rounded-full border border-line shrink-0"
+      [class.bg-accent]="value"
+      [class.bg-surface]="!value"
     >
       <div
         class="absolute top-1/2 left-1 h-4 w-4 -translate-y-1/2 rounded-full bg-white transition-transform duration-200"
@@ -20,7 +20,7 @@
       ></div>
     </div>
     @if (label()) {
-      <span class="ml-3 text-[0.9rem] font-medium text-text-primary group-hover:text-text-secondary transition-colors">
+      <span class="ml-3 text-[0.9rem] font-medium text-fg group-hover:text-fg transition-colors">
         {{ label() }}
       </span>
     }

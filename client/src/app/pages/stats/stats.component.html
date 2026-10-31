@@ -1,60 +1,60 @@
 <div class="p-3">
     <div class="mb-6">
-        <h1 class="mb-2 text-3xl font-bold text-accent-primary">Stats</h1>
-        <p class="mb-6 text-gray-400">Numbers and stuff.</p>
+        <h1 class="mb-2 text-3xl font-bold text-fg">Stats</h1>
+        <p class="mb-6 text-fg-muted">Numbers and stuff.</p>
     </div>
 
     @if (overview(); as data) {
         <app-tabs>
             <app-tab id="overview" label="Overview">
                 <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Total Posts</p>
-                        <p class="mt-3 text-3xl font-bold text-text-primary">{{ data.postCount | number }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Total Posts</p>
+                        <p class="mt-3 text-3xl font-bold text-fg">{{ data.postCount | number }}</p>
                     </section>
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Files</p>
-                        <p class="mt-3 text-3xl font-bold text-text-primary">{{ data.fileCount | number }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Files</p>
+                        <p class="mt-3 text-3xl font-bold text-fg">{{ data.fileCount | number }}</p>
                     </section>
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Total Size</p>
-                        <p class="mt-3 text-3xl font-bold text-text-primary">{{ data.totalSizeBytes | fileSize }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Total Size</p>
+                        <p class="mt-3 text-3xl font-bold text-fg">{{ data.totalSizeBytes | fileSize }}</p>
                     </section>
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Tags</p>
-                        <p class="mt-3 text-3xl font-bold text-text-primary">{{ data.tagCount | number }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Tags</p>
+                        <p class="mt-3 text-3xl font-bold text-fg">{{ data.tagCount | number }}</p>
                     </section>
                 </div>
 
                 <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Unsorted Posts</p>
-                        <p class="mt-3 text-2xl font-bold text-text-primary">{{ data.unsortedPostCount | number }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Unsorted Posts</p>
+                        <p class="mt-3 text-2xl font-bold text-fg">{{ data.unsortedPostCount | number }}</p>
                     </section>
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Favorites</p>
-                        <p class="mt-3 text-2xl font-bold text-text-primary">{{ data.favoritePostCount | number }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Favorites</p>
+                        <p class="mt-3 text-2xl font-bold text-fg">{{ data.favoritePostCount | number }}</p>
                     </section>
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Untagged Posts</p>
-                        <p class="mt-3 text-2xl font-bold text-text-primary">{{ data.untaggedPostCount | number }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Untagged Posts</p>
+                        <p class="mt-3 text-2xl font-bold text-fg">{{ data.untaggedPostCount | number }}</p>
                     </section>
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Sources</p>
-                        <p class="mt-3 text-2xl font-bold text-text-primary">{{ data.sourceCount | number }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Sources</p>
+                        <p class="mt-3 text-2xl font-bold text-fg">{{ data.sourceCount | number }}</p>
                     </section>
-                    <section class="glass-card p-5">
-                        <p class="text-sm text-text-muted">Open Duplicate Groups</p>
-                        <p class="mt-3 text-2xl font-bold text-text-primary">{{ data.unresolvedDuplicateGroupCount | number }}</p>
+                    <section class="card p-5">
+                        <p class="text-sm text-fg-muted">Open Duplicate Groups</p>
+                        <p class="mt-3 text-2xl font-bold text-fg">{{ data.unresolvedDuplicateGroupCount | number }}</p>
                     </section>
                 </div>
             </app-tab>
 
             <app-tab id="growth" label="Growth">
-                <div class="mb-4 flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-sunken p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h2 class="text-sm font-semibold text-text-primary">Timeline Date</h2>
-                        <p class="mt-1 text-xs text-text-muted">{{ growthDateDescription() }}</p>
+                        <h2 class="text-sm font-semibold text-fg">Timeline Date</h2>
+                        <p class="mt-1 text-xs text-fg-muted">{{ growthDateDescription() }}</p>
                     </div>
                     <div class="flex gap-2">
                         <button
@@ -95,83 +95,83 @@
             <app-tab id="storage" label="Storage">
                 @if (storage(); as storageData) {
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Total Size</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ storageData.totalSizeBytes | fileSize }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Total Size</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ storageData.totalSizeBytes | fileSize }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Files</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ storageData.fileCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Files</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ storageData.fileCount | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Average File Size</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ storageData.averageFileSizeBytes | fileSize }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Average File Size</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ storageData.averageFileSizeBytes | fileSize }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Images</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ storageData.imageFileCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Images</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ storageData.imageFileCount | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Videos</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ storageData.videoFileCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Videos</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ storageData.videoFileCount | number }}</p>
                         </section>
                     </div>
 
                     <div class="mt-4 grid gap-4 xl:grid-cols-2">
-                        <section class="glass-card p-5">
-                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-text-primary">
-                                <span class="h-6 w-2 rounded-full bg-accent-primary"></span>
+                        <section class="card p-5">
+                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-fg">
+                                <span class="h-6 w-2 rounded-full bg-accent"></span>
                                 Content Types
                             </h2>
                             <div class="space-y-4">
                                 @for (item of storageData.contentTypes; track item.label) {
                                     <div>
                                         <div class="mb-1 flex items-center justify-between gap-4 text-sm">
-                                            <span class="truncate font-medium text-text-primary">{{ item.label }}</span>
-                                            <span class="shrink-0 text-text-muted">{{ item.sizeBytes | fileSize }} · {{ item.fileCount | number }}</span>
+                                            <span class="truncate font-medium text-fg">{{ item.label }}</span>
+                                            <span class="shrink-0 text-fg-muted">{{ item.sizeBytes | fileSize }} · {{ item.fileCount | number }}</span>
                                         </div>
-                                        <div class="h-2 overflow-hidden rounded-full bg-white/5">
+                                        <div class="h-2 overflow-hidden rounded-full bg-raised">
                                             <div
-                                                class="h-full rounded-full bg-accent-primary shadow-[0_0_12px_var(--color-accent-primary-glow)]"
+                                                class="h-full rounded-full bg-accent "
                                                 [style.width.%]="storageSizePercent(item)">
                                             </div>
                                         </div>
-                                        <p class="mt-1 text-xs text-text-muted">{{ formatPercent(storageSizePercent(item)) }} of total size</p>
+                                        <p class="mt-1 text-xs text-fg-muted">{{ formatPercent(storageSizePercent(item)) }} of total size</p>
                                     </div>
                                 } @empty {
-                                    <p class="py-8 text-center text-sm text-text-muted">No content type data yet.</p>
+                                    <p class="py-8 text-center text-sm text-fg-muted">No content type data yet.</p>
                                 }
                             </div>
                         </section>
 
-                        <section class="glass-card p-5">
-                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-text-primary">
-                                <span class="h-6 w-2 rounded-full bg-accent-primary"></span>
+                        <section class="card p-5">
+                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-fg">
+                                <span class="h-6 w-2 rounded-full bg-accent"></span>
                                 Size Buckets
                             </h2>
                             <div class="space-y-4">
                                 @for (item of storageData.sizeBuckets; track item.label) {
                                     <div>
                                         <div class="mb-1 flex items-center justify-between gap-4 text-sm">
-                                            <span class="font-medium text-text-primary">{{ item.label }}</span>
-                                            <span class="shrink-0 text-text-muted">{{ item.sizeBytes | fileSize }} · {{ item.fileCount | number }}</span>
+                                            <span class="font-medium text-fg">{{ item.label }}</span>
+                                            <span class="shrink-0 text-fg-muted">{{ item.sizeBytes | fileSize }} · {{ item.fileCount | number }}</span>
                                         </div>
-                                        <div class="h-2 overflow-hidden rounded-full bg-white/5">
+                                        <div class="h-2 overflow-hidden rounded-full bg-raised">
                                             <div
-                                                class="h-full rounded-full bg-accent-primary shadow-[0_0_12px_var(--color-accent-primary-glow)]"
+                                                class="h-full rounded-full bg-accent "
                                                 [style.width.%]="storageSizePercent(item)">
                                             </div>
                                         </div>
-                                        <p class="mt-1 text-xs text-text-muted">{{ formatPercent(storageSizePercent(item)) }} of total size</p>
+                                        <p class="mt-1 text-xs text-fg-muted">{{ formatPercent(storageSizePercent(item)) }} of total size</p>
                                     </div>
                                 }
                             </div>
                         </section>
                     </div>
                 } @else {
-                    <div class="flex flex-col items-center justify-center py-20 text-text-muted">
+                    <div class="flex flex-col items-center justify-center py-20 text-fg-muted">
                         <div
-                            class="mb-4 h-12 w-12 animate-spin rounded-full border-3 border-accent-primary-glow border-t-accent-primary">
+                            class="mb-4 h-12 w-12 animate-spin rounded-full border-3 border-accent/30 border-t-accent">
                         </div>
                         <p>Loading storage stats...</p>
                     </div>
@@ -181,77 +181,77 @@
             <app-tab id="tags" label="Tags">
                 @if (tagStats(); as tagData) {
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Total Tags</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ tagData.totalTags | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Total Tags</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ tagData.totalTags | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Tagged Posts</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ tagData.taggedPostCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Tagged Posts</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ tagData.taggedPostCount | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Untagged Posts</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ tagData.untaggedPostCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Untagged Posts</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ tagData.untaggedPostCount | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Average Tags / Post</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ tagData.averageTagsPerPost | number:'1.1-1' }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Average Tags / Post</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ tagData.averageTagsPerPost | number:'1.1-1' }}</p>
                         </section>
                     </div>
 
                     <div class="mt-4 grid gap-4 xl:grid-cols-2">
-                        <section class="glass-card p-5">
-                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-text-primary">
-                                <span class="h-6 w-2 rounded-full bg-accent-primary"></span>
+                        <section class="card p-5">
+                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-fg">
+                                <span class="h-6 w-2 rounded-full bg-accent"></span>
                                 Category Breakdown
                             </h2>
                             <div class="space-y-4">
                                 @for (item of tagData.categories; track item.category) {
                                     <div>
                                         <div class="mb-1 flex items-center justify-between gap-4 text-sm">
-                                            <span class="font-medium text-text-primary">{{ tagCategoryLabel(item.category) }}</span>
-                                            <span class="shrink-0 text-text-muted">{{ item.postCount | number }} uses · {{ item.tagCount | number }} tags</span>
+                                            <span class="font-medium text-fg">{{ tagCategoryLabel(item.category) }}</span>
+                                            <span class="shrink-0 text-fg-muted">{{ item.postCount | number }} uses · {{ item.tagCount | number }} tags</span>
                                         </div>
-                                        <div class="h-2 overflow-hidden rounded-full bg-white/5">
+                                        <div class="h-2 overflow-hidden rounded-full bg-raised">
                                             <div
-                                                class="h-full rounded-full bg-accent-primary shadow-[0_0_12px_var(--color-accent-primary-glow)]"
+                                                class="h-full rounded-full bg-accent "
                                                 [style.width.%]="tagCategoryPercent(item)">
                                             </div>
                                         </div>
-                                        <p class="mt-1 text-xs text-text-muted">{{ formatPercent(tagCategoryPercent(item)) }} of tag usage</p>
+                                        <p class="mt-1 text-xs text-fg-muted">{{ formatPercent(tagCategoryPercent(item)) }} of tag usage</p>
                                     </div>
                                 }
                             </div>
                         </section>
 
-                        <section class="glass-card p-5">
-                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-text-primary">
-                                <span class="h-6 w-2 rounded-full bg-accent-primary"></span>
+                        <section class="card p-5">
+                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-fg">
+                                <span class="h-6 w-2 rounded-full bg-accent"></span>
                                 Tag Density
                             </h2>
                             <div class="space-y-4">
                                 @for (item of tagData.densityBuckets; track item.label) {
                                     <div>
                                         <div class="mb-1 flex items-center justify-between gap-4 text-sm">
-                                            <span class="font-medium text-text-primary">{{ item.label }} tags</span>
-                                            <span class="shrink-0 text-text-muted">{{ item.postCount | number }} posts</span>
+                                            <span class="font-medium text-fg">{{ item.label }} tags</span>
+                                            <span class="shrink-0 text-fg-muted">{{ item.postCount | number }} posts</span>
                                         </div>
-                                        <div class="h-2 overflow-hidden rounded-full bg-white/5">
+                                        <div class="h-2 overflow-hidden rounded-full bg-raised">
                                             <div
-                                                class="h-full rounded-full bg-accent-primary shadow-[0_0_12px_var(--color-accent-primary-glow)]"
+                                                class="h-full rounded-full bg-accent "
                                                 [style.width.%]="tagDensityPercent(item)">
                                             </div>
                                         </div>
-                                        <p class="mt-1 text-xs text-text-muted">{{ formatPercent(tagDensityPercent(item)) }} of posts</p>
+                                        <p class="mt-1 text-xs text-fg-muted">{{ formatPercent(tagDensityPercent(item)) }} of posts</p>
                                     </div>
                                 }
                             </div>
                         </section>
                     </div>
                 } @else {
-                    <div class="flex flex-col items-center justify-center py-20 text-text-muted">
+                    <div class="flex flex-col items-center justify-center py-20 text-fg-muted">
                         <div
-                            class="mb-4 h-12 w-12 animate-spin rounded-full border-3 border-accent-primary-glow border-t-accent-primary">
+                            class="mb-4 h-12 w-12 animate-spin rounded-full border-3 border-accent/30 border-t-accent">
                         </div>
                         <p>Loading tag stats...</p>
                     </div>
@@ -261,95 +261,95 @@
             <app-tab id="maintenance" label="Maintenance">
                 @if (maintenance(); as maintenanceData) {
                     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Missing Metadata</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ maintenanceData.missingMetadataFileCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Missing Metadata</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ maintenanceData.missingMetadataFileCount | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Missing Perceptual Hash</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ maintenanceData.missingPerceptualHashFileCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Missing Perceptual Hash</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ maintenanceData.missingPerceptualHashFileCount | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Unknown Content Type</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ maintenanceData.unknownContentTypeFileCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Unknown Content Type</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ maintenanceData.unknownContentTypeFileCount | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Sourceless Posts</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ maintenanceData.sourcelessPostCount | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Sourceless Posts</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ maintenanceData.sourcelessPostCount | number }}</p>
                         </section>
-                        <section class="glass-card p-5">
-                            <p class="text-sm text-text-muted">Failed Jobs (7d)</p>
-                            <p class="mt-3 text-3xl font-bold text-text-primary">{{ maintenanceData.failedJobsLast7Days | number }}</p>
+                        <section class="card p-5">
+                            <p class="text-sm text-fg-muted">Failed Jobs (7d)</p>
+                            <p class="mt-3 text-3xl font-bold text-fg">{{ maintenanceData.failedJobsLast7Days | number }}</p>
                         </section>
                     </div>
 
                     <div class="mt-4 grid gap-4 xl:grid-cols-2">
-                        <section class="glass-card p-5">
-                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-text-primary">
-                                <span class="h-6 w-2 rounded-full bg-accent-primary"></span>
+                        <section class="card p-5">
+                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-fg">
+                                <span class="h-6 w-2 rounded-full bg-accent"></span>
                                 Duplicate Health
                             </h2>
                             <div class="space-y-4">
-                                <div class="flex items-center justify-between gap-4 border-b border-white/5 py-2">
-                                    <span class="text-text-muted">Total Groups</span>
-                                    <span class="text-sm font-medium text-text-primary">{{ maintenanceData.duplicates.totalGroups | number }}</span>
+                                <div class="flex items-center justify-between gap-4 border-b border-line py-2">
+                                    <span class="text-fg-muted">Total Groups</span>
+                                    <span class="text-sm font-medium text-fg">{{ maintenanceData.duplicates.totalGroups | number }}</span>
                                 </div>
-                                <div class="flex items-center justify-between gap-4 border-b border-white/5 py-2">
-                                    <span class="text-text-muted">Unresolved Groups</span>
-                                    <span class="text-sm font-medium text-text-primary">{{ maintenanceData.duplicates.unresolvedGroups | number }}</span>
+                                <div class="flex items-center justify-between gap-4 border-b border-line py-2">
+                                    <span class="text-fg-muted">Unresolved Groups</span>
+                                    <span class="text-sm font-medium text-fg">{{ maintenanceData.duplicates.unresolvedGroups | number }}</span>
                                 </div>
                                 <div class="flex items-center justify-between gap-4 py-2">
-                                    <span class="text-text-muted">Posts In Open Groups</span>
-                                    <span class="text-sm font-medium text-text-primary">{{ maintenanceData.duplicates.unresolvedPostCount | number }}</span>
+                                    <span class="text-fg-muted">Posts In Open Groups</span>
+                                    <span class="text-sm font-medium text-fg">{{ maintenanceData.duplicates.unresolvedPostCount | number }}</span>
                                 </div>
                             </div>
                         </section>
 
-                        <section class="glass-card p-5">
-                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-text-primary">
-                                <span class="h-6 w-2 rounded-full bg-accent-primary"></span>
+                        <section class="card p-5">
+                            <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-fg">
+                                <span class="h-6 w-2 rounded-full bg-accent"></span>
                                 Organization Gaps
                             </h2>
                             <div class="space-y-4">
-                                <div class="flex items-center justify-between gap-4 border-b border-white/5 py-2">
-                                    <span class="text-text-muted">Untagged Posts</span>
-                                    <span class="text-sm font-medium text-text-primary">{{ maintenanceData.untaggedPostCount | number }}</span>
+                                <div class="flex items-center justify-between gap-4 border-b border-line py-2">
+                                    <span class="text-fg-muted">Untagged Posts</span>
+                                    <span class="text-sm font-medium text-fg">{{ maintenanceData.untaggedPostCount | number }}</span>
                                 </div>
                                 <div class="flex items-center justify-between gap-4 py-2">
-                                    <span class="text-text-muted">Sourceless Posts</span>
-                                    <span class="text-sm font-medium text-text-primary">{{ maintenanceData.sourcelessPostCount | number }}</span>
+                                    <span class="text-fg-muted">Sourceless Posts</span>
+                                    <span class="text-sm font-medium text-fg">{{ maintenanceData.sourcelessPostCount | number }}</span>
                                 </div>
                             </div>
                         </section>
                     </div>
 
-                    <section class="glass-card mt-4 p-5">
-                        <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-text-primary">
-                            <span class="h-6 w-2 rounded-full bg-accent-primary"></span>
+                    <section class="card mt-4 p-5">
+                        <h2 class="mb-4 flex items-center gap-2 text-xl font-semibold text-fg">
+                            <span class="h-6 w-2 rounded-full bg-accent"></span>
                             Recent Failed Jobs
                         </h2>
                         @if (maintenanceData.recentFailedJobs.length > 0) {
                             <div class="space-y-3">
                                 @for (job of maintenanceData.recentFailedJobs; track job.id) {
-                                    <div class="rounded-lg border border-status-error/20 bg-status-error/5 p-3">
+                                    <div class="rounded-lg border border-danger/20 bg-danger/5 p-3">
                                         <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                            <span class="font-medium text-text-primary">{{ job.jobName }}</span>
-                                            <span class="text-xs text-text-muted">{{ job.startTime | date:'medium' }}</span>
+                                            <span class="font-medium text-fg">{{ job.jobName }}</span>
+                                            <span class="text-xs text-fg-muted">{{ job.startTime | date:'medium' }}</span>
                                         </div>
                                         @if (job.errorMessage) {
-                                            <p class="mt-2 line-clamp-2 text-sm text-status-error">{{ job.errorMessage }}</p>
+                                            <p class="mt-2 line-clamp-2 text-sm text-danger">{{ job.errorMessage }}</p>
                                         }
                                     </div>
                                 }
                             </div>
                         } @else {
-                            <p class="py-8 text-center text-sm text-text-muted">No failed jobs recorded.</p>
+                            <p class="py-8 text-center text-sm text-fg-muted">No failed jobs recorded.</p>
                         }
                     </section>
                 } @else {
-                    <div class="flex flex-col items-center justify-center py-20 text-text-muted">
+                    <div class="flex flex-col items-center justify-center py-20 text-fg-muted">
                         <div
-                            class="mb-4 h-12 w-12 animate-spin rounded-full border-3 border-accent-primary-glow border-t-accent-primary">
+                            class="mb-4 h-12 w-12 animate-spin rounded-full border-3 border-accent/30 border-t-accent">
                         </div>
                         <p>Loading maintenance stats...</p>
                     </div>
@@ -357,9 +357,9 @@
             </app-tab>
         </app-tabs>
     } @else {
-        <div class="flex flex-col items-center justify-center py-20 text-text-muted">
+        <div class="flex flex-col items-center justify-center py-20 text-fg-muted">
             <div
-                class="mb-4 h-12 w-12 animate-spin rounded-full border-3 border-accent-primary-glow border-t-accent-primary">
+                class="mb-4 h-12 w-12 animate-spin rounded-full border-3 border-accent/30 border-t-accent">
             </div>
             <p>Loading stats...</p>
         </div>

@@ -1,23 +1,23 @@
 <ng-template #confirmDialogOverlay>
   @if (confirmService.options(); as options) {
-    <div class="bg-bg-secondary border border-accent-primary/20 rounded-xl shadow-[0_0_30px_rgba(56,189,248,0.15)] p-6 max-w-md w-[calc(100vw-2rem)] flex flex-col gap-4 animate-scale-in"
+    <div class="bg-surface border border-accent/20 rounded-xl p-6 max-w-md w-[calc(100vw-2rem)] flex flex-col gap-4 animate-scale-in"
       tabindex="-1"
       role="dialog"
       aria-modal="true"
       (keydown.esc)="cancel()">
-      <h3 class="text-lg font-bold text-text-primary m-0">{{ options.title }}</h3>
-      <p class="whitespace-pre-line text-text-muted text-[0.9rem] m-0">{{ options.message }}</p>
+      <h3 class="text-lg font-bold text-fg m-0">{{ options.title }}</h3>
+      <p class="whitespace-pre-line text-fg-muted text-[0.9rem] m-0">{{ options.message }}</p>
       @if (requiresTypedText(); as requiredText) {
       <div class="flex flex-col gap-2">
-        <label class="text-[0.8rem] text-text-muted" for="confirm-typed-input">
-          Type <span class="font-semibold text-text-primary">{{ requiredText }}</span> to confirm.
+        <label class="text-[0.8rem] text-fg-muted" for="confirm-typed-input">
+          Type <span class="font-semibold text-fg">{{ requiredText }}</span> to confirm.
         </label>
         <input
           id="confirm-typed-input"
           type="text"
           [value]="typedConfirmation()"
           (input)="onTypedConfirmationChange($event)"
-          class="w-full rounded-lg border border-white/20 bg-glass-bg px-3 py-2 text-sm text-text-primary outline-none focus:border-accent-primary/60"
+          class="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-fg outline-none focus:border-accent/60"
           autocomplete="off"
           spellcheck="false"
         />

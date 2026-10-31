@@ -1,13 +1,13 @@
 <ng-template #modalOverlay>
   <div
-    class="w-full rounded-xl border border-glass-border bg-bg-secondary p-4 shadow-xl"
+    class="w-full rounded-xl border border-line bg-surface p-4 shadow-xl"
     [ngClass]="maxWidthClass()">
     <div class="mb-4 flex items-start justify-between gap-3">
-      <h2 class="text-xl font-semibold text-text-primary">{{ title() }}</h2>
+      <h2 class="text-xl font-semibold text-fg">{{ title() }}</h2>
       @if (showCloseButton()) {
         <button
           type="button"
-          class="rounded px-2 py-1 text-text-muted transition-colors hover:text-text-primary"
+          class="rounded px-2 py-1 text-fg-muted transition-colors hover:text-fg"
           aria-label="Close modal"
           (click)="close()">
           ×

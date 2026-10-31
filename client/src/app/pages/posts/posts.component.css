@@ -15,10 +15,9 @@
 }
 
 .density-option-selected {
-    background-color: rgba(56, 189, 248, 0.22);
-    border-color: rgba(56, 189, 248, 0.52);
-    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.18) inset;
-    color: var(--color-accent-primary);
+    background-color: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+    color: var(--color-accent);
 }
 
 .fast-scroller-hover-zone {
@@ -93,7 +92,7 @@
     }
 
     .posts-scrolling .post-tile:hover {
-        border-color: rgba(148, 163, 184, 0.12);
+        border-color: var(--color-line);
         box-shadow: none;
         transform: none;
     }

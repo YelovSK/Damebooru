@@ -1,27 +1,27 @@
 <div class="p-3">
     <div class="mb-8">
-        <h1 class="text-3xl font-bold text-accent-primary">Libraries</h1>
+        <h1 class="text-3xl font-bold text-fg">Libraries</h1>
     </div>
 
-    <section class="glass-card p-6 mb-8">
+    <section class="card p-6 mb-8">
         <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-            <span class="w-2 h-6 bg-accent-primary rounded-full"></span>
+            <span class="w-2 h-6 bg-accent rounded-full"></span>
             Add Library
         </h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-                <label for="new-library-name" class="block text-sm text-text-dim mb-1">Name</label>
+                <label for="new-library-name" class="block text-sm text-fg-subtle mb-1">Name</label>
                 <input
                     id="new-library-name"
                     type="text"
                     [ngModel]="newLibraryName()"
                     (ngModelChange)="newLibraryName.set($event)"
                     placeholder="e.g. Edited Photos"
-                    class="w-full px-4 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary" />
+                    class="w-full px-4 py-2 bg-surface border border-line rounded focus:outline-none focus:ring-2 focus:ring-accent text-fg" />
             </div>
             <div>
-                <label for="new-library-path" class="block text-sm text-text-dim mb-1">Server Path</label>
+                <label for="new-library-path" class="block text-sm text-fg-subtle mb-1">Server Path</label>
                 <app-autocomplete
                     id="new-library-path"
                     [value]="newLibraryPath()"
@@ -41,7 +41,7 @@
                 [ngModel]="newLibraryIsInbox()"
                 (ngModelChange)="newLibraryIsInbox.set($event)"
                 label="Inbox" />
-            <p class="text-text-muted text-sm mt-0.5">
+            <p class="text-fg-muted text-sm mt-0.5">
                 Unsorted files waiting to be moved into libraries. They get no folder tags and are hidden from search unless you add <code>inbox:true</code>.
             </p>
         </div>
@@ -54,26 +54,26 @@
             </button>
         </div>
 
-        <p class="text-sm text-text-dim mt-3">
+        <p class="text-sm text-fg-subtle mt-3">
             Enter the exact path visible to the server process (container path when running in Docker).
         </p>
     </section>
 
-    <section class="glass-card p-6">
+    <section class="card p-6">
         <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-            <span class="w-2 h-6 bg-accent-secondary rounded-full"></span>
+            <span class="w-2 h-6 bg-accent rounded-full"></span>
             Existing Libraries
         </h2>
 
         @if (libraries().length === 0) {
-        <div class="text-text-dim italic">
+        <div class="text-fg-subtle italic">
             No libraries found.
         </div>
         }
 
         <div class="grid grid-cols-1 gap-4">
             @for (lib of libraries(); track lib.id) {
-            <article class="p-4 bg-glass-bg rounded border border-glass-border">
+            <article class="p-4 bg-surface rounded border border-line">
                 <div class="flex justify-between items-start gap-3">
                     <div class="flex-1">
                         @if (editingLibraryId() === lib.id) {
@@ -82,7 +82,7 @@
                                     type="text"
                                     [ngModel]="editingName()"
                                     (ngModelChange)="editingName.set($event)"
-                                    class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
+                                    class="w-full px-3 py-2 bg-surface border border-line rounded focus:outline-none focus:ring-2 focus:ring-accent text-fg"
                                     (keyup.enter)="saveRename(lib)" />
                                 <button appButton type="button" size="sm" [disabled]="renamingLibraryId() === lib.id" (click)="saveRename(lib)">
                                     Save
@@ -90,14 +90,14 @@
                                 <button appButton type="button" size="sm" variant="secondary" (click)="cancelRename()">Cancel</button>
                             </div>
                         } @else {
-                            <h3 class="text-lg font-semibold text-text-primary flex items-center gap-2">
+                            <h3 class="text-lg font-semibold text-fg flex items-center gap-2">
                                 {{ lib.name }}
                                 @if (lib.kind === libraryKind.Inbox) {
-                                    <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-primary/20 text-accent-primary">Inbox</span>
+                                    <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-accent/20 text-accent">Inbox</span>
                                 }
                             </h3>
                         }
-                        <p class="text-sm text-text-dim break-all">{{ lib.path }}</p>
+                        <p class="text-sm text-fg-subtle break-all">{{ lib.path }}</p>
                     </div>
                     <div class="flex flex-wrap justify-end gap-2">
                         <a appButton
@@ -140,23 +140,23 @@
                 </div>
 
                 <div class="mt-4 space-y-2">
-                    <div class="flex justify-between items-center py-2 border-b border-white/5">
-                        <span class="text-text-muted">Posts</span>
+                    <div class="flex justify-between items-center py-2 border-b border-line">
+                        <span class="text-fg-muted">Posts</span>
                         <span class="text-[0.95rem] font-semibold">{{ lib.postCount }}</span>
                     </div>
-                    <div class="flex justify-between items-center py-2 border-b border-white/5">
-                        <span class="text-text-muted">Total Size</span>
+                    <div class="flex justify-between items-center py-2 border-b border-line">
+                        <span class="text-fg-muted">Total Size</span>
                         <span class="text-[0.95rem] font-semibold">{{ lib.totalSizeBytes | fileSize }}</span>
                     </div>
                     <div class="flex justify-between items-center py-2">
-                        <span class="text-text-muted">Last Import</span>
+                        <span class="text-fg-muted">Last Import</span>
                         <span class="text-[0.9rem] font-medium">{{ lib.lastImportDate ? (lib.lastImportDate | date:'medium') : 'Never' }}</span>
                     </div>
                 </div>
 
-                <div class="mt-4 pt-4 border-t border-white/10 space-y-3">
-                    <div class="text-sm font-semibold text-text-primary">Ignored Paths</div>
-                    <p class="text-xs text-text-dim">
+                <div class="mt-4 pt-4 border-t border-line space-y-3">
+                    <div class="text-sm font-semibold text-fg">Ignored Paths</div>
+                    <p class="text-xs text-fg-subtle">
                         Files under these paths are removed from the board and skipped by library scans.
                     </p>
 
@@ -166,7 +166,7 @@
                             [ngModel]="getIgnoredPathDraft(lib.id)"
                             (ngModelChange)="setIgnoredPathDraft(lib.id, $event)"
                             placeholder="e.g. _trash or folders/temporary"
-                            class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
+                            class="w-full px-3 py-2 bg-surface border border-line rounded focus:outline-none focus:ring-2 focus:ring-accent text-fg"
                             (keyup.enter)="addIgnoredPath(lib)" />
                         <button appButton type="button"
                             size="sm"
@@ -177,7 +177,7 @@
                     </div>
 
                     @if (lib.ignoredPaths.length === 0) {
-                    <div class="text-sm text-text-dim italic">
+                    <div class="text-sm text-fg-subtle italic">
                         No ignored paths.
                     </div>
                     }
@@ -185,7 +185,7 @@
                     @if (lib.ignoredPaths.length > 0) {
                     <div class="space-y-2">
                         @for (ignored of lib.ignoredPaths; track ignored.id) {
-                        <div class="flex items-center justify-between gap-2 px-3 py-2 bg-black/15 rounded border border-white/10">
+                        <div class="flex items-center justify-between gap-2 px-3 py-2 bg-sunken rounded border border-line">
                             <span class="text-sm break-all">{{ ignored.path }}</span>
                             <button appButton type="button"
                                 variant="danger"
@@ -200,9 +200,9 @@
                     }
                 </div>
 
-                <div class="mt-4 pt-4 border-t border-white/10 space-y-3">
-                    <div class="text-sm font-semibold text-text-primary">Auto-Tag Excluded Paths</div>
-                    <p class="text-xs text-text-dim">
+                <div class="mt-4 pt-4 border-t border-line space-y-3">
+                    <div class="text-sm font-semibold text-fg">Auto-Tag Excluded Paths</div>
+                    <p class="text-xs text-fg-subtle">
                         Files stay indexed, but posts with image files under these paths are skipped by the auto-tagging job.
                     </p>
 
@@ -212,7 +212,7 @@
                             [ngModel]="getAutoTagExcludedPathDraft(lib.id)"
                             (ngModelChange)="setAutoTagExcludedPathDraft(lib.id, $event)"
                             placeholder="e.g. private or finished/no-auto-tag"
-                            class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
+                            class="w-full px-3 py-2 bg-surface border border-line rounded focus:outline-none focus:ring-2 focus:ring-accent text-fg"
                             (keyup.enter)="addAutoTagExcludedPath(lib)" />
                         <button appButton type="button"
                             size="sm"
@@ -223,7 +223,7 @@
                     </div>
 
                     @if (lib.autoTagExcludedPaths.length === 0) {
-                    <div class="text-sm text-text-dim italic">
+                    <div class="text-sm text-fg-subtle italic">
                         No auto-tag excluded paths.
                     </div>
                     }
@@ -231,7 +231,7 @@
                     @if (lib.autoTagExcludedPaths.length > 0) {
                     <div class="space-y-2">
                         @for (excluded of lib.autoTagExcludedPaths; track excluded.id) {
-                        <div class="flex items-center justify-between gap-2 px-3 py-2 bg-black/15 rounded border border-white/10">
+                        <div class="flex items-center justify-between gap-2 px-3 py-2 bg-sunken rounded border border-line">
                             <span class="text-sm break-all">{{ excluded.path }}</span>
                             <button appButton type="button"
                                 variant="danger"

@@ -1,7 +1,7 @@
-<h2 class="text-2xl font-bold text-text-secondary mb-2">Post Settings</h2>
-<p class="text-text-muted mb-6">Configure how posts are displayed.</p>
+<h2 class="text-2xl font-bold text-fg mb-2">Post Settings</h2>
+<p class="text-fg-muted mb-6">Configure how posts are displayed.</p>
 
-<div class="bg-bg-secondary border border-glass-border rounded-lg p-6 space-y-6">
+<div class="bg-surface border border-line rounded-lg p-6 space-y-6">
   <div class="flex items-start gap-4">
     <app-form-checkbox
       [ngModel]="settings().autoPlayVideos"
@@ -9,13 +9,13 @@
       label="Auto-play videos"
     />
     <div class="flex-1">
-      <p class="text-text-muted text-sm mt-0.5">
+      <p class="text-fg-muted text-sm mt-0.5">
         Automatically start playing videos when viewing a post.
       </p>
     </div>
   </div>
 
-  <div class="border-t border-glass-border/50"></div>
+  <div class="border-t border-line/50"></div>
 
   <div class="flex items-start gap-4">
     <app-form-checkbox
@@ -24,13 +24,13 @@
       label="Start videos muted"
     />
     <div class="flex-1">
-      <p class="text-text-muted text-sm mt-0.5">
+      <p class="text-fg-muted text-sm mt-0.5">
         Videos will start without sound. You can unmute them manually.
       </p>
     </div>
   </div>
 
-  <div class="border-t border-glass-border/50"></div>
+  <div class="border-t border-line/50"></div>
 
   <div class="flex items-start gap-4">
     <app-form-checkbox
@@ -39,7 +39,7 @@
       label="Enable post preview on hover"
     />
     <div class="flex-1">
-      <p class="text-text-muted text-sm mt-0.5">
+      <p class="text-fg-muted text-sm mt-0.5">
         Show large preview when hovering a post tile in the posts grid.
       </p>
     </div>
@@ -58,7 +58,7 @@
       />
     </div>
     <div class="flex-1">
-      <p class="text-text-muted text-sm mt-7">
+      <p class="text-fg-muted text-sm mt-7">
         Delay before showing hover preview. Set to 0 for instant preview.
       </p>
     </div>

@@ -1,23 +1,23 @@
 <div class="fixed inset-x-0 top-16 z-200 mx-auto flex w-full max-w-[350px] flex-col gap-3 px-3 sm:inset-x-auto sm:right-4 sm:top-20 sm:mx-0 sm:px-0">
   @for (toast of toastService.toasts(); track toast.id) {
     <div [@toastAnimation] 
-      class="p-4 shadow-2xl flex items-start gap-3 border-l-4 relative group bg-bg-secondary border border-glass-border rounded-xl"
-      [class.border-l-status-success]="toast.type === 'success'"
-      [class.border-l-status-warning]="toast.type === 'warning'"
-      [class.border-l-status-error]="toast.type === 'error'"
-      [class.border-l-accent-primary]="toast.type === 'info'">
+      class="p-4 shadow-2xl flex items-start gap-3 border-l-4 relative group bg-surface border border-line rounded-xl"
+      [class.border-l-success]="toast.type === 'success'"
+      [class.border-l-warning]="toast.type === 'warning'"
+      [class.border-l-danger]="toast.type === 'error'"
+      [class.border-l-accent]="toast.type === 'info'">
       
       <div class="grow">
-        <div class="text-[0.9rem] font-medium text-text-primary">
+        <div class="text-[0.9rem] font-medium text-fg">
           {{ toast.message }}
         </div>
         @if (toast.progress !== undefined) {
-          <app-progress-bar class="mt-2" [progress]="toast.progress" [heightClass]="'h-1.5'" [trackClass]="'bg-black/10'" [fillClass]="'bg-accent-primary'"></app-progress-bar>
+          <app-progress-bar class="mt-2" [progress]="toast.progress" [heightClass]="'h-1.5'" [trackClass]="'bg-sunken'" [fillClass]="'bg-accent'"></app-progress-bar>
         }
       </div>
 
       <button (click)="toastService.remove(toast.id)" 
-        class="shrink-0 text-text-muted hover:text-text-primary transition-colors cursor-pointer">
+        class="shrink-0 text-fg-muted hover:text-fg transition-colors cursor-pointer">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
           <line x1="6" y1="6" x2="18" y2="18"></line>
