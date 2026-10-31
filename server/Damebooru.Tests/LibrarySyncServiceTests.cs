@@ -90,7 +90,7 @@ public sealed class LibrarySyncServiceTests
 
         var moved = (await h.GetFilesAsync()).Single(f => f.RelativePath == "moved/a.png");
         Assert.Equal(bPostId, moved.PostId);
-        Assert.Equal(0, moved.Post.Width);
+        Assert.Null(moved.Post.Width);
         Assert.Equal(1, await h.CountPostsAsync());
     }
 
@@ -109,7 +109,7 @@ public sealed class LibrarySyncServiceTests
         Assert.Equal(1, result.Updated);
         var file = (await h.GetFilesAsync()).Single();
         Assert.Equal(await h.HashAsync("a.png"), file.Post.ContentHash);
-        Assert.Equal(0, file.Post.Width);
+        Assert.Null(file.Post.Width);
         Assert.Equal(postId, file.PostId);
     }
 

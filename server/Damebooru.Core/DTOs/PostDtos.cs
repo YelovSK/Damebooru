@@ -13,8 +13,8 @@ public class PostDto
 
     public string ContentHash { get; set; } = string.Empty;
     public long SizeBytes { get; set; }
-    public int Width { get; set; }
-    public int Height { get; set; }
+    public int? Width { get; set; }
+    public int? Height { get; set; }
     public string ContentType { get; set; } = string.Empty;
     public DateTime ImportDate { get; set; }
     public DateTime FileModifiedDate { get; set; }

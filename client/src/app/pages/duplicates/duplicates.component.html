@@ -41,10 +41,8 @@
                                 }
                                 <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-muted" [class.mt-0.5]="cluster.title">
                                     <span>{{ cluster.files.length }} copies in {{ cluster.folderCount }} {{ cluster.folderCount === 1 ? 'folder' : 'folders' }}</span>
-                                    @if (cluster.width > 0) {
-                                        <span class="text-fg-subtle">·</span>
-                                        <span>{{ cluster.width }}×{{ cluster.height }}</span>
-                                    }
+                                    <span class="text-fg-subtle">·</span>
+                                    <span>{{ cluster | dimensions }}</span>
                                     <span class="text-fg-subtle">·</span>
                                     <span>{{ cluster.sizeBytes | fileSize }}</span>
                                     @if (cluster.hasSameFolderDuplicates) {
@@ -149,7 +147,7 @@
                                         <div class="flex flex-1 flex-col gap-1.5 px-3 pb-2 pt-3">
                                             <div>
                                                 <div class="flex items-center justify-between gap-2 whitespace-nowrap">
-                                                    <span class="text-sm font-semibold text-fg">{{ post.width }}×{{ post.height }}</span>
+                                                    <span class="text-sm font-semibold text-fg">{{ post | dimensions }}</span>
                                                     @if (post.isRecommendedKeep) {
                                                         <span class="text-xs font-medium text-success" appTooltip="Highest quality; Auto resolve keeps this one">✓ Best</span>
                                                     }
@@ -294,7 +292,7 @@
                             <span class="text-fg"> {{ match.relativePath | displayPath }}</span>
                         </div>
                         <div class="flex justify-between text-xs text-fg-muted">
-                            <span>{{ match.width }}×{{ match.height }}</span>
+                            <span>{{ match | dimensions }}</span>
                             <span>{{ match.sizeBytes | fileSize }}</span>
                         </div>
                     </div>
@@ -351,7 +349,7 @@
                                         <div class="p-2">
                                             <div class="mb-0.5 truncate text-xs text-fg" [title]="post.relativePath">{{ post.relativePath | fileName }}</div>
                                             <div class="flex justify-between text-xs text-fg-muted">
-                                                <span>{{ post.width }}×{{ post.height }}</span>
+                                                <span>{{ post | dimensions }}</span>
                                                 <span>{{ post.sizeBytes | fileSize }}</span>
                                             </div>
                                         </div>

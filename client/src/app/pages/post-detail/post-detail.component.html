@@ -108,7 +108,7 @@
                         <span class="text-fg font-medium">{{ pd.fileModifiedDate | dateTime }}</span>
 
                         <span class="text-fg-muted">Details</span>
-                        <span class="text-fg font-medium" [title]="pd.contentType">{{ pd.width }} × {{ pd.height }} · {{ getFormat(pd) }} · {{ pd.sizeBytes | fileSize }}</span>
+                        <span class="text-fg font-medium" [title]="pd.contentType">{{ pd | dimensions }} · {{ getFormat(pd) }} · {{ pd.sizeBytes | fileSize }}</span>
 
                     </div>
 
@@ -314,7 +314,7 @@
                             <div class="min-w-0 flex-1">
                                 <div class="truncate text-[0.82rem] text-fg">{{ similar.relativePath | fileName }}</div>
                                 <div class="mt-0.5 text-[0.72rem] text-fg-muted">
-                                    {{ similar.libraryName }} · {{ similar.width }}x{{ similar.height }} · {{ similar.sizeBytes | fileSize }}
+                                    {{ similar.libraryName }} · {{ similar | dimensions }} · {{ similar.sizeBytes | fileSize }}
                                 </div>
                                 <div class="mt-1 flex items-center gap-1.5">
                                     <span class="text-[0.68rem] text-fg-muted">~{{ similar.similarityPercent }}%</span>

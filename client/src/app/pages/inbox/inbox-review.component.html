@@ -26,7 +26,7 @@
 
         <div>
             <a class="block font-semibold text-fg break-all hover:text-accent" [routerLink]="appLinks.post(post.id)">{{ fileName() }}</a>
-            <p class="text-xs text-fg-subtle">{{ post.width }}×{{ post.height }} · {{ post.sizeBytes | fileSize }}</p>
+            <p class="text-xs text-fg-subtle">{{ post | dimensions }} · {{ post.sizeBytes | fileSize }}</p>
         </div>
 
         @if (alreadyIn().length > 0) {

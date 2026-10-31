@@ -393,7 +393,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
         var post = postFile.Post;
         var target = new PostEnrichmentTarget(post.Id, post.ContentHash, Path.Combine(library.Path, postFile.RelativePath));
 
-        if (post.Width == 0)
+        if (post.Width == null)
         {
             try
             {

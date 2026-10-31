@@ -454,7 +454,7 @@ public class DuplicateWriteService
     private static int SelectBestQualityPostId(IEnumerable<Post> posts)
     {
         return posts
-            .OrderByDescending(p => (long)p.Width * p.Height)
+            .OrderByDescending(p => (long)(p.Width ?? 0) * (p.Height ?? 0))
             .ThenByDescending(p => p.SizeBytes)
             .ThenByDescending(p => p.FileModifiedDate)
             .ThenByDescending(p => p.Id)

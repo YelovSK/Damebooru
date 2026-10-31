@@ -90,8 +90,8 @@ internal static class PostFileWriter
         post.ContentHash = snapshot.Hash;
         post.SizeBytes = snapshot.SizeBytes;
         post.ContentType = SupportedMedia.GetMimeType(Path.GetExtension(snapshot.RelativePath));
-        post.Width = 0;
-        post.Height = 0;
+        post.Width = null;
+        post.Height = null;
         post.PdqHash256 = null;
         post.AiPredictionDate = null;
     }

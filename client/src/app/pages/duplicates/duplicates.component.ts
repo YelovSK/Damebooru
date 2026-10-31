@@ -18,8 +18,9 @@ import {
 } from '@models';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
+import { DimensionsPipe } from '@shared/pipes/dimensions.pipe';
 import { DateTimePipe } from '@shared/pipes/date-time.pipe';
-import { formatPathForDisplay, getFileFormat, getFileNameFromPath } from '@shared/utils/utils';
+import { formatPathForDisplay, getFileFormat, getFileNameFromPath, getPixelCount } from '@shared/utils/utils';
 import { ConfirmService } from '@services/confirm.service';
 import { ToastService } from '@services/toast.service';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
@@ -41,8 +42,8 @@ interface VisibleDuplicatePost {
   libraryId: number;
   libraryName: string;
   relativePath: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   sizeBytes: number;
   fileModifiedDate: string;
   contentHash: string;
@@ -63,8 +64,8 @@ interface ExactClusterView {
   /** The file name most copies share, if a majority does. */
   title: string | null;
   postId: number;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   sizeBytes: number;
   folderCount: number;
   hasSameFolderDuplicates: boolean;
@@ -85,7 +86,7 @@ interface VisibleDuplicateGroup {
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, DateTimePipe, TabsComponent, TabComponent, ButtonDirective, TooltipDirective, CdkMenu, CdkMenuItem, CdkMenuTrigger, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent],
+  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, DateTimePipe, DimensionsPipe, TabsComponent, TabComponent, ButtonDirective, TooltipDirective, CdkMenu, CdkMenuItem, CdkMenuTrigger, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent],
   providers: [PostHoverPreview],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
@@ -801,8 +802,8 @@ export class DuplicatesPageComponent {
     for (let i = 1; i < posts.length; i++) {
       const candidate = posts[i];
 
-      const bestPixels = best.width * best.height;
-      const candidatePixels = candidate.width * candidate.height;
+      const bestPixels = getPixelCount(best);
+      const candidatePixels = getPixelCount(candidate);
       if (candidatePixels > bestPixels) {
         best = candidate;
         continue;

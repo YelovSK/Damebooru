@@ -25,6 +25,11 @@ export function getFileNameFromPath(path: string): string {
     return path.split(/[/\\]/).pop() || path;
 }
 
+/** Pixel count for comparing quality; unknown dimensions count as 0 so they rank last. */
+export function getPixelCount(item: { width: number | null; height: number | null }): number {
+    return (item.width ?? 0) * (item.height ?? 0);
+}
+
 /** A short format label like "JPG" or "JXL": the file extension, falling back to the MIME subtype. */
 export function getFileFormat(path: string, contentType?: string | null): string {
     const extension = /\.([a-z0-9]+)$/i.exec(path)?.[1];

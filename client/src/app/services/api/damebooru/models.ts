@@ -176,8 +176,8 @@ export interface DamebooruPostDto {
   relativePath: string;
   contentHash: string;
   sizeBytes: number;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   contentType: string;
   importDate: string;
   fileModifiedDate: string;
@@ -378,8 +378,8 @@ export interface SimilarPost {
   libraryId: number;
   libraryName: string;
   relativePath: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   sizeBytes: number;
   contentType: string;
   contentHash: string;
@@ -393,8 +393,8 @@ export interface DuplicateLookupMatch {
   libraryName: string;
   relativePath: string;
   contentHash: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   contentType: string;
   sizeBytes: number;
   importDate: string;
@@ -570,8 +570,8 @@ export interface DuplicatePost {
   libraryName: string;
   relativePath: string;
   contentHash: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   contentType: string;
   sizeBytes: number;
   importDate: string;
@@ -600,8 +600,8 @@ export interface ExactDuplicateFile {
   libraryName: string;
   relativePath: string;
   contentHash: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   contentType: string;
   sizeBytes: number;
   fileModifiedDate: string;

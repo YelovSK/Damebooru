@@ -35,7 +35,7 @@ public class StatsReadService
             .CountAsync(g => !g.IsResolved, cancellationToken);
         var missingMetadataFileCount = await _dbContext.Posts
             .AsNoTracking()
-            .CountAsync(p => p.Width == 0 || p.Height == 0, cancellationToken);
+            .CountAsync(p => p.Width == null, cancellationToken);
         var missingPerceptualHashFileCount = await _dbContext.Posts
             .AsNoTracking()
             .CountAsync(p => p.ContentType.StartsWith("image/") && string.IsNullOrEmpty(p.PdqHash256), cancellationToken);
@@ -199,7 +199,7 @@ public class StatsReadService
         var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
         var missingMetadataFileCount = await _dbContext.Posts
             .AsNoTracking()
-            .CountAsync(p => p.Width == 0 || p.Height == 0, cancellationToken);
+            .CountAsync(p => p.Width == null, cancellationToken);
         var missingPerceptualHashFileCount = await _dbContext.Posts
             .AsNoTracking()
             .CountAsync(p => p.ContentType.StartsWith("image/") && string.IsNullOrEmpty(p.PdqHash256), cancellationToken);

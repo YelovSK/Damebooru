@@ -356,7 +356,7 @@ namespace Damebooru.Data.Migrations
                     b.Property<DateTime>("FileModifiedDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("Height")
+                    b.Property<int?>("Height")
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("ImportDate")
@@ -372,7 +372,7 @@ namespace Damebooru.Data.Migrations
                     b.Property<long>("SizeBytes")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("Width")
+                    b.Property<int?>("Width")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");

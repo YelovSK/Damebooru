@@ -60,7 +60,7 @@
                     (click)="flipShowingRight.set(choice.right)">
                     <span class="font-semibold">{{ choice.label }}</span>
                     @if (choice.post) {
-                      <span> · {{ choice.post.width }}×{{ choice.post.height }} {{ getFormat(choice.post) }}</span>
+                      <span> · {{ choice.post | dimensions }} {{ getFormat(choice.post) }}</span>
                     }
                   </button>
                 }
@@ -93,7 +93,7 @@
                             shown on the {{ side === 'left' ? 'right' : 'left' }}
                           }
                         } @else {
-                          {{ option.width }}×{{ option.height }} · {{ getFormat(option) }}
+                          {{ option | dimensions }} · {{ getFormat(option) }}
                         }
                       </span>
                     </button>
@@ -105,7 +105,7 @@
             }
           </div>
           <div class="mt-0.5 text-xs text-fg-muted">
-            <span [class.font-semibold]="hasMorePixels(post, other)" [class.text-success]="hasMorePixels(post, other)">{{ post.width }}×{{ post.height }}</span>
+            <span [class.font-semibold]="hasMorePixels(post, other)" [class.text-success]="hasMorePixels(post, other)">{{ post | dimensions }}</span>
             · {{ getFormat(post) }} · {{ post.sizeBytes | fileSize }}
             @if (post.isRecommendedKeep) {
               · <span class="text-success">✓ Best</span>

@@ -60,6 +60,7 @@ import { HotkeysService } from "@services/hotkeys.service";
 import { AppLinks } from "@app/app.paths";
 import { PostEditService, type PostEditTag } from "./post-edit.service";
 import { FileSizePipe } from "@shared/pipes/file-size.pipe";
+import { DimensionsPipe } from "@shared/pipes/dimensions.pipe";
 import { FileNamePipe } from "@shared/pipes/file-name.pipe";
 import { DateTimePipe } from "@shared/pipes/date-time.pipe";
 
@@ -68,6 +69,7 @@ type NavigationFetchDirection = "initial" | "previous" | "next";
 @Component({
   selector: "app-post-detail",
   imports: [
+    DimensionsPipe,
     CdkMenu,
     CdkMenuItem,
     CdkMenuTrigger,

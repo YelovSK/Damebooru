@@ -46,7 +46,7 @@ public class ExtractMetadataJob : IJob
         var query = db.Posts.AsNoTracking().AsQueryable();
         if (context.Mode == JobMode.Missing)
         {
-            query = query.Where(p => p.Width == 0);
+            query = query.Where(p => p.Width == null);
         }
 
         var totalPosts = await query.CountAsync(context.CancellationToken);

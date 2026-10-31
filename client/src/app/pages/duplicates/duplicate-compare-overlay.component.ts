@@ -9,15 +9,16 @@ import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ZoomPanContainerComponent, ZoomPanSync } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
-import { formatPathForDisplay, getFileFormat } from '@shared/utils/utils';
+import { DimensionsPipe } from '@shared/pipes/dimensions.pipe';
+import { formatPathForDisplay, getFileFormat, getPixelCount } from '@shared/utils/utils';
 
 export type DuplicateCompareMode = 'side-by-side' | 'flip';
 
 export interface DuplicateComparePost {
   id: number;
   relativePath: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
   sizeBytes: number;
   fileModifiedDate: string;
   contentHash: string;
@@ -38,6 +39,7 @@ export interface DuplicateCompareGroup {
   standalone: true,
   imports: [
     CommonModule,
+    DimensionsPipe,
     RouterLink,
     CdkMenu,
     CdkMenuItem,
@@ -154,7 +156,7 @@ export class DuplicateCompareOverlayComponent {
   }
 
   hasMorePixels(post: DuplicateComparePost, other: DuplicateComparePost | null): boolean {
-    return !!other && post.width * post.height > other.width * other.height;
+    return !!other && getPixelCount(post) > getPixelCount(other);
   }
 
   private resolveIsCompactViewport(): boolean {

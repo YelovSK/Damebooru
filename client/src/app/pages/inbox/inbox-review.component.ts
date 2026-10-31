@@ -7,6 +7,7 @@ import { AppLinks } from '@app/app.paths';
 import { type FolderLocation } from '@models';
 import { ButtonDirective } from '@shared/directives';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
+import { DimensionsPipe } from '@shared/pipes/dimensions.pipe';
 import { getFileNameFromPath } from '@shared/utils/utils';
 
 import { DestinationPickerComponent } from './destination-picker.component';
@@ -18,7 +19,7 @@ const PREFETCH_AHEAD = 10;
 @Component({
   selector: 'app-inbox-review',
   standalone: true,
-  imports: [DecimalPipe, RouterLink, ButtonDirective, FileSizePipe, DestinationPickerComponent, InboxMediaComponent],
+  imports: [DecimalPipe, RouterLink, ButtonDirective, FileSizePipe, DimensionsPipe, DestinationPickerComponent, InboxMediaComponent],
   host: {
     class: 'block flex-1 min-h-0 overflow-y-auto',
     '(keydown)': 'onKeydown($event)',
