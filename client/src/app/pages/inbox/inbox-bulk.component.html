@@ -38,7 +38,12 @@
                         <span class="break-all">{{ group.label }}</span>
                         <span class="shrink-0 rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-text-muted">{{ group.posts.length }}</span>
                     </button>
-                    @if (group.key !== '') {
+                    @if (group.key === alreadyInLibraryGroup) {
+                    <button appButton type="button" variant="danger" size="sm" [disabled]="store.busy()" (click)="discardGroup(group)"
+                        title="Delete these inbox files; the library copies stay">
+                        Delete inbox copies
+                    </button>
+                    } @else if (group.key !== '') {
                     <button appButton type="button" size="sm" [disabled]="store.busy()" (click)="acceptGroup(group)" title="Move every post in this group (Ctrl+Enter)">
                         Accept all
                     </button>
@@ -64,6 +69,9 @@
                     </div>
                     <div class="min-w-0 flex-1 space-y-1.5">
                         <p class="truncate text-sm text-text-muted">{{ fileName(post) }}</p>
+                        @for (location of existingOf(post); track location.libraryId + location.folder) {
+                        <p class="truncate text-xs text-status-warning">Already in {{ store.label(location) }}</p>
+                        }
                         <div class="flex flex-wrap gap-1.5">
                             @for (location of draftOf(post); track location.libraryId + location.folder) {
                             <span class="inline-flex items-center gap-1.5 rounded-full border border-accent-primary/40 bg-accent-primary-glow px-2.5 py-0.5 text-sm text-text-primary">

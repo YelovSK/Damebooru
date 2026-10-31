@@ -84,6 +84,11 @@ public class PostFolderSuggestionsDto
     /// <summary>The post is an image the AI tagger hasn't seen yet; predicting may bring suggestions.</summary>
     public bool NeedsPrediction { get; set; }
 
+    /// <summary>
+    /// Folders already holding a copy of the post. Its inbox file is then a duplicate, so it gets no suggestions.
+    /// </summary>
+    public List<FolderLocationDto> ExistingLocations { get; set; } = [];
+
     public List<FolderSuggestionDto> Suggestions { get; set; } = [];
 }
 

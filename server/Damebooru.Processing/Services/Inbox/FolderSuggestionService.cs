@@ -41,11 +41,16 @@ public partial class FolderSuggestionService
 
         return postIds
             .Distinct()
-            .Select(postId => new PostFolderSuggestionsDto
+            .Select(postId =>
             {
-                PostId = postId,
-                NeedsPrediction = needsPrediction.Contains(postId),
-                Suggestions = index.Rank(postId, excludeFromLibrary: false),
+                var existing = index.FoldersOf(postId);
+                return new PostFolderSuggestionsDto
+                {
+                    PostId = postId,
+                    ExistingLocations = existing.Select(f => new FolderLocationDto { LibraryId = f.LibraryId, Folder = f.Path }).ToList(),
+                    NeedsPrediction = existing.Count == 0 && needsPrediction.Contains(postId),
+                    Suggestions = existing.Count == 0 ? index.Rank(postId, excludeFromLibrary: false) : [],
+                };
             })
             .ToList();
     }

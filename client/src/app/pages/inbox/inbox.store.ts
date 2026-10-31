@@ -26,6 +26,9 @@ const CONFIDENT_SCORE = 0.7;
 // Can't appear in a folder name.
 const GROUP_SEPARATOR = '\u0000';
 
+/** The bulk group for posts whose inbox file duplicates one already in the library. */
+export const ALREADY_IN_LIBRARY_GROUP = 'already-in-library';
+
 export type PredictionState = 'queued' | 'running';
 
 export function folderKey(location: FolderLocation): string {
@@ -78,6 +81,8 @@ export class InboxStore {
    */
   readonly groups = signal<ReadonlyMap<number, string>>(new Map());
   private readonly editedDrafts = new Set<number>();
+  /** Where posts that are already in the library live. */
+  readonly existingLocations = signal<ReadonlyMap<number, FolderLocation[]>>(new Map());
 
   /** Images the AI tagger hasn't seen yet. */
   readonly needsPrediction = signal<ReadonlySet<number>>(new Set());
@@ -245,9 +250,15 @@ export class InboxStore {
       seeded.forEach(([id, initial]) => next.set(id, initial));
       return next;
     });
+    const existing = new Map(results.filter(r => r.existingLocations.length > 0).map(r => [r.postId, r.existingLocations]));
+    this.existingLocations.update(current => {
+      const next = new Map(current);
+      results.forEach(r => existing.has(r.postId) ? next.set(r.postId, r.existingLocations) : next.delete(r.postId));
+      return next;
+    });
     this.groups.update(current => {
       const next = new Map(current);
-      seeded.forEach(([id, initial]) => next.set(id, groupOf(initial)));
+      seeded.forEach(([id, initial]) => next.set(id, existing.has(id) ? ALREADY_IN_LIBRARY_GROUP : groupOf(initial)));
       return next;
     });
     this.needsPrediction.update(current => {

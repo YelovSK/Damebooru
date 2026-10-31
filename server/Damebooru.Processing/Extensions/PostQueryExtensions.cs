@@ -8,6 +8,9 @@ public static class PostQueryExtensions
     public static IQueryable<Post> WhereSorted(this IQueryable<Post> query)
         => query.Where(p => p.PostFiles.Any(pf => pf.Library.Kind != LibraryKind.Inbox));
 
+    public static IQueryable<Post> WhereInInbox(this IQueryable<Post> query)
+        => query.Where(p => p.PostFiles.Any(pf => pf.Library.Kind == LibraryKind.Inbox));
+
     public static IQueryable<Post> WhereInboxOnly(this IQueryable<Post> query)
         => query.Where(p => !p.PostFiles.Any(pf => pf.Library.Kind != LibraryKind.Inbox));
 

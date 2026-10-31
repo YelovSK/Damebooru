@@ -60,6 +60,22 @@ public sealed class FolderSuggestionServiceTests
     }
 
     [Fact]
+    public async Task Suggest_PostAlreadyInLibrary_ReportsWhereInsteadOfSuggesting()
+    {
+        await using var s = await Scenario.CreateAsync();
+        s.AddSorted("rem/a.png", ("rem", TagCategoryKind.Character));
+        var duplicate = s.AddSorted("rem/b.png", ("rem", TagCategoryKind.Character));
+        s.AddInboxFile(duplicate);
+        await s.SaveAsync();
+
+        var result = (await s.Service.SuggestAsync([duplicate.Id], CancellationToken.None)).Single();
+
+        Assert.Empty(result.Suggestions);
+        Assert.False(result.NeedsPrediction);
+        Assert.Equal("rem", Assert.Single(result.ExistingLocations).Folder);
+    }
+
+    [Fact]
     public async Task Suggest_IgnoresFolderTags()
     {
         await using var s = await Scenario.CreateAsync();
@@ -121,6 +137,9 @@ public sealed class FolderSuggestionServiceTests
 
         public Post AddInbox(params (string Name, TagCategoryKind Category)[] tags)
             => AddPost(_inbox, $"{_hash}.png", tags);
+
+        public void AddInboxFile(Post post)
+            => post.PostFiles.Add(new PostFile { Library = _inbox, RelativePath = $"copy-{post.ContentHash}.png" });
 
         public void Tag(Post post, string name, TagCategoryKind category, PostTagSource source)
         {

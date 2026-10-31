@@ -63,6 +63,8 @@ export interface PostFolderSuggestions {
   postId: number;
   /** An image the AI tagger hasn't seen yet. */
   needsPrediction: boolean;
+  /** Folders already holding a copy; the inbox file is then a duplicate and gets no suggestions. */
+  existingLocations: FolderLocation[];
   suggestions: FolderSuggestion[];
 }
 

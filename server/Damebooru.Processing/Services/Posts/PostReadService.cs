@@ -358,7 +358,7 @@ public class PostReadService
             query = query.Where(p => p.IsFavorite == isFavorite);
         }
 
-        query = parsedQuery.InboxFilter ? query.WhereInboxOnly() : query.WhereSorted();
+        query = parsedQuery.InboxFilter ? query.WhereInInbox() : query.WhereSorted();
 
         foreach (var filename in includedFilenames)
         {

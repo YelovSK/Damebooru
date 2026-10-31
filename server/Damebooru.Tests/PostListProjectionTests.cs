@@ -154,7 +154,7 @@ public sealed class PostListProjectionTests
 
     [Theory]
     [InlineData(null, new[] { "both", "sorted" })]
-    [InlineData("inbox:true", new[] { "unsorted" })]
+    [InlineData("inbox:true", new[] { "both", "unsorted" })]
     [InlineData("-inbox:true", new[] { "both", "sorted" })]
     public async Task GetPostsAsync_HidesInboxOnlyPostsUnlessAskedFor(string? query, string[] expectedHashes)
     {

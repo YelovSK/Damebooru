@@ -11,7 +11,7 @@ import { getFileNameFromPath } from '@shared/utils/utils';
 
 import { DestinationPickerComponent } from './destination-picker.component';
 import { InboxMediaComponent } from './inbox-media.component';
-import { InboxStore, type PredictionState, folderKey, groupLocations } from './inbox.store';
+import { ALREADY_IN_LIBRARY_GROUP, InboxStore, type PredictionState, folderKey, groupLocations } from './inbox.store';
 
 interface Group {
   key: string;
@@ -42,6 +42,7 @@ export class InboxBulkComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
+  readonly alreadyInLibraryGroup = ALREADY_IN_LIBRARY_GROUP;
   readonly activePostId = this.store.selectedPostId;
   /** Set when a whole group is selected. */
   readonly activeGroup = signal<string | null>(null);
@@ -69,11 +70,16 @@ export class InboxBulkComponent {
     const groups: Group[] = [...byKey]
       .map(([key, posts]) => ({
         key,
-        label: key === '' ? 'Unsure' : groupLocations(key).map(l => this.store.label(l)).join(' + '),
+        label: key === ALREADY_IN_LIBRARY_GROUP ? 'Already in your library'
+          : key === '' ? 'Unsure'
+          : groupLocations(key).map(l => this.store.label(l)).join(' + '),
         posts,
       }))
-      // Unsure posts go last; they need a decision per post.
-      .sort((a, b) => Number(a.key === '') - Number(b.key === '') || b.posts.length - a.posts.length || a.label.localeCompare(b.label));
+      // Duplicates come first, as they are the quickest to clear; unsure posts go last, as they need a decision per post.
+      .sort((a, b) => Number(b.key === ALREADY_IN_LIBRARY_GROUP) - Number(a.key === ALREADY_IN_LIBRARY_GROUP)
+        || Number(a.key === '') - Number(b.key === '')
+        || b.posts.length - a.posts.length
+        || a.label.localeCompare(b.label));
     return { groups, ordered: groups.flatMap(g => g.posts), pending };
   });
 
@@ -201,6 +207,14 @@ export class InboxBulkComponent {
 
   acceptGroup(group: Group): void {
     this.accept(group.posts);
+  }
+
+  discardGroup(group: Group): void {
+    this.store.confirmDiscard(group.posts).pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
+  }
+
+  existingOf(post: DamebooruPostDto): FolderLocation[] {
+    return this.store.existingLocations().get(post.id) ?? [];
   }
 
   discardSelection(): void {

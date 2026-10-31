@@ -45,7 +45,7 @@ public class SearchQuery
     public HashSet<PostMediaType> ExcludedMediaTypes { get; set; } = [];
     public NumericFilter? TagCountFilter { get; set; }
     public bool? FavoriteFilter { get; set; }
-    // Inbox posts are those whose files are all in inbox libraries; searches show either those or the rest, never both.
+    // Selects posts with a file waiting in an inbox, instead of posts in the library. A library post with an inbox copy is both.
     public bool InboxFilter { get; set; }
     public SearchSortField SortField { get; set; } = SearchSortField.FileModifiedDate;
     public SearchSortDirection SortDirection { get; set; } = SearchSortDirection.Desc;

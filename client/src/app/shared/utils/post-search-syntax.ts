@@ -118,7 +118,7 @@ export const SEARCH_DIRECTIVES: readonly SearchDirective[] = [
     key: 'inbox',
     aliases: [],
     label: 'Inbox',
-    description: 'Show only posts whose files are all in inbox libraries. These are hidden otherwise.',
+    description: 'Show posts with a file waiting in an inbox library. Posts only in inboxes are hidden otherwise.',
     negatable: true,
     value: { kind: 'flag', label: 'Inbox' },
     examples: ['inbox:true'],
