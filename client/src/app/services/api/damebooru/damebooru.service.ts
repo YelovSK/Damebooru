@@ -149,6 +149,11 @@ export class DamebooruService {
     return this.http.get<Library[]>(`${this.baseUrl}/libraries`);
   }
 
+  getDirectorySuggestions(path: string): Observable<string[]> {
+    const params = new HttpParams().set("path", path);
+    return this.http.get<string[]>(`${this.baseUrl}/libraries/directory-suggestions`, { params });
+  }
+
   createLibrary(name: string, path: string, kind: LibraryKind): Observable<Library> {
     return this.http.post<Library>(`${this.baseUrl}/libraries`, { name, path, kind });
   }

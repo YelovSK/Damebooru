@@ -22,14 +22,17 @@
             </div>
             <div>
                 <label for="new-library-path" class="block text-sm text-text-dim mb-1">Server Path</label>
-                <input
+                <app-autocomplete
                     id="new-library-path"
-                    type="text"
-                    [ngModel]="newLibraryPath()"
-                    (ngModelChange)="newLibraryPath.set($event)"
+                    [value]="newLibraryPath()"
+                    [suggestions]="pathSuggestions()"
+                    [debounce]="150"
+                    [suggestAfterSelection]="true"
                     placeholder="/mtn/media/dslr (or C:\Media\Photos)"
-                    class="w-full px-4 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
-                    (keyup.enter)="createLibrary()" />
+                    (valueChange)="newLibraryPath.set($event)"
+                    (queryChange)="onPathQueryChange($event)"
+                    (selection)="newLibraryPath.set($event)"
+                    (searchTrigger)="createLibrary()" />
             </div>
         </div>
 

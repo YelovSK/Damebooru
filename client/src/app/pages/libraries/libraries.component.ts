@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toSignal, toObservable } from '@angular/core/rxjs-interop';
-import { catchError, of, switchMap } from 'rxjs';
+import { Subject, catchError, of, switchMap } from 'rxjs';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { type Library, LibraryKind } from '@services/api/damebooru/models';
@@ -12,12 +12,13 @@ import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
 import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
+import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { AppPaths } from '@app/app.paths';
 
 @Component({
     selector: 'app-libraries',
     standalone: true,
-    imports: [CommonModule, FormsModule, RouterLink, ButtonDirective, FileSizePipe, FormCheckboxComponent],
+    imports: [CommonModule, FormsModule, RouterLink, ButtonDirective, FileSizePipe, FormCheckboxComponent, AutocompleteComponent],
     templateUrl: './libraries.component.html',
     styleUrl: './libraries.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -58,6 +59,20 @@ export class LibrariesComponent {
         ),
         { initialValue: [] as Library[] }
     );
+
+    private pathQuery = new Subject<string>();
+    pathSuggestions = toSignal(
+        this.pathQuery.pipe(
+            switchMap(path => this.damebooru.getDirectorySuggestions(path).pipe(
+                catchError(() => of([] as string[]))
+            ))
+        ),
+        { initialValue: [] as string[] }
+    );
+
+    onPathQueryChange(path: string) {
+        this.pathQuery.next(path);
+    }
 
     createLibrary() {
         const name = this.newLibraryName().trim();

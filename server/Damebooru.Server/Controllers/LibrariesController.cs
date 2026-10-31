@@ -1,5 +1,6 @@
 using Damebooru.Core.DTOs;
 using Damebooru.Processing.Services;
+using Damebooru.Processing.Services.Files;
 using Damebooru.Server.Extensions;
 using Microsoft.AspNetCore.Mvc;
 
@@ -11,17 +12,28 @@ public class LibrariesController : ControllerBase
 {
     private readonly LibraryService _libraryService;
     private readonly LibraryBrowseService _libraryBrowseService;
+    private readonly DirectorySuggestionService _directorySuggestionService;
 
-    public LibrariesController(LibraryService libraryService, LibraryBrowseService libraryBrowseService)
+    public LibrariesController(
+        LibraryService libraryService,
+        LibraryBrowseService libraryBrowseService,
+        DirectorySuggestionService directorySuggestionService)
     {
         _libraryService = libraryService;
         _libraryBrowseService = libraryBrowseService;
+        _directorySuggestionService = directorySuggestionService;
     }
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<LibraryDto>>> GetLibraries(CancellationToken cancellationToken = default)
     {
         return Ok(await _libraryService.GetLibrariesAsync(cancellationToken));
+    }
+
+    [HttpGet("directory-suggestions")]
+    public ActionResult<IReadOnlyList<string>> GetDirectorySuggestions([FromQuery] string? path)
+    {
+        return Ok(_directorySuggestionService.Suggest(path));
     }
 
     [HttpGet("{id}")]
