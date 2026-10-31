@@ -242,14 +242,17 @@ export class AutocompleteComponent<T> {
   private setupHotkeys() {
     toObservable(this.focusShortcut)
       .pipe(
-        takeUntilDestroyed(this.destroyRef),
         filter((s): s is FocusShortcut => !!s),
-        switchMap(s => this.hotkeys.on(s.key, {
-          ctrl: s.modifier === 'ctrl',
-          meta: s.modifier === 'meta',
-          allowInInput: true,
-          preventDefault: true
-        }))
+        switchMap((s) =>
+          this.hotkeys.on(s.key, {
+            ctrl: s.modifier === 'ctrl',
+            meta: s.modifier === 'meta',
+            // A bare key like "/" is just a character while typing; only modified shortcuts work inside fields.
+            allowInInput: s.modifier !== null,
+            preventDefault: true,
+          }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => this.focusInput());
   }
