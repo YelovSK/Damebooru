@@ -3,43 +3,58 @@
     class="p-3 relative flex gap-3 lg:h-[calc(100dvh-4rem-1px)] max-[1100px]:h-auto max-[1100px]:flex-col-reverse max-[1100px]:gap-2">
     <!-- Sidebar -->
     <aside
-        class="flex h-full w-80 min-w-0 flex-col gap-3 transition-all duration-200 lg:min-w-[350px] max-[1100px]:h-auto max-[1100px]:w-full"
+        class="flex h-full w-96 min-w-0 flex-col gap-3 transition-all duration-200 lg:min-w-96 max-[1100px]:h-auto max-[1100px]:w-full"
         [class.!w-0]="sidebarCollapsed()" [class.!min-w-0]="sidebarCollapsed()"
         [class.overflow-hidden]="sidebarCollapsed()" [class.opacity-0]="sidebarCollapsed()">
 
-        <!-- Actions Section (always visible at top) -->
         <section class="card p-3 shrink-0">
-            @if (around(); as nav) {
-            <div class="mb-2 flex gap-2">
-                <button appButton type="button" variant="secondary" size="sm" class="flex-1" [disabled]="!nav.prev"
-                    (click)="goToPrevPost()">
-                    Previous
-                </button>
-                <button appButton type="button" variant="secondary" size="sm" class="flex-1" [disabled]="!nav.next"
-                    (click)="goToNextPost()">
-                    Next
-                </button>
-            </div>
-            }
-
             @if (editService.isEditing()) {
             <div class="flex gap-2">
                 <button appButton type="button" variant="secondary" size="sm" (click)="cancelEditing()" [disabled]="editService.isSaving()"
                     class="flex-1">Cancel</button>
                 <button appButton type="button" variant="primary" size="sm" (click)="saveChanges()"
                     [disabled]="editService.isSaving() || !editService.isDirty()" class="flex-1">
-                    {{ editService.isSaving() ? 'Saving...' : 'Save Changes' }}
+                    {{ editService.isSaving() ? 'Saving...' : 'Save changes' }}
                 </button>
             </div>
             } @else {
-            <div class="grid grid-cols-3 gap-2">
-                <button appButton type="button" variant="secondary" size="sm" (click)="startEditing()">Edit</button>
-                <button appButton type="button" variant="secondary" size="sm" (click)="applyAiTags()" [disabled]="isAiTagPreviewLoading()">
-                    {{ isAiTagPreviewLoading() ? 'AI...' : 'AI Tag' }}
+            <div class="flex items-center gap-1">
+                <button appButton type="button" variant="ghost" size="icon" (click)="toggleFavorite()"
+                    [class.!text-danger]="pd.isFavorite"
+                    [appTooltip]="pd.isFavorite ? 'Remove from favorites' : 'Add to favorites'"
+                    [attr.aria-pressed]="pd.isFavorite" aria-label="Favorite">
+                    <svg class="h-5 w-5" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round"
+                        [attr.fill]="pd.isFavorite ? 'currentColor' : 'none'" aria-hidden="true">
+                        <path d="M12 20.5s-7.5-4.4-9.3-9.2C1.4 7.9 3.7 4.5 7.2 4.5c2 0 3.5 1.1 4.8 2.8 1.3-1.7 2.8-2.8 4.8-2.8 3.5 0 5.8 3.4 4.5 6.8-1.8 4.8-9.3 9.2-9.3 9.2Z" />
+                    </svg>
                 </button>
-                <button appButton type="button" variant="secondary" size="sm" (click)="autoTagPost()" [disabled]="isAutoTagging()">
-                    {{ isAutoTagging() ? 'Auto-Tagging...' : 'Auto-Tag' }}
+                <a appButton variant="ghost" size="icon" [href]="getPostContentUrl(pd)" appTooltip="Open original file" aria-label="Open original file">
+                    <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 4h6v6" /><path d="M20 4 10 14" /><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                    </svg>
+                </a>
+
+                <div class="flex-1"></div>
+
+                <button appButton type="button" size="sm" [cdkMenuTriggerFor]="tagMenu" [disabled]="isAiTagPreviewLoading() || isAutoTagging()">
+                    {{ isAiTagPreviewLoading() ? 'AI tagging...' : isAutoTagging() ? 'Auto-tagging...' : 'Tag' }}
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                 </button>
+                <ng-template #tagMenu>
+                    <div class="min-w-56 rounded-lg border border-line-strong bg-surface p-1 shadow-xl" cdkMenu>
+                        <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm text-fg outline-none hover:bg-raised focus:bg-raised" cdkMenuItem
+                            (cdkMenuItemTriggered)="applyAiTags()">
+                            AI tag
+                            <span class="block text-xs text-fg-muted">Local model, shows results first</span>
+                        </button>
+                        <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm text-fg outline-none hover:bg-raised focus:bg-raised" cdkMenuItem
+                            (cdkMenuItemTriggered)="autoTagPost()">
+                            Auto-tag
+                            <span class="block text-xs text-fg-muted">Look up sources online</span>
+                        </button>
+                    </div>
+                </ng-template>
+                <button appButton type="button" size="sm" (click)="startEditing()">Edit</button>
             </div>
             }
         </section>
@@ -92,33 +107,19 @@
                         <span class="text-fg-muted">File Modified</span>
                         <span class="text-fg font-medium">{{ pd.fileModifiedDate | dateTime }}</span>
 
-                        <span class="text-fg-muted">Size</span>
-                        <span class="text-fg font-medium">{{ pd.sizeBytes | fileSize }}</span>
-
-                        <span class="text-fg-muted">Dimensions</span>
-                        <span class="text-fg font-medium">{{ pd.width }} x {{ pd.height }}</span>
-
-                        <span class="text-fg-muted">Type</span>
-                        <span class="text-fg font-medium">{{ pd.contentType }}</span>
+                        <span class="text-fg-muted">Details</span>
+                        <span class="text-fg font-medium" [title]="pd.contentType">{{ pd.width }} × {{ pd.height }} · {{ getFormat(pd) }} · {{ pd.sizeBytes | fileSize }}</span>
 
                     </div>
-
-                    @if (!editService.isEditing()) {
-                    <div class="flex flex-row gap-2 mb-4">
-                        <a appButton [href]="getPostContentUrl(pd)" variant="secondary" class="flex-1">
-                            Original File
-                        </a>
-                        <button appButton type="button" variant="secondary" class="flex-1" [class.!bg-danger/10]="pd.isFavorite"
-                            [class.!text-danger]="pd.isFavorite" [class.!border-danger/30]="pd.isFavorite"
-                            (click)="toggleFavorite()">
-                            {{ pd.isFavorite ? 'Unfavorite' : 'Favorite' }}
-                        </button>
-                    </div>
-                    }
 
                     <!-- Tags section within Info tab -->
                     <div class="pt-4 border-t border-line flex flex-col gap-3 flex-1 min-h-0">
-                        <h4 class="mt-0 mb-0 text-[0.95rem] text-fg font-semibold">Tags</h4>
+                        <ng-template #tagGroupHeading let-group>
+                            <div class="mb-1 flex items-baseline gap-1.5 px-2 text-xs font-semibold uppercase tracking-wide">
+                                <span [style.color]="getTagCategoryColor(group)">{{ getTagCategoryLabel(group) }}</span>
+                                <span class="font-normal text-fg-subtle">{{ group.tags.length }}</span>
+                            </div>
+                        </ng-template>
                         @if (editService.isEditing() && editService.currentState(); as state) {
                         <!-- Tag input -->
                         <app-autocomplete [suggestions]="tagSuggestions()" [multi]="false" [placeholder]="'Add tag...'"
@@ -133,38 +134,35 @@
                             </ng-template>
                         </app-autocomplete>
 
-                        <!-- Editable tag list -->
-                        <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
-                            @for (tag of state.tags; track trackByEditTag(tag)) {
-                            <div
-                                class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-surface rounded-sm border-l-3"
-                                [style.border-left-color]="getTagCategoryColor(tag)"
-                                [appTooltip]="getTagCategoryLabel(tag)" tooltipPosition="right">
-                                <span
-                                    class="text-fg flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{
-                                    tag.name }}</span>
-                                <app-post-tag-sources [sources]="tag.sources"></app-post-tag-sources>
-                                <button appButton type="button" variant="ghost" size="icon" (click)="removeTag(tag)"
-                                    class="!h-6 !w-6 hover:!text-danger">×</button>
+                        <div class="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto">
+                            @for (group of editTagGroups(); track group.category) {
+                            <div>
+                                <ng-container [ngTemplateOutlet]="tagGroupHeading" [ngTemplateOutletContext]="{ $implicit: group }" />
+                                @for (tag of group.tags; track trackByEditTag(tag)) {
+                                <div class="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-raised">
+                                    <span class="min-w-0 flex-1 truncate text-fg">{{ tag.name }}</span>
+                                    <app-post-tag-sources [sources]="tag.sources"></app-post-tag-sources>
+                                    <button appButton type="button" variant="ghost" size="icon" (click)="removeTag(tag)"
+                                        class="!h-6 !w-6 hover:!text-danger" [attr.aria-label]="'Remove ' + tag.name">×</button>
+                                </div>
+                                }
                             </div>
                             }
                         </div>
                         } @else if (pd.tags.length > 0) {
-                        <!-- View mode tag list -->
-                        <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
-                            @for (tag of pd.tags; track trackByTag(tag)) {
-                            <a class="flex justify-between items-center gap-2 text-[0.85rem] p-2 bg-surface rounded-sm border-l-3 cursor-pointer transition-all hover:bg-raised"
-                                [routerLink]="appLinks.posts()" [queryParams]="{ query: tag.name | tag }"
-                                [style.border-left-color]="getTagCategoryColor(tag)"
-                                [appTooltip]="getTagCategoryLabel(tag)" tooltipPosition="right">
-                                <span
-                                    class="text-fg flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{
-                                    tag.name }}</span>
-                                <div class="flex shrink-0 items-center gap-2">
+                        <div class="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto">
+                            @for (group of viewTagGroups(); track group.category) {
+                            <div>
+                                <ng-container [ngTemplateOutlet]="tagGroupHeading" [ngTemplateOutletContext]="{ $implicit: group }" />
+                                @for (tag of group.tags; track trackByTag(tag)) {
+                                <a class="flex items-center gap-2 rounded-md px-2 py-1 text-sm no-underline transition-colors hover:bg-raised"
+                                    [routerLink]="appLinks.posts()" [queryParams]="{ query: tag.name | tag }">
+                                    <span class="min-w-0 flex-1 truncate text-fg">{{ tag.name }}</span>
                                     <app-post-tag-sources [sources]="tag.sources"></app-post-tag-sources>
-                                    <span class="text-fg-subtle">{{ tag.usages }}</span>
-                                </div>
-                            </a>
+                                    <span class="w-10 shrink-0 text-right text-xs tabular-nums text-fg-subtle">{{ tag.usages | number }}</span>
+                                </a>
+                                }
+                            </div>
                             }
                         </div>
                         } @else {
@@ -175,10 +173,34 @@
 
                 <!-- Source Tab -->
                 <app-tab id="source" label="Source" (open)="onSourceTabOpen()">
-                    <!-- Auto-tagging status -->
-                    <div class="mb-4 rounded-lg border border-line bg-surface p-3 shrink-0">
+                    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    <h4 class="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-fg-subtle">Sources</h4>
+                    @if (editService.isEditing()) {
+                    <textarea [value]="sourcesValue()" (input)="onSourcesChange($event)"
+                        placeholder="Sources (one per line)..."
+                        appInput class="!h-40 shrink-0 py-2 resize-y"></textarea>
+                    } @else if (sourceLinks().length > 0) {
+                    <div class="flex flex-col">
+                        @for (link of sourceLinks(); track link.key) {
+                        <a [href]="link.urls[0]" target="_blank" rel="noopener noreferrer" [title]="link.urls.join('\n')"
+                            class="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm no-underline transition-colors hover:bg-raised">
+                            <span class="min-w-0 flex-1 truncate text-fg">{{ link.label }}</span>
+                            @if (link.urls.length > 1) {
+                            <span class="shrink-0 text-xs text-fg-subtle">{{ link.urls.length }} links</span>
+                            }
+                            <svg class="h-3.5 w-3.5 shrink-0 text-fg-subtle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M14 4h6v6" /><path d="M20 4 10 14" /><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                            </svg>
+                        </a>
+                        }
+                    </div>
+                    } @else {
+                    <span class="px-2 text-sm text-fg-muted">No sources</span>
+                    }
+
+                    <div class="mt-5 border-t border-line px-2 pt-4">
                         <div class="mb-2 flex items-center justify-between gap-2">
-                            <h4 class="m-0 text-[0.92rem] font-semibold text-fg">Auto-tagging</h4>
+                            <h4 class="text-xs font-semibold uppercase tracking-wide text-fg-subtle">Auto-tagging</h4>
                             <span class="rounded-full border px-2 py-0.5 text-[0.68rem] font-semibold"
                                 [ngClass]="getAutoTagStatusClass(autoTagStatus())">
                                 {{ isAutoTagStatusLoading() ? 'Loading...' : getAutoTagStatusLabel(autoTagStatus()) }}
@@ -245,22 +267,7 @@
                         <p class="m-0 text-[0.78rem] text-fg-muted">Auto-tagging has not run for this post yet.</p>
                         }
                     </div>
-
-                    @if (editService.isEditing()) {
-                    <textarea [value]="sourcesValue()" (input)="onSourcesChange($event)"
-                        placeholder="Sources (one per line)..."
-                        appInput class="!h-auto flex-1 min-h-0 py-2 resize-none"></textarea>
-                    } @else if (pd.sources && pd.sources.length > 0) {
-                    <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
-                        @for (sourceUrl of pd.sources; track sourceUrl) {
-                        <a [href]="sourceUrl" target="_blank"
-                            class="text-accent break-all text-[0.85rem] no-underline transition-colors hover:text-fg hover:underline">{{
-                            sourceUrl }}</a>
-                        }
                     </div>
-                    } @else {
-                    <span class="text-fg-muted text-[0.85rem]">No sources</span>
-                    }
                 </app-tab>
 
                 <!-- Audit Tab -->
@@ -328,15 +335,35 @@
     </aside>
 
     <!-- Main Content Area -->
-    <div #mediaContainer class="relative flex grow touch-pan-y select-none items-center justify-center overflow-hidden rounded-xl border border-line bg-sunken min-h-[320px] h-[70vh] sm:min-h-[380px] lg:h-full lg:min-h-0"
+    <div #mediaContainer class="group/media relative flex grow touch-pan-y select-none items-center justify-center overflow-hidden rounded-xl border border-line bg-sunken min-h-[320px] h-[70vh] sm:min-h-[380px] lg:h-full lg:min-h-0"
         (pointerdown)="onMediaPointerDown($event)" (pointerup)="onMediaPointerUp($event)"
         (pointercancel)="onMediaPointerCancel()">
         <!-- Sidebar Toggle Button -->
         <button type="button"
             class="absolute top-3 left-3 z-10 w-8 h-8 flex items-center justify-center bg-black/50 border border-line-strong rounded-lg text-fg-muted hover:text-fg hover:bg-black/70 transition-all max-[1100px]:hidden"
+            [attr.aria-label]="sidebarCollapsed() ? 'Show sidebar' : 'Hide sidebar'"
+            [appTooltip]="sidebarCollapsed() ? 'Show sidebar' : 'Hide sidebar'" tooltipPosition="right"
             (click)="toggleSidebar()">
-            <span class="text-sm">{{ sidebarCollapsed() ? '→' : '←' }}</span>
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" />
+            </svg>
         </button>
+
+        @if (around(); as nav) {
+        @for (arrow of [{ side: 'left', target: nav.prev, label: 'Previous post' }, { side: 'right', target: nav.next, label: 'Next post' }]; track arrow.side) {
+        @if (arrow.target !== null) {
+        <button type="button"
+            class="absolute top-1/2 z-10 hidden h-12 w-10 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg bg-black/40 text-white/80 opacity-0 transition-opacity hover:bg-black/60 hover:text-white group-hover/media:opacity-100 focus-visible:opacity-100 [@media(hover:hover)]:flex"
+            [class.left-3]="arrow.side === 'left'" [class.right-3]="arrow.side === 'right'"
+            [attr.aria-label]="arrow.label" [appTooltip]="arrow.label + (arrow.side === 'left' ? ' (←)' : ' (→)')"
+            (click)="arrow.side === 'left' ? goToPrevPost() : goToNextPost()">
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path [attr.d]="arrow.side === 'left' ? 'm15 18-6-6 6-6' : 'm9 18 6-6-6-6'" />
+            </svg>
+        </button>
+        }
+        }
+        }
 
         @if (getMediaType(pd.contentType) === 'video') {
         <video [src]="getPostContentUrl(pd)" (loadeddata)="imageLoading.set(false)"

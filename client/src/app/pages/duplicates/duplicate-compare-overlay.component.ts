@@ -9,7 +9,7 @@ import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ZoomPanContainerComponent, ZoomPanSync } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
-import { formatPathForDisplay } from '@shared/utils/utils';
+import { formatPathForDisplay, getFileFormat } from '@shared/utils/utils';
 
 export type DuplicateCompareMode = 'side-by-side' | 'flip';
 
@@ -145,8 +145,7 @@ export class DuplicateCompareOverlayComponent {
   }
 
   getFormat(post: DuplicateComparePost): string {
-    const extension = /\.([a-z0-9]+)$/i.exec(post.relativePath)?.[1];
-    return (extension ?? post.contentType?.split('/')[1] ?? '').toUpperCase();
+    return getFileFormat(post.relativePath, post.contentType);
   }
 
   getFolder(post: DuplicateComparePost): string {

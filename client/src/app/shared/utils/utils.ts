@@ -25,6 +25,12 @@ export function getFileNameFromPath(path: string): string {
     return path.split(/[/\\]/).pop() || path;
 }
 
+/** A short format label like "JPG" or "JXL": the file extension, falling back to the MIME subtype. */
+export function getFileFormat(path: string, contentType?: string | null): string {
+    const extension = /\.([a-z0-9]+)$/i.exec(path)?.[1];
+    return (extension ?? contentType?.split('/')[1] ?? '').toUpperCase();
+}
+
 export function formatPathForDisplay(path: string): string {
     return path
         .split(/[/\\]/)

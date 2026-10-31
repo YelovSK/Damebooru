@@ -13,6 +13,7 @@ import {
 } from "@angular/core";
 import { CommonModule, DOCUMENT } from "@angular/common";
 import { RouterLink, Router } from "@angular/router";
+import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from "@angular/cdk/menu";
 import {
   Subject,
   fromEvent,
@@ -31,7 +32,8 @@ import { ImagePreloadService } from "@services/image-preload.service";
 import { SettingsService } from "@services/settings.service";
 import { ToastService } from "@services/toast.service";
 import { TagPipe } from "@shared/pipes/escape-tag.pipe";
-import { escapeTagName, getMediaType } from "@shared/utils/utils";
+import { escapeTagName, getFileFormat, getMediaType } from "@shared/utils/utils";
+import { describeSourceUrl } from "@shared/utils/source-url";
 import {
   type DamebooruPostDto,
   type DamebooruTagDto,
@@ -66,6 +68,9 @@ type NavigationFetchDirection = "initial" | "previous" | "next";
 @Component({
   selector: "app-post-detail",
   imports: [
+    CdkMenu,
+    CdkMenuItem,
+    CdkMenuTrigger,
     CommonModule,
     DateTimePipe,
     RouterLink,
@@ -201,6 +206,21 @@ export class PostDetailComponent {
 
     return this.navigationPosts().findIndex((post) => post.id === id);
   });
+
+  /** Sources merged per post, so different URL forms of the same post show up once. */
+  readonly sourceLinks = computed(() => {
+    const links = new Map<string, { key: string; label: string; urls: string[] }>();
+    for (const url of this.post()?.sources ?? []) {
+      const { key, label } = describeSourceUrl(url);
+      const link = links.get(key) ?? { key, label, urls: [] };
+      link.urls.push(url);
+      links.set(key, link);
+    }
+    return [...links.values()];
+  });
+
+  readonly viewTagGroups = computed(() => groupTagsByCategory(this.post()?.tags ?? []));
+  readonly editTagGroups = computed(() => groupTagsByCategory(this.editService.currentState()?.tags ?? []));
 
   readonly around = computed(() => {
     const index = this.currentWindowIndex();
@@ -643,6 +663,10 @@ export class PostDetailComponent {
     if (element) {
       void element.requestFullscreen();
     }
+  }
+
+  getFormat(post: { relativePath: string; contentType?: string | null }): string {
+    return getFileFormat(post.relativePath, post.contentType);
   }
 
   getTagCategoryLabel(tag: { category?: TagCategoryKind | null }): string {
@@ -1429,4 +1453,14 @@ export class PostDetailComponent {
   protected trackByTag(tag: DamebooruTagDto): string {
     return tag.id.toString();
   }
+}
+
+/** Groups in the order categories first appear; the server already sorts a post's tags by category display order. */
+function groupTagsByCategory<T extends { category?: TagCategoryKind | null }>(tags: readonly T[]): { category: TagCategoryKind; tags: T[] }[] {
+  const groups = new Map<TagCategoryKind, T[]>();
+  for (const tag of tags) {
+    const category = tag.category ?? TagCategoryKind.General;
+    groups.set(category, [...(groups.get(category) ?? []), tag]);
+  }
+  return [...groups].map(([category, groupTags]) => ({ category, tags: groupTags }));
 }

@@ -19,7 +19,7 @@ import {
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
 import { DateTimePipe } from '@shared/pipes/date-time.pipe';
-import { formatPathForDisplay, getFileNameFromPath } from '@shared/utils/utils';
+import { formatPathForDisplay, getFileFormat, getFileNameFromPath } from '@shared/utils/utils';
 import { ConfirmService } from '@services/confirm.service';
 import { ToastService } from '@services/toast.service';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
@@ -722,8 +722,7 @@ export class DuplicatesPageComponent {
   }
 
   getFormat(post: VisibleDuplicatePost): string {
-    const extension = /\.([a-z0-9]+)$/i.exec(post.relativePath)?.[1];
-    return (extension ?? post.contentType?.split('/')[1] ?? '').toUpperCase();
+    return getFileFormat(post.relativePath, post.contentType);
   }
 
   getPostFilePlacementLabel(file: DuplicatePostFile): string {
