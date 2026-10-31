@@ -1,93 +1,40 @@
-import { booleanAttribute, computed, Directive, effect, inject, input, Renderer2, ElementRef } from '@angular/core';
+import { booleanAttribute, computed, Directive, input } from '@angular/core';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'success' | 'warning';
-export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'icon';
+export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
 
-interface ButtonClassOptions {
-  variant: ButtonVariant;
-  size: ButtonSize;
-  fullWidth?: boolean;
-}
-
-const baseClasses = 'inline-flex items-center text-center justify-center font-semibold cursor-pointer transition-all duration-200 rounded-md border disabled:opacity-30 disabled:cursor-not-allowed disabled:transform-none';
+const baseClasses = 'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border font-medium cursor-pointer transition-colors outline-accent focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed';
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-accent/15 text-accent border-accent/20 hover:bg-accent hover:text-on-accent hover:-translate-y-0.5',
-  secondary: 'bg-raised text-fg border-line-strong hover:bg-line-strong hover:-translate-y-0.5',
-  danger: 'bg-transparent border-danger/50 text-danger hover:bg-danger hover:text-on-accent',
-  ghost: 'bg-transparent border-transparent text-fg-subtle hover:text-danger',
-  success: 'bg-transparent border-success/50 text-success hover:bg-success hover:text-on-accent',
-  warning: 'bg-transparent border-warning/50 text-warning hover:bg-warning hover:text-on-accent',
+  primary: 'bg-accent border-accent text-on-accent hover:brightness-110',
+  secondary: 'bg-raised border-line-strong text-fg hover:bg-line-strong',
+  ghost: 'bg-transparent border-transparent text-fg-muted hover:bg-raised hover:text-fg',
+  danger: 'bg-transparent border-danger/40 text-danger hover:bg-danger/15 hover:border-danger/60',
+  success: 'bg-transparent border-success/40 text-success hover:bg-success/15 hover:border-success/60',
+  warning: 'bg-transparent border-warning/40 text-warning hover:bg-warning/15 hover:border-warning/60',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  xs: 'px-2 py-0.5 text-[0.65rem]',
-  sm: 'px-3 py-1.5 text-[0.75rem]',
-  md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base',
-  icon: 'p-1 aspect-square min-w-[2rem] text-lg',
+  sm: 'h-8 px-3 text-[0.8125rem]',
+  md: 'h-10 px-4 text-sm',
+  lg: 'h-11 px-6 text-base',
+  icon: 'h-8 w-8 text-base',
 };
-
-function buildButtonClasses(options: ButtonClassOptions): string {
-  const paddingClasses = options.size === 'icon'
-    ? ''
-    : options.variant === 'ghost' && options.size === 'md'
-      ? 'p-1'
-      : '';
-
-  return [
-    baseClasses,
-    variantClasses[options.variant],
-    sizeClasses[options.size],
-    options.fullWidth ? 'w-full' : '',
-    paddingClasses,
-  ].filter(Boolean).join(' ');
-}
 
 @Directive({
   selector: 'button[appButton], a[appButton]',
   standalone: true,
+  host: { '[class]': 'classes()' },
 })
 export class ButtonDirective {
-  private readonly elementRef = inject(ElementRef<HTMLElement>);
-  private readonly renderer = inject(Renderer2);
-  private readonly appliedClasses = new Set<string>();
-
-  readonly variant = input<ButtonVariant>('primary');
+  readonly variant = input<ButtonVariant>('secondary');
   readonly size = input<ButtonSize>('md');
   readonly fullWidth = input(false, { transform: booleanAttribute });
 
-  private readonly buttonClasses = computed(() => buildButtonClasses({
-    variant: this.variant(),
-    size: this.size(),
-    fullWidth: this.fullWidth(),
-  }));
-
-  constructor() {
-    effect(() => {
-      this.syncClasses(this.buttonClasses());
-    });
-  }
-
-  private syncClasses(classList: string): void {
-    const nextClasses = new Set(classList.split(/\s+/).filter(Boolean));
-    const element = this.elementRef.nativeElement;
-
-    for (const className of this.appliedClasses) {
-      if (!nextClasses.has(className)) {
-        this.renderer.removeClass(element, className);
-      }
-    }
-
-    for (const className of nextClasses) {
-      if (!this.appliedClasses.has(className)) {
-        this.renderer.addClass(element, className);
-      }
-    }
-
-    this.appliedClasses.clear();
-    for (const className of nextClasses) {
-      this.appliedClasses.add(className);
-    }
-  }
+  protected readonly classes = computed(() => [
+    baseClasses,
+    variantClasses[this.variant()],
+    sizeClasses[this.size()],
+    this.fullWidth() ? 'w-full' : '',
+  ].join(' '));
 }

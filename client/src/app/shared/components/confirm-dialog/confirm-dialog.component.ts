@@ -18,13 +18,13 @@ import { TemplatePortal } from '@angular/cdk/portal';
 
 import { ConfirmService } from '@services/confirm.service';
 import { AppOverlayService } from '@services/app-overlay.service';
-import { ButtonDirective } from '@shared/directives';
+import { ButtonDirective, InputDirective } from '@shared/directives';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-confirm-dialog',
   standalone: true,
-  imports: [CommonModule, ButtonDirective],
+  imports: [CommonModule, ButtonDirective, InputDirective],
   templateUrl: './confirm-dialog.component.html',
   styleUrl: './confirm-dialog.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush

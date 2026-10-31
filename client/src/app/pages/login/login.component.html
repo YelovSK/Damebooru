@@ -7,17 +7,17 @@
 
         <form (ngSubmit)="onLogin()">
             <div class="mb-6">
-                <label for="username" class="block mb-2 text-[0.9rem] text-fg">Username</label>
+                <label for="username" appFieldLabel>Username</label>
                 <input type="text" id="username" [(ngModel)]="username" name="username"
                     placeholder="Enter your username" required
-                    class="input-field" />
+                    appInput />
             </div>
 
             <div class="mb-6">
-                <label for="password" class="block mb-2 text-[0.9rem] text-fg">Password</label>
+                <label for="password" appFieldLabel>Password</label>
                 <input type="password" id="password" [(ngModel)]="password" name="password"
                     placeholder="Enter your password" required
-                    class="input-field" />
+                    appInput />
             </div>
 
             @if (error()) {

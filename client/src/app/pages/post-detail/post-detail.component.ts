@@ -53,7 +53,7 @@ import { ZoomPanContainerComponent } from "@shared/components/zoom-pan-container
 import { TabComponent } from "@shared/components/tabs/tab.component";
 import { TabsComponent } from "@shared/components/tabs/tabs.component";
 import { ModalComponent } from "@shared/components/modal/modal.component";
-import { ButtonDirective, TooltipDirective } from "@shared/directives";
+import { ButtonDirective, InputDirective, TooltipDirective } from "@shared/directives";
 import { HotkeysService } from "@services/hotkeys.service";
 import { AppLinks } from "@app/app.paths";
 import { PostEditService, type PostEditTag } from "./post-edit.service";
@@ -76,6 +76,7 @@ type NavigationFetchDirection = "initial" | "previous" | "next";
     TabComponent,
     ModalComponent,
     ButtonDirective,
+    InputDirective,
     TooltipDirective,
     FileSizePipe,
     FileNamePipe,

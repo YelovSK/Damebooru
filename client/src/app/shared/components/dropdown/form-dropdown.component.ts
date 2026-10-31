@@ -13,6 +13,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { FieldLabelDirective, InputDirective } from '@shared/directives';
 
 export interface FormDropdownOption<T = unknown> {
   label: string;
@@ -23,7 +24,7 @@ export interface FormDropdownOption<T = unknown> {
 @Component({
   selector: 'app-form-dropdown',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FieldLabelDirective, InputDirective],
   templateUrl: './form-dropdown.component.html',
   styleUrl: './form-dropdown.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

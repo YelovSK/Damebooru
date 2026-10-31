@@ -2,13 +2,13 @@ import { Component, ChangeDetectionStrategy, type OnInit, inject, signal } from 
 
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { ButtonDirective } from '@shared/directives';
+import { ButtonDirective, FieldLabelDirective, InputDirective } from '@shared/directives';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { AppLinks } from '@app/app.paths';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, ButtonDirective],
+  imports: [FormsModule, ButtonDirective, FieldLabelDirective, InputDirective],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush

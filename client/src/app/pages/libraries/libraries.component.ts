@@ -7,7 +7,7 @@ import { Subject, catchError, of, switchMap } from 'rxjs';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { type Library, LibraryKind } from '@services/api/damebooru/models';
-import { ButtonDirective } from '@shared/directives';
+import { ButtonDirective, FieldLabelDirective, InputDirective } from '@shared/directives';
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
@@ -18,7 +18,7 @@ import { AppPaths } from '@app/app.paths';
 @Component({
     selector: 'app-libraries',
     standalone: true,
-    imports: [CommonModule, FormsModule, RouterLink, ButtonDirective, FileSizePipe, FormCheckboxComponent, AutocompleteComponent],
+    imports: [CommonModule, FormsModule, RouterLink, ButtonDirective, FieldLabelDirective, InputDirective, FileSizePipe, FormCheckboxComponent, AutocompleteComponent],
     templateUrl: './libraries.component.html',
     styleUrl: './libraries.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,

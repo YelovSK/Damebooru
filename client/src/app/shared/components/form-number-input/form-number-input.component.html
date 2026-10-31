@@ -2,7 +2,7 @@
   @if (label()) {
     <label
       [for]="id()"
-      class="inline-block text-[0.85rem] font-medium text-fg-muted mb-1.5 ml-1"
+      appFieldLabel
     >
       {{ label() }}
     </label>
@@ -20,14 +20,11 @@
       (input)="handleInput($event)"
       (blur)="handleBlur()"
       [disabled]="disabled"
-      class="w-full px-4 py-2.5 pr-12 bg-surface border rounded-xl text-fg text-[0.9rem] outline-none transition-all focus:bg-raised focus: disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-fg-subtle [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0"
-      [class.border-line]="!hasError()"
-      [class.border-danger]="hasError()"
-      [class.focus:border-accent]="!hasError()"
-      [class.focus:border-danger]="hasError()"
+      appInput class="!pr-10 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0"
+      [invalid]="hasError()"
     />
 
-    <div class="absolute right-1.5 top-1.5 bottom-1.5 w-7 overflow-hidden rounded-md border border-line bg-surface/70 grid grid-rows-2">
+    <div class="absolute right-1 top-1 bottom-1 w-7 overflow-hidden rounded-md border border-line bg-surface grid grid-rows-2">
       <button
         type="button"
         [disabled]="disabled"

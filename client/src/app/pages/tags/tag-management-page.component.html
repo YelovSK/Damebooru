@@ -8,7 +8,7 @@
         <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (searchChange)="onTagsSearch($event)">
         </app-search-input>
       </div>
-      <button appButton type="button" (click)="openCreateTagModal()">New Tag</button>
+      <button appButton variant="primary" type="button" (click)="openCreateTagModal()">New Tag</button>
     </div>
 
     <div class="mb-3 text-sm text-fg-muted">Showing {{ tags().length }} of {{ tagsTotal() }} tags</div>
@@ -35,8 +35,8 @@
   </div>
 
   <div class="mt-4 flex justify-end gap-2">
-    <button appButton type="button" variant="ghost" (click)="closeCreateTagModal()">Cancel</button>
-    <button appButton type="button" (click)="createTag()">Create</button>
+    <button appButton type="button" variant="secondary" (click)="closeCreateTagModal()">Cancel</button>
+    <button appButton variant="primary" type="button" (click)="createTag()">Create</button>
   </div>
 </app-modal>
 
@@ -71,8 +71,8 @@
   <div class="mt-4 flex justify-between gap-2">
     <button appButton type="button" variant="danger" (click)="deleteTagFromEdit()">Delete</button>
     <div class="flex gap-2">
-      <button appButton type="button" variant="ghost" (click)="closeEditTagModal()">Cancel</button>
-      <button appButton type="button" variant="secondary" (click)="saveTag()">Save</button>
+      <button appButton type="button" variant="secondary" (click)="closeEditTagModal()">Cancel</button>
+      <button appButton type="button" variant="primary" (click)="saveTag()">Save</button>
     </div>
   </div>
 </app-modal>

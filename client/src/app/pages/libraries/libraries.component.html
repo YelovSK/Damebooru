@@ -11,17 +11,17 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-                <label for="new-library-name" class="block text-sm text-fg-subtle mb-1">Name</label>
+                <label for="new-library-name" appFieldLabel>Name</label>
                 <input
                     id="new-library-name"
                     type="text"
                     [ngModel]="newLibraryName()"
                     (ngModelChange)="newLibraryName.set($event)"
                     placeholder="e.g. Edited Photos"
-                    class="w-full px-4 py-2 bg-surface border border-line rounded focus:outline-none focus:ring-2 focus:ring-accent text-fg" />
+                    appInput />
             </div>
             <div>
-                <label for="new-library-path" class="block text-sm text-fg-subtle mb-1">Server Path</label>
+                <label for="new-library-path" appFieldLabel>Server Path</label>
                 <app-autocomplete
                     id="new-library-path"
                     [value]="newLibraryPath()"
@@ -47,7 +47,7 @@
         </div>
 
         <div class="flex gap-3 items-center">
-            <button appButton type="button"
+            <button appButton variant="primary" type="button"
                 (click)="createLibrary()"
                 [disabled]="!newLibraryName().trim() || !newLibraryPath().trim() || isCreating()">
                 {{ isCreating() ? 'Creating...' : 'Create Library' }}
@@ -82,9 +82,9 @@
                                     type="text"
                                     [ngModel]="editingName()"
                                     (ngModelChange)="editingName.set($event)"
-                                    class="w-full px-3 py-2 bg-surface border border-line rounded focus:outline-none focus:ring-2 focus:ring-accent text-fg"
+                                    appInput
                                     (keyup.enter)="saveRename(lib)" />
-                                <button appButton type="button" size="sm" [disabled]="renamingLibraryId() === lib.id" (click)="saveRename(lib)">
+                                <button appButton variant="primary" type="button" size="sm" [disabled]="renamingLibraryId() === lib.id" (click)="saveRename(lib)">
                                     Save
                                 </button>
                                 <button appButton type="button" size="sm" variant="secondary" (click)="cancelRename()">Cancel</button>
@@ -166,7 +166,7 @@
                             [ngModel]="getIgnoredPathDraft(lib.id)"
                             (ngModelChange)="setIgnoredPathDraft(lib.id, $event)"
                             placeholder="e.g. _trash or folders/temporary"
-                            class="w-full px-3 py-2 bg-surface border border-line rounded focus:outline-none focus:ring-2 focus:ring-accent text-fg"
+                            appInput
                             (keyup.enter)="addIgnoredPath(lib)" />
                         <button appButton type="button"
                             size="sm"
@@ -188,7 +188,7 @@
                         <div class="flex items-center justify-between gap-2 px-3 py-2 bg-sunken rounded border border-line">
                             <span class="text-sm break-all">{{ ignored.path }}</span>
                             <button appButton type="button"
-                                variant="danger"
+                                variant="ghost"
                                 size="sm"
                                 [disabled]="removingIgnoredPathId() === ignored.id"
                                 (click)="removeIgnoredPath(lib, ignored.id, ignored.path)">
@@ -212,7 +212,7 @@
                             [ngModel]="getAutoTagExcludedPathDraft(lib.id)"
                             (ngModelChange)="setAutoTagExcludedPathDraft(lib.id, $event)"
                             placeholder="e.g. private or finished/no-auto-tag"
-                            class="w-full px-3 py-2 bg-surface border border-line rounded focus:outline-none focus:ring-2 focus:ring-accent text-fg"
+                            appInput
                             (keyup.enter)="addAutoTagExcludedPath(lib)" />
                         <button appButton type="button"
                             size="sm"
@@ -234,7 +234,7 @@
                         <div class="flex items-center justify-between gap-2 px-3 py-2 bg-sunken rounded border border-line">
                             <span class="text-sm break-all">{{ excluded.path }}</span>
                             <button appButton type="button"
-                                variant="danger"
+                                variant="ghost"
                                 size="sm"
                                 [disabled]="removingAutoTagExcludedPathId() === excluded.id"
                                 (click)="removeAutoTagExcludedPath(lib, excluded.id, excluded.path)">

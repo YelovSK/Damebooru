@@ -1,16 +1,15 @@
 <div class="relative w-full min-w-0">
   @if (label()) {
-    <div class="mb-1.5 ml-1 text-[0.85rem] font-medium text-fg-muted">{{ label() }}</div>
+    <div appFieldLabel>{{ label() }}</div>
   }
 
   <button
     type="button"
     (click)="toggle()"
-    class="group flex w-full min-w-0 items-center justify-between rounded-xl border border-line bg-surface px-4 py-2.5 text-left transition-all hover:bg-raised disabled:cursor-not-allowed disabled:opacity-60"
+    appInput class="group flex cursor-pointer items-center justify-between gap-2 text-left"
     [disabled]="isDisabled()"
-    [class.border-accent]="isOpen()"
-    [class.]="isOpen()">
-    <span class="min-w-0 truncate text-[0.9rem] font-medium text-fg">
+    [class.border-accent]="isOpen()">
+    <span class="min-w-0 truncate">
       {{ selectedOption()?.label || placeholder() }}
     </span>
 
@@ -31,7 +30,7 @@
   </button>
 
   @if (isOpen()) {
-    <ul class="box-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-[1000] m-0 max-h-[300px] list-none overflow-y-auto rounded-xl border border-line bg-surface p-2">
+    <ul class="box-scrollbar absolute left-0 right-0 top-[calc(100%+8px)] z-[1000] m-0 max-h-[300px] list-none overflow-y-auto rounded-lg border border-line-strong bg-surface p-1.5">
       @for (option of options(); track $index) {
         <li
           tabindex="0"
@@ -40,7 +39,7 @@
           [attr.aria-disabled]="option.disabled === true"
           (click)="select(option)"
           (keydown)="onOptionKeydown($event, option)"
-          class="mb-0.5 truncate rounded-lg px-4 py-2.5 text-[0.85rem] font-medium text-fg transition-colors duration-150 last:mb-0 focus:outline-none"
+          class="mb-0.5 truncate rounded-md px-2.5 py-1.5 text-sm text-fg transition-colors duration-150 last:mb-0 focus:outline-none"
           [class.cursor-pointer]="!option.disabled"
           [class.cursor-not-allowed]="option.disabled"
           [class.opacity-40]="option.disabled"

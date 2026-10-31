@@ -2,9 +2,12 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject, input, output, 
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged, skip } from 'rxjs';
 
+import { FieldLabelDirective, InputDirective } from '@shared/directives';
+
 @Component({
   selector: 'app-search-input',
   standalone: true,
+  imports: [FieldLabelDirective, InputDirective],
   templateUrl: './search-input.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })

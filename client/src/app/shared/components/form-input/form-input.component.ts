@@ -4,11 +4,12 @@ import { type ControlValueAccessor, NgControl, FormsModule } from '@angular/form
 
 import { FormErrorsComponent } from '../form-errors/form-errors.component';
 import { generateId } from '@shared/utils/utils';
+import { FieldLabelDirective, InputDirective } from '@shared/directives';
 
 @Component({
   selector: 'app-form-input',
   standalone: true,
-  imports: [CommonModule, FormsModule, FormErrorsComponent],
+  imports: [CommonModule, FormsModule, FormErrorsComponent, FieldLabelDirective, InputDirective],
   templateUrl: './form-input.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })

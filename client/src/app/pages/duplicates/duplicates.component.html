@@ -170,10 +170,10 @@
                                 </div>
 
                                 <div class="mt-auto grid gap-1">
-                                    <button appButton type="button" variant="warning" size="xs" [fullWidth]="true" (click)="onExcludePost(group, post)">
+                                    <button appButton type="button" variant="warning" size="sm" [fullWidth]="true" (click)="onExcludePost(group, post)">
                                         Exclude
                                     </button>
-                                    <button appButton type="button" variant="danger" size="xs" [fullWidth]="true" (click)="onDeletePost(group, post)">
+                                    <button appButton type="button" variant="danger" size="sm" [fullWidth]="true" (click)="onDeletePost(group, post)">
                                         Delete
                                     </button>
                                 </div>
@@ -380,7 +380,7 @@
 
                 @if (getResolvedGroupCount() > 0) {
                 <div class="mb-6">
-                    <button appButton type="button" variant="primary" size="md" (click)="unresolveAllGroups()">
+                    <button appButton type="button" variant="secondary" size="md" (click)="unresolveAllGroups()">
                         Unresolve All Groups ({{ getResolvedGroupCount() }})
                     </button>
                 </div>

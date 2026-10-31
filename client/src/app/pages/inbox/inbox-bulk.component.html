@@ -129,7 +129,7 @@
         </section>
 
         <div class="flex gap-2">
-            <button appButton type="button" class="flex-1" [disabled]="!canAccept()" (click)="acceptSelection()">
+            <button appButton variant="primary" type="button" class="flex-1" [disabled]="!canAccept()" (click)="acceptSelection()">
                 {{ store.busy() ? 'Working…' : 'Accept' }}
             </button>
             <button appButton type="button" variant="danger" [disabled]="store.busy()" (click)="discardSelection()">Delete</button>

@@ -3,6 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime, distinctUntilChanged, filter, fromEvent, switchMap } from 'rxjs';
 import { HotkeysService } from '@services/hotkeys.service';
+import { InputDirective } from '@shared/directives';
 
 export interface FocusShortcut {
   modifier: 'ctrl' | 'meta' | null;
@@ -12,7 +13,7 @@ export interface FocusShortcut {
 @Component({
   selector: 'app-autocomplete',
   standalone: true,
-  imports: [NgTemplateOutlet],
+  imports: [NgTemplateOutlet, InputDirective],
   templateUrl: './autocomplete.component.html',
   styleUrl: './autocomplete.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush

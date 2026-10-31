@@ -66,7 +66,7 @@
                         <span class="text-fg-muted">Files</span>
                         <div class="flex min-w-0 items-center justify-between gap-2">
                             <span class="text-fg font-medium">{{ pd.postFiles.length }} linked files</span>
-                            <button appButton variant="secondary" size="xs" type="button" (click)="togglePostFiles()">
+                            <button appButton variant="secondary" size="sm" type="button" (click)="togglePostFiles()">
                                 {{ postFilesExpanded() ? 'Hide' : 'Show all' }}
                             </button>
                         </div>
@@ -105,7 +105,7 @@
 
                     @if (!editService.isEditing()) {
                     <div class="flex flex-row gap-2 mb-4">
-                        <a appButton [href]="getPostContentUrl(pd)" variant="primary" class="flex-1">
+                        <a appButton [href]="getPostContentUrl(pd)" variant="secondary" class="flex-1">
                             Original File
                         </a>
                         <button appButton type="button" variant="secondary" class="flex-1" [class.!bg-danger/10]="pd.isFavorite"
@@ -144,8 +144,8 @@
                                     class="text-fg flex-1 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">{{
                                     tag.name }}</span>
                                 <app-post-tag-sources [sources]="tag.sources"></app-post-tag-sources>
-                                <button appButton type="button" variant="ghost" size="xs" (click)="removeTag(tag)"
-                                    class="text-danger">×</button>
+                                <button appButton type="button" variant="ghost" size="icon" (click)="removeTag(tag)"
+                                    class="!h-6 !w-6 hover:!text-danger">×</button>
                             </div>
                             }
                         </div>
@@ -249,7 +249,7 @@
                     @if (editService.isEditing()) {
                     <textarea [value]="sourcesValue()" (input)="onSourcesChange($event)"
                         placeholder="Sources (one per line)..."
-                        class="w-full flex-1 min-h-0 px-3 py-2 bg-surface border border-line rounded-lg text-[0.85rem] text-fg placeholder-fg-subtle resize-none focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/25"></textarea>
+                        appInput class="!h-auto flex-1 min-h-0 py-2 resize-none"></textarea>
                     } @else if (pd.sources && pd.sources.length > 0) {
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                         @for (sourceUrl of pd.sources; track sourceUrl) {

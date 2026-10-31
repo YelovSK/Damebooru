@@ -176,10 +176,6 @@
     @apply bg-surface border border-line rounded-xl;
   }
 
-  .input-field {
-    @apply w-full p-4 bg-sunken border border-line rounded-md text-fg text-base outline-none transition-colors focus:border-accent;
-  }
-
   .badge {
     @apply text-fg-subtle text-[0.8rem] bg-sunken px-2 py-0.5 rounded-sm;
   }

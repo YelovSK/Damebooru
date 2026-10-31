@@ -78,7 +78,7 @@
         </section>
 
         <div class="mt-auto flex gap-2">
-            <button appButton type="button" class="flex-1" [disabled]="selected().length === 0 || store.busy()" (click)="sort()">
+            <button appButton variant="primary" type="button" class="flex-1" [disabled]="selected().length === 0 || store.busy()" (click)="sort()">
                 {{ store.busy() ? 'Working…' : 'Move' }}
             </button>
             <button appButton type="button" variant="danger" [disabled]="store.busy()" (click)="discard()">Delete</button>
