@@ -2,19 +2,20 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Damebooru.Core.DTOs;
 
-public class SortInboxFilesDto
+public class SortInboxPostsDto
 {
     [Required]
     [MinLength(1)]
-    public List<SortInboxFileDto> Files { get; set; } = [];
+    public List<SortInboxPostDto> Posts { get; set; } = [];
 }
 
-public class SortInboxFileDto
+public class SortInboxPostDto
 {
-    public int PostFileId { get; set; }
+    public int PostId { get; set; }
 
     /// <summary>
-    /// The file is moved to the first destination and copied to the rest.
+    /// The post's inbox file is moved to the first destination and copied to the rest.
+    /// Other inbox copies of the post are deleted.
     /// </summary>
     [Required]
     [MinLength(1)]
@@ -31,9 +32,22 @@ public class SortDestinationDto
     public string Folder { get; set; } = string.Empty;
 }
 
-public class SortInboxFileResultDto
+public class DiscardInboxPostsDto
 {
-    public int PostFileId { get; set; }
+    [Required]
+    [MinLength(1)]
+    public List<int> PostIds { get; set; } = [];
+}
+
+public class InboxPostResultDto
+{
+    public int PostId { get; set; }
+    public string? Error { get; set; }
+}
+
+public class SortInboxPostResultDto
+{
+    public int PostId { get; set; }
     public string? Error { get; set; }
     public string? Warning { get; set; }
     public List<SortedFileLocationDto> Locations { get; set; } = [];
@@ -51,6 +65,12 @@ public class FolderLocationDto
     public string Folder { get; set; } = string.Empty;
 }
 
+public class DestinationFolderDto : FolderLocationDto
+{
+    public string LibraryName { get; set; } = string.Empty;
+    public int PostCount { get; set; }
+}
+
 public class FolderSuggestionDto : FolderLocationDto
 {
     public double Score { get; set; }
@@ -60,6 +80,10 @@ public class FolderSuggestionDto : FolderLocationDto
 public class PostFolderSuggestionsDto
 {
     public int PostId { get; set; }
+
+    /// <summary>The post is an image the AI tagger hasn't seen yet; predicting may bring suggestions.</summary>
+    public bool NeedsPrediction { get; set; }
+
     public List<FolderSuggestionDto> Suggestions { get; set; } = [];
 }
 

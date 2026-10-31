@@ -111,6 +111,53 @@ public sealed class AiTaggingServiceTests
         }
     }
 
+    [Fact]
+    public async Task PredictAsync_StoresNamedTagScoresWithoutApplyingTags()
+    {
+        var libraryPath = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            await File.WriteAllBytesAsync(Path.Combine(libraryPath, "a.png"), [1]);
+
+            await using var db = await CreateContextAsync();
+            var post = new Post
+            {
+                ImportDate = DateTime.UtcNow,
+                ContentHash = "hash",
+                ContentType = "image/png",
+                PostFiles = [new PostFile { Library = new Library { Name = "Inbox", Path = libraryPath, Kind = LibraryKind.Inbox }, RelativePath = "a.png" }],
+            };
+            db.Posts.Add(post);
+            await db.SaveChangesAsync();
+            db.ChangeTracker.Clear();
+
+            var client = new FakeAiTaggingClient
+            {
+                Tags =
+                [
+                    new AiTagData("rem_(re:zero)", 0.9m, TagCategoryKind.Character, "character"),
+                    new AiTagData("scenery", 0.8m, TagCategoryKind.General, "general"),
+                ],
+            };
+            var service = new AiTaggingService(
+                db,
+                new DamebooruConfig { AiTagging = { Enabled = true } },
+                client,
+                new PostReadService(db),
+                new AiTaggingSettingsService(db));
+
+            Assert.True((await service.PredictAsync(post.Id)).IsSuccess);
+
+            Assert.Equal(["rem_(re_zero)"], await db.PostAiPredictions.Select(p => p.TagName).ToListAsync());
+            Assert.False(await db.PostTags.AnyAsync());
+            Assert.NotNull((await db.Posts.AsNoTracking().SingleAsync()).AiPredictionDate);
+        }
+        finally
+        {
+            Directory.Delete(libraryPath, recursive: true);
+        }
+    }
+
     private static async Task<DamebooruDbContext> CreateContextAsync()
     {
         var connection = new SqliteConnection("Data Source=:memory:");
@@ -120,12 +167,15 @@ public sealed class AiTaggingServiceTests
         return context;
     }
 
-    private sealed class FakeAiTaggingClient : IAiTaggingClient
+    internal sealed class FakeAiTaggingClient : IAiTaggingClient
     {
         public string? TaggedFileName { get; private set; }
+        public int Calls { get; private set; }
         public List<AiTagData> Tags { get; set; } = [new AiTagData("ai_tag", 0.99m, TagCategoryKind.General, "general")];
 
-        public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(true);
+        public bool Ready { get; set; } = true;
+
+        public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(Ready);
 
         public Task<AiTaggingResult> TagAsync(
             Stream fileStream,
@@ -137,6 +187,7 @@ public sealed class AiTaggingServiceTests
             CancellationToken cancellationToken = default)
         {
             TaggedFileName = fileName;
+            Calls++;
             return Task.FromResult(new AiTaggingResult(
                 "model",
                 "cpu",

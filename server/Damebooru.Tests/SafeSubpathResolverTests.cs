@@ -28,6 +28,17 @@ public class SafeSubpathResolverTests
     }
 
     [Fact]
+    public void TryResolve_EmptyRelativePath_ResolvesToTheBase()
+    {
+        var root = Path.GetTempPath();
+
+        var ok = SafeSubpathResolver.TryResolve(root, "", out var fullPath);
+
+        Assert.True(ok);
+        Assert.Equal(Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)), Path.TrimEndingDirectorySeparator(fullPath));
+    }
+
+    [Fact]
     public void TryResolve_EmptyBasePath_ReturnsFalse()
     {
         var ok = SafeSubpathResolver.TryResolve("", "file.txt", out var fullPath);

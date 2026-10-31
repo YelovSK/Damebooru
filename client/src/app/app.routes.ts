@@ -21,6 +21,8 @@ export const routes: Routes = [
             { path: AppPaths.logs, loadComponent: () => import('./pages/logs/logs.component').then(m => m.LogsPageComponent), data: { pageWidth: 'wide' } },
             { path: 'duplicates', redirectTo: 'duplicates/exact', pathMatch: 'full' },
             { path: 'duplicates/:tab', loadComponent: () => import('./pages/duplicates/duplicates.component').then(m => m.DuplicatesPageComponent), data: { pageWidth: 'wide' } },
+            { path: AppPaths.inbox, redirectTo: `${AppPaths.inbox}/review`, pathMatch: 'full' },
+            { path: `${AppPaths.inbox}/:tab`, loadComponent: () => import('./pages/inbox/inbox.component').then(m => m.InboxComponent), data: { pageWidth: 'full', fillHeight: true } },
             { path: AppPaths.posts, component: PostsComponent, data: { pageWidth: 'full' } },
             { path: `${AppPaths.post}/:id`, component: PostDetailComponent, data: { pageWidth: 'full' } },
             { path: AppPaths.libraries, component: LibrariesComponent, data: { pageWidth: 'content' } },

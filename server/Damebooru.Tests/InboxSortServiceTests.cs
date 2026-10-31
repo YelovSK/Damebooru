@@ -30,7 +30,7 @@ public sealed class InboxSortServiceTests
         var before = Assert.Single(await h.GetFilesAsync());
         await h.AddManualTagAsync(before.PostId, "keep_me");
 
-        var result = Assert.Single(await h.SortAsync(before.Id, (h.Library, "Series/Character")));
+        var result = Assert.Single(await h.SortAsync(before.PostId, (h.Library, "Series/Character")));
 
         Assert.Null(result.Error);
         Assert.Null(result.Warning);
@@ -57,7 +57,7 @@ public sealed class InboxSortServiceTests
         h.WriteFile(h.Inbox, "a.png", "a");
         await h.ScanAsync(h.Inbox);
         var before = Assert.Single(await h.GetFilesAsync());
-        await h.SortAsync(before.Id, (h.Library, "folder"));
+        await h.SortAsync(before.PostId, (h.Library, "folder"));
         var hashesBefore = h.Hasher.Count;
 
         await h.Sync.ProcessChangedFileAsync(h.Library, h.Item(h.Library, "folder/a.png"), CancellationToken.None);
@@ -80,7 +80,7 @@ public sealed class InboxSortServiceTests
         await h.ScanAsync(h.Inbox);
         var inboxFile = (await h.GetFilesAsync()).Single(f => f.LibraryId == h.Inbox.Id);
 
-        var result = Assert.Single(await h.SortAsync(inboxFile.Id, (h.Library, "x"), (h.Library, "y")));
+        var result = Assert.Single(await h.SortAsync(inboxFile.PostId, (h.Library, "x"), (h.Library, "y")));
 
         Assert.Null(result.Error);
         Assert.Equal(["x/a (2).png", "y/a.png"], result.Locations.Select(l => l.RelativePath).Order());
@@ -103,15 +103,76 @@ public sealed class InboxSortServiceTests
         var libraryFile = files.Single(f => f.LibraryId == h.Library.Id);
         var inboxFile = files.Single(f => f.LibraryId == h.Inbox.Id);
 
-        var fromLibrary = Assert.Single(await h.SortAsync(libraryFile.Id, (h.Library, "x")));
-        var intoInbox = Assert.Single(await h.SortAsync(inboxFile.Id, (h.Inbox, "x")));
-        var outside = Assert.Single(await h.SortAsync(inboxFile.Id, (h.Library, "../escape")));
+        var fromLibrary = Assert.Single(await h.SortAsync(libraryFile.PostId, (h.Library, "x")));
+        var intoInbox = Assert.Single(await h.SortAsync(inboxFile.PostId, (h.Inbox, "x")));
+        var outside = Assert.Single(await h.SortAsync(inboxFile.PostId, (h.Library, "../escape")));
 
         Assert.NotNull(fromLibrary.Error);
         Assert.NotNull(intoInbox.Error);
         Assert.NotNull(outside.Error);
         Assert.True(File.Exists(h.FullPath(h.Inbox, "b.png")));
         Assert.Equal(files.Select(f => (f.Id, f.LibraryId, f.RelativePath)), (await h.GetFilesAsync()).Select(f => (f.Id, f.LibraryId, f.RelativePath)));
+    }
+
+    [Fact]
+    public async Task Sort_DeletesOtherInboxCopiesOfThePost()
+    {
+        await using var h = await SortHarness.CreateAsync();
+        h.WriteFile(h.Inbox, "a.png", "a");
+        h.WriteFile(h.Inbox, "copy/a.png", "a");
+        await h.ScanAsync(h.Inbox);
+        var postId = (await h.GetFilesAsync()).Select(f => f.PostId).Distinct().Single();
+
+        var result = Assert.Single(await h.SortAsync(postId, (h.Library, "")));
+
+        Assert.Null(result.Error);
+        Assert.Null(result.Warning);
+        Assert.False(File.Exists(h.FullPath(h.Inbox, "a.png")));
+        Assert.False(File.Exists(h.FullPath(h.Inbox, "copy/a.png")));
+        var file = Assert.Single(await h.GetFilesAsync());
+        Assert.Equal((h.Library.Id, "a.png"), (file.LibraryId, file.RelativePath));
+    }
+
+    [Fact]
+    public async Task Discard_DeletesInboxFiles_AndKeepsLibraryCopies()
+    {
+        await using var h = await SortHarness.CreateAsync();
+        h.WriteFile(h.Library, "kept/a.png", "a");
+        h.WriteFile(h.Inbox, "a.png", "a");
+        h.WriteFile(h.Inbox, "junk.png", "junk");
+        await h.ScanAsync(h.Library);
+        await h.ScanAsync(h.Inbox);
+        var files = await h.GetFilesAsync();
+        var shared = files.Single(f => f.RelativePath == "a.png").PostId;
+        var junk = files.Single(f => f.RelativePath == "junk.png").PostId;
+
+        var results = await h.DiscardAsync(shared, junk);
+
+        Assert.All(results, r => Assert.Null(r.Error));
+        Assert.False(File.Exists(h.FullPath(h.Inbox, "a.png")));
+        Assert.False(File.Exists(h.FullPath(h.Inbox, "junk.png")));
+        Assert.True(File.Exists(h.FullPath(h.Library, "kept/a.png")));
+        var remaining = Assert.Single(await h.GetFilesAsync());
+        Assert.Equal(shared, remaining.PostId);
+        Assert.Equal(1, await h.CountPostsAsync());
+    }
+
+    [Fact]
+    public async Task Destinations_ListEveryLibraryFolderWithRecursivePostCounts()
+    {
+        await using var h = await SortHarness.CreateAsync();
+        h.WriteFile(h.Library, "Series/Character/a.png", "a");
+        h.WriteFile(h.Library, "Series/b.png", "b");
+        h.WriteFile(h.Inbox, "inbox-only/c.png", "c");
+        await h.ScanAsync(h.Library);
+        await h.ScanAsync(h.Inbox);
+
+        var destinations = await h.GetDestinationsAsync();
+
+        Assert.Equal(
+            [("", 2), ("Series", 2), ("Series/Character", 1)],
+            destinations.Select(d => (d.Folder, d.PostCount)));
+        Assert.All(destinations, d => Assert.Equal(h.Library.Id, d.LibraryId));
     }
 
     private sealed class SortHarness : IAsyncDisposable
@@ -177,17 +238,17 @@ public sealed class InboxSortServiceTests
         public Task<ScanResult> ScanAsync(Library library)
             => Sync.ProcessDirectoryAsync(library, library.Path);
 
-        public async Task<List<SortInboxFileResultDto>> SortAsync(int postFileId, params (Library Library, string Folder)[] destinations)
+        public async Task<List<SortInboxPostResultDto>> SortAsync(int postId, params (Library Library, string Folder)[] destinations)
         {
             await using var scope = _provider.CreateAsyncScope();
             var service = scope.ServiceProvider.GetRequiredService<InboxSortService>();
-            var result = await service.SortAsync(new SortInboxFilesDto
+            var result = await service.SortAsync(new SortInboxPostsDto
             {
-                Files =
+                Posts =
                 [
-                    new SortInboxFileDto
+                    new SortInboxPostDto
                     {
-                        PostFileId = postFileId,
+                        PostId = postId,
                         Destinations = destinations
                             .Select(d => new SortDestinationDto { LibraryId = d.Library.Id, Folder = d.Folder })
                             .ToList(),
@@ -196,6 +257,19 @@ public sealed class InboxSortServiceTests
             }, CancellationToken.None);
             Assert.True(result.IsSuccess, result.Message);
             return result.Value!;
+        }
+
+        public async Task<List<InboxPostResultDto>> DiscardAsync(params int[] postIds)
+        {
+            await using var scope = _provider.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<InboxSortService>()
+                .DiscardAsync(new DiscardInboxPostsDto { PostIds = postIds.ToList() }, CancellationToken.None);
+        }
+
+        public async Task<List<DestinationFolderDto>> GetDestinationsAsync()
+        {
+            await using var scope = _provider.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<InboxSortService>().GetDestinationsAsync(CancellationToken.None);
         }
 
         public void WriteFile(Library library, string relativePath, string content)

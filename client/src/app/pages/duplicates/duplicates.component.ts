@@ -7,7 +7,6 @@ import { catchError, finalize, switchMap } from 'rxjs/operators';
 import { type Observable, type Subscription, defer, filter, map, startWith, throwError } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import {
-  type DamebooruPostDto,
   type DuplicateGroup,
   type ExactDuplicateCluster,
   type ExactDuplicateFile,
@@ -28,8 +27,7 @@ import { ButtonDirective } from '@shared/directives';
 import { DisplayPathPipe } from '@shared/pipes/display-path.pipe';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
-import { PostPreviewHoverGateService } from '@shared/components/post-preview-overlay/post-preview-hover-gate.service';
-import { SettingsService } from '@services/settings.service';
+import { PostHoverPreview } from '@shared/components/post-preview-overlay/post-hover-preview';
 import { computeLookupContentHash } from './lookup-hash';
 import { type DuplicateCompareGroup, DuplicateCompareOverlayComponent, type DuplicateComparePost } from './duplicate-compare-overlay.component';
 import { DuplicateFolderBucketsComponent, type DuplicateFolderBucketView, type DuplicateFolderItemView } from './duplicate-folder-buckets.component';
@@ -63,6 +61,7 @@ interface VisibleDuplicateGroup {
   selector: 'app-duplicates-page',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonDirective, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
+  providers: [PostHoverPreview],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',
 })
@@ -72,8 +71,7 @@ export class DuplicatesPageComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
-  private readonly settingsService = inject(SettingsService);
-  private readonly previewHoverGate = inject(PostPreviewHoverGateService);
+  readonly hoverPreview = inject(PostHoverPreview);
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd),
@@ -83,15 +81,6 @@ export class DuplicatesPageComponent {
     { initialValue: this.router.url },
   );
   readonly isLookupTabActive = computed(() => this.currentUrl().split('?')[0].endsWith('/duplicates/lookup'));
-  readonly hoverPreviewEnabled = this.settingsService.enablePostPreviewOnHover;
-  readonly hoverPreviewDelayMs = computed(() => {
-    const raw = this.settingsService.postPreviewDelayMs();
-    if (!Number.isFinite(raw)) {
-      return 700;
-    }
-
-    return Math.max(0, Math.min(5000, Math.round(raw)));
-  });
 
   groups = signal<DuplicateGroup[]>([]);
   exactClusters = signal<ExactDuplicateCluster[]>([]);
@@ -116,7 +105,6 @@ export class DuplicatesPageComponent {
   readonly lookupHasResults = computed(() => this.lookupResult() !== null);
 
   exactViewFilter = signal<DuplicateViewFilter>('all');
-  previewPost = signal<DamebooruPostDto | null>(null);
   compareGroupKey = signal<string | null>(null);
   readonly visiblePageSize = 25;
   exactPage = signal(1);
@@ -128,9 +116,6 @@ export class DuplicatesPageComponent {
   private groupsTabInitialized = false;
   private resolvedTabInitialized = false;
   private excludedTabInitialized = false;
-  private hoverPreviewTimer: ReturnType<typeof setTimeout> | null = null;
-  private hoveredPostId: number | null = null;
-  private readonly previewPostCache = new Map<number, DamebooruPostDto>();
 
   constructor() {
     this.destroyRef.onDestroy(() => this.revokeLookupPreviewUrl());
@@ -406,7 +391,7 @@ export class DuplicatesPageComponent {
   }
 
   openCompareGroup(group: VisibleDuplicateGroup): void {
-    this.closePreview();
+    this.hoverPreview.close();
     this.compareGroupKey.set(group.key);
   }
 
@@ -797,53 +782,9 @@ export class DuplicatesPageComponent {
     (event.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23374151" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%239CA3AF" font-size="12">No image</text></svg>';
   }
 
-  onPostCardMouseEnter(postId: number) {
-    if (!this.hoverPreviewEnabled()) {
-      return;
-    }
-
-    if (this.previewHoverGate.isSuppressed()) {
-      return;
-    }
-
-    this.hoveredPostId = postId;
-    this.clearHoverPreviewTimer();
-    this.hoverPreviewTimer = setTimeout(() => {
-      this.hoverPreviewTimer = null;
-      this.showPostPreview(postId);
-    }, this.hoverPreviewDelayMs());
-  }
-
-  onPostCardMouseMove(postId: number) {
-    if (!this.hoverPreviewEnabled() || !this.previewHoverGate.resumeIfSuppressed()) {
-      return;
-    }
-
-    this.onPostCardMouseEnter(postId);
-  }
-
-  onPostCardMouseLeave(event: MouseEvent) {
-    this.hoveredPostId = null;
-    this.clearHoverPreviewTimer();
-
-    const related = event.relatedTarget as Element | null;
-    if (related?.closest('[data-preview-card]')) {
-      return;
-    }
-
-    this.previewPost.set(null);
-  }
-
-  closePreview() {
-    this.hoveredPostId = null;
-    this.clearHoverPreviewTimer();
-    this.previewHoverGate.suppressUntilPointerMove();
-    this.previewPost.set(null);
-  }
-
   @HostListener('document:keydown.escape')
   onEscapeKey() {
-    this.closePreview();
+    this.hoverPreview.close();
   }
 
   // Used by the browser extension (chrome-extension/) to hand over an image. It retries until it gets the
@@ -892,39 +833,6 @@ export class DuplicatesPageComponent {
       const file = new File([blob], `clipboard-image${extension}`, { type: blob.type });
       this.setLookupFile(file);
       return;
-    }
-  }
-
-  private showPostPreview(postId: number) {
-    if (this.hoveredPostId !== postId) {
-      return;
-    }
-
-    const cached = this.previewPostCache.get(postId);
-    if (cached) {
-      this.previewPost.set(cached);
-      return;
-    }
-
-    this.damebooru.getPost(postId).subscribe({
-      next: (post) => {
-        this.previewPostCache.set(postId, post);
-        if (this.hoveredPostId === postId) {
-          this.previewPost.set(post);
-        }
-      },
-      error: () => {
-        if (this.hoveredPostId === postId) {
-          this.previewPost.set(null);
-        }
-      }
-    });
-  }
-
-  private clearHoverPreviewTimer() {
-    if (this.hoverPreviewTimer !== null) {
-      clearTimeout(this.hoverPreviewTimer);
-      this.hoverPreviewTimer = null;
     }
   }
 

@@ -44,6 +44,46 @@ export interface Library {
   autoTagExcludedPaths: LibraryAutoTagExcludedPath[];
 }
 
+export interface FolderLocation {
+  libraryId: number;
+  folder: string;
+}
+
+export interface DestinationFolder extends FolderLocation {
+  libraryName: string;
+  postCount: number;
+}
+
+export interface FolderSuggestion extends FolderLocation {
+  score: number;
+  reasons: string[];
+}
+
+export interface PostFolderSuggestions {
+  postId: number;
+  /** An image the AI tagger hasn't seen yet. */
+  needsPrediction: boolean;
+  suggestions: FolderSuggestion[];
+}
+
+export interface SortInboxPost {
+  postId: number;
+  /** The first destination gets the file; the rest get copies. */
+  destinations: FolderLocation[];
+}
+
+export interface SortInboxPostResult {
+  postId: number;
+  error: string | null;
+  warning: string | null;
+  locations: { libraryId: number; relativePath: string }[];
+}
+
+export interface InboxPostResult {
+  postId: number;
+  error: string | null;
+}
+
 export interface AddLibraryIgnoredPathResult {
   ignoredPath: LibraryIgnoredPath;
   removedPostCount: number;

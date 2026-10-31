@@ -1,0 +1,34 @@
+<div class="space-y-2">
+    @if (selected().length > 0) {
+    <div class="flex flex-wrap gap-2">
+        @for (location of selected(); track location.libraryId + location.folder) {
+        <span class="inline-flex items-center gap-1 rounded-full border border-accent-primary/40 bg-accent-primary-glow px-3 py-1 text-sm text-text-primary">
+            {{ store.label(location) }}
+            <button type="button" class="text-text-dim hover:text-status-error cursor-pointer" [disabled]="disabled()" (click)="remove(location)" aria-label="Remove">×</button>
+        </span>
+        }
+    </div>
+    }
+
+    <div class="relative">
+        <input #search type="text" autocomplete="off" placeholder="Search folders… (↑ for recent)" [disabled]="disabled()"
+            class="w-full px-3 py-2 bg-glass-bg border border-glass-border rounded focus:outline-none focus:ring-2 focus:ring-accent-primary text-text-primary"
+            [value]="query()" (input)="setQuery($any($event.target).value)" (keydown)="onKeydown($event)" />
+        @if (highlighted() >= 0 || query()) {
+        <ul class="mt-1 rounded-md border border-glass-border bg-bg-secondary overflow-hidden">
+            @for (result of results(); track result.label; let i = $index) {
+            <li>
+                <button type="button" (click)="pick(result)"
+                    class="w-full text-left px-3 py-1.5 text-sm flex justify-between gap-2 cursor-pointer"
+                    [class.bg-accent-primary-glow]="i === highlighted()">
+                    <span class="break-all" [class.text-accent-primary]="result.postCount === null && !!query()">{{ result.label }}</span>
+                    @if (result.postCount !== null) {<span class="text-xs text-text-dim">{{ result.postCount }}</span>}
+                </button>
+            </li>
+            } @empty {
+            <li class="px-3 py-1.5 text-sm text-text-dim italic">No recent destinations.</li>
+            }
+        </ul>
+        }
+    </div>
+</div>

@@ -1,0 +1,6 @@
+@if (isVideo()) {
+<video [src]="contentUrl()" class="absolute inset-0 h-full w-full object-contain" controls muted loop [autoplay]="autoplay()"></video>
+} @else {
+<app-progressive-image [previewSrc]="previewUrl()" [fullSrc]="contentUrl()" [alt]="fileName()"
+    [width]="post().width" [height]="post().height" />
+}

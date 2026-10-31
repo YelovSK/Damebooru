@@ -8,25 +8,15 @@ using Microsoft.EntityFrameworkCore;
 namespace Damebooru.Processing.Services;
 
 /// <summary>
-/// Ranks library folders as destinations for a post, learning from where already sorted posts live.
-/// Each folder collects evidence from the post's tags, combined so agreeing evidence adds up without exceeding 1:
-/// <list type="bullet">
-/// <item>Name match: the folder is named after one of the post's character, copyright or artist tags.</item>
-/// <item>Vote: posts with one of the post's tags are concentrated in the folder, beyond what its size explains.</item>
-/// </list>
+/// Ranks library folders as destinations for a post by name: a folder named after one of the post's
+/// character, copyright or artist tags is a match, scored by how sure the tag is.
 /// Folder tags never count: they are the answer, not evidence.
 /// </summary>
 public partial class FolderSuggestionService
 {
     private const double NameMatchConfidence = 0.99;
-    // Damps votes from tags seen on only a few sorted posts: the weight is n / (n + SupportPrior).
-    private const double SupportPrior = 2;
-    // Tags on more sorted posts than this are too common to point anywhere, and slow to count.
-    private const double MaxVotingTagShare = 0.10;
-    private const int MinVotingTagLimit = 1000;
     // A subfolder this confident replaces its ancestors, so "Series/Character" wins over "Series".
     private const double ConfidentDescendantScore = 0.5;
-    private const double MinScore = 0.05;
     private const int MaxSuggestions = 5;
     private const int MaxReasons = 3;
 
@@ -42,9 +32,21 @@ public partial class FolderSuggestionService
     public async Task<List<PostFolderSuggestionsDto>> SuggestAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken)
     {
         var index = await LoadIndexAsync(postIds, cancellationToken);
+        var needsPrediction = (await _context.Posts
+                .AsNoTracking()
+                .Where(p => postIds.Contains(p.Id) && p.AiPredictionDate == null && EF.Functions.Like(p.ContentType, "image/%"))
+                .Select(p => p.Id)
+                .ToListAsync(cancellationToken))
+            .ToHashSet();
+
         return postIds
             .Distinct()
-            .Select(postId => new PostFolderSuggestionsDto { PostId = postId, Suggestions = index.Rank(postId, excludeFromLibrary: false) })
+            .Select(postId => new PostFolderSuggestionsDto
+            {
+                PostId = postId,
+                NeedsPrediction = needsPrediction.Contains(postId),
+                Suggestions = index.Rank(postId, excludeFromLibrary: false),
+            })
             .ToList();
     }
 
@@ -56,7 +58,7 @@ public partial class FolderSuggestionService
         var postIds = await _context.Posts
             .AsNoTracking()
             .WhereSorted()
-            .Where(p => p.PostTags.Any(pt => pt.Source != PostTagSource.Folder))
+            .Where(p => p.PostTags.Any(pt => pt.Source != PostTagSource.Folder && NamedCategories.Contains(pt.Tag.Category)))
             .OrderBy(_ => EF.Functions.Random())
             .Select(p => p.Id)
             .Take(sampleSize)
@@ -111,22 +113,22 @@ public partial class FolderSuggestionService
 
         var postTags = await _context.PostTags
             .AsNoTracking()
-            .Where(pt => postIds.Contains(pt.PostId) && pt.Source != PostTagSource.Folder)
+            .Where(pt => postIds.Contains(pt.PostId) && pt.Source != PostTagSource.Folder && NamedCategories.Contains(pt.Tag.Category))
             .Select(pt => new { pt.PostId, pt.Tag.Name, pt.Tag.Category, pt.Source })
             .ToListAsync(cancellationToken);
         var predictions = await _context.PostAiPredictions
             .AsNoTracking()
-            .Where(p => postIds.Contains(p.PostId))
+            .Where(p => postIds.Contains(p.PostId) && NamedCategories.Contains(p.Category))
             .Select(p => new { p.PostId, p.TagName, p.Category, p.Score })
             .ToListAsync(cancellationToken);
 
-        var weightsByPost = new Dictionary<int, Dictionary<string, PostTagWeight>>();
-        void AddWeight(int postId, string name, TagCategoryKind category, double weight)
+        var tagsByPost = new Dictionary<int, Dictionary<string, NamedTag>>();
+        void Add(int postId, string name, TagCategoryKind category, double confidence)
         {
-            var weights = weightsByPost.TryGetValue(postId, out var existing) ? existing : weightsByPost[postId] = [];
-            if (!weights.TryGetValue(name, out var current) || current.Weight < weight)
+            var tags = tagsByPost.TryGetValue(postId, out var existing) ? existing : tagsByPost[postId] = [];
+            if (!tags.TryGetValue(name, out var current) || current.Confidence < confidence)
             {
-                weights[name] = new PostTagWeight(name, category, weight);
+                tags[name] = new NamedTag(name, category, confidence);
             }
         }
 
@@ -134,29 +136,16 @@ public partial class FolderSuggestionService
         foreach (var tag in postTags)
         {
             // Applied AI tags keep their prediction score when there is one; other sources are taken as certain.
-            var weight = tag.Source == PostTagSource.Ai && predictionScores.TryGetValue((tag.PostId, tag.Name), out var score) ? score : 1.0;
-            AddWeight(tag.PostId, tag.Name, tag.Category, weight);
+            var confidence = tag.Source == PostTagSource.Ai && predictionScores.TryGetValue((tag.PostId, tag.Name), out var score) ? score : 1.0;
+            Add(tag.PostId, tag.Name, tag.Category, confidence);
         }
 
         foreach (var prediction in predictions)
         {
-            AddWeight(prediction.PostId, prediction.TagName, prediction.Category, (double)prediction.Score);
+            Add(prediction.PostId, prediction.TagName, prediction.Category, (double)prediction.Score);
         }
 
-        var maxVotingPosts = Math.Max(MinVotingTagLimit, (int)(foldersByPost.Count * MaxVotingTagShare));
-        var tagNames = weightsByPost.Values.SelectMany(w => w.Keys).Distinct().ToList();
-        var votingTags = await _context.PostTags
-            .AsNoTracking()
-            .Where(pt => tagNames.Contains(pt.Tag.Name) && pt.Tag.PostCount <= maxVotingPosts && pt.Source != PostTagSource.Folder)
-            .Select(pt => new { pt.Tag.Name, pt.PostId })
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        var sortedPostsByTag = votingTags
-            .Where(t => foldersByPost.ContainsKey(t.PostId))
-            .GroupBy(t => t.Name)
-            .ToDictionary(g => g.Key, g => g.Select(t => t.PostId).ToList());
-
-        return new SuggestionIndex(foldersByPost, weightsByPost, sortedPostsByTag);
+        return new SuggestionIndex(foldersByPost, tagsByPost);
     }
 
     private static string DirectoryOf(string relativePath)
@@ -195,39 +184,27 @@ public partial class FolderSuggestionService
         }
     }
 
-    private sealed record PostTagWeight(string Name, TagCategoryKind Category, double Weight);
+    private sealed record NamedTag(string Name, TagCategoryKind Category, double Confidence);
 
-    private sealed record Evidence(double Score, string Reason);
+    private sealed record Match(double Score, string Reason);
 
     private sealed class SuggestionIndex
     {
         private readonly Dictionary<int, HashSet<FolderKey>> _foldersByPost;
-        private readonly Dictionary<int, Dictionary<string, PostTagWeight>> _weightsByPost;
-        private readonly Dictionary<string, List<int>> _sortedPostsByTag;
-        private readonly Dictionary<FolderKey, int> _postsPerFolder = [];
+        private readonly Dictionary<int, Dictionary<string, NamedTag>> _tagsByPost;
         private readonly Dictionary<FolderKey, int> _postsPerSubtree = [];
         private readonly Dictionary<string, List<FolderKey>> _foldersByName = [];
 
         public SuggestionIndex(
             Dictionary<int, HashSet<FolderKey>> foldersByPost,
-            Dictionary<int, Dictionary<string, PostTagWeight>> weightsByPost,
-            Dictionary<string, List<int>> sortedPostsByTag)
+            Dictionary<int, Dictionary<string, NamedTag>> tagsByPost)
         {
             _foldersByPost = foldersByPost;
-            _weightsByPost = weightsByPost;
-            _sortedPostsByTag = sortedPostsByTag;
+            _tagsByPost = tagsByPost;
 
-            foreach (var folders in foldersByPost.Values)
+            foreach (var folder in foldersByPost.Values.SelectMany(folders => folders.SelectMany(f => f.SelfAndAncestors()).Distinct()))
             {
-                foreach (var folder in folders)
-                {
-                    _postsPerFolder[folder] = _postsPerFolder.GetValueOrDefault(folder) + 1;
-                }
-
-                foreach (var folder in folders.SelectMany(f => f.SelfAndAncestors()).Distinct())
-                {
-                    _postsPerSubtree[folder] = _postsPerSubtree.GetValueOrDefault(folder) + 1;
-                }
+                _postsPerSubtree[folder] = _postsPerSubtree.GetValueOrDefault(folder) + 1;
             }
 
             foreach (var folder in _postsPerSubtree.Keys.Where(f => f.Path.Length > 0))
@@ -243,73 +220,35 @@ public partial class FolderSuggestionService
         public HashSet<FolderKey> FoldersOf(int postId)
             => _foldersByPost.GetValueOrDefault(postId) ?? [];
 
-        /// <param name="excludeFromLibrary">Rank a sorted post as if it were not in the library, so it can't vote for its own folder.</param>
+        /// <param name="excludeFromLibrary">Rank a sorted post as if it were not in the library, so folders only it lives in don't count.</param>
         public List<FolderSuggestionDto> Rank(int postId, bool excludeFromLibrary)
         {
-            if (!_weightsByPost.TryGetValue(postId, out var weights))
+            if (!_tagsByPost.TryGetValue(postId, out var tags))
             {
                 return [];
             }
 
-            var excludedFolders = excludeFromLibrary ? FoldersOf(postId) : [];
-            var excludedSubtrees = excludedFolders.SelectMany(f => f.SelfAndAncestors()).ToHashSet();
-            var totalPosts = _foldersByPost.Count - (excludedFolders.Count > 0 ? 1 : 0);
-            if (totalPosts == 0)
-            {
-                return [];
-            }
-
-            int PostsIn(FolderKey folder) => _postsPerFolder.GetValueOrDefault(folder) - (excludedFolders.Contains(folder) ? 1 : 0);
+            var excludedSubtrees = excludeFromLibrary ? FoldersOf(postId).SelectMany(f => f.SelfAndAncestors()).ToHashSet() : [];
             int PostsUnder(FolderKey folder) => _postsPerSubtree.GetValueOrDefault(folder) - (excludedSubtrees.Contains(folder) ? 1 : 0);
 
-            var evidence = new Dictionary<FolderKey, List<Evidence>>();
-            void Add(FolderKey folder, double score, string reason)
-                => (evidence.TryGetValue(folder, out var list) ? list : evidence[folder] = []).Add(new Evidence(score, reason));
-
-            foreach (var tag in weights.Values)
+            var matches = new Dictionary<FolderKey, List<Match>>();
+            foreach (var tag in tags.Values)
             {
-                if (NamedCategories.Contains(tag.Category) && _foldersByName.TryGetValue(NameKey(tag.Name), out var namedFolders))
-                {
-                    foreach (var folder in namedFolders.Where(f => PostsUnder(f) > 0))
-                    {
-                        Add(folder, NameMatchConfidence * tag.Weight, $"Named after {tag.Category.ToString().ToLowerInvariant()} tag \"{tag.Name}\" ({tag.Weight:P0})");
-                    }
-                }
-
-                if (!_sortedPostsByTag.TryGetValue(tag.Name, out var taggedPosts))
+                if (!_foldersByName.TryGetValue(NameKey(tag.Name), out var namedFolders))
                 {
                     continue;
                 }
 
-                var votes = taggedPosts
-                    .Where(id => !excludeFromLibrary || id != postId)
-                    .SelectMany(id => _foldersByPost[id])
-                    .GroupBy(folder => folder)
-                    .ToList();
-                var tagged = taggedPosts.Count - (excludeFromLibrary && taggedPosts.Contains(postId) ? 1 : 0);
-                if (tagged == 0)
+                foreach (var folder in namedFolders.Where(f => PostsUnder(f) > 0))
                 {
-                    continue;
-                }
-
-                var support = tagged / (tagged + SupportPrior);
-                foreach (var vote in votes)
-                {
-                    var share = (double)vote.Count() / tagged;
-                    var baseShare = (double)PostsIn(vote.Key) / totalPosts;
-                    if (share <= baseShare || baseShare >= 1)
-                    {
-                        continue;
-                    }
-
-                    var lift = (share - baseShare) / (1 - baseShare);
-                    Add(vote.Key, tag.Weight * support * lift, $"{vote.Count()}/{tagged} posts tagged \"{tag.Name}\" are here");
+                    (matches.TryGetValue(folder, out var list) ? list : matches[folder] = []).Add(new Match(
+                        NameMatchConfidence * tag.Confidence,
+                        $"{tag.Category} tag \"{tag.Name}\" ({tag.Confidence:P0})"));
                 }
             }
 
-            var scored = evidence
-                .Select(e => (Folder: e.Key, Score: 1 - e.Value.Aggregate(1.0, (rest, item) => rest * (1 - item.Score)), Evidence: e.Value))
-                .Where(s => s.Score >= MinScore)
+            var scored = matches
+                .Select(m => (Folder: m.Key, Score: m.Value.Max(x => x.Score), Matches: m.Value))
                 .ToList();
 
             return scored
@@ -321,7 +260,7 @@ public partial class FolderSuggestionService
                     LibraryId = s.Folder.LibraryId,
                     Folder = s.Folder.Path,
                     Score = s.Score,
-                    Reasons = s.Evidence.OrderByDescending(e => e.Score).Take(MaxReasons).Select(e => e.Reason).ToList(),
+                    Reasons = s.Matches.OrderByDescending(m => m.Score).Take(MaxReasons).Select(m => m.Reason).ToList(),
                 })
                 .ToList();
         }

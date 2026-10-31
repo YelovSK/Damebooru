@@ -29,26 +29,34 @@ public sealed class FolderSuggestionServiceTests
     }
 
     [Fact]
-    public async Task Suggest_VotesFromDistinctiveTags_IgnoringTagsSpreadEverywhere()
+    public async Task Suggest_GeneralTagsNeverPointAnywhere()
     {
         await using var s = await Scenario.CreateAsync();
         for (var i = 0; i < 4; i++)
         {
-            s.AddSorted($"wallpapers/{i}.png", ("scenery", TagCategoryKind.General), ("1girl", TagCategoryKind.General));
-            s.AddSorted($"misc/{i}.png", ("1girl", TagCategoryKind.General));
+            s.AddSorted($"wallpapers/{i}.png", ("scenery", TagCategoryKind.General));
         }
 
-        var scenery = s.AddInbox(("scenery", TagCategoryKind.General), ("1girl", TagCategoryKind.General));
-        var plain = s.AddInbox(("1girl", TagCategoryKind.General));
+        var inboxPost = s.AddInbox(("scenery", TagCategoryKind.General));
         await s.SaveAsync();
 
-        var forScenery = await s.SuggestAsync(scenery);
-        var forPlain = await s.SuggestAsync(plain);
+        Assert.Empty(await s.SuggestAsync(inboxPost));
+    }
 
-        Assert.Equal("wallpapers", forScenery[0].Folder);
-        Assert.Contains(forScenery[0].Reasons, r => r.Contains("scenery"));
-        Assert.DoesNotContain(forScenery, x => x.Folder == "misc");
-        Assert.Empty(forPlain);
+    [Fact]
+    public async Task Suggest_FlagsImagesTheTaggerHasNotSeen()
+    {
+        await using var s = await Scenario.CreateAsync();
+        var unseen = s.AddInbox();
+        var seen = s.AddInbox();
+        seen.AiPredictionDate = DateTime.UtcNow;
+        var video = s.AddInbox();
+        video.ContentType = "video/mp4";
+        await s.SaveAsync();
+
+        var results = await s.Service.SuggestAsync([unseen.Id, seen.Id, video.Id], CancellationToken.None);
+
+        Assert.Equal([true, false, false], results.Select(r => r.NeedsPrediction));
     }
 
     [Fact]
@@ -64,15 +72,15 @@ public sealed class FolderSuggestionServiceTests
     }
 
     [Fact]
-    public async Task Evaluate_RanksEachSortedPostWithoutItsOwnVote()
+    public async Task Evaluate_IgnoresFoldersOnlyTheEvaluatedPostLivesIn()
     {
         await using var s = await Scenario.CreateAsync();
         for (var i = 0; i < 3; i++)
         {
-            s.AddSorted($"a/{i}.png", ("x", TagCategoryKind.General));
+            s.AddSorted($"rem/{i}.png", ("rem", TagCategoryKind.Character));
         }
 
-        s.AddSorted("b/only.png", ("y", TagCategoryKind.General));
+        s.AddSorted("ram/only.png", ("ram", TagCategoryKind.Character));
         await s.SaveAsync();
 
         var evaluation = await s.Service.EvaluateAsync(100, CancellationToken.None);

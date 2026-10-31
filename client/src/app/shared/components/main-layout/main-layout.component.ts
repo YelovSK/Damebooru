@@ -25,10 +25,13 @@ export class MainLayoutComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly pageWidth = signal<PageWidth>('content');
+  /** Pages that lay themselves out in exactly the visible height (route data `fillHeight`) and scroll their own parts. */
+  readonly fillHeight = signal(false);
   readonly mobileNavOpen = signal(false);
 
   readonly navLinks: NavbarLink[] = [
     { route: AppLinks.posts(), icon: 'icon-posts', label: 'Posts' },
+    { route: AppLinks.inbox(), icon: 'icon-posts', label: 'Inbox' },
     { route: AppLinks.libraries(), icon: 'icon-settings', label: 'Libraries' },
     { route: AppLinks.tags(), icon: 'icon-settings', label: 'Tags' },
     { route: AppLinks.jobs(), icon: 'icon-settings', label: 'Jobs' },
@@ -39,7 +42,7 @@ export class MainLayoutComponent {
     { route: AppLinks.help(), icon: 'icon-info', label: 'Help' },
   ];
 
-  readonly pageContainerClasses = computed(() => {
+  private readonly pageWidthClasses = computed(() => {
     switch (this.pageWidth()) {
       case 'full':
         return 'w-full max-w-none';
@@ -50,6 +53,7 @@ export class MainLayoutComponent {
         return 'mx-auto w-full max-w-6xl';
     }
   });
+  readonly pageContainerClasses = computed(() => this.pageWidthClasses() + (this.fillHeight() ? ' flex h-full flex-col' : ''));
 
   constructor() {
     this.router.events
@@ -57,9 +61,9 @@ export class MainLayoutComponent {
         filter(event => event instanceof NavigationEnd),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(() => this.pageWidth.set(this.resolvePageWidth()));
+      .subscribe(() => this.applyRouteLayout());
 
-    this.pageWidth.set(this.resolvePageWidth());
+    this.applyRouteLayout();
   }
 
   get currentUser() {
@@ -70,19 +74,17 @@ export class MainLayoutComponent {
     return this.damebooru.authEnabled();
   }
 
-  private resolvePageWidth(): PageWidth {
+  private applyRouteLayout(): void {
     let route = this.activatedRoute.firstChild;
 
     while (route?.firstChild) {
       route = route.firstChild;
     }
 
-    const value = route?.snapshot?.data?.['pageWidth'];
-    if (value === 'full' || value === 'wide' || value === 'content') {
-      return value;
-    }
-
-    return 'content';
+    const data = route?.snapshot?.data;
+    const width = data?.['pageWidth'];
+    this.pageWidth.set(width === 'full' || width === 'wide' || width === 'content' ? width : 'content');
+    this.fillHeight.set(data?.['fillHeight'] === true);
   }
 
   onLogout() {

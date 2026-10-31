@@ -17,6 +17,7 @@ export const STORAGE_KEYS = {
     POST_SETTINGS: 'damebooru_post_settings',
     PERFORMANCE_SETTINGS: 'damebooru_performance_settings',
     THEME_SETTINGS: 'damebooru_theme_settings',
+    INBOX_RECENT_DESTINATIONS: 'damebooru_inbox_recent_destinations',
 
     // Prefixes
     AUTO_TAGGING_SETTINGS: 'damebooru_at_settings_',

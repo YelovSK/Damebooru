@@ -93,6 +93,7 @@ internal static class PostFileWriter
         post.Width = 0;
         post.Height = 0;
         post.PdqHash256 = null;
+        post.AiPredictionDate = null;
     }
 
     private static Post AddPost(DamebooruDbContext dbContext, FileSnapshot snapshot)

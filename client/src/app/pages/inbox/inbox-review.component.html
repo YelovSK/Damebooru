@@ -1,0 +1,92 @@
+@if (current(); as post) {
+<div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:h-full">
+    <app-inbox-media class="min-h-[20rem]" [post]="post" [autoplay]="true" />
+
+    <aside class="flex flex-col gap-4 min-h-0 overflow-y-auto p-1">
+        <div class="flex items-center justify-between gap-2">
+            <button appButton type="button" variant="secondary" size="sm" [disabled]="position() <= 1" (click)="go(-1)" title="←">←</button>
+            <span class="text-sm text-text-muted">{{ position() }} / {{ store.totalCount() | number }}</span>
+            <div class="flex gap-2">
+                <button appButton type="button" variant="secondary" size="sm" [disabled]="position() >= store.posts().length" (click)="go(1)" title="→ or Esc">→</button>
+                <button appButton type="button" variant="ghost" size="sm" (click)="showHelp.set(!showHelp())" [attr.aria-expanded]="showHelp()" title="Keyboard shortcuts">?</button>
+            </div>
+        </div>
+
+        @if (showHelp()) {
+        <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-glass-border bg-glass-bg p-3 text-xs">
+            <dt class="text-text-primary">Enter</dt><dd class="text-text-muted">Move, or add the highlighted folder</dd>
+            <dt class="text-text-primary">1–5</dt><dd class="text-text-muted">Toggle a suggestion</dd>
+            <dt class="text-text-primary">↑ / ↓</dt><dd class="text-text-muted">Recent destinations, or search results</dd>
+            <dt class="text-text-primary">Backspace</dt><dd class="text-text-muted">Remove the last destination</dd>
+            <dt class="text-text-primary">← / →</dt><dd class="text-text-muted">Previous / next post</dd>
+            <dt class="text-text-primary">Esc</dt><dd class="text-text-muted">Clear the search, or skip</dd>
+            <dt class="text-text-primary">Del</dt><dd class="text-text-muted">Delete from the inbox</dd>
+        </dl>
+        }
+
+        <div>
+            <a class="block font-semibold text-text-primary break-all hover:text-text-link" [routerLink]="appLinks.post(post.id)">{{ fileName() }}</a>
+            <p class="text-xs text-text-dim">{{ post.width }}×{{ post.height }} · {{ post.sizeBytes | fileSize }}</p>
+        </div>
+
+        @if (alreadyIn().length > 0) {
+        <div class="rounded-md border border-status-warning/40 bg-status-warning/10 p-3 text-sm">
+            <p class="font-semibold text-status-warning">Already in your library</p>
+            @for (file of alreadyIn(); track file.libraryId + file.relativePath) {
+            <p class="text-text-muted break-all">{{ store.label({ libraryId: file.libraryId, folder: file.relativePath }) }}</p>
+            }
+        </div>
+        }
+
+        <section class="space-y-2">
+            <h2 class="text-sm font-semibold text-text-primary">Suggestions</h2>
+            @if (suggestions(); as list) {
+            @for (suggestion of list; track suggestion.libraryId + suggestion.folder; let i = $index) {
+            <button type="button" (click)="toggle(suggestion)"
+                class="w-full text-left rounded-md border px-3 py-2 transition-colors cursor-pointer"
+                [class]="isSelected(suggestion) ? 'border-accent-primary bg-accent-primary-glow' : 'border-glass-border bg-glass-bg hover:bg-glass-bg-hover'">
+                <div class="flex items-center gap-2">
+                    <kbd class="text-xs text-text-dim">{{ i + 1 }}</kbd>
+                    <span class="flex-1 font-medium text-text-primary break-all">{{ store.label(suggestion) }}</span>
+                    <span class="text-xs text-text-muted">{{ suggestion.score * 100 | number:'1.0-0' }}%</span>
+                </div>
+                @for (reason of suggestion.reasons; track reason) {
+                <p class="text-xs text-text-dim pl-5">{{ reason }}</p>
+                }
+            </button>
+            } @empty {
+            @if (prediction()) {
+            <p class="text-sm text-text-dim italic">{{ prediction() === 'running' ? 'AI tagging…' : 'Waiting for the AI tagger…' }}</p>
+            } @else if (needsPrediction()) {
+            <p class="text-sm text-text-dim italic">
+                Not AI-tagged yet.
+                <button type="button" class="text-text-link hover:text-text-link-hover cursor-pointer" (click)="retryPrediction()">Tag now</button>
+            </p>
+            } @else {
+            <p class="text-sm text-text-dim italic">No suggestions.</p>
+            }
+            }
+            } @else {
+            <p class="text-sm text-text-dim italic">Loading suggestions…</p>
+            }
+        </section>
+
+        <section class="space-y-2">
+            <h2 class="text-sm font-semibold text-text-primary">Destinations</h2>
+            <app-destination-picker [selected]="selected()" [disabled]="store.busy()"
+                (added)="add($event)" (removed)="remove($event)" (commit)="sort()" />
+        </section>
+
+        <div class="mt-auto flex gap-2">
+            <button appButton type="button" class="flex-1" [disabled]="selected().length === 0 || store.busy()" (click)="sort()">
+                {{ store.busy() ? 'Working…' : 'Move' }}
+            </button>
+            <button appButton type="button" variant="danger" [disabled]="store.busy()" (click)="discard()">Delete</button>
+        </div>
+    </aside>
+</div>
+} @else if (store.loading()) {
+<p class="text-text-dim italic">Loading inbox…</p>
+} @else {
+<p class="text-text-dim italic">The inbox is empty. Nice.</p>
+}

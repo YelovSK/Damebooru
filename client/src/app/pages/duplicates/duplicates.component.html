@@ -58,9 +58,9 @@
                     <app-duplicate-folder-buckets
                         [buckets]="getExactFolderBucketViews(cluster)"
                         hoverTone="accent"
-                        (itemMouseEnter)="onPostCardMouseEnter($event)"
-                        (itemMouseMove)="onPostCardMouseMove($event)"
-                        (itemMouseLeave)="onPostCardMouseLeave($event)"
+                        (itemMouseEnter)="hoverPreview.enter($event)"
+                        (itemMouseMove)="hoverPreview.move($event)"
+                        (itemMouseLeave)="hoverPreview.leave($event)"
                         (imageError)="onImageError($event)"
                         (excludeItem)="onExcludeExactFolderItem($event)"
                         (deleteItem)="onDeleteExactFolderItem($event)" />
@@ -127,9 +127,9 @@
                             class="relative flex w-full flex-col overflow-hidden rounded-lg border border-gray-700 bg-gray-800 transition-colors hover:border-accent-primary sm:w-56 md:w-60">
                             <div
                                 class="relative aspect-square overflow-hidden"
-                                (mouseenter)="onPostCardMouseEnter(post.id)"
-                                (mousemove)="onPostCardMouseMove(post.id)"
-                                (mouseleave)="onPostCardMouseLeave($event)">
+                                (mouseenter)="hoverPreview.enter(post.id)"
+                                (mousemove)="hoverPreview.move(post.id)"
+                                (mouseleave)="hoverPreview.leave($event)">
                                 <img
                                     [src]="getThumbnailUrl(post)"
                                     [alt]="post.relativePath"
@@ -413,8 +413,8 @@
                         <div
                             class="relative w-36 sm:w-40 md:w-44 group/card bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-amber-500 transition-colors">
                             <div class="relative aspect-square overflow-hidden"
-                                (mouseenter)="onPostCardMouseEnter(post.id)" (mousemove)="onPostCardMouseMove(post.id)"
-                                (mouseleave)="onPostCardMouseLeave($event)">
+                                (mouseenter)="hoverPreview.enter(post.id)" (mousemove)="hoverPreview.move(post.id)"
+                                (mouseleave)="hoverPreview.leave($event)">
                                 <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath"
                                     class="w-full h-full object-cover" loading="lazy" (error)="onImageError($event)">
                             </div>
@@ -488,8 +488,8 @@
         </app-tab>
     </app-tabs>
 
-    @if (previewPost(); as preview) {
-    <app-post-preview-overlay [post]="preview" (closed)="closePreview()" />
+    @if (hoverPreview.post(); as preview) {
+    <app-post-preview-overlay [post]="preview" (closed)="hoverPreview.close()" />
     }
 
     @if (compareGroup(); as group) {

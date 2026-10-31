@@ -340,6 +340,9 @@ namespace Damebooru.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("AiPredictionDate")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ContentHash")
                         .IsRequired()
                         .HasMaxLength(64)

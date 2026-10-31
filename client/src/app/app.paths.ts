@@ -13,6 +13,7 @@ export const AppPaths = {
     jobs: 'jobs',
     logs: 'logs',
     duplicates: 'duplicates',
+    inbox: 'inbox',
     libraryExplorer: 'explorer'
 } as const;
 
@@ -30,5 +31,6 @@ export const AppLinks = {
     jobs: () => ['/', AppPaths.jobs],
     logs: () => ['/', AppPaths.logs],
     duplicates: () => ['/', AppPaths.duplicates],
+    inbox: () => ['/', AppPaths.inbox],
     libraryExplorer: (libraryId: string | number) => ['/', AppPaths.libraries, libraryId, AppPaths.libraryExplorer],
 };

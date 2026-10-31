@@ -9,6 +9,11 @@ import {
   type AuthSessionResponse,
   type Library,
   type LibraryKind,
+  type DestinationFolder,
+  type InboxPostResult,
+  type PostFolderSuggestions,
+  type SortInboxPost,
+  type SortInboxPostResult,
   type LibraryAutoTagExcludedPath,
   type LibraryIgnoredPath,
   type LibraryBrowseResponse,
@@ -260,6 +265,32 @@ export class DamebooruService {
       `${this.baseUrl}/libraries/${libraryId}/folders`,
       { params },
     );
+  }
+
+  // --- Inbox ---
+  getInboxDestinations(): Observable<DestinationFolder[]> {
+    return this.http.get<DestinationFolder[]>(`${this.baseUrl}/inbox/destinations`);
+  }
+
+  getFolderSuggestions(postIds: number[]): Observable<PostFolderSuggestions[]> {
+    let params = new HttpParams();
+    for (const postId of postIds) {
+      params = params.append("postIds", String(postId));
+    }
+
+    return this.http.get<PostFolderSuggestions[]>(`${this.baseUrl}/inbox/suggestions`, { params });
+  }
+
+  predictInboxPost(postId: number): Observable<PostFolderSuggestions> {
+    return this.http.post<PostFolderSuggestions>(`${this.baseUrl}/inbox/posts/${postId}/predict`, {});
+  }
+
+  sortInboxPosts(posts: SortInboxPost[]): Observable<SortInboxPostResult[]> {
+    return this.http.post<SortInboxPostResult[]>(`${this.baseUrl}/inbox/sort`, { posts });
+  }
+
+  discardInboxPosts(postIds: number[]): Observable<InboxPostResult[]> {
+    return this.http.post<InboxPostResult[]>(`${this.baseUrl}/inbox/discard`, { postIds });
   }
 
   // --- Posts ---

@@ -33,6 +33,9 @@ public class Post
 
     public bool IsFavorite { get; set; }
 
+    /// <summary>When the AI tagger last ran on this post, even if it predicted nothing worth keeping.</summary>
+    public DateTime? AiPredictionDate { get; set; }
+
     public ICollection<PostFile> PostFiles { get; set; } = new List<PostFile>();
     public ICollection<PostTag> PostTags { get; set; } = new List<PostTag>();
     public ICollection<PostSource> Sources { get; set; } = new List<PostSource>();

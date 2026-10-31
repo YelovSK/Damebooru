@@ -42,10 +42,30 @@ public sealed class AiTaggingService
         return await GeneratePreviewAsync(postId, settings.SuggestionThreshold, settings.ApplyThreshold, cancellationToken);
     }
 
-    public async Task<Result<AiTagPostResultDto>> ApplyAsync(int postId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Runs the tagger and stores its scores as the post's predictions, without touching its tags.
+    /// </summary>
+    public async Task<Result<AiTagPreviewDto>> PredictAsync(int postId, CancellationToken cancellationToken = default)
     {
         var settings = await _settingsService.GetOrCreateEntityAsync(cancellationToken);
         var previewResult = await GeneratePreviewAsync(postId, settings.SuggestionThreshold, settings.ApplyThreshold, cancellationToken);
+        if (previewResult.IsSuccess && previewResult.Value != null)
+        {
+            await ReplacePredictionsAsync(postId, previewResult.Value.Tags, cancellationToken);
+            var post = await _db.Posts.FindAsync([postId], cancellationToken);
+            post!.AiPredictionDate = DateTime.UtcNow;
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return previewResult;
+    }
+
+    /// <summary>
+    /// Predicts, then reconciles the post's AI tags with the predictions above the apply threshold.
+    /// </summary>
+    public async Task<Result<AiTagPostResultDto>> ApplyAsync(int postId, CancellationToken cancellationToken = default)
+    {
+        var previewResult = await PredictAsync(postId, cancellationToken);
         if (!previewResult.IsSuccess || previewResult.Value == null)
         {
             return Result<AiTagPostResultDto>.Failure(previewResult.Error ?? OperationError.ServiceUnavailable, previewResult.Message ?? "AI tagging failed.");
@@ -66,10 +86,9 @@ public sealed class AiTaggingService
             post,
             PostTagSource.Ai,
             previewResult.Value.Tags
-                .Where(tag => tag.Score >= settings.ApplyThreshold)
+                .Where(tag => tag.MeetsApplyThreshold)
                 .Select(tag => new PostTagReconciliationTarget(tag.Name, tag.Category)),
             cancellationToken);
-        await ReplacePredictionsAsync(postId, previewResult.Value.Tags, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         var postResult = await _postReadService.GetPostAsync(postId, cancellationToken);

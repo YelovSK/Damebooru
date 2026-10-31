@@ -4,7 +4,7 @@ namespace Damebooru.Core.Entities;
 
 /// <summary>
 /// The latest AI tagger scores for a post's character, copyright and artist tags, including ones below the apply threshold.
-/// Applied tags don't keep a score, which folder suggestions rank by.
+/// Folder suggestions match them against folder names; inbox posts get predictions without having AI tags applied.
 /// </summary>
 public class PostAiPrediction
 {

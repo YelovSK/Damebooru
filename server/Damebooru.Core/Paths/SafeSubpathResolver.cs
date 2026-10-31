@@ -15,7 +15,8 @@ public static class SafeSubpathResolver
         var baseRoot = EnsureTrailingSeparator(absoluteBasePath);
         var candidate = Path.GetFullPath(Path.Combine(absoluteBasePath, relativePath ?? string.Empty));
 
-        if (!candidate.StartsWith(baseRoot, StringComparison.OrdinalIgnoreCase))
+        if (!candidate.StartsWith(baseRoot, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(EnsureTrailingSeparator(candidate), baseRoot, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

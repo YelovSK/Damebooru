@@ -4,13 +4,14 @@ using Damebooru.Core.Interfaces;
 using Damebooru.Core.Paths;
 using Damebooru.Core.Results;
 using Damebooru.Data;
+using Damebooru.Processing.Services.Scanning;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Damebooru.Processing.Services;
 
 /// <summary>
-/// Moves inbox files into libraries. The database is updated before files appear at their final paths,
+/// Moves inbox posts into libraries, or discards them. The database is updated before files appear at their final paths,
 /// so the watcher events the move causes find everything already in place and change nothing:
 /// files are staged under a temporary name the watcher ignores, the post files are saved,
 /// then the staged files are renamed into place and the inbox file is deleted.
@@ -40,50 +41,105 @@ public class InboxSortService
         _logger = logger;
     }
 
-    public async Task<Result<List<SortInboxFileResultDto>>> SortAsync(SortInboxFilesDto dto, CancellationToken cancellationToken)
+    public async Task<Result<List<SortInboxPostResultDto>>> SortAsync(SortInboxPostsDto dto, CancellationToken cancellationToken)
     {
         // A running scan works from a snapshot of post files taken before the move and would treat moved files as gone.
         var libraryIds = await _context.Libraries.Select(l => l.Id).ToListAsync(cancellationToken);
         if (_jobService.IsRunning(JobKeys.ScanAllLibraries) || libraryIds.Any(id => _jobService.IsRunning(JobKeys.ScanLibrary(id))))
         {
-            return Result<List<SortInboxFileResultDto>>.Failure(OperationError.Conflict, "A library scan is running. Try again when it finishes.");
+            return Result<List<SortInboxPostResultDto>>.Failure(OperationError.Conflict, "A library scan is running. Try again when it finishes.");
         }
 
-        var results = new List<SortInboxFileResultDto>(dto.Files.Count);
-        foreach (var file in dto.Files)
+        var results = new List<SortInboxPostResultDto>(dto.Posts.Count);
+        foreach (var post in dto.Posts)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            results.Add(await SortFileAsync(file, cancellationToken));
+            results.Add(await SortPostAsync(post, cancellationToken));
         }
 
-        return Result<List<SortInboxFileResultDto>>.Success(results);
+        return Result<List<SortInboxPostResultDto>>.Success(results);
     }
 
-    private async Task<SortInboxFileResultDto> SortFileAsync(SortInboxFileDto file, CancellationToken cancellationToken)
+    /// <summary>
+    /// Deletes the posts' inbox files from disk. Posts with no other files go away with them.
+    /// </summary>
+    public async Task<List<InboxPostResultDto>> DiscardAsync(DiscardInboxPostsDto dto, CancellationToken cancellationToken)
     {
-        var result = new SortInboxFileResultDto { PostFileId = file.PostFileId };
+        var postIds = dto.PostIds.Distinct().ToList();
+        var inboxFiles = await LoadInboxFilesAsync(postIds, cancellationToken);
+        var failed = inboxFiles.Count > 0 ? await RemoveFilesAsync(inboxFiles) : [];
 
-        var postFile = await _context.PostFiles.FirstOrDefaultAsync(pf => pf.Id == file.PostFileId, cancellationToken);
-        if (postFile == null)
+        return postIds
+            .Select(postId => new InboxPostResultDto
+            {
+                PostId = postId,
+                Error = inboxFiles.Any(f => f.PostFile.PostId == postId)
+                    ? DescribeFailures(failed.Where(f => f.PostFile.PostId == postId))
+                    : "Post has no files in an inbox.",
+            })
+            .ToList();
+    }
+
+    public async Task<List<DestinationFolderDto>> GetDestinationsAsync(CancellationToken cancellationToken)
+    {
+        var libraries = await _context.Libraries
+            .AsNoTracking()
+            .Where(l => l.Kind == LibraryKind.Library)
+            .ToDictionaryAsync(l => l.Id, l => l.Name, cancellationToken);
+        var files = await _context.PostFiles
+            .AsNoTracking()
+            .Where(pf => pf.Library.Kind == LibraryKind.Library)
+            .Select(pf => new { pf.PostId, pf.LibraryId, pf.RelativePath })
+            .ToListAsync(cancellationToken);
+
+        var postsByFolder = libraries.Keys.ToDictionary(id => (LibraryId: id, Folder: string.Empty), _ => new HashSet<int>());
+        foreach (var file in files)
         {
-            result.Error = "File not found.";
+            var folder = file.RelativePath;
+            do
+            {
+                var separator = folder.LastIndexOf('/');
+                folder = separator < 0 ? string.Empty : folder[..separator];
+                var key = (file.LibraryId, folder);
+                (postsByFolder.TryGetValue(key, out var posts) ? posts : postsByFolder[key] = []).Add(file.PostId);
+            }
+            while (folder.Length > 0);
+        }
+
+        return postsByFolder
+            .Select(entry => new DestinationFolderDto
+            {
+                LibraryId = entry.Key.LibraryId,
+                LibraryName = libraries[entry.Key.LibraryId],
+                Folder = entry.Key.Folder,
+                PostCount = entry.Value.Count,
+            })
+            .OrderBy(d => d.LibraryName)
+            .ThenBy(d => d.Folder, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task<SortInboxPostResultDto> SortPostAsync(SortInboxPostDto dto, CancellationToken cancellationToken)
+    {
+        var result = new SortInboxPostResultDto { PostId = dto.PostId };
+
+        var inboxFiles = await LoadInboxFilesAsync([dto.PostId], cancellationToken);
+        if (inboxFiles.Count == 0)
+        {
+            result.Error = "Post has no files in an inbox.";
             return result;
         }
 
-        var sourceLibrary = await _context.Libraries.AsNoTracking().FirstAsync(l => l.Id == postFile.LibraryId, cancellationToken);
-        if (sourceLibrary.Kind != LibraryKind.Inbox)
+        var source = inboxFiles.FirstOrDefault(f => File.Exists(f.FullPath));
+        if (source == null)
         {
-            result.Error = "File is not in an inbox.";
+            result.Error = "The inbox file is missing on disk.";
             return result;
         }
 
-        if (!SafeSubpathResolver.TryResolve(sourceLibrary.Path, postFile.RelativePath, out var sourcePath) || !File.Exists(sourcePath))
-        {
-            result.Error = "File is missing on disk.";
-            return result;
-        }
-
-        var targets = await PlanTargetsAsync(file.Destinations, Path.GetFileName(sourcePath), cancellationToken);
+        var postFile = source.PostFile;
+        var sourcePath = source.FullPath;
+        var targets = await PlanTargetsAsync(dto.Destinations, Path.GetFileName(sourcePath), cancellationToken);
         if (!targets.IsSuccess)
         {
             result.Error = targets.Message;
@@ -111,7 +167,7 @@ public class InboxSortService
         catch (Exception ex)
         {
             DeleteQuietly(targets.Value!.Select(t => t.StagedPath));
-            // Unsaved changes would otherwise be saved along with the next file in the batch.
+            // Unsaved changes would otherwise be saved along with the next post in the batch.
             _context.ChangeTracker.Clear();
             _logger.LogWarning(ex, "Failed to save sorted post files for {Path}", sourcePath);
             result.Error = $"Failed to save the new location: {ex.Message}";
@@ -142,6 +198,7 @@ public class InboxSortService
             return result;
         }
 
+        var warnings = new List<string>();
         try
         {
             File.Delete(sourcePath);
@@ -150,13 +207,73 @@ public class InboxSortService
         {
             // The leftover is picked up again as another file of the same post.
             _logger.LogWarning(ex, "Sorted {Path} but could not delete it from the inbox", sourcePath);
-            result.Warning = $"Sorted, but the inbox file could not be deleted: {ex.Message}";
+            warnings.Add($"The inbox file could not be deleted: {ex.Message}");
         }
 
+        var duplicates = inboxFiles.Where(f => f != source).ToList();
+        if (duplicates.Count > 0 && DescribeFailures(await RemoveFilesAsync(duplicates)) is { } duplicateError)
+        {
+            warnings.Add(duplicateError);
+        }
+
+        result.Warning = warnings.Count > 0 ? string.Join(" ", warnings) : null;
         result.Locations = targets.Value!
             .Select(t => new SortedFileLocationDto { LibraryId = t.Library.Id, RelativePath = t.RelativePath })
             .ToList();
         return result;
+    }
+
+    private async Task<List<InboxFile>> LoadInboxFilesAsync(IReadOnlyCollection<int> postIds, CancellationToken cancellationToken)
+    {
+        var inboxPaths = await _context.Libraries
+            .AsNoTracking()
+            .Where(l => l.Kind == LibraryKind.Inbox)
+            .ToDictionaryAsync(l => l.Id, l => l.Path, cancellationToken);
+        var inboxIds = inboxPaths.Keys.ToList();
+        var postFiles = await _context.PostFiles
+            .Where(pf => postIds.Contains(pf.PostId) && inboxIds.Contains(pf.LibraryId))
+            .OrderBy(pf => pf.Id)
+            .ToListAsync(cancellationToken);
+
+        return postFiles
+            .Select(pf => SafeSubpathResolver.TryResolve(inboxPaths[pf.LibraryId], pf.RelativePath, out var fullPath)
+                ? new InboxFile(pf, fullPath)
+                : null)
+            .OfType<InboxFile>()
+            .ToList();
+    }
+
+    /// <summary>
+    /// Forgets the files before deleting them, so the watcher's delete events find nothing left to do.
+    /// </summary>
+    /// <returns>The files that couldn't be deleted from disk.</returns>
+    private async Task<List<InboxFile>> RemoveFilesAsync(IReadOnlyCollection<InboxFile> files)
+    {
+        _context.PostFiles.RemoveRange(files.Select(f => f.PostFile));
+        await _context.SaveChangesAsync(CancellationToken.None);
+        await PostFileWriter.DeleteEmptyPostsAsync(_context, CancellationToken.None);
+
+        var failed = new List<InboxFile>();
+        foreach (var file in files)
+        {
+            try
+            {
+                File.Delete(file.FullPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete inbox file {Path}", file.FullPath);
+                failed.Add(file);
+            }
+        }
+
+        return failed;
+    }
+
+    private static string? DescribeFailures(IEnumerable<InboxFile> failed)
+    {
+        var paths = failed.Select(f => f.PostFile.RelativePath).ToList();
+        return paths.Count > 0 ? $"Could not delete {string.Join(", ", paths)}; a later scan will pick them up again." : null;
     }
 
     private async Task<Result<List<Target>>> PlanTargetsAsync(
@@ -303,4 +420,6 @@ public class InboxSortService
     }
 
     private sealed record Target(Library Library, string RelativePath, string FullPath, string StagedPath);
+
+    private sealed record InboxFile(PostFile PostFile, string FullPath);
 }
