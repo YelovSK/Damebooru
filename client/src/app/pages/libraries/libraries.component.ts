@@ -11,6 +11,7 @@ import { ButtonDirective, FieldLabelDirective, InputDirective } from '@shared/di
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
+import { DateTimePipe } from '@shared/pipes/date-time.pipe';
 import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { AppPaths } from '@app/app.paths';
@@ -19,7 +20,7 @@ import { PageComponent } from '@shared/components/page/page.component';
 @Component({
     selector: 'app-libraries',
     standalone: true,
-    imports: [PageComponent, CommonModule, FormsModule, RouterLink, ButtonDirective, FieldLabelDirective, InputDirective, FileSizePipe, FormCheckboxComponent, AutocompleteComponent],
+    imports: [PageComponent, CommonModule, FormsModule, RouterLink, ButtonDirective, FieldLabelDirective, InputDirective, FileSizePipe, DateTimePipe, FormCheckboxComponent, AutocompleteComponent],
     templateUrl: './libraries.component.html',
     styleUrl: './libraries.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,

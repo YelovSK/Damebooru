@@ -4,7 +4,8 @@ import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 
 import { DamebooruService } from '@app/services/api/damebooru/damebooru.service';
 import { type StatsGrowthDateKind, type StatsSeriesPointDto, type StatsStorageBreakdownDto, type StatsTagCategoryDto, type StatsTagDensityBucketDto, TagCategoryKind } from '@app/services/api/damebooru/models';
-import { CommonModule, DecimalPipe, DatePipe } from '@angular/common';
+import { CommonModule, DecimalPipe } from '@angular/common';
+import { DateTimePipe } from '@shared/pipes/date-time.pipe';
 import { FileSizePipe } from '@app/shared/pipes/file-size.pipe';
 import { TabComponent } from '@app/shared/components/tabs/tab.component';
 import { TabsComponent } from '@app/shared/components/tabs/tabs.component';
@@ -16,7 +17,7 @@ import { PageComponent } from '@shared/components/page/page.component';
 @Component({
     selector: 'app-stats',
     standalone: true,
-    imports: [PageComponent, CommonModule, DecimalPipe, DatePipe, FileSizePipe, TabsComponent, TabComponent, LineChartComponent, ButtonDirective],
+    imports: [PageComponent, CommonModule, DecimalPipe, DateTimePipe, FileSizePipe, TabsComponent, TabComponent, LineChartComponent, ButtonDirective],
     templateUrl: './stats.component.html',
     styleUrl: './stats.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush

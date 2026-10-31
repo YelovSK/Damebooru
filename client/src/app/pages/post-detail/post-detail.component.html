@@ -87,10 +87,10 @@
                         }
 
                         <span class="text-fg-muted">Imported</span>
-                        <span class="text-fg font-medium">{{ pd.importDate | date:'medium' }}</span>
+                        <span class="text-fg font-medium">{{ pd.importDate | dateTime }}</span>
 
                         <span class="text-fg-muted">File Modified</span>
-                        <span class="text-fg font-medium">{{ pd.fileModifiedDate | date:'medium' }}</span>
+                        <span class="text-fg font-medium">{{ pd.fileModifiedDate | dateTime }}</span>
 
                         <span class="text-fg-muted">Size</span>
                         <span class="text-fg font-medium">{{ pd.sizeBytes | fileSize }}</span>
@@ -189,9 +189,9 @@
                         @if (status.hasScan) {
                         <div class="mb-2 text-[0.72rem] text-fg-muted">
                             @if (status.lastCompletedAtUtc) {
-                            Last ran {{ status.lastCompletedAtUtc | date:'medium' }}
+                            Last ran {{ status.lastCompletedAtUtc | dateTime }}
                             } @else if (status.lastStartedAtUtc) {
-                            Started {{ status.lastStartedAtUtc | date:'medium' }}
+                            Started {{ status.lastStartedAtUtc | dateTime }}
                             }
                         </div>
                         }
@@ -269,7 +269,7 @@
                     <div class="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                         @for (entry of auditEntries(); track entry.id) {
                         <div class="rounded-sm border border-line bg-surface p-2">
-                            <div class="text-[0.72rem] text-fg-muted mb-1">{{ entry.occurredAtUtc | date:'medium' }}</div>
+                            <div class="text-[0.72rem] text-fg-muted mb-1">{{ entry.occurredAtUtc | dateTime }}</div>
                             <div class="text-[0.84rem] text-fg font-medium">{{ describeAuditEntry(entry) }}</div>
                             @if (entry.oldValue !== undefined && entry.oldValue !== null && entry.oldValue !== '') {
                             <div class="mt-1 text-[0.75rem] text-fg-muted break-all">from: {{ entry.oldValue }}</div>

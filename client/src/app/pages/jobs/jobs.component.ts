@@ -14,7 +14,7 @@ import { PaginatorComponent } from '../../shared/components/paginator/paginator.
 import { ProgressBarComponent } from '../../shared/components/progress-bar/progress-bar.component';
 import { type DataTableColumn, DataTableComponent } from '../../shared/components/data-table/data-table.component';
 import { TooltipDirective } from '../../shared/directives';
-import { DateTimePipe } from '../../shared/pipes/date-time.pipe';
+import { formatDateTime } from '../../shared/pipes/date-time.pipe';
 import { RelativeDurationPipe } from '../../shared/pipes/relative-duration.pipe';
 import { ToastService } from '../../services/toast.service';
 import { ConfirmService } from '../../services/confirm.service';
@@ -71,7 +71,6 @@ export class JobsPageComponent {
   private readonly toast = inject(ToastService);
   private readonly confirmService = inject(ConfirmService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly dateTimePipe = new DateTimePipe();
 
   readonly data = input.required<JobsPageData>();
 
@@ -109,7 +108,7 @@ export class JobsPageComponent {
     {
       key: 'startTime',
       label: 'Started',
-      value: run => this.dateTimePipe.transform(run.startTime),
+      value: run => formatDateTime(run.startTime),
       cellClass: () => 'text-fg-muted whitespace-nowrap',
     },
     {
@@ -214,7 +213,7 @@ export class JobsPageComponent {
   }
 
   formatRuns(runs: string[]): string {
-    return runs.map(run => this.dateTimePipe.transform(run)).join('  ·  ');
+    return runs.map(run => formatDateTime(run)).join('  ·  ');
   }
 
   getStatusText(status: JobStatus): string {
@@ -275,21 +274,23 @@ export class JobsPageComponent {
 
   private getHistoryDuration(run: JobExecution): string {
     const startMs = Date.parse(run.startTime);
-    const endSource = run.endTime ?? (run.status === JobStatus.Running ? new Date(this.now()).toISOString() : null);
-    const endMs = endSource ? Date.parse(endSource) : NaN;
+    const endMs = run.endTime ? Date.parse(run.endTime) : run.status === JobStatus.Running ? this.now() : NaN;
 
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
       return '-';
     }
 
-    const diffSeconds = Math.max(0, Math.floor((endMs - startMs) / 1000));
-    if (diffSeconds < 60) {
-      return `${diffSeconds}s`;
+    const diffMs = Math.max(0, endMs - startMs);
+    if (diffMs < 1000) {
+      return `${Math.round(diffMs)} ms`;
     }
 
-    const mins = Math.floor(diffSeconds / 60);
-    const secs = diffSeconds % 60;
-    return `${mins}m ${secs}s`;
+    if (diffMs < 60_000) {
+      return `${(diffMs / 1000).toFixed(1)}s`;
+    }
+
+    const totalSeconds = Math.floor(diffMs / 1000);
+    return `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`;
   }
 
   private refreshLiveJobs(): void {

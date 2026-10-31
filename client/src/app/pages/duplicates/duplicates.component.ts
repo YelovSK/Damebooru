@@ -18,6 +18,7 @@ import {
 } from '@models';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
+import { DateTimePipe } from '@shared/pipes/date-time.pipe';
 import { formatPathForDisplay, getFileNameFromPath } from '@shared/utils/utils';
 import { ConfirmService } from '@services/confirm.service';
 import { ToastService } from '@services/toast.service';
@@ -61,7 +62,7 @@ interface VisibleDuplicateGroup {
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonDirective, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
+  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, DateTimePipe, TabsComponent, TabComponent, ButtonDirective, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
   providers: [PostHoverPreview],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',

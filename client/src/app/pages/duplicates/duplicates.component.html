@@ -102,7 +102,7 @@
                             }
                             <span class="text-sm text-fg-subtle">{{ group.posts.length }} posts</span>
                             @if (group.detectedDate) {
-                            <span class="text-sm text-fg-subtle">detected {{ group.detectedDate | date:'short' }}</span>
+                            <span class="text-sm text-fg-subtle">detected {{ group.detectedDate | dateTime }}</span>
                             }
                         </div>
                         <div class="flex items-center gap-2">
@@ -398,7 +398,7 @@
                             <span class="text-sm text-fg-muted">~{{ group.similarityPercent }}% similar</span>
                             }
                             <span class="text-sm text-fg-subtle">{{ group.posts.length }} posts</span>
-                            <span class="text-sm text-fg-subtle">resolved {{ group.detectedDate | date:'short' }}</span>
+                            <span class="text-sm text-fg-subtle">resolved {{ group.detectedDate | dateTime }}</span>
                         </div>
                         <button appButton type="button" variant="secondary" size="sm" (click)="unresolveGroup(group)">
                             Mark Unresolved
@@ -472,7 +472,7 @@
                                 {{ file.relativePath | fileName }}
                             </div>
                             <div class="text-xs text-fg-subtle mb-2">
-                                {{ file.libraryName }} · {{ file.excludedDate | date:'short' }}
+                                {{ file.libraryName }} · {{ file.excludedDate | dateTime }}
                             </div>
                             <button appButton type="button" variant="secondary" size="sm" (click)="onExcludedRowClick(file)" [fullWidth]="true">
                                 Restore

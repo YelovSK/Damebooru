@@ -59,6 +59,7 @@ import { AppLinks } from "@app/app.paths";
 import { PostEditService, type PostEditTag } from "./post-edit.service";
 import { FileSizePipe } from "@shared/pipes/file-size.pipe";
 import { FileNamePipe } from "@shared/pipes/file-name.pipe";
+import { DateTimePipe } from "@shared/pipes/date-time.pipe";
 
 type NavigationFetchDirection = "initial" | "previous" | "next";
 
@@ -66,6 +67,7 @@ type NavigationFetchDirection = "initial" | "previous" | "next";
   selector: "app-post-detail",
   imports: [
     CommonModule,
+    DateTimePipe,
     RouterLink,
     TagPipe,
     AutocompleteComponent,
