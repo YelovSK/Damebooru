@@ -31,6 +31,7 @@ import { PostHoverPreview } from '@shared/components/post-preview-overlay/post-h
 import { computeLookupContentHash } from './lookup-hash';
 import { type DuplicateCompareGroup, DuplicateCompareOverlayComponent, type DuplicateComparePost } from './duplicate-compare-overlay.component';
 import { DuplicateFolderBucketsComponent, type DuplicateFolderBucketView, type DuplicateFolderItemView } from './duplicate-folder-buckets.component';
+import { PageComponent } from '@shared/components/page/page.component';
 
 type DuplicateViewFilter = 'all' | 'same-folder' | 'different-folder';
 
@@ -60,7 +61,7 @@ interface VisibleDuplicateGroup {
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonDirective, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
+  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, TabsComponent, TabComponent, ButtonDirective, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent, DuplicateFolderBucketsComponent],
   providers: [PostHoverPreview],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',

@@ -13,6 +13,7 @@ import { type DataTableColumn, DataTableComponent, type DataTableSort } from '@s
 import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ConfirmService } from '@services/confirm.service';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
+import { PageComponent } from '@shared/components/page/page.component';
 
 interface EditTagModel {
   id: number;
@@ -35,6 +36,7 @@ const CATEGORY_OPTIONS: FormDropdownOption<TagCategoryKind>[] = [
   selector: 'app-tag-management-page',
   standalone: true,
   imports: [
+    PageComponent,
     CommonModule,
     FormsModule,
     ButtonDirective,

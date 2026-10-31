@@ -1,7 +1,4 @@
-<div class="p-3">
-    <h1 class="text-3xl font-bold mb-2 text-fg">Duplicate Detection</h1>
-    <p class="text-fg-muted mb-6">Review and resolve duplicate posts, or manage excluded files.</p>
-
+<app-page heading="Duplicates" description="Review and resolve duplicate posts, or manage excluded files." width="wide">
     <app-tabs route>
         <app-tab id="exact" label="Exact Duplicates" (init)="onExactTabInit()">
                 <div class="mb-6 flex flex-wrap gap-3">
@@ -499,4 +496,4 @@
         (excludePost)="onCompareExcludePost(group, $event)"
         (deletePost)="onCompareDeletePost(group, $event)" />
     }
-</div>
+</app-page>

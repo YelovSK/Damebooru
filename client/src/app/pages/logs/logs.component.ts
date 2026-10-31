@@ -8,13 +8,14 @@ import { ButtonDirective } from '@shared/directives';
 import { FormDropdownComponent, type FormDropdownOption } from '../../shared/components/dropdown/form-dropdown.component';
 import { SearchInputComponent } from '../../shared/components/search-input/search-input.component';
 import { ToastService } from '../../services/toast.service';
+import { PageComponent } from '@shared/components/page/page.component';
 
 type LogLevelFilter = 'warning' | 'error' | 'critical' | 'information' | 'debug' | 'trace';
 
 @Component({
   selector: 'app-logs-page',
   standalone: true,
-  imports: [CommonModule, DateTimePipe, ButtonDirective, FormDropdownComponent, SearchInputComponent],
+  imports: [PageComponent, CommonModule, DateTimePipe, ButtonDirective, FormDropdownComponent, SearchInputComponent],
   templateUrl: './logs.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })

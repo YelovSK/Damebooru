@@ -14,11 +14,12 @@ import { FileSizePipe } from '@shared/pipes/file-size.pipe';
 import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { AppPaths } from '@app/app.paths';
+import { PageComponent } from '@shared/components/page/page.component';
 
 @Component({
     selector: 'app-libraries',
     standalone: true,
-    imports: [CommonModule, FormsModule, RouterLink, ButtonDirective, FieldLabelDirective, InputDirective, FileSizePipe, FormCheckboxComponent, AutocompleteComponent],
+    imports: [PageComponent, CommonModule, FormsModule, RouterLink, ButtonDirective, FieldLabelDirective, InputDirective, FileSizePipe, FormCheckboxComponent, AutocompleteComponent],
     templateUrl: './libraries.component.html',
     styleUrl: './libraries.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,

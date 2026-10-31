@@ -11,11 +11,12 @@ import { TabsComponent } from '@app/shared/components/tabs/tabs.component';
 import { LineChartComponent, type LineChartPoint } from '@app/shared/components/line-chart/line-chart.component';
 import { formatBytes } from '@app/shared/utils/utils';
 import { ButtonDirective } from '@app/shared/directives/button.directive';
+import { PageComponent } from '@shared/components/page/page.component';
 
 @Component({
     selector: 'app-stats',
     standalone: true,
-    imports: [CommonModule, DecimalPipe, DatePipe, FileSizePipe, TabsComponent, TabComponent, LineChartComponent, ButtonDirective],
+    imports: [PageComponent, CommonModule, DecimalPipe, DatePipe, FileSizePipe, TabsComponent, TabComponent, LineChartComponent, ButtonDirective],
     templateUrl: './stats.component.html',
     styleUrl: './stats.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush

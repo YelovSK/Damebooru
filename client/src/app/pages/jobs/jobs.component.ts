@@ -18,6 +18,7 @@ import { DateTimePipe } from '../../shared/pipes/date-time.pipe';
 import { RelativeDurationPipe } from '../../shared/pipes/relative-duration.pipe';
 import { ToastService } from '../../services/toast.service';
 import { ConfirmService } from '../../services/confirm.service';
+import { PageComponent } from '@shared/components/page/page.component';
 
 const LIVE_JOBS_POLL_MS = 2000;
 const CLOCK_TICK_MS = 1000;
@@ -34,7 +35,7 @@ const JOB_STATUS_LABELS: Record<JobStatus, string> = {
 @Component({
   selector: 'app-jobs-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, ButtonDirective, FormCheckboxComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, DataTableComponent, TooltipDirective, DateTimePipe, RelativeDurationPipe],
+  imports: [PageComponent, CommonModule, FormsModule, ButtonDirective, FormCheckboxComponent, CollapsibleComponent, FormInputComponent, PaginatorComponent, ProgressBarComponent, DataTableComponent, TooltipDirective, DateTimePipe, RelativeDurationPipe],
   templateUrl: './jobs.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })

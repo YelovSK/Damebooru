@@ -8,11 +8,13 @@ import { AutoTaggingSettingsComponent } from './auto-tagging/auto-tagging-settin
 import { DuplicatesSettingsComponent } from './duplicates/duplicates-settings.component';
 import { PerformanceSettingsComponent } from './performance/performance-settings.component';
 import { ThemeSettingsComponent } from './theme/theme-settings.component';
+import { PageComponent } from '@shared/components/page/page.component';
 
 @Component({
   selector: 'app-settings',
   standalone: true,
   imports: [
+    PageComponent,
     CommonModule,
     TabsComponent,
     TabComponent,

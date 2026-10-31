@@ -1,14 +1,10 @@
-<div class="p-3">
-  <h1 class="mb-2 text-3xl font-bold text-fg">Tag Management</h1>
-  <p class="mb-6 text-fg-muted">Manage tags and assign fixed categories.</p>
+<app-page heading="Tags" description="Manage tags and assign fixed categories." width="wide">
+  <button appButton pageActions variant="primary" type="button" (click)="openCreateTagModal()">New Tag</button>
 
   <section class="card p-4">
-    <div class="mb-4 flex flex-wrap items-center gap-3">
-      <div class="min-w-[280px] grow">
-        <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (searchChange)="onTagsSearch($event)">
-        </app-search-input>
-      </div>
-      <button appButton variant="primary" type="button" (click)="openCreateTagModal()">New Tag</button>
+    <div class="mb-4">
+      <app-search-input placeholder="Search tags..." [value]="tagsQuery()" (searchChange)="onTagsSearch($event)">
+      </app-search-input>
     </div>
 
     <div class="mb-3 text-sm text-fg-muted">Showing {{ tags().length }} of {{ tagsTotal() }} tags</div>
@@ -22,7 +18,7 @@
       </app-paginator>
     </div>
   </section>
-</div>
+</app-page>
 
 <app-modal [open]="createTagOpen()" title="Create Tag" (closed)="closeCreateTagModal()">
   <div class="grid grid-cols-1 gap-3">

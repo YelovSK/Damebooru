@@ -1,7 +1,4 @@
-<div class="p-3">
-  <h1 class="mb-2 text-3xl font-bold text-fg">Job Queues</h1>
-  <p class="mb-8 text-fg-muted">Run and schedule background processing tasks.</p>
-
+<app-page heading="Jobs" description="Run and schedule background processing tasks." width="wide">
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mb-10">
     @for (job of jobs(); track job.name) {
       <div class="bg-surface border border-line rounded-lg p-5 flex flex-col">
@@ -150,4 +147,4 @@
     }
   </div>
 
-</div>
+</app-page>

@@ -1,7 +1,4 @@
-<div class="p-3">
-  <h1 class="mb-2 text-3xl font-bold text-fg">Logs</h1>
-  <p class="mb-6 text-fg-muted">Persisted server logs (database-backed).</p>
-
+<app-page heading="Logs" description="Persisted server logs." width="wide">
   <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
     <app-form-dropdown
       label="Minimum Level"
@@ -68,4 +65,4 @@
       <button appButton type="button" variant="secondary" size="sm" (click)="loadMore()" [disabled]="!hasMore()">Load older logs</button>
     </div>
   </div>
-</div>
+</app-page>

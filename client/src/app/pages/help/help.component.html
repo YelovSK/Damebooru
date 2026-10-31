@@ -1,89 +1,84 @@
-<div class="space-y-6 p-3">
-    <section class="card p-6">
-        <h1 class="text-3xl font-bold text-fg">Help</h1>
-        <p class="text-fg-subtle mt-2">
-            Keyboard shortcuts, search syntax, and quick examples.
-        </p>
-    </section>
-
-    <section class="card p-6">
-        <h2 class="text-xl font-semibold mb-4">Keyboard Shortcuts</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="border-b border-line">
-                        <th class="py-2 pr-4 text-fg-subtle font-medium">Key</th>
-                        <th class="py-2 pr-4 text-fg-subtle font-medium">Context</th>
-                        <th class="py-2 text-fg-subtle font-medium">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @for (item of shortcuts; track item.key + item.context + item.action) {
-                    <tr class="border-b border-line">
-                        <td class="py-2 pr-4"><code>{{ item.key }}</code></td>
-                        <td class="py-2 pr-4">{{ item.context }}</td>
-                        <td class="py-2">{{ item.action }}</td>
-                    </tr>
+<app-page heading="Help" description="Keyboard shortcuts, search syntax, and quick examples.">
+    <div class="space-y-6">
+        <section class="card p-6">
+            <h2 class="text-xl font-semibold mb-4">Keyboard Shortcuts</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b border-line">
+                            <th class="py-2 pr-4 text-fg-subtle font-medium">Key</th>
+                            <th class="py-2 pr-4 text-fg-subtle font-medium">Context</th>
+                            <th class="py-2 text-fg-subtle font-medium">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (item of shortcuts; track item.key + item.context + item.action) {
+                        <tr class="border-b border-line">
+                            <td class="py-2 pr-4"><code>{{ item.key }}</code></td>
+                            <td class="py-2 pr-4">{{ item.context }}</td>
+                            <td class="py-2">{{ item.action }}</td>
+                        </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-sm text-fg-subtle mt-3">
+                Global hotkeys are ignored while typing in input/textarea/select fields.
+            </p>
+        </section>
+    
+        <section class="card p-6">
+            <h2 class="text-xl font-semibold mb-4">Search Syntax</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead>
+                        <tr class="border-b border-line">
+                            <th class="py-2 pr-4 text-fg-subtle font-medium">Syntax</th>
+                            <th class="py-2 pr-4 text-fg-subtle font-medium">Description</th>
+                            <th class="py-2 text-fg-subtle font-medium">Examples</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (item of searchSyntax; track item.syntax) {
+                        <tr class="border-b border-line align-top">
+                            <td class="py-2 pr-4">
+                                <code>{{ item.syntax }}</code>
+                                @if (item.aliases.length) {
+                                <div class="mt-1 text-xs text-fg-subtle">aliases: <code>{{ item.aliases.join(', ') }}</code></div>
+                                }
+                            </td>
+                            <td class="py-2 pr-4">{{ item.description }}</td>
+                            <td class="py-2">
+                                @for (example of item.examples; track example) {
+                                <div><code>{{ example }}</code></div>
+                                }
+                            </td>
+                        </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+    
+            <div class="mt-5 rounded-xl border border-line bg-surface p-4">
+                <h3 class="text-base font-semibold text-fg mb-2">Available sort values</h3>
+                <ul class="list-disc pl-5 space-y-1 text-sm text-fg-subtle">
+                    @for (item of sortOptions; track item.value) {
+                    <li>
+                        <code>{{ item.value }}</code>
+                        @if (item.aliases?.length) {
+                        <span> (aliases: <code>{{ item.aliases?.join(', ') }}</code>)</span>
+                        }
+                    </li>
                     }
-                </tbody>
-            </table>
-        </div>
-        <p class="text-sm text-fg-subtle mt-3">
-            Global hotkeys are ignored while typing in input/textarea/select fields.
-        </p>
-    </section>
-
-    <section class="card p-6">
-        <h2 class="text-xl font-semibold mb-4">Search Syntax</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead>
-                    <tr class="border-b border-line">
-                        <th class="py-2 pr-4 text-fg-subtle font-medium">Syntax</th>
-                        <th class="py-2 pr-4 text-fg-subtle font-medium">Description</th>
-                        <th class="py-2 text-fg-subtle font-medium">Examples</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @for (item of searchSyntax; track item.syntax) {
-                    <tr class="border-b border-line align-top">
-                        <td class="py-2 pr-4">
-                            <code>{{ item.syntax }}</code>
-                            @if (item.aliases.length) {
-                            <div class="mt-1 text-xs text-fg-subtle">aliases: <code>{{ item.aliases.join(', ') }}</code></div>
-                            }
-                        </td>
-                        <td class="py-2 pr-4">{{ item.description }}</td>
-                        <td class="py-2">
-                            @for (example of item.examples; track example) {
-                            <div><code>{{ example }}</code></div>
-                            }
-                        </td>
-                    </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-
-        <div class="mt-5 rounded-xl border border-line bg-surface p-4">
-            <h3 class="text-base font-semibold text-fg mb-2">Available sort values</h3>
-            <ul class="list-disc pl-5 space-y-1 text-sm text-fg-subtle">
-                @for (item of sortOptions; track item.value) {
-                <li>
-                    <code>{{ item.value }}</code>
-                    @if (item.aliases?.length) {
-                    <span> (aliases: <code>{{ item.aliases?.join(', ') }}</code>)</span>
-                    }
-                </li>
-                }
-            </ul>
-        </div>
-    </section>
-
-    <section class="card p-6">
-        <h2 class="text-xl font-semibold mb-4">Query Example</h2>
-        <p class="text-fg-subtle">
-            <code>artist_name -nsfw type:image,gif tag-count:&gt;3 filename:*wallpaper* sort:modified-date:desc</code>
-        </p>
-    </section>
-</div>
+                </ul>
+            </div>
+        </section>
+    
+        <section class="card p-6">
+            <h2 class="text-xl font-semibold mb-4">Query Example</h2>
+            <p class="text-fg-subtle">
+                <code>artist_name -nsfw type:image,gif tag-count:&gt;3 filename:*wallpaper* sort:modified-date:desc</code>
+            </p>
+        </section>
+    </div>
+</app-page>

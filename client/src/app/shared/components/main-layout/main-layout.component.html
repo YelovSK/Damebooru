@@ -9,9 +9,7 @@
         (drawerOpenChange)="mobileNavOpen.set($event)"
         (logout)="onLogout()"></app-navbar>
 
-    <main class="flex-1 min-h-0" [class.overflow-hidden]="mobileNavOpen()" [class.overflow-y-auto]="!mobileNavOpen()">
-        <div [class]="pageContainerClasses()">
-            <router-outlet></router-outlet>
-        </div>
+    <main class="flex flex-1 min-h-0 flex-col" [class.overflow-hidden]="mobileNavOpen()" [class.overflow-y-auto]="!mobileNavOpen()">
+        <router-outlet></router-outlet>
     </main>
 </div>

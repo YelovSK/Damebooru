@@ -6,6 +6,7 @@ import {
   formatSearchDirectiveSyntax,
   type SearchDirective,
 } from '@shared/utils/post-search-syntax';
+import { PageComponent } from '@shared/components/page/page.component';
 
 interface ShortcutItem {
   key: string;
@@ -23,7 +24,7 @@ interface SearchSyntaxItem {
 @Component({
   selector: 'app-help',
   standalone: true,
-  imports: [CommonModule],
+  imports: [PageComponent, CommonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './help.component.html',
 })

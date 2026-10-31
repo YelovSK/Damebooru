@@ -1,9 +1,4 @@
-<div class="p-3">
-    <div class="mb-6">
-        <h1 class="mb-2 text-3xl font-bold text-fg">Stats</h1>
-        <p class="mb-6 text-fg-muted">Numbers and stuff.</p>
-    </div>
-
+<app-page heading="Stats" width="wide">
     @if (overview(); as data) {
         <app-tabs>
             <app-tab id="overview" label="Overview">
@@ -364,4 +359,4 @@
             <p>Loading stats...</p>
         </div>
     }
-</div>
+</app-page>
