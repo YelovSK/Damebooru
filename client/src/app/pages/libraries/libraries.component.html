@@ -1,248 +1,152 @@
-<app-page heading="Libraries">
-    <section class="card p-6 mb-8">
-        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-            <span class="w-2 h-6 bg-accent rounded-full"></span>
-            Add Library
-        </h2>
+<app-page heading="Libraries" description="Folders on the server that get indexed. Files stay where they are.">
+    <button appButton pageActions variant="primary" type="button" (click)="openCreateDialog()">Add library</button>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-                <label for="new-library-name" appFieldLabel>Name</label>
-                <input
-                    id="new-library-name"
-                    type="text"
-                    [ngModel]="newLibraryName()"
-                    (ngModelChange)="newLibraryName.set($event)"
-                    placeholder="e.g. Edited Photos"
-                    appInput />
-            </div>
-            <div>
-                <label for="new-library-path" appFieldLabel>Server Path</label>
-                <app-autocomplete
-                    id="new-library-path"
-                    [value]="newLibraryPath()"
-                    [suggestions]="pathSuggestions()"
-                    [debounce]="150"
-                    [suggestAfterSelection]="true"
-                    placeholder="/mtn/media/dslr (or C:\Media\Photos)"
-                    (valueChange)="newLibraryPath.set($event)"
-                    (queryChange)="onPathQueryChange($event)"
-                    (selection)="newLibraryPath.set($event)"
-                    (searchTrigger)="createLibrary()" />
-            </div>
+    @if (libraries().length === 0) {
+        <div class="card px-5 py-10 text-center text-fg-muted">
+            No libraries yet. Add one to start indexing.
         </div>
+    }
 
-        <div class="flex items-start gap-4 mb-4">
+    <div class="space-y-4">
+        @for (lib of libraries(); track lib.id) {
+            <article class="card">
+                <header class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 p-5">
+                    <div class="min-w-0 flex-1">
+                        @if (editingLibraryId() === lib.id) {
+                            <div class="flex flex-wrap items-center gap-2">
+                                <input
+                                    type="text"
+                                    class="!h-8 !w-64"
+                                    [ngModel]="editingName()"
+                                    (ngModelChange)="editingName.set($event)"
+                                    appInput
+                                    (keyup.enter)="saveRename(lib)"
+                                    (keyup.escape)="cancelRename()" />
+                                <button appButton variant="primary" type="button" size="sm" [disabled]="renamingLibraryId() === lib.id" (click)="saveRename(lib)">Save</button>
+                                <button appButton type="button" size="sm" variant="ghost" (click)="cancelRename()">Cancel</button>
+                            </div>
+                        } @else {
+                            <h3 class="flex items-center gap-2 text-xl font-semibold text-fg">
+                                {{ lib.name }}
+                                @if (lib.kind === libraryKind.Inbox) {
+                                    <span class="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent"
+                                        appTooltip="Unsorted files waiting to be moved into libraries">Inbox</span>
+                                }
+                            </h3>
+                        }
+                        <p class="mt-0.5 break-all font-mono text-sm text-fg-subtle">{{ lib.path }}</p>
+                        <p class="mt-2 text-[0.9375rem] text-fg-muted">
+                            <span class="font-medium text-fg">{{ lib.postCount | number }}</span> posts
+                            <span class="mx-1.5 text-fg-subtle">·</span>
+                            <span class="font-medium text-fg">{{ lib.totalSizeBytes | fileSize }}</span>
+                            <span class="mx-1.5 text-fg-subtle">·</span>
+                            @if (lib.lastImportDate) {
+                                last import <span class="font-medium text-fg">{{ lib.lastImportDate | dateTime }}</span>
+                            } @else {
+                                never imported
+                            }
+                        </p>
+                    </div>
+
+                    <div class="flex shrink-0 items-center gap-2">
+                        <a appButton size="sm" [routerLink]="['/', appPaths.libraries, lib.id, appPaths.libraryExplorer]">Browse</a>
+                        <button appButton type="button" size="sm"
+                            [disabled]="scanningLibraryId() === lib.id"
+                            (click)="scanLibrary(lib)">
+                            {{ scanningLibraryId() === lib.id ? 'Queueing...' : 'Scan' }}
+                        </button>
+                        <button appButton type="button" variant="ghost" size="icon"
+                            aria-label="More actions"
+                            [cdkMenuTriggerFor]="libraryMenu">
+                            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+                            </svg>
+                        </button>
+                        <ng-template #libraryMenu>
+                            <div class="min-w-44 rounded-lg border border-line-strong bg-surface p-1 shadow-xl" cdkMenu>
+                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised disabled:cursor-not-allowed disabled:opacity-40 text-fg" cdkMenuItem (cdkMenuItemTriggered)="startRename(lib)">Rename</button>
+                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised disabled:cursor-not-allowed disabled:opacity-40 text-fg" cdkMenuItem
+                                    [cdkMenuItemDisabled]="changingKindLibraryId() === lib.id"
+                                    (cdkMenuItemTriggered)="toggleInbox(lib)">
+                                    {{ lib.kind === libraryKind.Inbox ? 'Make regular library' : 'Make inbox' }}
+                                </button>
+                                <div class="my-1 border-t border-line"></div>
+                                <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised disabled:cursor-not-allowed disabled:opacity-40 text-danger" cdkMenuItem
+                                    [cdkMenuItemDisabled]="isLoading()"
+                                    (cdkMenuItemTriggered)="deleteLibrary(lib)">Delete</button>
+                            </div>
+                        </ng-template>
+                    </div>
+                </header>
+
+                <div class="grid border-t border-line md:grid-cols-2">
+                    <app-library-path-list
+                        class="p-5"
+                        heading="Ignored paths"
+                        description="Files under these paths are removed from the board and skipped by library scans."
+                        placeholder="e.g. _trash or folders/temporary"
+                        [paths]="lib.ignoredPaths"
+                        [adding]="addingIgnoredPathLibraryId() === lib.id"
+                        [removingId]="removingIgnoredPathId()"
+                        (add)="addIgnoredPath(lib, $event)"
+                        (remove)="removeIgnoredPath(lib, $event)" />
+                    <app-library-path-list
+                        class="border-t border-line p-5 md:border-l md:border-t-0"
+                        heading="Auto-tag excluded paths"
+                        description="Files stay indexed, but posts with image files under these paths are skipped by the auto-tagging job."
+                        placeholder="e.g. private or finished/no-auto-tag"
+                        [paths]="lib.autoTagExcludedPaths"
+                        [adding]="addingAutoTagExcludedPathLibraryId() === lib.id"
+                        [removingId]="removingAutoTagExcludedPathId()"
+                        (add)="addAutoTagExcludedPath(lib, $event)"
+                        (remove)="removeAutoTagExcludedPath(lib, $event)" />
+                </div>
+            </article>
+        }
+    </div>
+</app-page>
+
+<app-modal [open]="createDialogOpen()" title="Add library" (closed)="createDialogOpen.set(false)">
+    <div class="space-y-4">
+        <div>
+            <label for="new-library-name" appFieldLabel>Name</label>
+            <input
+                id="new-library-name"
+                type="text"
+                [ngModel]="newLibraryName()"
+                (ngModelChange)="newLibraryName.set($event)"
+                placeholder="e.g. Edited Photos"
+                appInput />
+        </div>
+        <div>
+            <label for="new-library-path" appFieldLabel>Server path</label>
+            <app-autocomplete
+                id="new-library-path"
+                [value]="newLibraryPath()"
+                [suggestions]="pathSuggestions()"
+                [debounce]="150"
+                [suggestAfterSelection]="true"
+                placeholder="/mtn/media/dslr (or C:\Media\Photos)"
+                (valueChange)="newLibraryPath.set($event)"
+                (queryChange)="onPathQueryChange($event)"
+                (selection)="newLibraryPath.set($event)"
+                (searchTrigger)="createLibrary()" />
+        </div>
+        <div class="flex items-start gap-3">
             <app-form-checkbox
                 [ngModel]="newLibraryIsInbox()"
                 (ngModelChange)="newLibraryIsInbox.set($event)"
                 label="Inbox" />
-            <p class="text-fg-muted text-sm mt-0.5">
-                Unsorted files waiting to be moved into libraries. They get no folder tags and are hidden from search unless you add <code>inbox:true</code>.
-            </p>
+            <p class="mt-0.5 text-sm text-fg-muted">Unsorted files waiting to be moved into libraries.</p>
         </div>
+    </div>
 
-        <div class="flex gap-3 items-center">
-            <button appButton variant="primary" type="button"
-                (click)="createLibrary()"
-                [disabled]="!newLibraryName().trim() || !newLibraryPath().trim() || isCreating()">
-                {{ isCreating() ? 'Creating...' : 'Create Library' }}
-            </button>
-        </div>
-
-        <p class="text-sm text-fg-subtle mt-3">
-            Enter the exact path visible to the server process (container path when running in Docker).
-        </p>
-    </section>
-
-    <section class="card p-6">
-        <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
-            <span class="w-2 h-6 bg-accent rounded-full"></span>
-            Existing Libraries
-        </h2>
-
-        @if (libraries().length === 0) {
-        <div class="text-fg-subtle italic">
-            No libraries found.
-        </div>
-        }
-
-        <div class="grid grid-cols-1 gap-4">
-            @for (lib of libraries(); track lib.id) {
-            <article class="p-4 bg-surface rounded border border-line">
-                <div class="flex justify-between items-start gap-3">
-                    <div class="flex-1">
-                        @if (editingLibraryId() === lib.id) {
-                            <div class="flex flex-wrap gap-2 items-center">
-                                <input
-                                    type="text"
-                                    [ngModel]="editingName()"
-                                    (ngModelChange)="editingName.set($event)"
-                                    appInput
-                                    (keyup.enter)="saveRename(lib)" />
-                                <button appButton variant="primary" type="button" size="sm" [disabled]="renamingLibraryId() === lib.id" (click)="saveRename(lib)">
-                                    Save
-                                </button>
-                                <button appButton type="button" size="sm" variant="secondary" (click)="cancelRename()">Cancel</button>
-                            </div>
-                        } @else {
-                            <h3 class="text-lg font-semibold text-fg flex items-center gap-2">
-                                {{ lib.name }}
-                                @if (lib.kind === libraryKind.Inbox) {
-                                    <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-accent/20 text-accent">Inbox</span>
-                                }
-                            </h3>
-                        }
-                        <p class="text-sm text-fg-subtle break-all">{{ lib.path }}</p>
-                    </div>
-                    <div class="flex flex-wrap justify-end gap-2">
-                        <a appButton
-                            variant="secondary"
-                            size="sm"
-                            [routerLink]="['/', appPaths.libraries, lib.id, appPaths.libraryExplorer]"
-                            [attr.aria-disabled]="editingLibraryId() === lib.id ? 'true' : null"
-                            [class.pointer-events-none]="editingLibraryId() === lib.id">
-                            Browse
-                        </a>
-                        <button appButton type="button"
-                            variant="secondary"
-                            size="sm"
-                            [disabled]="editingLibraryId() === lib.id"
-                            (click)="startRename(lib)">
-                            Rename
-                        </button>
-                        <button appButton type="button"
-                            variant="secondary"
-                            size="sm"
-                            [disabled]="changingKindLibraryId() === lib.id || editingLibraryId() === lib.id"
-                            (click)="toggleInbox(lib)">
-                            {{ lib.kind === libraryKind.Inbox ? 'Make Library' : 'Make Inbox' }}
-                        </button>
-                        <button appButton type="button"
-                            variant="secondary"
-                            size="sm"
-                            [disabled]="scanningLibraryId() === lib.id || editingLibraryId() === lib.id"
-                            (click)="scanLibrary(lib)">
-                            {{ scanningLibraryId() === lib.id ? 'Queueing...' : 'Scan' }}
-                        </button>
-                        <button appButton type="button"
-                            variant="danger"
-                            size="sm"
-                            (click)="deleteLibrary(lib)"
-                            [disabled]="isLoading() || editingLibraryId() === lib.id">
-                            Delete
-                        </button>
-                    </div>
-                </div>
-
-                <div class="mt-4 space-y-2">
-                    <div class="flex justify-between items-center py-2 border-b border-line">
-                        <span class="text-fg-muted">Posts</span>
-                        <span class="text-[0.95rem] font-semibold">{{ lib.postCount }}</span>
-                    </div>
-                    <div class="flex justify-between items-center py-2 border-b border-line">
-                        <span class="text-fg-muted">Total Size</span>
-                        <span class="text-[0.95rem] font-semibold">{{ lib.totalSizeBytes | fileSize }}</span>
-                    </div>
-                    <div class="flex justify-between items-center py-2">
-                        <span class="text-fg-muted">Last Import</span>
-                        <span class="text-[0.9rem] font-medium">{{ lib.lastImportDate ? (lib.lastImportDate | dateTime) : 'Never' }}</span>
-                    </div>
-                </div>
-
-                <div class="mt-4 pt-4 border-t border-line space-y-3">
-                    <div class="text-sm font-semibold text-fg">Ignored Paths</div>
-                    <p class="text-xs text-fg-subtle">
-                        Files under these paths are removed from the board and skipped by library scans.
-                    </p>
-
-                    <div class="flex flex-wrap gap-2 items-center">
-                        <input
-                            type="text"
-                            [ngModel]="getIgnoredPathDraft(lib.id)"
-                            (ngModelChange)="setIgnoredPathDraft(lib.id, $event)"
-                            placeholder="e.g. _trash or folders/temporary"
-                            appInput
-                            (keyup.enter)="addIgnoredPath(lib)" />
-                        <button appButton type="button"
-                            size="sm"
-                            [disabled]="addingIgnoredPathLibraryId() === lib.id || !getIgnoredPathDraft(lib.id).trim()"
-                            (click)="addIgnoredPath(lib)">
-                            {{ addingIgnoredPathLibraryId() === lib.id ? 'Adding...' : 'Add' }}
-                        </button>
-                    </div>
-
-                    @if (lib.ignoredPaths.length === 0) {
-                    <div class="text-sm text-fg-subtle italic">
-                        No ignored paths.
-                    </div>
-                    }
-
-                    @if (lib.ignoredPaths.length > 0) {
-                    <div class="space-y-2">
-                        @for (ignored of lib.ignoredPaths; track ignored.id) {
-                        <div class="flex items-center justify-between gap-2 px-3 py-2 bg-sunken rounded border border-line">
-                            <span class="text-sm break-all">{{ ignored.path }}</span>
-                            <button appButton type="button"
-                                variant="ghost"
-                                size="sm"
-                                [disabled]="removingIgnoredPathId() === ignored.id"
-                                (click)="removeIgnoredPath(lib, ignored.id, ignored.path)">
-                                {{ removingIgnoredPathId() === ignored.id ? 'Removing...' : 'Remove' }}
-                            </button>
-                        </div>
-                        }
-                    </div>
-                    }
-                </div>
-
-                <div class="mt-4 pt-4 border-t border-line space-y-3">
-                    <div class="text-sm font-semibold text-fg">Auto-Tag Excluded Paths</div>
-                    <p class="text-xs text-fg-subtle">
-                        Files stay indexed, but posts with image files under these paths are skipped by the auto-tagging job.
-                    </p>
-
-                    <div class="flex flex-wrap gap-2 items-center">
-                        <input
-                            type="text"
-                            [ngModel]="getAutoTagExcludedPathDraft(lib.id)"
-                            (ngModelChange)="setAutoTagExcludedPathDraft(lib.id, $event)"
-                            placeholder="e.g. private or finished/no-auto-tag"
-                            appInput
-                            (keyup.enter)="addAutoTagExcludedPath(lib)" />
-                        <button appButton type="button"
-                            size="sm"
-                            [disabled]="addingAutoTagExcludedPathLibraryId() === lib.id || !getAutoTagExcludedPathDraft(lib.id).trim()"
-                            (click)="addAutoTagExcludedPath(lib)">
-                            {{ addingAutoTagExcludedPathLibraryId() === lib.id ? 'Adding...' : 'Add' }}
-                        </button>
-                    </div>
-
-                    @if (lib.autoTagExcludedPaths.length === 0) {
-                    <div class="text-sm text-fg-subtle italic">
-                        No auto-tag excluded paths.
-                    </div>
-                    }
-
-                    @if (lib.autoTagExcludedPaths.length > 0) {
-                    <div class="space-y-2">
-                        @for (excluded of lib.autoTagExcludedPaths; track excluded.id) {
-                        <div class="flex items-center justify-between gap-2 px-3 py-2 bg-sunken rounded border border-line">
-                            <span class="text-sm break-all">{{ excluded.path }}</span>
-                            <button appButton type="button"
-                                variant="ghost"
-                                size="sm"
-                                [disabled]="removingAutoTagExcludedPathId() === excluded.id"
-                                (click)="removeAutoTagExcludedPath(lib, excluded.id, excluded.path)">
-                                {{ removingAutoTagExcludedPathId() === excluded.id ? 'Removing...' : 'Remove' }}
-                            </button>
-                        </div>
-                        }
-                    </div>
-                    }
-                </div>
-            </article>
-            }
-        </div>
-    </section>
-</app-page>
+    <div class="mt-6 flex justify-end gap-2">
+        <button appButton type="button" variant="secondary" (click)="createDialogOpen.set(false)">Cancel</button>
+        <button appButton variant="primary" type="button"
+            (click)="createLibrary()"
+            [disabled]="!newLibraryName().trim() || !newLibraryPath().trim() || isCreating()">
+            {{ isCreating() ? 'Creating...' : 'Create library' }}
+        </button>
+    </div>
+</app-modal>

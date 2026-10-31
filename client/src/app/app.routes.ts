@@ -2,10 +2,10 @@ import { type Routes } from '@angular/router';
 import { LoginComponent } from '@pages/login/login.component';
 import { PostsComponent } from '@pages/posts/posts.component';
 import { PostDetailComponent } from '@pages/post-detail/post-detail.component';
-import { LibrariesComponent } from '@pages/libraries/libraries.component';
 import { SettingsComponent } from '@pages/settings/settings.component';
 import { MainLayoutComponent } from '@shared/components/main-layout/main-layout.component';
 import { authGuard } from '@services/auth.guard';
+import { librariesResolver } from '@pages/libraries/libraries.resolver';
 import { jobsResolver } from '@pages/jobs/jobs.resolver';
 
 import { AppPaths } from './app.paths';
@@ -26,7 +26,7 @@ export const routes: Routes = [
             { path: `${AppPaths.inbox}/:tab`, loadComponent: () => import('./pages/inbox/inbox.component').then(m => m.InboxComponent) },
             { path: AppPaths.posts, component: PostsComponent },
             { path: `${AppPaths.post}/:id`, component: PostDetailComponent },
-            { path: AppPaths.libraries, component: LibrariesComponent },
+            { path: AppPaths.libraries, loadComponent: () => import('./pages/libraries/libraries.component').then(m => m.LibrariesComponent), resolve: { data: librariesResolver } },
             { path: `${AppPaths.libraries}/:id/${AppPaths.libraryExplorer}`, loadComponent: () => import('./pages/library-explorer/library-explorer.component').then(m => m.LibraryExplorerComponent) },
             { path: AppPaths.tags, redirectTo: `${AppPaths.tags}/tags`, pathMatch: 'full' },
             { path: `${AppPaths.tags}/:tab`, loadComponent: () => import('./pages/tags/tag-management-page.component').then(m => m.TagManagementPageComponent) },

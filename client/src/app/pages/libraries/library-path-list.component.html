@@ -1,0 +1,27 @@
+<h4 class="text-[0.9375rem] font-medium text-fg">{{ heading() }}</h4>
+<p class="mt-0.5 text-sm text-fg-subtle">{{ description() }}</p>
+
+<div class="mt-3 flex flex-wrap gap-1.5">
+  @for (item of paths(); track item.id) {
+    <span class="inline-flex max-w-full items-center gap-0.5 rounded-md border border-line bg-sunken py-0.5 pl-2 pr-0.5 font-mono text-sm text-fg">
+      <span class="truncate">{{ item.path }}</span>
+      <button appButton type="button" variant="ghost" size="icon" class="!h-5 !w-5 shrink-0 hover:!text-danger"
+        [disabled]="removingId() === item.id"
+        [appTooltip]="'Remove ' + item.path"
+        (click)="remove.emit(item)">×</button>
+    </span>
+  } @empty {
+    <span class="text-sm italic text-fg-subtle">None</span>
+  }
+</div>
+
+<div class="mt-3 flex gap-2">
+  <input appInput class="!h-8"
+    [placeholder]="placeholder()"
+    [value]="draft()"
+    (input)="draft.set($any($event.target).value)"
+    (keydown.enter)="submit()" />
+  <button appButton type="button" size="sm" [disabled]="adding() || !draft().trim()" (click)="submit()">
+    {{ adding() ? 'Adding...' : 'Add' }}
+  </button>
+</div>

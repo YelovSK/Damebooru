@@ -1,28 +1,30 @@
-import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, input, linkedSignal, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { toSignal, toObservable } from '@angular/core/rxjs-interop';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
 import { Subject, catchError, of, switchMap } from 'rxjs';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { type Library, LibraryKind } from '@services/api/damebooru/models';
-import { ButtonDirective, FieldLabelDirective, InputDirective } from '@shared/directives';
+import { ButtonDirective, FieldLabelDirective, InputDirective, TooltipDirective } from '@shared/directives';
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
 import { DateTimePipe } from '@shared/pipes/date-time.pipe';
 import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
+import { ModalComponent } from '@shared/components/modal/modal.component';
 import { AppPaths } from '@app/app.paths';
 import { PageComponent } from '@shared/components/page/page.component';
+import { LibraryPathListComponent, type LibraryPathItem } from './library-path-list.component';
 
 @Component({
     selector: 'app-libraries',
     standalone: true,
-    imports: [PageComponent, CommonModule, FormsModule, RouterLink, ButtonDirective, FieldLabelDirective, InputDirective, FileSizePipe, DateTimePipe, FormCheckboxComponent, AutocompleteComponent],
+    imports: [PageComponent, CommonModule, FormsModule, RouterLink, CdkMenu, CdkMenuItem, CdkMenuTrigger, ButtonDirective, FieldLabelDirective, InputDirective, TooltipDirective, FileSizePipe, DateTimePipe, FormCheckboxComponent, AutocompleteComponent, ModalComponent, LibraryPathListComponent],
     templateUrl: './libraries.component.html',
-    styleUrl: './libraries.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LibrariesComponent {
@@ -32,6 +34,10 @@ export class LibrariesComponent {
     readonly appPaths = AppPaths;
     readonly libraryKind = LibraryKind;
 
+    readonly data = input.required<Library[]>();
+    readonly libraries = linkedSignal(() => this.data());
+
+    createDialogOpen = signal(false);
     newLibraryName = signal('');
     newLibraryPath = signal('');
     newLibraryIsInbox = signal(false);
@@ -45,22 +51,7 @@ export class LibrariesComponent {
     removingIgnoredPathId = signal<number | null>(null);
     addingAutoTagExcludedPathLibraryId = signal<number | null>(null);
     removingAutoTagExcludedPathId = signal<number | null>(null);
-    ignoredPathDrafts = signal<Record<number, string>>({});
-    autoTagExcludedPathDrafts = signal<Record<number, string>>({});
     editingName = signal('');
-    private refreshTrigger = signal(0);
-
-    libraries = toSignal(
-        toObservable(this.refreshTrigger).pipe(
-            switchMap(() => this.damebooru.getLibraries()),
-            catchError(err => {
-                console.error(err);
-                this.toast.error('Failed to load libraries');
-                return of([]);
-            })
-        ),
-        { initialValue: [] as Library[] }
-    );
 
     private pathQuery = new Subject<string>();
     pathSuggestions = toSignal(
@@ -76,6 +67,13 @@ export class LibrariesComponent {
         this.pathQuery.next(path);
     }
 
+    openCreateDialog() {
+        this.newLibraryName.set('');
+        this.newLibraryPath.set('');
+        this.newLibraryIsInbox.set(false);
+        this.createDialogOpen.set(true);
+    }
+
     createLibrary() {
         const name = this.newLibraryName().trim();
         const path = this.newLibraryPath().trim();
@@ -86,10 +84,8 @@ export class LibrariesComponent {
         this.damebooru.createLibrary(name, path, kind).subscribe({
             next: () => {
                 this.toast.success(`Library "${name}" created`);
-                this.newLibraryName.set('');
-                this.newLibraryPath.set('');
-                this.newLibraryIsInbox.set(false);
-                this.refreshTrigger.update(v => v + 1);
+                this.createDialogOpen.set(false);
+                this.reload();
                 this.isCreating.set(false);
             },
             error: (err) => {
@@ -112,7 +108,7 @@ export class LibrariesComponent {
             this.damebooru.deleteLibrary(lib.id).subscribe({
                 next: () => {
                     this.toast.success(`Library "${lib.name}" deleted`);
-                    this.refreshTrigger.update(v => v + 1);
+                    this.reload();
                     this.isLoading.set(false);
                 },
                 error: (err) => {
@@ -157,7 +153,7 @@ export class LibrariesComponent {
                 this.toast.success(`Renamed to "${name}"`);
                 this.cancelRename();
                 this.renamingLibraryId.set(null);
-                this.refreshTrigger.update(v => v + 1);
+                this.reload();
             },
             error: (err) => {
                 this.toast.error(err.error?.description || 'Failed to rename library');
@@ -175,7 +171,7 @@ export class LibrariesComponent {
                     ? `"${lib.name}" is now an inbox; updating folder tags`
                     : `"${lib.name}" is now a library; updating folder tags`);
                 this.changingKindLibraryId.set(null);
-                this.refreshTrigger.update(v => v + 1);
+                this.reload();
             },
             error: (err) => {
                 this.toast.error(err.error?.description || 'Failed to change library kind');
@@ -184,18 +180,7 @@ export class LibrariesComponent {
         });
     }
 
-    getIgnoredPathDraft(libraryId: number): string {
-        return this.ignoredPathDrafts()[libraryId] || '';
-    }
-
-    setIgnoredPathDraft(libraryId: number, value: string) {
-        this.ignoredPathDrafts.update(drafts => ({ ...drafts, [libraryId]: value }));
-    }
-
-    addIgnoredPath(lib: Library) {
-        const path = this.getIgnoredPathDraft(lib.id).trim();
-        if (!path) return;
-
+    addIgnoredPath(lib: Library, path: string) {
         this.addingIgnoredPathLibraryId.set(lib.id);
         this.damebooru.addLibraryIgnoredPath(lib.id, path).subscribe({
             next: (result) => {
@@ -203,8 +188,7 @@ export class LibrariesComponent {
                     ? ` and removed ${result.removedPostCount} post(s)`
                     : '';
                 this.toast.success(`Ignored path "${result.ignoredPath.path}" saved${removedText}`);
-                this.setIgnoredPathDraft(lib.id, '');
-                this.refreshTrigger.update(v => v + 1);
+                this.reload();
                 this.addingIgnoredPathLibraryId.set(null);
             },
             error: (err) => {
@@ -214,12 +198,12 @@ export class LibrariesComponent {
         });
     }
 
-    removeIgnoredPath(lib: Library, ignoredPathId: number, path: string) {
-        this.removingIgnoredPathId.set(ignoredPathId);
-        this.damebooru.removeLibraryIgnoredPath(lib.id, ignoredPathId).subscribe({
+    removeIgnoredPath(lib: Library, item: LibraryPathItem) {
+        this.removingIgnoredPathId.set(item.id);
+        this.damebooru.removeLibraryIgnoredPath(lib.id, item.id).subscribe({
             next: () => {
-                this.toast.success(`Removed ignored path "${path}"`);
-                this.refreshTrigger.update(v => v + 1);
+                this.toast.success(`Removed ignored path "${item.path}"`);
+                this.reload();
                 this.removingIgnoredPathId.set(null);
             },
             error: (err) => {
@@ -229,24 +213,12 @@ export class LibrariesComponent {
         });
     }
 
-    getAutoTagExcludedPathDraft(libraryId: number): string {
-        return this.autoTagExcludedPathDrafts()[libraryId] || '';
-    }
-
-    setAutoTagExcludedPathDraft(libraryId: number, value: string) {
-        this.autoTagExcludedPathDrafts.update(drafts => ({ ...drafts, [libraryId]: value }));
-    }
-
-    addAutoTagExcludedPath(lib: Library) {
-        const path = this.getAutoTagExcludedPathDraft(lib.id).trim();
-        if (!path) return;
-
+    addAutoTagExcludedPath(lib: Library, path: string) {
         this.addingAutoTagExcludedPathLibraryId.set(lib.id);
         this.damebooru.addLibraryAutoTagExcludedPath(lib.id, path).subscribe({
             next: (result) => {
                 this.toast.success(`Auto-tag excluded path "${result.excludedPath.path}" saved`);
-                this.setAutoTagExcludedPathDraft(lib.id, '');
-                this.refreshTrigger.update(v => v + 1);
+                this.reload();
                 this.addingAutoTagExcludedPathLibraryId.set(null);
             },
             error: (err) => {
@@ -256,18 +228,25 @@ export class LibrariesComponent {
         });
     }
 
-    removeAutoTagExcludedPath(lib: Library, excludedPathId: number, path: string) {
-        this.removingAutoTagExcludedPathId.set(excludedPathId);
-        this.damebooru.removeLibraryAutoTagExcludedPath(lib.id, excludedPathId).subscribe({
+    removeAutoTagExcludedPath(lib: Library, item: LibraryPathItem) {
+        this.removingAutoTagExcludedPathId.set(item.id);
+        this.damebooru.removeLibraryAutoTagExcludedPath(lib.id, item.id).subscribe({
             next: () => {
-                this.toast.success(`Removed auto-tag excluded path "${path}"`);
-                this.refreshTrigger.update(v => v + 1);
+                this.toast.success(`Removed auto-tag excluded path "${item.path}"`);
+                this.reload();
                 this.removingAutoTagExcludedPathId.set(null);
             },
             error: (err) => {
                 this.toast.error(err.error?.description || 'Failed to remove auto-tag excluded path');
                 this.removingAutoTagExcludedPathId.set(null);
             }
+        });
+    }
+
+    private reload() {
+        this.damebooru.getLibraries().subscribe({
+            next: libraries => this.libraries.set(libraries),
+            error: () => this.toast.error('Failed to load libraries'),
         });
     }
 }
