@@ -38,7 +38,7 @@ public class CleanupInvalidExclusionsJob : IJob
     public string Description => "Removes exclusions for missing files or hash mismatches.";
     public bool SupportsAllMode => false;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
@@ -55,14 +55,7 @@ public class CleanupInvalidExclusionsJob : IJob
 
         if (candidates.Count == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "No exclusions found."
-            });
-            return;
+            return "No exclusions found.";
         }
 
         var idsToRemove = new List<int>(capacity: Math.Min(candidates.Count, 1024));
@@ -104,16 +97,7 @@ public class CleanupInvalidExclusionsJob : IJob
                 _logger.LogWarning(ex, "Failed to validate exclusion {Id} ({Path})", entry.Id, entry.RelativePath);
             }
 
-            var processed = index + 1;
-            if (processed % 25 == 0 || processed == candidates.Count)
-            {
-                context.Reporter.Update(new JobState
-                {
-                    ActivityText = $"Validating exclusions... ({processed}/{candidates.Count})",
-                    ProgressCurrent = processed,
-                    ProgressTotal = candidates.Count,
-                });
-            }
+            context.Reporter.Report("Validating exclusions...", index + 1, candidates.Count);
         }
 
         if (idsToRemove.Count > 0)
@@ -130,14 +114,6 @@ public class CleanupInvalidExclusionsJob : IJob
 
         var removedTotal = removedMissing + removedHashMismatch;
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = candidates.Count,
-            ProgressTotal = candidates.Count,
-            FinalText = $"Removed {removedTotal} invalid exclusions ({failed} failed validations).",
-        });
-
         _logger.LogInformation(
             "Invalid exclusion cleanup complete: {Scanned} scanned, {RemovedTotal} removed ({RemovedMissing} missing, {RemovedHashMismatch} hash mismatch), {Failed} failed",
             candidates.Count,
@@ -145,6 +121,7 @@ public class CleanupInvalidExclusionsJob : IJob
             removedMissing,
             removedHashMismatch,
             failed);
+        return $"Removed {removedTotal} invalid exclusions ({failed} failed validations).";
     }
 
     private bool TryResolveSafeFullPath(string libraryPath, string relativePath, out string fullPath)

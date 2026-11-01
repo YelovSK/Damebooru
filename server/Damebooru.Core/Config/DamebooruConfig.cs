@@ -63,7 +63,6 @@ public class ProcessingConfig
     public int MetadataParallelism { get; set; } = 2;
     public int SimilarityParallelism { get; set; } = 2;
     public int ThumbnailParallelism { get; set; } = 2;
-    public int JobProgressReportIntervalMs { get; set; } = 1000;
 }
 
 public class AuthConfig

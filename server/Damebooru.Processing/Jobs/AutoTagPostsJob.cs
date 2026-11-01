@@ -28,54 +28,26 @@ public sealed class AutoTagPostsJob : IJob
     public string Description => "Runs external auto-tag scans for posts and applies provider-owned tags and source URLs.";
     public bool SupportsAllMode => true;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
         var configValidator = scope.ServiceProvider.GetRequiredService<AutoTagConfigurationValidator>();
 
-        try
-        {
-            await configValidator.EnsureConfiguredAsync(context.CancellationToken);
-        }
-        catch (InvalidOperationException ex)
-        {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Failed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = ex.Message
-            });
-            return;
-        }
+        await configValidator.EnsureConfiguredAsync(context.CancellationToken);
 
         var discoverySettingsService = scope.ServiceProvider.GetRequiredService<AutoTagDiscoverySettingsService>();
         var enabledDiscoveryProviders = await discoverySettingsService.GetEnabledDiscoveryProvidersAsync(context.CancellationToken);
         if (enabledDiscoveryProviders.Length == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "No auto-tag discovery sources are enabled."
-            });
-            return;
+            return "No auto-tag discovery sources are enabled.";
         }
 
         var candidatePostIds = await GetCandidatePostIdsAsync(db, context.Mode, enabledDiscoveryProviders, context.CancellationToken);
         var total = candidatePostIds.Count;
         if (total == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "No posts require auto-tagging."
-            });
-            return;
+            return "No posts require auto-tagging.";
         }
 
         var processed = 0;
@@ -123,12 +95,7 @@ public sealed class AutoTagPostsJob : IJob
                 {
                     if (scanResult.Directive.Delay is { } delay && delay > TimeSpan.Zero && !scanResult.Directive.StopCurrentRun)
                     {
-                        context.Reporter.Update(new JobState
-                        {
-                            ActivityText = $"Waiting {delay.TotalSeconds:0}s for {scanResult.Directive.Provider} rate limit...",
-                            ProgressCurrent = processed,
-                            ProgressTotal = total
-                        });
+                        context.Reporter.Report($"Waiting {delay.TotalSeconds:0}s for {scanResult.Directive.Provider} rate limit...", processed, total);
                         await Task.Delay(delay, context.CancellationToken);
                     }
 
@@ -145,12 +112,7 @@ public sealed class AutoTagPostsJob : IJob
             }
 
             processed++;
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = $"Auto-tagging posts... ({processed}/{total})",
-                ProgressCurrent = processed,
-                ProgressTotal = total
-            });
+            context.Reporter.Report("Auto-tagging posts...", processed, total);
 
             if (earlyStopReason != null)
             {
@@ -158,15 +120,9 @@ public sealed class AutoTagPostsJob : IJob
             }
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = processed,
-            ProgressTotal = total,
-            FinalText = earlyStopReason == null
-                ? $"Completed {completed}, partial {partial}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, added {sourcesAdded} sources."
-                : $"Stopped early due to provider limit: {earlyStopReason}. Processed {processed}/{total}, completed {completed}, partial {partial}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, added {sourcesAdded} sources."
-        });
+        return earlyStopReason == null
+            ? $"Completed {completed}, partial {partial}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, added {sourcesAdded} sources."
+            : $"Stopped early due to provider limit: {earlyStopReason}. Processed {processed}/{total}, completed {completed}, partial {partial}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, added {sourcesAdded} sources.";
     }
 
     private static async Task<List<int>> GetCandidatePostIdsAsync(

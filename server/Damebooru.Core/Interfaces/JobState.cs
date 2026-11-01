@@ -1,17 +1,9 @@
-using System.Text.Json.Serialization;
-
 namespace Damebooru.Core.Interfaces;
 
-public class JobState
+public sealed record JobState
 {
-    public string? ActivityText { get; set; }
-    public string? FinalText { get; set; }
-    public int? ProgressCurrent { get; set; }
-    public int? ProgressTotal { get; set; }
-
-    [JsonIgnore]
-    public bool ClearProgressCurrent { get; set; }
-
-    [JsonIgnore]
-    public bool ClearProgressTotal { get; set; }
+    public string? ActivityText { get; init; }
+    public string? FinalText { get; init; }
+    public int? ProgressCurrent { get; init; }
+    public int? ProgressTotal { get; init; }
 }

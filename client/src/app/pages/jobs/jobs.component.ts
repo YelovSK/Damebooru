@@ -242,27 +242,20 @@ export class JobsPageComponent {
       && state.progressTotal > 0;
   }
 
+  formatActivity(state: JobState): string {
+    const activity = state.activityText || 'Running...';
+    return this.isDeterminateProgress(state) ? `${activity} (${state.progressCurrent}/${state.progressTotal})` : activity;
+  }
+
   formatHistoryState(run: JobExecution): string {
     const state = run.state;
     if (!state) return '-';
 
-    // While running, prioritize live phase text so it's obvious what the job is doing.
     if (run.status === JobStatus.Running) {
-      const activityText = state.activityText?.trim();
-      if (activityText) return activityText;
+      return this.formatActivity(state);
     }
 
-    const finalText = state.finalText?.trim();
-    if (finalText) return finalText;
-
-    const activityText = state.activityText?.trim();
-    if (activityText) return activityText;
-
-    if (typeof state.progressCurrent === 'number' && typeof state.progressTotal === 'number') {
-      return `processed ${state.progressCurrent} of ${state.progressTotal}`;
-    }
-
-    return '-';
+    return state.finalText || state.activityText || '-';
   }
 
   trackHistoryRow = (row: JobExecution): number => row.id;

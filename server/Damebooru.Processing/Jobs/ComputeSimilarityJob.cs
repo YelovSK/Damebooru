@@ -38,7 +38,7 @@ public class ComputeSimilarityJob : IJob
     public string Description => "Computes 256-bit PDQ hashes for image posts.";
     public bool SupportsAllMode => true;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
@@ -54,14 +54,7 @@ public class ComputeSimilarityJob : IJob
 
         if (totalCandidates == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "All similarity hashes are up to date."
-            });
-            return;
+            return "All similarity hashes are up to date.";
         }
 
         var completed = 0;
@@ -69,12 +62,7 @@ public class ComputeSimilarityJob : IJob
         int failed = 0;
         var lastId = 0;
 
-        JobState BuildLiveState(string phase) => new()
-        {
-            ActivityText = $"{phase} ({Math.Min(totalCandidates, completed)}/{totalCandidates})",
-            ProgressCurrent = Math.Min(totalCandidates, completed),
-            ProgressTotal = totalCandidates
-        };
+        void ReportProgress() => context.Reporter.Report("Computing similarity hashes...", completed, totalCandidates);
 
         const int batchSize = 100;
         while (true)
@@ -121,7 +109,7 @@ public class ComputeSimilarityJob : IJob
                     finally
                     {
                         Interlocked.Increment(ref completed);
-                        context.Reporter.Update(BuildLiveState("Computing similarity hashes..."));
+                        ReportProgress();
                     }
                 });
 
@@ -139,16 +127,10 @@ public class ComputeSimilarityJob : IJob
 
             await db.SaveChangesAsync(context.CancellationToken);
 
-            context.Reporter.Update(BuildLiveState("Computing similarity hashes..."));
+            ReportProgress();
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = Math.Min(totalCandidates, completed),
-            ProgressTotal = totalCandidates,
-            FinalText = $"Computed {processed} similarity hashes ({failed} failed)."
-        });
         _logger.LogInformation("Similarity hash computation complete: {Processed} processed, {Failed} failed", processed, failed);
+        return $"Computed {processed} similarity hashes ({failed} failed).";
     }
 }

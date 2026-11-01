@@ -46,7 +46,7 @@ public sealed class HardlinkExactDuplicateFilesJob : IJob
     public string Description => "Replaces exact duplicate files with hardlinks to one canonical file when the filesystem allows it.";
     public bool SupportsAllMode => false;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
@@ -80,12 +80,7 @@ public sealed class HardlinkExactDuplicateFilesJob : IJob
         var skippedFiles = 0;
         var failedFiles = 0;
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = $"Hardlinking exact duplicates... (0/{groups.Count})",
-            ProgressCurrent = 0,
-            ProgressTotal = groups.Count,
-        });
+        context.Reporter.Report("Hardlinking exact duplicates...", 0, groups.Count);
 
         foreach (var group in groups)
         {
@@ -117,21 +112,10 @@ public sealed class HardlinkExactDuplicateFilesJob : IJob
             }
 
             processedGroups++;
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = $"Hardlinking exact duplicates... ({processedGroups}/{groups.Count})",
-                ProgressCurrent = processedGroups,
-                ProgressTotal = groups.Count,
-            });
+            context.Reporter.Report("Hardlinking exact duplicates...", processedGroups, groups.Count);
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = processedGroups,
-            ProgressTotal = groups.Count,
-            FinalText = $"Hardlinked {hardlinkedFiles} files, skipped {skippedFiles}, failed {failedFiles}."
-        });
+        return $"Hardlinked {hardlinkedFiles} files, skipped {skippedFiles}, failed {failedFiles}.";
     }
 
     private async Task<FileCandidate?> ResolveCanonicalCandidateAsync(List<FileCandidate> group, CancellationToken cancellationToken)

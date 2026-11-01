@@ -37,62 +37,29 @@ public class FindDuplicatesJob : IJob
     public string Description => "Scans for visually similar posts using PDQ hashes.";
     public bool SupportsAllMode => false;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
         var settingsService = scope.ServiceProvider.GetRequiredService<DuplicateDetectionSettingsService>();
         var duplicateSettings = await settingsService.GetAsync(context.CancellationToken);
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Loading posts...",
-            ProgressCurrent = null,
-            ProgressTotal = null,
-            ClearProgressCurrent = true,
-            ClearProgressTotal = true,
-        });
+        context.Reporter.Report("Loading posts...");
         var posts = await db.Posts
             .AsNoTracking()
             .Select(p => new DuplicatePostCandidate(p.Id, p.PdqHash256, p.ContentType))
             .ToListAsync(context.CancellationToken);
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = $"Loading posts... ({posts.Count}/{posts.Count})",
-            ProgressCurrent = posts.Count,
-            ProgressTotal = posts.Count
-        });
 
         _logger.LogInformation("Loaded {Count} posts for duplicate analysis", posts.Count);
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Clearing old unresolved groups...",
-            ProgressCurrent = null,
-            ProgressTotal = null,
-            ClearProgressCurrent = true,
-            ClearProgressTotal = true,
-        });
+        context.Reporter.Report("Clearing old unresolved groups...");
         var oldGroups = await db.DuplicateGroups
             .Where(g => !g.IsResolved)
             .ToListAsync(context.CancellationToken);
         db.DuplicateGroups.RemoveRange(oldGroups);
         await db.SaveChangesAsync(context.CancellationToken);
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = $"Clearing old unresolved groups... ({oldGroups.Count}/{oldGroups.Count})",
-            ProgressCurrent = oldGroups.Count,
-            ProgressTotal = oldGroups.Count
-        });
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Loading resolved groups...",
-            ProgressCurrent = null,
-            ProgressTotal = null,
-            ClearProgressCurrent = true,
-            ClearProgressTotal = true,
-        });
+        context.Reporter.Report("Loading resolved groups...");
         var resolvedGroups = await db.DuplicateGroups
             .Where(g => g.IsResolved)
             .Include(g => g.Entries)
@@ -101,46 +68,18 @@ public class FindDuplicatesJob : IJob
             .Select(group => string.Join(",", group.Entries.Select(e => e.PostId).OrderBy(id => id)))
             .ToHashSet();
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Finding perceptual duplicates... (0 processed)",
-            ProgressCurrent = null,
-            ProgressTotal = null,
-            ClearProgressCurrent = true,
-            ClearProgressTotal = true,
-        });
+        context.Reporter.Report("Comparing PDQ hashes...");
 
         var perceptual = BuildPerceptualGroups(
             posts,
             resolvedGroupSignatures,
             duplicateSettings.PerceptualSimilarityThresholdPercent,
             DateTime.UtcNow,
-            (current, total) =>
-            {
-                context.Reporter.Update(new JobState
-                {
-                    ActivityText = $"Comparing PDQ hashes... ({current}/{total} comparisons)",
-                    ProgressCurrent = current,
-                    ProgressTotal = total
-                });
-            });
+            (current, total) => context.Reporter.Report("Comparing PDQ hashes...", current, total));
 
         _logger.LogInformation("Found {Count} perceptual duplicate groups", perceptual.Groups.Count);
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = $"Finding perceptual duplicates... ({perceptual.TotalComparisons}/{perceptual.TotalComparisons})",
-            ProgressCurrent = perceptual.TotalComparisons,
-            ProgressTotal = perceptual.TotalComparisons
-        });
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Saving duplicate groups...",
-            ProgressCurrent = null,
-            ProgressTotal = null,
-            ClearProgressCurrent = true,
-            ClearProgressTotal = true,
-        });
+        context.Reporter.Report("Saving duplicate groups...");
 
         var newGroups = perceptual.Groups;
         if (newGroups.Count > 0)
@@ -150,15 +89,8 @@ public class FindDuplicatesJob : IJob
         }
 
         var totalEntries = newGroups.Sum(g => g.Entries.Count);
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = totalEntries,
-            ProgressTotal = totalEntries,
-            FinalText = $"Found {newGroups.Count} duplicate groups ({totalEntries} posts)."
-        });
-
         _logger.LogInformation("Duplicate scan complete: {Groups} groups, {Entries} total posts", newGroups.Count, totalEntries);
+        return $"Found {newGroups.Count} duplicate groups ({totalEntries} posts).";
     }
 
     private static PerceptualResult BuildPerceptualGroups(

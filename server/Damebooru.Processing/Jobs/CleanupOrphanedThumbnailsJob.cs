@@ -52,19 +52,12 @@ public class CleanupOrphanedThumbnailsJob : IJob
     public string Description => "Removes thumbnail and preview files that are not referenced by any post.";
     public bool SupportsAllMode => false;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Loading known content hashes...",
-            ProgressCurrent = null,
-            ProgressTotal = null,
-            ClearProgressCurrent = true,
-            ClearProgressTotal = true,
-        });
+        context.Reporter.Report("Loading known content hashes...");
         var knownHashes = await db.Posts
             .AsNoTracking()
             .Select(p => p.ContentHash)
@@ -86,14 +79,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
 
         if (totalFiles == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "No thumbnails or previews found."
-            });
-            return;
+            return "No thumbnails or previews found.";
         }
 
         _logger.LogInformation(
@@ -130,30 +116,16 @@ public class CleanupOrphanedThumbnailsJob : IJob
                 }
 
                 processed++;
-                if (processed % 50 == 0 || processed == totalFiles)
-                {
-                    context.Reporter.Update(new JobState
-                    {
-                        ActivityText = $"Cleaning orphaned generated images... ({processed}/{totalFiles})",
-                        ProgressCurrent = processed,
-                        ProgressTotal = totalFiles
-                    });
-                }
+                context.Reporter.Report("Cleaning orphaned generated images...", processed, totalFiles);
             }
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = totalFiles,
-            ProgressTotal = totalFiles,
-            FinalText = $"Removed {deleted} orphaned generated images ({failed} failed)."
-        });
         _logger.LogInformation(
             "Orphaned generated image cleanup complete: {Deleted} deleted, {Failed} failed, {Total} scanned",
             deleted,
             failed,
             totalFiles);
+        return $"Removed {deleted} orphaned generated images ({failed} failed).";
     }
 
     private sealed record CleanupTarget(string Kind, string RootPath, HashSet<string> KnownRelativePaths)

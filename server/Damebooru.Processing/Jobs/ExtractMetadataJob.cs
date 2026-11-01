@@ -38,7 +38,7 @@ public class ExtractMetadataJob : IJob
     public string Description => "Extracts dimensions and content type for posts.";
     public bool SupportsAllMode => true;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
@@ -55,25 +55,13 @@ public class ExtractMetadataJob : IJob
 
         if (totalPosts == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "All metadata is up to date."
-            });
-            return;
+            return "All metadata is up to date.";
         }
 
         int processed = 0;
         int failed = 0;
 
-        JobState BuildLiveState() => new()
-        {
-            ActivityText = $"Extracting metadata... ({Math.Min(totalPosts, processed + failed)}/{totalPosts})",
-            ProgressCurrent = Math.Min(totalPosts, processed + failed),
-            ProgressTotal = totalPosts
-        };
+        void ReportProgress() => context.Reporter.Report("Extracting metadata...", processed + failed, totalPosts);
 
         var lastId = 0;
 
@@ -109,13 +97,13 @@ public class ExtractMetadataJob : IJob
                     {
                         results.Add(await _mediaEnrichmentService.ExtractMetadataAsync(target, ct));
                         Interlocked.Increment(ref processed);
-                        context.Reporter.Update(BuildLiveState());
+                        ReportProgress();
                     }
                     catch (Exception ex)
                     {
                         Interlocked.Increment(ref failed);
                         _logger.LogWarning(ex, "Failed to extract metadata for post {Id}: {Path}", target.PostId, target.FullPath);
-                        context.Reporter.Update(BuildLiveState());
+                        ReportProgress();
                     }
                 });
 
@@ -134,16 +122,10 @@ public class ExtractMetadataJob : IJob
 
             await db.SaveChangesAsync(context.CancellationToken);
 
-            context.Reporter.Update(BuildLiveState());
+            ReportProgress();
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = processed + failed,
-            ProgressTotal = totalPosts,
-            FinalText = $"Extracted metadata for {processed} posts ({failed} failed)."
-        });
         _logger.LogInformation("Metadata extraction complete: {Processed} processed, {Failed} failed", processed, failed);
+        return $"Extracted metadata for {processed} posts ({failed} failed).";
     }
 }

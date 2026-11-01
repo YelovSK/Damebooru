@@ -8,12 +8,10 @@ public enum JobMode
 
 public interface IJobReporter
 {
-    void Update(JobState state);
-    void SetActivity(string? activityText);
-    void SetProgress(int? current, int? total);
-    void ClearProgress();
-    void SetFinalText(string? finalText);
-    void Flush();
+    /// <summary>
+    /// Replaces the job's whole live state; progress left out means indeterminate.
+    /// </summary>
+    void Report(string activity, int? current = null, int? total = null);
 }
 
 public sealed class NullJobReporter : IJobReporter
@@ -22,12 +20,7 @@ public sealed class NullJobReporter : IJobReporter
 
     private NullJobReporter() { }
 
-    public void Update(JobState state) { }
-    public void SetActivity(string? activityText) { }
-    public void SetProgress(int? current, int? total) { }
-    public void ClearProgress() { }
-    public void SetFinalText(string? finalText) { }
-    public void Flush() { }
+    public void Report(string activity, int? current = null, int? total = null) { }
 }
 
 public class JobContext
@@ -45,5 +38,6 @@ public interface IJob
     string Name { get; }
     string Description { get; }
     bool SupportsAllMode { get; }
-    Task ExecuteAsync(JobContext context);
+    /// <returns>The summary shown once the job completes.</returns>
+    Task<string> ExecuteAsync(JobContext context);
 }

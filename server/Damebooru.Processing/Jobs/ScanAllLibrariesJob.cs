@@ -24,7 +24,7 @@ public class ScanAllLibrariesJob : IJob
     public string Description => "Triggers a recursive scan for all configured libraries.";
     public bool SupportsAllMode => false;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
@@ -33,14 +33,7 @@ public class ScanAllLibrariesJob : IJob
         var libraries = await dbContext.Libraries.ToListAsync(context.CancellationToken);
         if (libraries.Count == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 100,
-                ProgressTotal = 100,
-                FinalText = "No libraries configured."
-            });
-            return;
+            return "No libraries configured.";
         }
 
         var phase = "Scanning libraries...";
@@ -51,31 +44,16 @@ public class ScanAllLibrariesJob : IJob
             var normalized = percent <= 1f ? percent * 100f : percent;
             var processed = (int)Math.Clamp(Math.Round(normalized), 0, 100);
             currentProcessed = processed;
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = phase,
-                ProgressCurrent = processed,
-                ProgressTotal = 100
-            });
+            context.Reporter.Report(phase, processed, 100);
         });
 
         IProgress<string> status = new Progress<string>(message =>
         {
             phase = string.IsNullOrWhiteSpace(message) ? "Scanning libraries..." : message.Trim();
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = phase,
-                ProgressCurrent = currentProcessed,
-                ProgressTotal = 100
-            });
+            context.Reporter.Report(phase, currentProcessed, 100);
         });
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = phase,
-            ProgressCurrent = 0,
-            ProgressTotal = 100
-        });
+        context.Reporter.Report(phase, 0, 100);
 
         var totalLibraries = libraries.Count;
         var libraryIndex = 0;
@@ -111,12 +89,6 @@ public class ScanAllLibrariesJob : IJob
             libraryIndex++;
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = 100,
-            ProgressTotal = 100,
-            FinalText = $"Scanned {result.Scanned} files: {result.Added} added, {result.Updated} updated, {result.Moved} moved, {result.Removed} removed"
-        });
+        return $"Scanned {result.Scanned} files: {result.Added} added, {result.Updated} updated, {result.Moved} moved, {result.Removed} removed";
     }
 }

@@ -29,7 +29,7 @@ public sealed class AiTagPostsJob : IJob
     public string Description => "Runs the local AI tagging service for image posts and applies AI-owned tags.";
     public bool SupportsAllMode => true;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var config = scope.ServiceProvider.GetRequiredService<DamebooruConfig>();
@@ -37,28 +37,14 @@ public sealed class AiTagPostsJob : IJob
 
         if (!config.AiTagging.Enabled)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "AI tagging is not enabled."
-            });
-            return;
+            return "AI tagging is not enabled.";
         }
 
         var candidatePostIds = await GetCandidatePostIdsAsync(db, context.Mode, context.CancellationToken);
         var total = candidatePostIds.Count;
         if (total == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "No posts require AI tagging."
-            });
-            return;
+            return "No posts require AI tagging.";
         }
 
         var processed = 0;
@@ -101,21 +87,10 @@ public sealed class AiTagPostsJob : IJob
             }
 
             processed++;
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = $"AI tagging posts... ({processed}/{total})",
-                ProgressCurrent = processed,
-                ProgressTotal = total
-            });
+            context.Reporter.Report("AI tagging posts...", processed, total);
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = processed,
-            ProgressTotal = total,
-            FinalText = $"Completed {completed}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, updated {categoriesUpdated} categories."
-        });
+        return $"Completed {completed}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, updated {categoriesUpdated} categories.";
     }
 
     private static async Task<List<int>> GetCandidatePostIdsAsync(

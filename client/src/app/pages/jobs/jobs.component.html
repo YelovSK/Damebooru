@@ -22,7 +22,7 @@
                 [trackClass]="'bg-raised'"
                 [fillClass]="'bg-accent'">
               </app-progress-bar>
-              <p class="text-xs text-fg-muted">{{ job.activeJobInfo.state.activityText || 'Running...' }}</p>
+              <p class="text-xs text-fg-muted">{{ formatActivity(job.activeJobInfo.state) }}</p>
             </div>
           }
 

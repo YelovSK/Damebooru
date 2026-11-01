@@ -28,7 +28,7 @@ public class SanitizeTagNamesJob : IJob
     public string Description => "Retroactively sanitizes all tag names (lowercase, replace colons with underscores, collapse duplicates).";
     public bool SupportsAllMode => false;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
@@ -36,14 +36,7 @@ public class SanitizeTagNamesJob : IJob
         var allTags = await db.Tags.ToListAsync(context.CancellationToken);
         if (allTags.Count == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "No tags to process."
-            });
-            return;
+            return "No tags to process.";
         }
 
         var processed = 0;
@@ -140,25 +133,11 @@ public class SanitizeTagNamesJob : IJob
                 _logger.LogWarning(ex, "Failed to sanitize tag group '{SanitizedName}'", sanitizedName);
             }
 
-            if (processed % 100 == 0)
-            {
-                context.Reporter.Update(new JobState
-                {
-                    ActivityText = $"Sanitizing tags... ({processed}/{allTags.Count})",
-                    ProgressCurrent = processed,
-                    ProgressTotal = allTags.Count
-                });
-            }
+            context.Reporter.Report("Sanitizing tags...", processed, allTags.Count);
         }
 
         await db.SaveChangesAsync(context.CancellationToken);
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = processed,
-            ProgressTotal = allTags.Count,
-            FinalText = $"Renamed {renamed} tags, merged {merged} duplicates, failed {failed}."
-        });
+        return $"Renamed {renamed} tags, merged {merged} duplicates, failed {failed}.";
     }
 }

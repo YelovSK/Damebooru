@@ -1,11 +1,9 @@
 using Damebooru.Core.Entities;
-using Damebooru.Core.Config;
 using Damebooru.Core.Interfaces;
 using Damebooru.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 
 namespace Damebooru.Processing.Services;
@@ -20,17 +18,14 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly IDbContextFactory<DamebooruDbContext> _dbContextFactory;
     private readonly Dictionary<JobKey, IJob> _registeredJobsByKey;
-    private readonly TimeSpan _jobProgressReportInterval;
 
     public JobService(
         ILogger<JobService> logger, 
         IDbContextFactory<DamebooruDbContext> dbContextFactory,
-        IEnumerable<IJob> jobs,
-        IOptions<DamebooruConfig> config)
+        IEnumerable<IJob> jobs)
     {
         _logger = logger;
         _dbContextFactory = dbContextFactory;
-        _jobProgressReportInterval = TimeSpan.FromMilliseconds(Math.Max(0, config.Value.Processing.JobProgressReportIntervalMs));
         _registeredJobsByKey = jobs
             .GroupBy(j => j.Key)
             .ToDictionary(g => g.Key, g => g.First());
@@ -91,10 +86,14 @@ public class JobService : IJobService
 
     public Task<string> StartJobAsync(JobKey jobKey, Func<CancellationToken, Task> action)
     {
-        return StartJobInternalAsync(jobKey, jobKey.Value, ctx => action(ctx.CancellationToken));
+        return StartJobInternalAsync(jobKey, jobKey.Value, async ctx =>
+        {
+            await action(ctx.CancellationToken);
+            return "Completed successfully.";
+        });
     }
 
-    private async Task<string> StartJobInternalAsync(JobKey jobKey, string jobName, Func<JobContext, Task> execute)
+    private async Task<string> StartJobInternalAsync(JobKey jobKey, string jobName, Func<JobContext, Task<string>> execute)
     {
         if (!_runningJobKeys.TryAdd(jobKey, 0))
         {
@@ -143,84 +142,55 @@ public class JobService : IJobService
 
             _ = Task.Run(async () =>
             {
-                var reporter = new JobReporter(
-                    initialState: jobInfo.State,
-                    minInterval: _jobProgressReportInterval,
-                    onPublish: state => jobInfo.State = CloneState(state));
-
                 using var statePersistenceCts = new CancellationTokenSource();
-                var statePersistenceTask = PersistStateLoopAsync(
-                    execution.Id,
-                    reporter.GetSnapshot,
-                    statePersistenceCts.Token);
+                var statePersistenceTask = PersistStateLoopAsync(execution.Id, jobInfo, statePersistenceCts.Token);
 
+                JobStatus status;
+                string finalText;
+                string? error = null;
                 try
                 {
-                    var context = new JobContext
+                    finalText = await execute(new JobContext
                     {
                         JobId = jobId,
                         CancellationToken = cts.Token,
-                        Reporter = reporter,
-                    };
-
-                    await execute(context);
-
-                    jobInfo.Status = JobStatus.Completed;
-                    var finalState = reporter.GetSnapshot();
-                    finalState.ActivityText ??= "Completed";
-                    if (string.IsNullOrWhiteSpace(finalState.FinalText))
-                    {
-                        finalState.FinalText = "Completed successfully.";
-                    }
-                    reporter.Update(finalState);
-                    reporter.Flush();
-
-                    await UpdateJobStatusAsync(execution.Id, JobStatus.Completed, state: reporter.GetSnapshot());
+                        Reporter = new JobReporter(jobInfo),
+                    });
+                    status = JobStatus.Completed;
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException) when (cts.IsCancellationRequested)
                 {
-                    jobInfo.Status = JobStatus.Cancelled;
-                    var finalState = reporter.GetSnapshot();
-                    finalState.ActivityText ??= "Cancelled";
-                    finalState.FinalText ??= "Cancelled by user.";
-                    reporter.Update(finalState);
-                    reporter.Flush();
-
-                    await UpdateJobStatusAsync(execution.Id, JobStatus.Cancelled, state: reporter.GetSnapshot());
+                    finalText = "Cancelled by user.";
+                    status = JobStatus.Cancelled;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Job failed: {Id}", jobId);
-                    jobInfo.Status = JobStatus.Failed;
-                    var finalState = reporter.GetSnapshot();
-                    finalState.ActivityText ??= "Failed";
-                    finalState.FinalText = ex.Message;
-                    reporter.Update(finalState);
-                    reporter.Flush();
-
-                    await UpdateJobStatusAsync(execution.Id, JobStatus.Failed, ex.Message, reporter.GetSnapshot());
+                    finalText = error = ex.Message;
+                    status = JobStatus.Failed;
                 }
-                finally
+
+                statePersistenceCts.Cancel();
+                try
                 {
-                    statePersistenceCts.Cancel();
-                    try
-                    {
-                        await statePersistenceTask;
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // Expected on shutdown/cancel.
-                    }
-
-                    jobInfo.EndTime = DateTime.UtcNow;
-                    if (_cancellationSources.TryRemove(jobId, out var removedCts))
-                    {
-                        removedCts.Dispose();
-                    }
-
-                    _runningJobKeys.TryRemove(jobKey, out _);
-                    _ = RemoveJobWithDelay(jobId);
+                    await statePersistenceTask;
                 }
+                catch (OperationCanceledException)
+                {
+                }
+
+                jobInfo.State = jobInfo.State with { ActivityText = null, FinalText = finalText };
+                jobInfo.Status = status;
+                jobInfo.EndTime = DateTime.UtcNow;
+                await UpdateJobStatusAsync(execution.Id, status, error, jobInfo.State);
+
+                if (_cancellationSources.TryRemove(jobId, out var removedCts))
+                {
+                    removedCts.Dispose();
+                }
+
+                _runningJobKeys.TryRemove(jobKey, out _);
+                _ = RemoveJobWithDelay(jobId);
             });
 
             return jobId;
@@ -239,21 +209,7 @@ public class JobService : IJobService
         _activeJobs.TryRemove(jobId, out _);
     }
 
-    private static JobState CloneState(JobState state)
-    {
-        return new JobState
-        {
-            ActivityText = state.ActivityText,
-            FinalText = state.FinalText,
-            ProgressCurrent = state.ProgressCurrent,
-            ProgressTotal = state.ProgressTotal,
-        };
-    }
-
-    private async Task PersistStateLoopAsync(
-        int executionId,
-        Func<JobState> getLatestState,
-        CancellationToken cancellationToken)
+    private async Task PersistStateLoopAsync(int executionId, JobInfo jobInfo, CancellationToken cancellationToken)
     {
         JobState? lastPersistedState = null;
 
@@ -261,15 +217,14 @@ public class JobService : IJobService
         {
             await Task.Delay(StatePersistenceInterval, cancellationToken);
 
-            var state = getLatestState();
-
-            if (JobStateEquals(lastPersistedState, state))
+            var state = jobInfo.State;
+            if (state == lastPersistedState)
             {
                 continue;
             }
 
             await UpdateJobStateDataAsync(executionId, state, cancellationToken);
-            lastPersistedState = CloneState(state);
+            lastPersistedState = state;
         }
     }
 
@@ -298,7 +253,7 @@ public class JobService : IJobService
         }
     }
 
-    private async Task UpdateJobStatusAsync(int executionId, JobStatus status, string? error = null, JobState? state = null)
+    private async Task UpdateJobStatusAsync(int executionId, JobStatus status, string? error, JobState state)
     {
         try 
         {
@@ -310,10 +265,7 @@ public class JobService : IJobService
                 execution.Status = status;
                 execution.EndTime = DateTime.UtcNow;
                 if (error != null) execution.ErrorMessage = error;
-                if (state != null)
-                {
-                    ApplyStateToExecution(execution, state);
-                }
+                ApplyStateToExecution(execution, state);
                 
                 await dbContext.SaveChangesAsync();
             }
@@ -348,24 +300,6 @@ public class JobService : IJobService
         }
 
         return value.Trim();
-    }
-
-    private static bool JobStateEquals(JobState? left, JobState? right)
-    {
-        if (ReferenceEquals(left, right))
-        {
-            return true;
-        }
-
-        if (left == null || right == null)
-        {
-            return false;
-        }
-
-        return string.Equals(left.ActivityText, right.ActivityText, StringComparison.Ordinal)
-            && string.Equals(left.FinalText, right.FinalText, StringComparison.Ordinal)
-            && left.ProgressCurrent == right.ProgressCurrent
-            && left.ProgressTotal == right.ProgressTotal;
     }
 
 }

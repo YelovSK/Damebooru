@@ -40,7 +40,7 @@ public class GenerateThumbnailsJob : IJob
     public string Description => "Generates missing (or all) thumbnails and previews for posts.";
     public bool SupportsAllMode => true;
 
-    public async Task ExecuteAsync(JobContext context)
+    public async Task<string> ExecuteAsync(JobContext context)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
@@ -54,14 +54,7 @@ public class GenerateThumbnailsJob : IJob
 
         if (totalCandidates == 0)
         {
-            context.Reporter.Update(new JobState
-            {
-                ActivityText = "Completed",
-                ProgressCurrent = 0,
-                ProgressTotal = 0,
-                FinalText = "All thumbnails and previews are up to date."
-            });
-            return;
+            return "All thumbnails and previews are up to date.";
         }
 
         int processed = 0;
@@ -73,12 +66,7 @@ public class GenerateThumbnailsJob : IJob
             CancellationToken = context.CancellationToken
         };
 
-        JobState BuildLiveState() => new()
-        {
-            ActivityText = $"Generating thumbnails and previews... ({Math.Min(totalCandidates, processed + failed)}/{totalCandidates})",
-            ProgressCurrent = Math.Min(totalCandidates, processed + failed),
-            ProgressTotal = totalCandidates
-        };
+        void ReportProgress() => context.Reporter.Report("Generating thumbnails and previews...", processed + failed, totalCandidates);
 
         foreach (var batchIds in candidateIds.Chunk(BatchSize))
         {
@@ -90,31 +78,25 @@ public class GenerateThumbnailsJob : IJob
                 {
                     await _mediaEnrichmentService.GenerateGeneratedImagesAsync(target, ct);
                     Interlocked.Increment(ref processed);
-                    context.Reporter.Update(BuildLiveState());
+                    ReportProgress();
                 }
                 catch (Exception ex)
                 {
                     Interlocked.Increment(ref failed);
                     _logger.LogWarning(ex, "Failed to generate thumbnail/preview for post {Id}: {Path}", target.PostId, target.FullPath);
-                    context.Reporter.Update(BuildLiveState());
+                    ReportProgress();
                 }
             });
 
-            context.Reporter.Update(BuildLiveState());
+            ReportProgress();
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Completed",
-            ProgressCurrent = Math.Min(totalCandidates, processed + failed),
-            ProgressTotal = totalCandidates,
-            FinalText = $"Generated {processed} thumbnail/preview sets ({failed} failed, {skipped} skipped)."
-        });
         _logger.LogInformation(
             "Thumbnail/preview generation complete: {Processed} generated, {Failed} failed, {Skipped} skipped",
             processed,
             failed,
             skipped);
+        return $"Generated {processed} thumbnail/preview sets ({failed} failed, {skipped} skipped).";
     }
 
     private async Task<(List<int> CandidateIds, int Skipped)> LoadCandidateIdsAsync(DamebooruDbContext db, JobContext context)
@@ -125,14 +107,7 @@ public class GenerateThumbnailsJob : IJob
             return (await posts.Select(p => p.Id).ToListAsync(context.CancellationToken), 0);
         }
 
-        context.Reporter.Update(new JobState
-        {
-            ActivityText = "Checking for missing thumbnails/previews...",
-            ProgressCurrent = null,
-            ProgressTotal = null,
-            ClearProgressCurrent = true,
-            ClearProgressTotal = true,
-        });
+        context.Reporter.Report("Checking for missing thumbnails/previews...");
 
         var existingHashes = _mediaEnrichmentService.GetContentHashesWithGeneratedImages();
         var rows = await posts
