@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, type ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 
 import { type FolderLocation } from '@models';
+import { InputDirective } from '@shared/directives';
 
 import { InboxStore, folderKey } from './inbox.store';
 
@@ -20,6 +21,7 @@ interface SearchResult {
 @Component({
   selector: 'app-destination-picker',
   standalone: true,
+  imports: [InputDirective],
   templateUrl: './destination-picker.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
