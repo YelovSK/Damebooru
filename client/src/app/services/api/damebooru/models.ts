@@ -316,7 +316,6 @@ export const KNOWN_JOB_KEYS = [
   "generate-thumbnails",
   "cleanup-orphaned-thumbnails",
   "cleanup-invalid-exclusions",
-  "sanitize-tag-names",
   "auto-tag-posts",
   "ai-tag-posts",
 ] as const;

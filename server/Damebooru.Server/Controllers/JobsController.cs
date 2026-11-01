@@ -67,7 +67,7 @@ public class JobsController : ControllerBase
                 return BadRequest("Invalid job key format.");
             }
 
-            var jobId = await _jobService.StartJobAsync(parsedKey, CancellationToken.None, jobMode);
+            var jobId = await _jobService.StartJobAsync(parsedKey, jobMode);
             return Ok(new StartJobResponseDto { JobId = jobId });
         }
         catch (ArgumentException ex)

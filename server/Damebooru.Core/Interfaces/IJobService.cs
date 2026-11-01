@@ -35,8 +35,11 @@ public interface IJobService
     Task<(List<Entities.JobExecution> Items, int Total)> GetJobHistoryAsync(int pageSize = 20, int page = 1, CancellationToken cancellationToken = default);
     IEnumerable<JobDefinition> GetAvailableJobs();
     bool IsRunning(JobKey jobKey);
-    Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken);
-    Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken, JobMode mode);
-    Task<string> StartJobAsync(JobKey jobKey, Func<CancellationToken, Task> action);
+    Task<string> StartJobAsync(JobKey jobKey, JobMode mode = JobMode.Missing);
+
+    /// <summary>
+    /// Runs an ad-hoc job that isn't registered as an <see cref="IJob"/>.
+    /// </summary>
+    Task<string> StartJobAsync(JobKey jobKey, Func<JobContext, Task<string>> execute);
     void CancelJob(string jobId);
 }

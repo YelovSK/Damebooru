@@ -25,7 +25,7 @@ public class AdminController : ControllerBase
     {
         try
         {
-            var jobId = await _jobService.StartJobAsync(JobKeys.ScanAllLibraries, CancellationToken.None);
+            var jobId = await _jobService.StartJobAsync(JobKeys.ScanAllLibraries);
             return Accepted(new { JobId = jobId });
         }
         catch (ArgumentException ex)

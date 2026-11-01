@@ -13,4 +13,6 @@ public record ScanResult(int Scanned, int Added, int Updated, int Moved, int Rem
             a.Updated + b.Updated,
             a.Moved + b.Moved,
             a.Removed + b.Removed);
+
+    public string Summary => $"Scanned {Scanned} files: {Added} added, {Updated} updated, {Moved} moved, {Removed} removed.";
 }

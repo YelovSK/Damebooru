@@ -62,10 +62,7 @@ public class JobService : IJobService
 
     public bool IsRunning(JobKey jobKey) => _runningJobKeys.ContainsKey(jobKey);
 
-    public Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken)
-        => StartJobAsync(jobKey, cancellationToken, JobMode.Missing);
-
-    public Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken, JobMode mode)
+    public Task<string> StartJobAsync(JobKey jobKey, JobMode mode = JobMode.Missing)
     {
         if (!_registeredJobsByKey.TryGetValue(jobKey, out var job))
         {
@@ -84,14 +81,8 @@ public class JobService : IJobService
         });
     }
 
-    public Task<string> StartJobAsync(JobKey jobKey, Func<CancellationToken, Task> action)
-    {
-        return StartJobInternalAsync(jobKey, jobKey.Value, async ctx =>
-        {
-            await action(ctx.CancellationToken);
-            return "Completed successfully.";
-        });
-    }
+    public Task<string> StartJobAsync(JobKey jobKey, Func<JobContext, Task<string>> execute)
+        => StartJobInternalAsync(jobKey, jobKey.Value, execute);
 
     private async Task<string> StartJobInternalAsync(JobKey jobKey, string jobName, Func<JobContext, Task<string>> execute)
     {

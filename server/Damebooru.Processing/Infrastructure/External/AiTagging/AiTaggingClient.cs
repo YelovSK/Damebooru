@@ -42,12 +42,6 @@ internal sealed class AiTaggingClient(HttpClient httpClient, DamebooruConfig con
     private readonly HttpClient _httpClient = httpClient;
     private readonly AiTaggingConfig _config = config.AiTagging;
 
-    public async Task<bool> IsReadyAsync(CancellationToken cancellationToken = default)
-    {
-        using var response = await _httpClient.GetAsync("/ready", cancellationToken);
-        return response.IsSuccessStatusCode;
-    }
-
     public async Task<AiTaggingResult> TagAsync(
         Stream fileStream,
         string fileName,

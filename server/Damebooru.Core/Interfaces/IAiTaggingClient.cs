@@ -4,8 +4,6 @@ namespace Damebooru.Core.Interfaces;
 
 public interface IAiTaggingClient
 {
-    Task<bool> IsReadyAsync(CancellationToken cancellationToken = default);
-
     Task<AiTaggingResult> TagAsync(
         Stream fileStream,
         string fileName,

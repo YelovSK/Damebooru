@@ -182,12 +182,6 @@ public sealed class AiTaggingService
 
         try
         {
-            var isReady = await _client.IsReadyAsync(cancellationToken);
-            if (!isReady)
-            {
-                return Result<AiTagPreviewDto>.Failure(OperationError.ServiceUnavailable, "AI tagging service is not ready.");
-            }
-
             await using var fileStream = File.OpenRead(fullPath);
             var result = await _client.TagAsync(
                 fileStream,

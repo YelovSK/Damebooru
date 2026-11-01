@@ -134,7 +134,7 @@ public class SchedulerService : BackgroundService
 
             try
             {
-                await jobService.StartJobAsync(scheduledKey, cancellationToken);
+                await jobService.StartJobAsync(scheduledKey);
 
                 scheduledJob.LastRun = DateTime.UtcNow;
                 scheduledJob.NextRun = JobCron.GetNextRun(scheduledJob.CronExpression);

@@ -356,9 +356,8 @@ public sealed class InboxSortServiceTests
         public Task<(List<JobExecution> Items, int Total)> GetJobHistoryAsync(int pageSize = 20, int page = 1, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public IEnumerable<JobDefinition> GetAvailableJobs() => [];
         public bool IsRunning(JobKey jobKey) => false;
-        public Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<string> StartJobAsync(JobKey jobKey, CancellationToken cancellationToken, JobMode mode) => throw new NotSupportedException();
-        public Task<string> StartJobAsync(JobKey jobKey, Func<CancellationToken, Task> action) => throw new NotSupportedException();
+        public Task<string> StartJobAsync(JobKey jobKey, JobMode mode = JobMode.Missing) => throw new NotSupportedException();
+        public Task<string> StartJobAsync(JobKey jobKey, Func<JobContext, Task<string>> execute) => throw new NotSupportedException();
         public void CancelJob(string jobId) => throw new NotSupportedException();
     }
 

@@ -48,11 +48,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
     public async Task<ScanResult> ProcessDirectoryAsync(
         Library library,
         string directoryPath,
-        IProgress<float>? progress = null,
-        IProgress<string>? status = null,
+        IJobReporter? reporter = null,
         CancellationToken cancellationToken = default)
     {
-        status?.Report("Loading existing posts database...");
+        var report = reporter ?? NullJobReporter.Instance;
+        report.Report($"{library.Name}: Loading tracked files...");
         LibraryScanDiff diff;
         using (var scope = _scopeFactory.CreateScope())
         {
@@ -62,10 +62,11 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
         _logger.LogInformation("Loaded {Count} tracked files for library {Library}", diff.TrackedCount, library.Name);
 
-        status?.Report("Scanning files...");
         // Progress is estimated from the tracked file count; counting on disk would walk the whole library twice.
         var expected = diff.TrackedCount;
         var inspected = 0;
+        var scanningActivity = $"{library.Name}: Scanning files...";
+        report.Report(scanningActivity, 0, expected);
         var parallelOptions = new ParallelOptions
         {
             MaxDegreeOfParallelism = _scanParallelism,
@@ -77,16 +78,13 @@ public class LibrarySyncService : ILibrarySyncProcessor
             await diff.InspectAsync(item, ct);
 
             var current = Interlocked.Increment(ref inspected);
-            if (current % 10 == 0)
+            if (current <= expected)
             {
-                if (expected > 0)
-                {
-                    progress?.Report(Math.Min(1f, (float)current / expected) * 80);
-                }
-
-                status?.Report(current <= expected
-                    ? $"Scanning: {current}/{expected} files"
-                    : $"Scanning: {current} files");
+                report.Report(scanningActivity, current, expected);
+            }
+            else
+            {
+                report.Report($"{scanningActivity} ({current} found)");
             }
         });
 
@@ -98,7 +96,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             changes.Moves.Count,
             changes.NewFiles.Count,
             changes.OrphanPostFileIds.Count);
-        status?.Report($"Updating {changes.Updates.Count + changes.Moves.Count} files ({changes.Updates.Count} changed, {changes.Moves.Count} moved)...");
+        report.Report($"{library.Name}: Saving changes...");
 
         using (var scope = _scopeFactory.CreateScope())
         {
@@ -127,7 +125,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
 
             if (changes.OrphanPostFileIds.Count > 0)
             {
-                status?.Report($"Removing {changes.OrphanPostFileIds.Count} orphaned files...");
+                report.Report($"{library.Name}: Removing {changes.OrphanPostFileIds.Count} missing files...");
                 foreach (var batch in changes.OrphanPostFileIds.Chunk(OrphanDeleteBatchSize))
                 {
                     await dbContext.PostFiles
@@ -143,7 +141,7 @@ public class LibrarySyncService : ILibrarySyncProcessor
             }
         }
 
-        status?.Report($"Reconciling folder tags for {library.Name}...");
+        report.Report($"{library.Name}: Reconciling folder tags...");
         await ReconcileLibraryFolderTagsAsync(library.Id, cancellationToken);
 
         var result = new ScanResult(
@@ -153,8 +151,6 @@ public class LibrarySyncService : ILibrarySyncProcessor
             changes.Moves.Count,
             changes.OrphanPostFileIds.Count);
 
-        progress?.Report(100);
-        status?.Report($"Finished scanning {library.Name} - {result.Scanned} files, {result.Added} added, {result.Updated} updated, {result.Moved} moved, {result.Removed} orphans removed");
         return result;
     }
 

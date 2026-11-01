@@ -129,7 +129,6 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IJob, Jobs.CleanupInvalidExclusionsJob>();
         services.AddTransient<IJob, Jobs.ExtractMetadataJob>();
         services.AddTransient<IJob, Jobs.ComputeSimilarityJob>();
-        services.AddTransient<IJob, Jobs.SanitizeTagNamesJob>();
         services.AddTransient<IJob, Jobs.AutoTagPostsJob>();
         services.AddTransient<IJob, Jobs.AiTagPostsJob>();
 

@@ -36,59 +36,12 @@ public class ScanAllLibrariesJob : IJob
             return "No libraries configured.";
         }
 
-        var phase = "Scanning libraries...";
-        var currentProcessed = 0;
-
-        IProgress<float> progress = new Progress<float>(percent =>
-        {
-            var normalized = percent <= 1f ? percent * 100f : percent;
-            var processed = (int)Math.Clamp(Math.Round(normalized), 0, 100);
-            currentProcessed = processed;
-            context.Reporter.Report(phase, processed, 100);
-        });
-
-        IProgress<string> status = new Progress<string>(message =>
-        {
-            phase = string.IsNullOrWhiteSpace(message) ? "Scanning libraries..." : message.Trim();
-            context.Reporter.Report(phase, currentProcessed, 100);
-        });
-
-        context.Reporter.Report(phase, 0, 100);
-
-        var totalLibraries = libraries.Count;
-        var libraryIndex = 0;
         var result = ScanResult.Empty;
-
         foreach (var library in libraries)
         {
-            if (context.CancellationToken.IsCancellationRequested)
-            {
-                context.CancellationToken.ThrowIfCancellationRequested();
-            }
-
-            var displayName = string.IsNullOrWhiteSpace(library.Name)
-                ? Path.GetFileName(Path.TrimEndingDirectorySeparator(library.Path))
-                : library.Name;
-            phase = $"Scanning library: {displayName}";
-            status.Report(phase);
-
-            var subProgress = new Progress<float>(percent =>
-            {
-                var baseProgress = (float)libraryIndex / totalLibraries * 100;
-                var slice = 100f / totalLibraries;
-                progress.Report(baseProgress + (percent / 100f * slice));
-            });
-
-            result += await syncService.ProcessDirectoryAsync(
-                library,
-                library.Path,
-                subProgress,
-                status,
-                context.CancellationToken);
-
-            libraryIndex++;
+            result += await syncService.ProcessDirectoryAsync(library, library.Path, context.Reporter, context.CancellationToken);
         }
 
-        return $"Scanned {result.Scanned} files: {result.Added} added, {result.Updated} updated, {result.Moved} moved, {result.Removed} removed";
+        return result.Summary;
     }
 }

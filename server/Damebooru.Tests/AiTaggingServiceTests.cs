@@ -173,10 +173,6 @@ public sealed class AiTaggingServiceTests
         public int Calls { get; private set; }
         public List<AiTagData> Tags { get; set; } = [new AiTagData("ai_tag", 0.99m, TagCategoryKind.General, "general")];
 
-        public bool Ready { get; set; } = true;
-
-        public Task<bool> IsReadyAsync(CancellationToken cancellationToken = default) => Task.FromResult(Ready);
-
         public Task<AiTaggingResult> TagAsync(
             Stream fileStream,
             string fileName,

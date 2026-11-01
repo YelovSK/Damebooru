@@ -325,19 +325,20 @@ public class LibraryService
         var jobKey = JobKeys.ScanLibrary(libraryId);
         var jobId = await _jobService.StartJobAsync(
             jobKey,
-            async ct =>
+            async ctx =>
             {
                 using var scope = _scopeFactory.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
                 var syncService = scope.ServiceProvider.GetRequiredService<ILibrarySyncProcessor>();
 
-                var library = await dbContext.Libraries.FindAsync(new object[] { libraryId }, ct);
+                var library = await dbContext.Libraries.FindAsync([libraryId], ctx.CancellationToken);
                 if (library == null)
                 {
-                    return;
+                    return "Library no longer exists.";
                 }
 
-                await syncService.ProcessDirectoryAsync(library, library.Path, cancellationToken: ct);
+                var result = await syncService.ProcessDirectoryAsync(library, library.Path, ctx.Reporter, ctx.CancellationToken);
+                return result.Summary;
             });
 
         return Result<string>.Success(jobId);
@@ -391,11 +392,13 @@ public class LibraryService
 
             await _jobService.StartJobAsync(
                 reconcileJobKey,
-                async ct =>
+                async ctx =>
                 {
                     using var scope = _scopeFactory.CreateScope();
                     var syncService = scope.ServiceProvider.GetRequiredService<ILibrarySyncProcessor>();
-                    await syncService.ReconcileLibraryFolderTagsAsync(id, ct);
+                    ctx.Reporter.Report("Reconciling folder tags...");
+                    await syncService.ReconcileLibraryFolderTagsAsync(id, ctx.CancellationToken);
+                    return "Folder tags reconciled.";
                 });
         }
 
