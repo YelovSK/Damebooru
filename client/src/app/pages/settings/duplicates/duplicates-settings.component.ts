@@ -6,6 +6,7 @@ import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { type DuplicateDetectionSettings } from '@services/api/damebooru/models';
 import { FormNumberInputComponent } from '@shared/components/form-number-input/form-number-input.component';
 import { ButtonDirective } from '@shared/directives';
+import { errorMessage } from '@shared/utils/http-error';
 
 @Component({
   selector: 'app-duplicates-settings',
@@ -57,7 +58,7 @@ export class DuplicatesSettingsComponent {
         this.isSaving.set(false);
       },
       error: err => {
-        this.error.set(this.resolveError(err, 'Failed to update duplicate settings.'));
+        this.error.set(errorMessage('Failed to update duplicate settings', err));
         this.isSaving.set(false);
       },
     });
@@ -74,7 +75,7 @@ export class DuplicatesSettingsComponent {
         this.isLoading.set(false);
       },
       error: err => {
-        this.error.set(this.resolveError(err, 'Failed to load duplicate settings.'));
+        this.error.set(errorMessage('Failed to load duplicate settings', err));
         this.isLoading.set(false);
       },
     });
@@ -96,23 +97,5 @@ export class DuplicatesSettingsComponent {
     }
 
     return Math.max(1, Math.min(100, Math.round(value)));
-  }
-
-  private resolveError(err: unknown, fallback: string): string {
-    if (typeof err === 'object' && err !== null && 'error' in err) {
-      const error = (err as { error?: unknown }).error;
-      if (typeof error === 'string' && error.trim().length > 0) {
-        return error;
-      }
-
-      if (typeof error === 'object' && error !== null && 'description' in error) {
-        const description = (error as { description?: unknown }).description;
-        if (typeof description === 'string' && description.trim().length > 0) {
-          return description;
-        }
-      }
-    }
-
-    return fallback;
   }
 }

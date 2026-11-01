@@ -3,7 +3,6 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
-import { errorInterceptor } from '@services/api/error.interceptor';
 import { authInterceptor } from '@services/api/auth.interceptor';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -17,7 +16,7 @@ export const appConfig: ApplicationConfig = {
       inject(SettingsService);
     }),
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
+    provideHttpClient(withInterceptors([authInterceptor])),
     provideAnimations(),
     provideServiceWorker('ngsw-worker.js', {
       enabled: environment.production,

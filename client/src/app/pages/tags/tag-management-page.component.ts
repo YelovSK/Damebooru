@@ -14,6 +14,7 @@ import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ConfirmService } from '@services/confirm.service';
 import { AutocompleteComponent } from '@shared/components/autocomplete/autocomplete.component';
 import { PageComponent } from '@shared/components/page/page.component';
+import { errorMessage } from '@shared/utils/http-error';
 
 interface EditTagModel {
   id: number;
@@ -134,7 +135,7 @@ export class TagManagementPageComponent {
         this.createTagOpen.set(false);
         this.loadTags();
       },
-      error: err => this.toast.error(err?.error || 'Failed to create tag'),
+      error: err => this.toast.error(errorMessage('Failed to create tag', err)),
     });
   }
 
@@ -173,7 +174,7 @@ export class TagManagementPageComponent {
         this.editTag.set(null);
         this.loadTags();
       },
-      error: err => this.toast.error(err?.error || 'Failed to update tag'),
+      error: err => this.toast.error(errorMessage('Failed to update tag', err)),
     });
   }
 
@@ -218,7 +219,7 @@ export class TagManagementPageComponent {
         this.mergeTargetId.set(null);
         this.loadTags();
       },
-      error: err => this.toast.error(err?.error || 'Failed to merge tag'),
+      error: err => this.toast.error(errorMessage('Failed to merge tag', err)),
     });
   }
 
@@ -240,7 +241,7 @@ export class TagManagementPageComponent {
           this.editTag.set(null);
           this.loadTags();
         },
-        error: err => this.toast.error(err?.error || 'Failed to delete tag'),
+        error: err => this.toast.error(errorMessage('Failed to delete tag', err)),
       });
     });
   }

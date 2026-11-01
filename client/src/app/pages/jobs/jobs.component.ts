@@ -20,6 +20,7 @@ import { ToastService } from '../../services/toast.service';
 import { ConfirmService } from '../../services/confirm.service';
 import { PageComponent } from '@shared/components/page/page.component';
 import { JOB_HISTORY_PAGE_SIZE, type JobsPageData } from './jobs.resolver';
+import { errorMessage } from '@shared/utils/http-error';
 
 const LIVE_JOBS_POLL_MS = 2000;
 const CLOCK_TICK_MS = 1000;
@@ -148,9 +149,12 @@ export class JobsPageComponent {
   }
 
   loadHistory() {
-    this.damebooru.getJobHistory(JOB_HISTORY_PAGE_SIZE, this.historyPage()).subscribe(data => {
-      this.history.set(data.items);
-      this.historyTotal.set(data.total);
+    this.damebooru.getJobHistory(JOB_HISTORY_PAGE_SIZE, this.historyPage()).subscribe({
+      next: data => {
+        this.history.set(data.items);
+        this.historyTotal.set(data.total);
+      },
+      error: err => this.toast.error(errorMessage('Failed to load job history', err)),
     });
   }
 
@@ -162,7 +166,7 @@ export class JobsPageComponent {
   runJob(key: JobKey, mode: JobMode) {
     this.damebooru.startJob(key, mode).subscribe({
       next: () => this.refreshLiveJobs(),
-      error: (err) => this.toast.error('Failed to start job: ' + err.message)
+      error: (err) => this.toast.error(errorMessage('Failed to start job', err))
     });
   }
 
@@ -174,7 +178,10 @@ export class JobsPageComponent {
       variant: 'danger'
     }).subscribe(confirmed => {
       if (!confirmed) return;
-      this.damebooru.cancelJob(id).subscribe(() => this.refreshLiveJobs());
+      this.damebooru.cancelJob(id).subscribe({
+        next: () => this.refreshLiveJobs(),
+        error: err => this.toast.error(errorMessage('Failed to cancel job', err)),
+      });
     });
   }
 
@@ -268,7 +275,7 @@ export class JobsPageComponent {
           this.closeCronEditor();
         }
       },
-      error: (err) => this.toast.error('Failed to update schedule: ' + err.message)
+      error: (err) => this.toast.error(errorMessage('Failed to update schedule', err))
     });
   }
 

@@ -8,6 +8,7 @@ import { ConfirmService } from '@services/confirm.service';
 import { STORAGE_KEYS, StorageService } from '@services/storage.service';
 import { ToastService } from '@services/toast.service';
 import { getFileNameFromPath } from '@shared/utils/utils';
+import { errorMessage } from '@shared/utils/http-error';
 import {
   type DamebooruPostDto,
   type DestinationFolder,
@@ -104,14 +105,20 @@ export class InboxStore {
     this.loading.set(true);
     this.damebooru.getPosts('inbox:true sort:old', 0, PAGE_SIZE)
       .pipe(finalize(() => this.loading.set(false)), takeUntilDestroyed(this.destroyRef))
-      .subscribe(result => {
-        this.posts.set(result.items);
-        this.totalCount.set(result.totalCount);
+      .subscribe({
+        next: result => {
+          this.posts.set(result.items);
+          this.totalCount.set(result.totalCount);
+        },
+        error: err => this.toast.error(errorMessage('Failed to load inbox', err)),
       });
 
     this.damebooru.getInboxDestinations()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(destinations => this.destinations.set(destinations));
+      .subscribe({
+        next: destinations => this.destinations.set(destinations),
+        error: err => this.toast.error(errorMessage('Failed to load destination folders', err)),
+      });
   }
 
   /** Fetches suggestions for posts that don't have them yet. */
@@ -175,7 +182,8 @@ export class InboxStore {
           finish();
         },
         error: (error: HttpErrorResponse) => {
-          // The error interceptor already reported it. A tagger that is down would fail the rest of the queue too.
+          this.toast.error(errorMessage('Failed to suggest folders', error));
+          // A tagger that is down would fail the rest of the queue too.
           if (error.status === 503) {
             this.predictions.set(new Map());
           } else {
@@ -293,7 +301,10 @@ export class InboxStore {
         this.addDestinations(items.flatMap(i => i.destinations));
         return sorted.length;
       }),
-      catchError(() => of(0)),
+      catchError(err => {
+        this.toast.error(errorMessage('Failed to sort posts', err));
+        return of(0);
+      }),
       finalize(() => this.busy.set(false)),
     );
   }
@@ -307,7 +318,10 @@ export class InboxStore {
         this.removePosts(discarded);
         return discarded.length;
       }),
-      catchError(() => of(0)),
+      catchError(err => {
+        this.toast.error(errorMessage('Failed to discard posts', err));
+        return of(0);
+      }),
       finalize(() => this.busy.set(false)),
     );
   }

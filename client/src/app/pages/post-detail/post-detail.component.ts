@@ -63,6 +63,7 @@ import { FileSizePipe } from "@shared/pipes/file-size.pipe";
 import { DimensionsPipe } from "@shared/pipes/dimensions.pipe";
 import { FileNamePipe } from "@shared/pipes/file-name.pipe";
 import { DateTimePipe } from "@shared/pipes/date-time.pipe";
+import { errorMessage } from "@shared/utils/http-error";
 
 type NavigationFetchDirection = "initial" | "previous" | "next";
 
@@ -995,7 +996,7 @@ export class PostDetailComponent {
           this.isAutoTagging.set(false);
         },
         error: (error) => {
-          this.toastService.error(error?.error || 'Auto-tagging failed');
+          this.toastService.error(errorMessage('Auto-tagging failed', error));
           this.isAutoTagging.set(false);
         },
       });
@@ -1024,7 +1025,7 @@ export class PostDetailComponent {
           this.isAiTagPreviewLoading.set(false);
         },
         error: error => {
-          this.toastService.error(error?.error || 'AI tag preview failed');
+          this.toastService.error(errorMessage('AI tag preview failed', error));
           this.isAiTagPreviewLoading.set(false);
         },
       });
@@ -1053,9 +1054,6 @@ export class PostDetailComponent {
         next: (updatedPost) => {
           this.replacePostInWindow(updatedPost);
           this.reloadAuditForCurrentPost();
-          this.toastService.success(
-            updatedPost.isFavorite ? "Post favorited" : "Post unfavorited",
-          );
         },
         error: () => {
           this.toastService.error("Failed to update favorite");

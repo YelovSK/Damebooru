@@ -5,6 +5,7 @@ import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ToastService } from '@services/toast.service';
 import { type DamebooruPostDto, type UpdatePostMetadata, PostTagSource, type TagCategoryKind } from '@models';
 import { areArraysEqual } from '@shared/utils/utils';
+import { errorMessage } from '@shared/utils/http-error';
 
 export interface PostEditTag {
   tagId?: number;
@@ -204,7 +205,7 @@ export class PostEditService {
       }),
       catchError(err => {
         this.isSaving.set(false);
-        this.toast.error(err.error?.description || 'Failed to update post');
+        this.toast.error(errorMessage('Failed to update post', err));
         return of(null);
       }),
       takeUntilDestroyed(destroyRef),

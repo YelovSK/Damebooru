@@ -7,6 +7,7 @@ import { type AiTaggingSettings, type AutoTagDiscoverySettings } from '@services
 import { FormCheckboxComponent } from '@shared/components/form-checkbox/form-checkbox.component';
 import { FormNumberInputComponent } from '@shared/components/form-number-input/form-number-input.component';
 import { ButtonDirective } from '@shared/directives';
+import { errorMessage } from '@shared/utils/http-error';
 
 type AutoTagDiscoverySettingKey = keyof AutoTagDiscoverySettings;
 
@@ -62,7 +63,7 @@ export class AutoTaggingSettingsComponent {
       },
       error: err => {
         this.settings.set(current);
-        this.error.set(err.error?.description || 'Failed to update auto-tagging settings.');
+        this.error.set(errorMessage('Failed to update auto-tagging settings', err));
         this.isSaving.set(false);
       },
     });
@@ -96,7 +97,7 @@ export class AutoTaggingSettingsComponent {
         this.isAiSaving.set(false);
       },
       error: err => {
-        this.aiError.set(this.resolveError(err, 'Failed to update AI tagging settings.'));
+        this.aiError.set(errorMessage('Failed to update AI tagging settings', err));
         this.isAiSaving.set(false);
       },
     });
@@ -112,7 +113,7 @@ export class AutoTaggingSettingsComponent {
         this.isLoading.set(false);
       },
       error: err => {
-        this.error.set(err.error?.description || 'Failed to load auto-tagging settings.');
+        this.error.set(errorMessage('Failed to load auto-tagging settings', err));
         this.isLoading.set(false);
       },
     });
@@ -129,7 +130,7 @@ export class AutoTaggingSettingsComponent {
         this.isAiLoading.set(false);
       },
       error: err => {
-        this.aiError.set(this.resolveError(err, 'Failed to load AI tagging settings.'));
+        this.aiError.set(errorMessage('Failed to load AI tagging settings', err));
         this.isAiLoading.set(false);
       },
     });
@@ -151,23 +152,5 @@ export class AutoTaggingSettingsComponent {
     }
 
     return Math.max(0.01, Math.min(1, Number(value.toFixed(3))));
-  }
-
-  private resolveError(err: unknown, fallback: string): string {
-    if (typeof err === 'object' && err !== null && 'error' in err) {
-      const error = (err as { error?: unknown }).error;
-      if (typeof error === 'string' && error.trim().length > 0) {
-        return error;
-      }
-
-      if (typeof error === 'object' && error !== null && 'description' in error) {
-        const description = (error as { description?: unknown }).description;
-        if (typeof description === 'string' && description.trim().length > 0) {
-          return description;
-        }
-      }
-    }
-
-    return fallback;
   }
 }

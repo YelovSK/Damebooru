@@ -19,6 +19,7 @@ import { ModalComponent } from '@shared/components/modal/modal.component';
 import { AppPaths } from '@app/app.paths';
 import { PageComponent } from '@shared/components/page/page.component';
 import { LibraryPathListComponent, type LibraryPathItem } from './library-path-list.component';
+import { errorMessage } from '@shared/utils/http-error';
 
 @Component({
     selector: 'app-libraries',
@@ -89,7 +90,7 @@ export class LibrariesComponent {
                 this.isCreating.set(false);
             },
             error: (err) => {
-                this.toast.error(err.error?.description || 'Failed to create library');
+                this.toast.error(errorMessage('Failed to create library', err));
                 this.isCreating.set(false);
             }
         });
@@ -112,7 +113,7 @@ export class LibrariesComponent {
                     this.isLoading.set(false);
                 },
                 error: (err) => {
-                    this.toast.error(err.error?.description || 'Failed to delete library');
+                    this.toast.error(errorMessage('Failed to delete library', err));
                     this.isLoading.set(false);
                 }
             });
@@ -127,7 +128,7 @@ export class LibrariesComponent {
                 this.scanningLibraryId.set(null);
             },
             error: (err) => {
-                this.toast.error(err.error?.description || 'Failed to queue scan');
+                this.toast.error(errorMessage('Failed to queue scan', err));
                 this.scanningLibraryId.set(null);
             }
         });
@@ -156,7 +157,7 @@ export class LibrariesComponent {
                 this.reload();
             },
             error: (err) => {
-                this.toast.error(err.error?.description || 'Failed to rename library');
+                this.toast.error(errorMessage('Failed to rename library', err));
                 this.renamingLibraryId.set(null);
             }
         });
@@ -174,7 +175,7 @@ export class LibrariesComponent {
                 this.reload();
             },
             error: (err) => {
-                this.toast.error(err.error?.description || 'Failed to change library kind');
+                this.toast.error(errorMessage('Failed to change library kind', err));
                 this.changingKindLibraryId.set(null);
             }
         });
@@ -192,7 +193,7 @@ export class LibrariesComponent {
                 this.addingIgnoredPathLibraryId.set(null);
             },
             error: (err) => {
-                this.toast.error(err.error?.description || 'Failed to add ignored path');
+                this.toast.error(errorMessage('Failed to add ignored path', err));
                 this.addingIgnoredPathLibraryId.set(null);
             }
         });
@@ -207,7 +208,7 @@ export class LibrariesComponent {
                 this.removingIgnoredPathId.set(null);
             },
             error: (err) => {
-                this.toast.error(err.error?.description || 'Failed to remove ignored path');
+                this.toast.error(errorMessage('Failed to remove ignored path', err));
                 this.removingIgnoredPathId.set(null);
             }
         });
@@ -222,7 +223,7 @@ export class LibrariesComponent {
                 this.addingAutoTagExcludedPathLibraryId.set(null);
             },
             error: (err) => {
-                this.toast.error(err.error?.description || 'Failed to add auto-tag excluded path');
+                this.toast.error(errorMessage('Failed to add auto-tag excluded path', err));
                 this.addingAutoTagExcludedPathLibraryId.set(null);
             }
         });
@@ -237,7 +238,7 @@ export class LibrariesComponent {
                 this.removingAutoTagExcludedPathId.set(null);
             },
             error: (err) => {
-                this.toast.error(err.error?.description || 'Failed to remove auto-tag excluded path');
+                this.toast.error(errorMessage('Failed to remove auto-tag excluded path', err));
                 this.removingAutoTagExcludedPathId.set(null);
             }
         });

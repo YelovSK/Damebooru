@@ -2,6 +2,8 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
+import { ToastService } from '@services/toast.service';
+import { errorMessage } from '@shared/utils/http-error';
 import { type DamebooruPostDto } from '@models';
 import { type CachedPostSegment } from './posts.types';
 import { POSTS_CACHE_SEGMENT_SIZE, POSTS_FETCH_SIZE } from './posts.constants';
@@ -17,6 +19,7 @@ export class PostsRangeCacheStore {
 
     private readonly damebooru = inject(DamebooruService);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly toast = inject(ToastService);
 
     private readonly segmentCacheState = signal(new Map<number, CachedPostSegment>());
     private readonly totalCountState = signal<number | null>(null);
@@ -26,6 +29,7 @@ export class PostsRangeCacheStore {
     private readonly queuedRanges = new Map<string, OffsetRange>();
 
     private activeQuery = '';
+    private errorReported = false;
 
     readonly segmentCache = this.segmentCacheState.asReadonly();
     readonly totalCount = this.totalCountState.asReadonly();
@@ -35,6 +39,7 @@ export class PostsRangeCacheStore {
 
     reset(query: string): void {
         this.activeQuery = query;
+        this.errorReported = false;
 
         this.inFlightRanges.clear();
         this.queuedRanges.clear();
@@ -197,6 +202,11 @@ export class PostsRangeCacheStore {
 
                     this.initialLoadingState.set(false);
                     this.markRangeError(range.start, range.end, error);
+                    // Every range of a failing query fails the same way; one toast is enough.
+                    if (!this.errorReported) {
+                        this.errorReported = true;
+                        this.toast.error(errorMessage('Failed to load posts', error));
+                    }
                     this.drainQueuedRanges();
                 },
             });
