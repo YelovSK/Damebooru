@@ -123,7 +123,7 @@ public sealed class AutoTagPostsJob : IScheduledJob
 
         return earlyStopReason == null
             ? $"Completed {completed}, partial {partial}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, added {sourcesAdded} sources."
-            : $"Stopped early due to provider limit: {earlyStopReason}. Processed {processed}/{total}, completed {completed}, partial {partial}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, added {sourcesAdded} sources.";
+            : $"Stopped early: {earlyStopReason.TrimEnd('.')}. Processed {processed}/{total},completed {completed}, partial {partial}, failed {failed}, added {tagsAdded} tags, removed {tagsRemoved} tags, added {sourcesAdded} sources.";
     }
 
     private static async Task<List<int>> GetCandidatePostIdsAsync(

@@ -185,7 +185,7 @@ public sealed class AutoTagScanService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Auto-tag discovery failed for post {PostId} ({RelativePath}) at provider {Provider}", context.PostId, context.RelativePath, provider);
+                _logger.LogWarning(StackTraceWorthy(ex), "Auto-tag discovery failed for post {PostId} ({RelativePath}) at provider {Provider}: {Reason}", context.PostId, context.RelativePath, provider, ex.Message);
                 var directive = HandleStepFailure(step, ex);
 
                 // A retryable failure pauses discovery so the preferred provider gets another try first;
@@ -267,7 +267,7 @@ public sealed class AutoTagScanService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Auto-tag metadata scan failed for post {PostId} at provider {Provider}", scan.PostId, provider);
+            _logger.LogWarning(StackTraceWorthy(ex), "Auto-tag metadata scan failed for post {PostId} at provider {Provider}: {Reason}", scan.PostId, provider, ex.Message);
             HandleStepFailure(step, ex);
         }
     }
@@ -331,6 +331,10 @@ public sealed class AutoTagScanService
         step.Status = AutoTagScanStepStatus.Running;
         step.LastError = null;
     }
+
+    // A provider refusing a request is expected, so its stack trace says nothing; the message carries what the provider said.
+    private static Exception? StackTraceWorthy(Exception exception)
+        => exception is ExternalProviderException ? null : exception;
 
     private static AutoTagExecutionDirective? HandleStepFailure(PostAutoTagScanStep step, Exception exception)
     {

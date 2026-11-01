@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Damebooru.Core.Config;
 using Damebooru.Core.Entities;
 using Damebooru.Core.External;
@@ -172,7 +173,19 @@ internal sealed class SauceNaoClient(
     }
 
     private static string BuildFailureMessage(HttpStatusCode statusCode, SauceNaoHeaderDto header)
-        => $"SauceNAO request failed with HTTP {(int)statusCode}, header status {header.Status}: {header.Message}";
+    {
+        if (header.IsDailyLimitExceeded) return "SauceNAO daily search limit reached";
+        if (header.IsShortLimitExceeded) return "SauceNAO search rate too high";
+        if (header.IsFailedAttemptsExceeded) return "SauceNAO paused searches after too many failed attempts";
+
+        return $"SauceNAO request failed with HTTP {(int)statusCode}, header status {header.Status}: {StripHtml(header.Message)}";
+    }
+
+    // SauceNAO messages are HTML meant for its website.
+    private static string StripHtml(string? message)
+        => message == null
+            ? string.Empty
+            : WebUtility.HtmlDecode(Regex.Replace(Regex.Replace(message, @"<br\s*/?>", " "), "<[^>]+>", "")).Trim();
 
     private static SauceNaoMatch MapMatch(SauceNaoResultDto result)
     {

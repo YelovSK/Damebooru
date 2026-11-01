@@ -19,7 +19,7 @@ public sealed class SauceNaoClientTests
 
         var exception = await SearchAndCaptureException(client);
 
-        Assert.Contains("Search Rate Too High", exception.Message);
+        Assert.Contains("rate too high", exception.Message);
         Assert.False(exception.RejectsImage);
         Assert.Equal(TimeSpan.FromSeconds(30), exception.RetryAfter);
         Assert.False(exception.StopCurrentRun);
