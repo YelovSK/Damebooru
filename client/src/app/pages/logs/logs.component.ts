@@ -31,12 +31,12 @@ export class LogsPageComponent {
   readonly textQuery = signal('');
 
   readonly levelOptions: FormDropdownOption<LogLevelFilter>[] = [
+    { label: 'Trace', value: 'trace' },
+    { label: 'Debug', value: 'debug' },
+    { label: 'Information', value: 'information' },
     { label: 'Warning', value: 'warning' },
     { label: 'Error', value: 'error' },
     { label: 'Critical', value: 'critical' },
-    { label: 'Information', value: 'information' },
-    { label: 'Debug', value: 'debug' },
-    { label: 'Trace', value: 'trace' },
   ];
 
   constructor() {
