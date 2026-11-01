@@ -25,8 +25,8 @@ import { ConfirmService } from '@services/confirm.service';
 import { ToastService } from '@services/toast.service';
 import { TabsComponent } from '@shared/components/tabs/tabs.component';
 import { TabComponent } from '@shared/components/tabs/tab.component';
-import { ButtonDirective, TooltipDirective } from '@shared/directives';
-import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
+import { ButtonDirective, TooltipDirective, MenuDirective, MenuItemDirective } from '@shared/directives';
+import { CdkMenuTrigger } from '@angular/cdk/menu';
 import { DisplayPathPipe } from '@shared/pipes/display-path.pipe';
 import { PaginatorComponent } from '@shared/components/paginator/paginator.component';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
@@ -86,7 +86,7 @@ interface VisibleDuplicateGroup {
 @Component({
   selector: 'app-duplicates-page',
   standalone: true,
-  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, DateTimePipe, DimensionsPipe, TabsComponent, TabComponent, ButtonDirective, TooltipDirective, CdkMenu, CdkMenuItem, CdkMenuTrigger, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent],
+  imports: [PageComponent, CommonModule, FormsModule, RouterLink, DisplayPathPipe, FileNamePipe, FileSizePipe, DateTimePipe, DimensionsPipe, TabsComponent, TabComponent, ButtonDirective, TooltipDirective, CdkMenuTrigger, MenuDirective, MenuItemDirective, PaginatorComponent, PostPreviewOverlayComponent, DuplicateCompareOverlayComponent],
   providers: [PostHoverPreview],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './duplicates.component.html',

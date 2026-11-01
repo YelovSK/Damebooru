@@ -13,7 +13,7 @@ import {
 } from "@angular/core";
 import { CommonModule, DOCUMENT } from "@angular/common";
 import { RouterLink, Router } from "@angular/router";
-import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from "@angular/cdk/menu";
+import { CdkMenuTrigger } from "@angular/cdk/menu";
 import {
   Subject,
   fromEvent,
@@ -55,7 +55,7 @@ import { ZoomPanContainerComponent } from "@shared/components/zoom-pan-container
 import { TabComponent } from "@shared/components/tabs/tab.component";
 import { TabsComponent } from "@shared/components/tabs/tabs.component";
 import { ModalComponent } from "@shared/components/modal/modal.component";
-import { ButtonDirective, InputDirective, TooltipDirective } from "@shared/directives";
+import { ButtonDirective, InputDirective, TooltipDirective, MenuDirective, MenuItemDirective } from "@shared/directives";
 import { HotkeysService } from "@services/hotkeys.service";
 import { AppLinks } from "@app/app.paths";
 import { PostEditService, type PostEditTag } from "./post-edit.service";
@@ -70,9 +70,9 @@ type NavigationFetchDirection = "initial" | "previous" | "next";
   selector: "app-post-detail",
   imports: [
     DimensionsPipe,
-    CdkMenu,
-    CdkMenuItem,
     CdkMenuTrigger,
+    MenuDirective,
+    MenuItemDirective,
     CommonModule,
     DateTimePipe,
     RouterLink,
@@ -136,6 +136,10 @@ export class PostDetailComponent {
 
   private readonly zoomPan = viewChild<ZoomPanContainerComponent>("zoomPan");
   private readonly mediaContainer = viewChild<ElementRef<HTMLElement>>("mediaContainer");
+  readonly isFullscreen = toSignal(
+    fromEvent(this.document, "fullscreenchange").pipe(map(() => this.document.fullscreenElement !== null)),
+    { initialValue: false },
+  );
 
   private swipePointerId: number | null = null;
   private swipeStartX: number | null = null;

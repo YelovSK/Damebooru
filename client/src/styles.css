@@ -8,7 +8,8 @@
   --color-black: #000;
   --color-white: #fff;
 
-  /* Surfaces, darkest to lightest: sunken (navbar, inputs) < canvas (page) < surface (cards) < raised (hover, selected) */
+  /* Surfaces: sunken (navbar, inputs), canvas (page), surface (cards, menus), raised (hover, selected).
+     Raised is the lightest; whether cards are lighter or darker than the page is up to the theme. */
   --color-sunken: #0d0d0f;
   --color-canvas: #131315;
   --color-surface: #1a1a1d;
@@ -91,11 +92,12 @@
     --color-tag-meta: #c4b5fd;
   }
 
-  /* Catppuccin flavors map crust/mantle/base/surface0/surface1 onto sunken/canvas/surface/raised/line-strong. */
+  /* Catppuccin flavors map crust/base/mantle/surface0/surface1 onto sunken/canvas/surface/raised/line-strong:
+     the page is Base and panels are the darker Mantle, as Catppuccin's style guide intends. */
   [data-theme="catppuccin-frappe"] {
     --color-sunken: #232634;
-    --color-canvas: #292c3c;
-    --color-surface: #303446;
+    --color-canvas: #303446;
+    --color-surface: #292c3c;
     --color-raised: #414559;
     --color-line: #414559;
     --color-line-strong: #51576d;
@@ -120,8 +122,8 @@
 
   [data-theme="catppuccin-macchiato"] {
     --color-sunken: #181926;
-    --color-canvas: #1e2030;
-    --color-surface: #24273a;
+    --color-canvas: #24273a;
+    --color-surface: #1e2030;
     --color-raised: #363a4f;
     --color-line: #363a4f;
     --color-line-strong: #494d64;
@@ -146,8 +148,8 @@
 
   [data-theme="catppuccin-mocha"] {
     --color-sunken: #11111b;
-    --color-canvas: #181825;
-    --color-surface: #1e1e2e;
+    --color-canvas: #1e1e2e;
+    --color-surface: #181825;
     --color-raised: #313244;
     --color-line: #313244;
     --color-line-strong: #45475a;

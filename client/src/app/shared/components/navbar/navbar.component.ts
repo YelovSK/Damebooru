@@ -1,11 +1,11 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, HostListener, computed, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { NgTemplateOutlet } from '@angular/common';
-import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
+import { CdkMenuTrigger } from '@angular/cdk/menu';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 
-import { ButtonDirective, TooltipDirective } from '@shared/directives';
+import { ButtonDirective, TooltipDirective, MenuDirective, MenuItemDirective } from '@shared/directives';
 
 export interface NavbarLink {
   route: (string | number)[];
@@ -15,7 +15,7 @@ export interface NavbarLink {
 @Component({
   selector: 'app-navbar',
   standalone: true,
-  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, CdkMenu, CdkMenuItem, CdkMenuTrigger, ButtonDirective, TooltipDirective],
+  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive, CdkMenuTrigger, MenuDirective, MenuItemDirective, ButtonDirective, TooltipDirective],
   templateUrl: './navbar.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush
 })

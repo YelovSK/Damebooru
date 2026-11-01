@@ -1,10 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, HostListener, computed, effect, inject, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
+import { CdkMenuTrigger } from '@angular/cdk/menu';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { type DuplicatePostFile } from '@models';
-import { ButtonDirective, TooltipDirective } from '@shared/directives';
+import { ButtonDirective, TooltipDirective, MenuDirective, MenuItemDirective } from '@shared/directives';
 import { ModalComponent } from '@shared/components/modal/modal.component';
 import { ZoomPanContainerComponent, ZoomPanSync } from '@shared/components/zoom-pan-container/zoom-pan-container.component';
 import { FileNamePipe } from '@shared/pipes/file-name.pipe';
@@ -41,9 +41,9 @@ export interface DuplicateCompareGroup {
     CommonModule,
     DimensionsPipe,
     RouterLink,
-    CdkMenu,
-    CdkMenuItem,
     CdkMenuTrigger,
+    MenuDirective,
+    MenuItemDirective,
     ButtonDirective,
     TooltipDirective,
     ModalComponent,

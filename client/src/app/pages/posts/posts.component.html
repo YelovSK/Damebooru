@@ -30,12 +30,11 @@
             </svg>
         </button>
         <ng-template #densityMenu>
-            <div class="min-w-40 rounded-lg border border-line-strong bg-surface p-1 shadow-xl" cdkMenu>
+            <div class="min-w-40" appMenu>
                 @for (densityOption of densityOptions; track densityOption.value) {
-                <button class="flex w-full cursor-pointer items-center justify-between gap-4 rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised"
+                <button class="flex items-center justify-between gap-4"
                     [class.text-accent]="density() === densityOption.value"
-                    [class.text-fg]="density() !== densityOption.value"
-                    cdkMenuItem (cdkMenuItemTriggered)="onDensitySelect(densityOption.value)">
+                    appMenuItem (cdkMenuItemTriggered)="onDensitySelect(densityOption.value)">
                     {{ densityOption.label }}
                     @if (density() === densityOption.value) {
                     <span aria-hidden="true">✓</span>

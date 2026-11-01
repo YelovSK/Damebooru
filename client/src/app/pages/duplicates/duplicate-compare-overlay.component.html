@@ -12,10 +12,10 @@
     </span>
     <div class="hidden rounded-lg border border-line bg-sunken p-0.5 text-sm md:flex">
       <button type="button" class="cursor-pointer rounded-md px-3 py-1 transition-colors"
-        [class.bg-raised]="mode() === 'side-by-side'" [class.text-fg]="mode() === 'side-by-side'"
+        [class.bg-raised]="mode() === 'side-by-side'"
         [class.text-fg-muted]="mode() !== 'side-by-side'" (click)="setMode('side-by-side')">Side by side</button>
       <button type="button" class="cursor-pointer rounded-md px-3 py-1 transition-colors"
-        [class.bg-raised]="mode() === 'flip'" [class.text-fg]="mode() === 'flip'"
+        [class.bg-raised]="mode() === 'flip'"
         [class.text-fg-muted]="mode() !== 'flip'" (click)="setMode('flip')">Flip</button>
     </div>
   </div>
@@ -76,12 +76,11 @@
                 <svg class="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
               </button>
               <ng-template #postMenu>
-                <div class="max-h-80 min-w-64 overflow-y-auto rounded-lg border border-line-strong bg-surface p-1 shadow-xl" cdkMenu>
+                <div class="max-h-80 min-w-64 overflow-y-auto" appMenu>
                   @for (option of group().posts; track option.id) {
-                    <button class="flex w-full cursor-pointer items-center justify-between gap-4 rounded-md px-3 py-1.5 text-left text-sm outline-none hover:bg-raised focus:bg-raised aria-disabled:cursor-not-allowed aria-disabled:bg-transparent aria-disabled:opacity-40"
+                    <button class="flex items-center justify-between gap-4"
                       [class.text-accent]="option.id === post.id"
-                      [class.text-fg]="option.id !== post.id"
-                      cdkMenuItem
+                      appMenuItem
                       [cdkMenuItemDisabled]="option.id === other?.id"
                       (cdkMenuItemTriggered)="selectPost(side, option)">
                       <span class="truncate">{{ option.relativePath | fileName }}</span>

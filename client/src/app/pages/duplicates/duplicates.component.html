@@ -124,8 +124,8 @@
                                         </svg>
                                     </button>
                                     <ng-template #groupMenu>
-                                        <div class="min-w-44 rounded-lg border border-line-strong bg-surface p-1 shadow-xl" cdkMenu>
-                                            <button class="w-full cursor-pointer rounded-md px-3 py-1.5 text-left text-sm text-fg outline-none hover:bg-raised focus:bg-raised" cdkMenuItem
+                                        <div class="min-w-44" appMenu>
+                                            <button appMenuItem
                                                 (cdkMenuItemTriggered)="onAutoResolveGroup(group)">Auto resolve</button>
                                         </div>
                                     </ng-template>

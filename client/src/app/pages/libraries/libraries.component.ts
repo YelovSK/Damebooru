@@ -3,12 +3,12 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { CdkMenu, CdkMenuItem, CdkMenuTrigger } from '@angular/cdk/menu';
+import { CdkMenuTrigger } from '@angular/cdk/menu';
 import { Subject, catchError, of, switchMap } from 'rxjs';
 
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { type Library, LibraryKind } from '@services/api/damebooru/models';
-import { ButtonDirective, FieldLabelDirective, InputDirective, TooltipDirective } from '@shared/directives';
+import { ButtonDirective, FieldLabelDirective, InputDirective, TooltipDirective, MenuDirective, MenuItemDirective } from '@shared/directives';
 import { ToastService } from '@services/toast.service';
 import { ConfirmService } from '@services/confirm.service';
 import { FileSizePipe } from '@shared/pipes/file-size.pipe';
@@ -23,7 +23,7 @@ import { LibraryPathListComponent, type LibraryPathItem } from './library-path-l
 @Component({
     selector: 'app-libraries',
     standalone: true,
-    imports: [PageComponent, CommonModule, FormsModule, RouterLink, CdkMenu, CdkMenuItem, CdkMenuTrigger, ButtonDirective, FieldLabelDirective, InputDirective, TooltipDirective, FileSizePipe, DateTimePipe, FormCheckboxComponent, AutocompleteComponent, ModalComponent, LibraryPathListComponent],
+    imports: [PageComponent, CommonModule, FormsModule, RouterLink, CdkMenuTrigger, MenuDirective, MenuItemDirective, ButtonDirective, FieldLabelDirective, InputDirective, TooltipDirective, FileSizePipe, DateTimePipe, FormCheckboxComponent, AutocompleteComponent, ModalComponent, LibraryPathListComponent],
     templateUrl: './libraries.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
