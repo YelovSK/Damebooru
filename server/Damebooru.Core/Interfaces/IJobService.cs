@@ -27,6 +27,7 @@ public class JobDefinition
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool SupportsAllMode { get; set; }
+    public bool Schedulable { get; set; }
 }
 
 public interface IJobService

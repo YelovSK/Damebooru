@@ -6,23 +6,26 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Damebooru.Processing.Jobs;
 
-public class ScanAllLibrariesJob : IJob
+public class ScanAllLibrariesJob : IScheduledJob
 {
     public static readonly JobKey JobKey = JobKeys.ScanAllLibraries;
     public const string JobName = "Scan All Libraries";
 
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly PostEnrichmentPasses _enrichmentPasses;
 
-    public ScanAllLibrariesJob(IServiceScopeFactory scopeFactory)
+    public ScanAllLibrariesJob(IServiceScopeFactory scopeFactory, PostEnrichmentPasses enrichmentPasses)
     {
         _scopeFactory = scopeFactory;
+        _enrichmentPasses = enrichmentPasses;
     }
 
     public int DisplayOrder => 10;
     public JobKey Key => JobKey;
     public string Name => JobName;
-    public string Description => "Triggers a recursive scan for all configured libraries.";
+    public string Description => "Scans all libraries, then extracts metadata, similarity hashes and thumbnails for posts missing them.";
     public bool SupportsAllMode => false;
+    public string DefaultCron => "0 */6 * * *";
 
     public async Task<string> ExecuteAsync(JobContext context)
     {
@@ -42,6 +45,6 @@ public class ScanAllLibrariesJob : IJob
             result += await syncService.ProcessDirectoryAsync(library, library.Path, context.Reporter, context.CancellationToken);
         }
 
-        return result.Summary;
+        return $"{result.Summary} {await _enrichmentPasses.RunMissingAsync(context)}";
     }
 }

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Damebooru.Processing.Jobs;
 
-public sealed class AutoTagPostsJob : IJob
+public sealed class AutoTagPostsJob : IScheduledJob
 {
     public static readonly JobKey JobKey = JobKeys.AutoTagPosts;
 
@@ -27,6 +27,7 @@ public sealed class AutoTagPostsJob : IJob
     public string Name => "Auto-Tag Posts";
     public string Description => "Runs external auto-tag scans for posts and applies provider-owned tags and source URLs.";
     public bool SupportsAllMode => true;
+    public string DefaultCron => "10 */6 * * *";
 
     public async Task<string> ExecuteAsync(JobContext context)
     {

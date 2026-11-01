@@ -10,7 +10,7 @@ using Microsoft.Extensions.Options;
 
 namespace Damebooru.Processing.Jobs;
 
-public class CleanupOrphanedThumbnailsJob : IJob
+public class CleanupOrphanedThumbnailsJob : IScheduledJob
 {
     public static readonly JobKey JobKey = JobKeys.CleanupOrphanedThumbnails;
     public const string JobName = "Cleanup Orphaned Thumbnails";
@@ -51,6 +51,7 @@ public class CleanupOrphanedThumbnailsJob : IJob
     public string Name => JobName;
     public string Description => "Removes thumbnail and preview files that are not referenced by any post.";
     public bool SupportsAllMode => false;
+    public string DefaultCron => "45 */6 * * *";
 
     public async Task<string> ExecuteAsync(JobContext context)
     {

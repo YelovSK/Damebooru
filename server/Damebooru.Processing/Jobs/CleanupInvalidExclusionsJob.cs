@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Damebooru.Processing.Jobs;
 
-public class CleanupInvalidExclusionsJob : IJob
+public class CleanupInvalidExclusionsJob : IScheduledJob
 {
     public static readonly JobKey JobKey = JobKeys.CleanupInvalidExclusions;
     public const string JobName = "Cleanup Invalid Exclusions";
@@ -37,6 +37,7 @@ public class CleanupInvalidExclusionsJob : IJob
     public string Name => JobName;
     public string Description => "Removes exclusions for missing files or hash mismatches.";
     public bool SupportsAllMode => false;
+    public string DefaultCron => "50 */6 * * *";
 
     public async Task<string> ExecuteAsync(JobContext context)
     {

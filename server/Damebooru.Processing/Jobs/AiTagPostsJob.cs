@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Damebooru.Processing.Jobs;
 
-public sealed class AiTagPostsJob : IJob
+public sealed class AiTagPostsJob : IScheduledJob
 {
     public static readonly JobKey JobKey = JobKeys.AiTagPosts;
 
@@ -28,6 +28,7 @@ public sealed class AiTagPostsJob : IJob
     public string Name => "AI Auto-Tag Posts";
     public string Description => "Runs the local AI tagging service for image posts and applies AI-owned tags.";
     public bool SupportsAllMode => true;
+    public string DefaultCron => "15 */6 * * *";
 
     public async Task<string> ExecuteAsync(JobContext context)
     {

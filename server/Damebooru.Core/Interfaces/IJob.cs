@@ -41,3 +41,14 @@ public interface IJob
     /// <returns>The summary shown once the job completes.</returns>
     Task<string> ExecuteAsync(JobContext context);
 }
+
+/// <summary>
+/// A job that can run on a schedule. Jobs that only implement <see cref="IJob"/> are manual-only.
+/// </summary>
+public interface IScheduledJob : IJob
+{
+    /// <summary>
+    /// The cron expression a new, disabled schedule starts with.
+    /// </summary>
+    string DefaultCron { get; }
+}

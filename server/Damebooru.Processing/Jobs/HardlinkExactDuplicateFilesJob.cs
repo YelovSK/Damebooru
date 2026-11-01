@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Damebooru.Processing.Jobs;
 
-public sealed class HardlinkExactDuplicateFilesJob : IJob
+public sealed class HardlinkExactDuplicateFilesJob : IScheduledJob
 {
     private sealed record FileCandidate(
         int PostFileId,
@@ -45,6 +45,7 @@ public sealed class HardlinkExactDuplicateFilesJob : IJob
     public string Name => JobName;
     public string Description => "Replaces exact duplicate files with hardlinks to one canonical file when the filesystem allows it.";
     public bool SupportsAllMode => false;
+    public string DefaultCron => "30 3 * * 0";
 
     public async Task<string> ExecuteAsync(JobContext context)
     {

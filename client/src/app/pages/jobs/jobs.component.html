@@ -1,93 +1,7 @@
 <app-page heading="Jobs" description="Run and schedule background processing tasks." width="wide">
   <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-    @for (row of rows(); track row.job.key) {
-      @let job = row.job;
-      @let schedule = row.schedule;
-      <div class="card flex flex-col overflow-hidden">
-        <div class="flex flex-1 flex-col p-5">
-          <div class="flex items-center justify-between gap-2">
-            <h3 class="font-semibold text-fg">{{ job.name }}</h3>
-            @if (job.isRunning) {
-              <span class="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">Running</span>
-            }
-          </div>
-          <p class="mt-1 flex-1 text-sm text-fg-muted">{{ job.description }}</p>
-
-          @if (job.isRunning && job.activeJobInfo) {
-            <div class="mt-4">
-              <app-progress-bar
-                class="mb-1.5"
-                [progress]="getProgressPercent(job.activeJobInfo.state)"
-                [indeterminate]="!isDeterminateProgress(job.activeJobInfo.state)"
-                [trackClass]="'bg-raised'"
-                [fillClass]="'bg-accent'">
-              </app-progress-bar>
-              <p class="text-xs text-fg-muted">{{ formatActivity(job.activeJobInfo.state) }}</p>
-            </div>
-          }
-
-          <div class="mt-4 flex gap-2">
-            @if (job.isRunning && job.activeJobInfo) {
-              <button appButton type="button" variant="danger" size="sm" fullWidth (click)="cancelJob(job.activeJobInfo.id)">Cancel</button>
-            } @else if (job.supportsAllMode) {
-              <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'missing')" appTooltip="Only items that haven't been processed yet">Run missing</button>
-              <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'all')" appTooltip="Reprocess everything">Run all</button>
-            } @else {
-              <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'missing')">Run</button>
-            }
-          </div>
-        </div>
-
-        @if (schedule) {
-          @let draft = cronDraft()?.scheduleId === schedule.id ? cronDraft() : null;
-          <div class="flex min-h-12 items-center gap-3 border-t border-line bg-sunken/40 px-5 py-2">
-            @if (draft) {
-              <input
-                #cronEditor
-                appInput
-                class="!h-7 !w-36 shrink-0 !px-2 font-mono text-[0.8125rem]"
-                [invalid]="draft.preview?.isValid === false"
-                [attr.aria-label]="job.name + ' schedule'"
-                spellcheck="false"
-                [value]="draft.text"
-                (input)="onCronInput($any($event.target).value)"
-                (keydown.enter)="commitCron(schedule)"
-                (keydown.escape)="closeCronEditor()"
-                (blur)="commitCron(schedule)" />
-              <span class="min-w-0 flex-1 truncate text-xs">
-                @if (draft.preview; as preview) {
-                  @if (preview.isValid) {
-                    <span class="text-fg-muted" [appTooltip]="formatRuns(preview.nextRuns)">{{ (preview.nextRuns[0] | relativeDuration: now()).toLowerCase() }}</span>
-                  } @else {
-                    <span class="text-danger">{{ preview.error }}</span>
-                  }
-                }
-              </span>
-            } @else {
-              <div class="flex min-w-0 flex-1 flex-col items-start">
-                <button type="button"
-                  class="max-w-full cursor-pointer truncate text-left text-sm hover:text-accent"
-                  [class.text-fg]="schedule.isEnabled"
-                  [class.text-fg-subtle]="!schedule.isEnabled"
-                  [appTooltip]="schedule.cronExpression + (schedule.lastRun ? ' · last run ' + (schedule.lastRun | relativeDuration: now()) : '') + ' · click to edit'"
-                  (click)="editCron(schedule)">
-                  {{ scheduleDescriptions().get(schedule.id) }}
-                </button>
-                @if (schedule.isEnabled && schedule.upcomingRuns.length > 0) {
-                  <span class="text-xs text-fg-muted" [appTooltip]="formatRuns(schedule.upcomingRuns)">Next run {{ (schedule.upcomingRuns[0] | relativeDuration: now()).toLowerCase() }}</span>
-                }
-              </div>
-            }
-            <app-form-checkbox
-              class="shrink-0"
-              [ngModel]="schedule.isEnabled"
-              (ngModelChange)="setEnabled(schedule, $event)"
-              [appTooltip]="schedule.isEnabled ? 'Scheduled' : 'Not scheduled'"
-              [id]="'schedule-enabled-' + schedule.id">
-            </app-form-checkbox>
-          </div>
-        }
-      </div>
+    @for (row of routineRows(); track row.job.key) {
+      <ng-container *ngTemplateOutlet="jobCard; context: { $implicit: row }" />
     }
   </section>
   <div class="mt-4 overflow-hidden rounded-lg border border-line bg-sunken">
@@ -103,6 +17,16 @@
       </div>
     </app-collapsible>
   </div>
+
+  @if (rebuildRows().length > 0) {
+    <h2 class="mt-10 text-lg font-semibold text-fg">Rebuild</h2>
+    <p class="mb-3 mt-1 text-sm text-fg-muted">Scans already fill these in for new posts. Run them to redo everything, e.g. after changing how thumbnails are made.</p>
+    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      @for (row of rebuildRows(); track row.job.key) {
+        <ng-container *ngTemplateOutlet="jobCard; context: { $implicit: row }" />
+      }
+    </section>
+  }
 
   <h2 class="mb-3 mt-10 text-lg font-semibold text-fg">History</h2>
   <app-data-table
@@ -122,4 +46,94 @@
       </div>
     }
   </app-data-table>
+
+  <ng-template #jobCard let-row>
+    @let job = row.job;
+    @let schedule = row.schedule;
+    <div class="card flex flex-col overflow-hidden">
+      <div class="flex flex-1 flex-col p-5">
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="font-semibold text-fg">{{ job.name }}</h3>
+          @if (job.isRunning) {
+            <span class="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">Running</span>
+          }
+        </div>
+        <p class="mt-1 flex-1 text-sm text-fg-muted">{{ job.description }}</p>
+
+        @if (job.isRunning && job.activeJobInfo) {
+          <div class="mt-4">
+            <app-progress-bar
+              class="mb-1.5"
+              [progress]="getProgressPercent(job.activeJobInfo.state)"
+              [indeterminate]="!isDeterminateProgress(job.activeJobInfo.state)"
+              [trackClass]="'bg-raised'"
+              [fillClass]="'bg-accent'">
+            </app-progress-bar>
+            <p class="text-xs text-fg-muted">{{ formatActivity(job.activeJobInfo.state) }}</p>
+          </div>
+        }
+
+        <div class="mt-4 flex gap-2">
+          @if (job.isRunning && job.activeJobInfo) {
+            <button appButton type="button" variant="danger" size="sm" fullWidth (click)="cancelJob(job.activeJobInfo.id)">Cancel</button>
+          } @else if (job.supportsAllMode) {
+            <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'missing')" appTooltip="Only items that haven't been processed yet">Run missing</button>
+            <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'all')" appTooltip="Reprocess everything">Run all</button>
+          } @else {
+            <button appButton type="button" size="sm" fullWidth (click)="runJob(job.key, 'missing')">Run</button>
+          }
+        </div>
+      </div>
+
+      @if (schedule) {
+        @let draft = cronDraft()?.scheduleId === schedule.id ? cronDraft() : null;
+        <div class="flex min-h-12 items-center gap-3 border-t border-line bg-sunken/40 px-5 py-2">
+          @if (draft) {
+            <input
+              #cronEditor
+              appInput
+              class="!h-7 !w-36 shrink-0 !px-2 font-mono text-[0.8125rem]"
+              [invalid]="draft.preview?.isValid === false"
+              [attr.aria-label]="job.name + ' schedule'"
+              spellcheck="false"
+              [value]="draft.text"
+              (input)="onCronInput($any($event.target).value)"
+              (keydown.enter)="commitCron(schedule)"
+              (keydown.escape)="closeCronEditor()"
+              (blur)="commitCron(schedule)" />
+            <span class="min-w-0 flex-1 truncate text-xs">
+              @if (draft.preview; as preview) {
+                @if (preview.isValid) {
+                  <span class="text-fg-muted" [appTooltip]="formatRuns(preview.nextRuns)">{{ (preview.nextRuns[0] | relativeDuration: now()).toLowerCase() }}</span>
+                } @else {
+                  <span class="text-danger">{{ preview.error }}</span>
+                }
+              }
+            </span>
+          } @else {
+            <div class="flex min-w-0 flex-1 flex-col items-start">
+              <button type="button"
+                class="max-w-full cursor-pointer truncate text-left text-sm hover:text-accent"
+                [class.text-fg]="schedule.isEnabled"
+                [class.text-fg-subtle]="!schedule.isEnabled"
+                [appTooltip]="schedule.cronExpression + (schedule.lastRun ? ' · last run ' + (schedule.lastRun | relativeDuration: now()) : '') + ' · click to edit'"
+                (click)="editCron(schedule)">
+                {{ scheduleDescriptions().get(schedule.id) }}
+              </button>
+              @if (schedule.isEnabled && schedule.upcomingRuns.length > 0) {
+                <span class="text-xs text-fg-muted" [appTooltip]="formatRuns(schedule.upcomingRuns)">Next run {{ (schedule.upcomingRuns[0] | relativeDuration: now()).toLowerCase() }}</span>
+              }
+            </div>
+          }
+          <app-form-checkbox
+            class="shrink-0"
+            [ngModel]="schedule.isEnabled"
+            (ngModelChange)="setEnabled(schedule, $event)"
+            [appTooltip]="schedule.isEnabled ? 'Scheduled' : 'Not scheduled'"
+            [id]="'schedule-enabled-' + schedule.id">
+          </app-form-checkbox>
+        </div>
+      }
+    </div>
+  </ng-template>
 </app-page>

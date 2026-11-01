@@ -43,7 +43,8 @@ public class JobService : IJobService
                 Key = j.Key,
                 Name = j.Name,
                 Description = j.Description,
-                SupportsAllMode = j.SupportsAllMode
+                SupportsAllMode = j.SupportsAllMode,
+                Schedulable = j is IScheduledJob
             });
     }
 

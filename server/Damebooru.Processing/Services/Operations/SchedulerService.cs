@@ -14,24 +14,6 @@ public class SchedulerService : BackgroundService
     private readonly ILogger<SchedulerService> _logger;
     private readonly TimeSpan _pollingInterval = TimeSpan.FromSeconds(30);
 
-    /// <summary>
-    /// Default scheduled jobs to seed if they don't exist in the database.
-    /// All disabled by default — users can enable and configure from the Jobs page.
-    /// </summary>
-    private static readonly (JobKey Key, string Cron)[] DefaultJobs =
-    [
-        (JobKeys.ScanAllLibraries, "0 */6 * * *"),    // Every 6 hours
-        (JobKeys.ExtractMetadata, "35 */6 * * *"),      // 35 min after scan
-        (JobKeys.GenerateThumbnails, "37 */6 * * *"),   // Shortly after metadata extraction
-        (JobKeys.ComputeSimilarity, "40 */6 * * *"),    // 40 min after scan
-        (JobKeys.CleanupOrphanedThumbnails, "45 */6 * * *"), // 45 min after scan
-        (JobKeys.CleanupInvalidExclusions, "50 */6 * * *"), // 50 min after scan
-        (JobKeys.AutoTagPosts, "10 */6 * * *"),         // 10 min after scan
-        (JobKeys.AiTagPosts, "15 */6 * * *"),           // 15 min after scan
-        (JobKeys.FindDuplicates, "0 3 * * 0"),          // Weekly, Sunday 3 AM
-        (JobKeys.HardlinkExactDuplicateFiles, "30 3 * * 0"), // Weekly, Sunday 3:30 AM
-    ];
-
     public SchedulerService(IServiceScopeFactory scopeFactory, ILogger<SchedulerService> logger)
     {
         _scopeFactory = scopeFactory;
@@ -42,8 +24,7 @@ public class SchedulerService : BackgroundService
     {
         _logger.LogInformation("Scheduler Service is starting.");
 
-        // Seed default scheduled jobs on startup
-        await SeedDefaultJobsAsync(stoppingToken);
+        await SyncSchedulesAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -60,42 +41,38 @@ public class SchedulerService : BackgroundService
         }
     }
 
-    private async Task SeedDefaultJobsAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Gives every <see cref="IScheduledJob"/> a schedule, disabled until the user enables it, and drops schedules of any other job.
+    /// </summary>
+    private async Task SyncSchedulesAsync(CancellationToken cancellationToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
-        var jobService = scope.ServiceProvider.GetRequiredService<IJobService>();
+        var scheduledJobs = scope.ServiceProvider.GetServices<IJob>()
+            .OfType<IScheduledJob>()
+            .ToDictionary(j => j.Key.Value, StringComparer.OrdinalIgnoreCase);
 
-        var availableKeys = jobService.GetAvailableJobs()
-            .Select(j => j.Key)
-            .ToHashSet();
-
-        var existingSet = (await dbContext.ScheduledJobs
-            .Select(j => j.JobName)
-            .ToListAsync(cancellationToken))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var changed = false;
-
-        foreach (var (jobKey, cron) in DefaultJobs)
+        var schedules = await dbContext.ScheduledJobs.ToListAsync(cancellationToken);
+        foreach (var schedule in schedules.Where(s => !scheduledJobs.ContainsKey(s.JobName)))
         {
-            if (!availableKeys.Contains(jobKey) || existingSet.Contains(jobKey.Value))
-            {
-                continue;
-            }
-
-            dbContext.ScheduledJobs.Add(new ScheduledJob
-            {
-                JobName = jobKey.Value,
-                CronExpression = cron,
-                IsEnabled = false,
-                NextRun = JobCron.GetNextRun(cron)
-            });
-            changed = true;
-            _logger.LogInformation("Seeded scheduled job: {Key} ({Cron})", jobKey.Value, cron);
+            dbContext.ScheduledJobs.Remove(schedule);
+            _logger.LogInformation("Removed schedule of unscheduled job: {Key}", schedule.JobName);
         }
 
-        if (changed)
-            await dbContext.SaveChangesAsync(cancellationToken);
+        var scheduledKeys = schedules.Select(s => s.JobName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var job in scheduledJobs.Values.Where(j => !scheduledKeys.Contains(j.Key.Value)))
+        {
+            dbContext.ScheduledJobs.Add(new ScheduledJob
+            {
+                JobName = job.Key.Value,
+                CronExpression = job.DefaultCron,
+                IsEnabled = false,
+                NextRun = JobCron.GetNextRun(job.DefaultCron)
+            });
+            _logger.LogInformation("Added schedule for {Key} ({Cron})", job.Key.Value, job.DefaultCron);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private async Task CheckScheduledJobsAsync(CancellationToken cancellationToken)
@@ -103,9 +80,6 @@ public class SchedulerService : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DamebooruDbContext>();
         var jobService = scope.ServiceProvider.GetRequiredService<IJobService>();
-        var keySet = jobService.GetAvailableJobs()
-            .Select(j => j.Key)
-            .ToHashSet();
 
         var jobsToRun = await dbContext.ScheduledJobs
             .Where(j => j.IsEnabled && (j.NextRun == null || j.NextRun <= DateTime.UtcNow))
@@ -113,13 +87,7 @@ public class SchedulerService : BackgroundService
 
         foreach (var scheduledJob in jobsToRun)
         {
-            if (!JobKey.TryParse(scheduledJob.JobName, out var scheduledKey) || !keySet.Contains(scheduledKey))
-            {
-                _logger.LogWarning("Skipping unknown scheduled job: {StoredJobName}", scheduledJob.JobName);
-                scheduledJob.IsEnabled = false;
-                await dbContext.SaveChangesAsync(cancellationToken);
-                continue;
-            }
+            var scheduledKey = JobKey.Parse(scheduledJob.JobName);
 
             // A run still in progress covers this occurrence; queueing another would start a full run right after it.
             if (jobService.IsRunning(scheduledKey))

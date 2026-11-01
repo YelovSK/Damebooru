@@ -131,6 +131,10 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IJob, Jobs.ComputeSimilarityJob>();
         services.AddTransient<IJob, Jobs.AutoTagPostsJob>();
         services.AddTransient<IJob, Jobs.AiTagPostsJob>();
+        services.AddTransient<Jobs.ExtractMetadataJob>();
+        services.AddTransient<Jobs.ComputeSimilarityJob>();
+        services.AddTransient<Jobs.GenerateThumbnailsJob>();
+        services.AddTransient<Jobs.PostEnrichmentPasses>();
 
         return services;
     }

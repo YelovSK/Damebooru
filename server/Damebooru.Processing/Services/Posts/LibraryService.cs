@@ -338,7 +338,8 @@ public class LibraryService
                 }
 
                 var result = await syncService.ProcessDirectoryAsync(library, library.Path, ctx.Reporter, ctx.CancellationToken);
-                return result.Summary;
+                var enrichmentPasses = scope.ServiceProvider.GetRequiredService<Jobs.PostEnrichmentPasses>();
+                return $"{result.Summary} {await enrichmentPasses.RunMissingAsync(ctx)}";
             });
 
         return Result<string>.Success(jobId);

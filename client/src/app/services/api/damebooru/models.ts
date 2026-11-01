@@ -352,6 +352,7 @@ export interface JobViewModel {
   name: string;
   description: string;
   supportsAllMode: boolean;
+  schedulable: boolean;
   isRunning: boolean;
   activeJobInfo?: JobInfo;
 }

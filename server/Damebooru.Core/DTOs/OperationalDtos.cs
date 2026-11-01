@@ -10,6 +10,7 @@ public class JobViewDto
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public bool SupportsAllMode { get; set; }
+    public bool Schedulable { get; set; }
     public bool IsRunning { get; set; }
     public JobInfo? ActiveJobInfo { get; set; }
 }

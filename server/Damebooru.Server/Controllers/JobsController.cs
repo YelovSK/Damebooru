@@ -42,6 +42,7 @@ public class JobsController : ControllerBase
             Name = job.Name,
             Description = job.Description,
             SupportsAllMode = job.SupportsAllMode,
+            Schedulable = job.Schedulable,
             IsRunning = active.TryGetValue(job.Key, out var info) && info.Status == JobStatus.Running,
             ActiveJobInfo = active.TryGetValue(job.Key, out var activeInfo) ? activeInfo : null
         });

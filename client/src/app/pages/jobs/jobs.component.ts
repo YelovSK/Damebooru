@@ -82,10 +82,13 @@ export class JobsPageComponent {
   readonly historyPage = signal(1);
   readonly historyTotalPages = computed(() => Math.max(1, Math.ceil(this.historyTotal() / JOB_HISTORY_PAGE_SIZE)));
 
-  readonly rows = computed<JobRow[]>(() => {
+  private readonly rows = computed<JobRow[]>(() => {
     const schedulesByKey = new Map(this.schedules().map(schedule => [schedule.jobKey, schedule]));
     return this.jobs().map(job => ({ job, schedule: schedulesByKey.get(job.key) }));
   });
+
+  readonly routineRows = computed(() => this.rows().filter(row => row.job.schedulable));
+  readonly rebuildRows = computed(() => this.rows().filter(row => !row.job.schedulable));
 
   readonly scheduleDescriptions = computed(() => new Map(this.schedules().map(schedule => [schedule.id, describeCron(schedule.cronExpression)])));
 

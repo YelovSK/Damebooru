@@ -9,7 +9,7 @@ using System.Numerics;
 
 namespace Damebooru.Processing.Jobs;
 
-public class FindDuplicatesJob : IJob
+public class FindDuplicatesJob : IScheduledJob
 {
     public static readonly JobKey JobKey = JobKeys.FindDuplicates;
     public const string JobName = "Find Duplicates";
@@ -36,6 +36,7 @@ public class FindDuplicatesJob : IJob
     public string Name => JobName;
     public string Description => "Scans for visually similar posts using PDQ hashes.";
     public bool SupportsAllMode => false;
+    public string DefaultCron => "0 3 * * 0";
 
     public async Task<string> ExecuteAsync(JobContext context)
     {
