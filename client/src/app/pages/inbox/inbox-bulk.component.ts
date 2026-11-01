@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { CdkMenuTrigger } from '@angular/cdk/menu';
 
 import { type DamebooruPostDto, type FolderLocation, type FolderSuggestion } from '@models';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
-import { ButtonDirective } from '@shared/directives';
+import { ButtonDirective, MenuDirective, MenuItemDirective } from '@shared/directives';
 import { PostHoverPreview } from '@shared/components/post-preview-overlay/post-hover-preview';
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
 import { getFileNameFromPath } from '@shared/utils/utils';
@@ -26,7 +27,7 @@ interface Group {
 @Component({
   selector: 'app-inbox-bulk',
   standalone: true,
-  imports: [DecimalPipe, ButtonDirective, PostPreviewOverlayComponent, DestinationPickerComponent, InboxMediaComponent],
+  imports: [DecimalPipe, CdkMenuTrigger, ButtonDirective, MenuDirective, MenuItemDirective, PostPreviewOverlayComponent, DestinationPickerComponent, InboxMediaComponent],
   providers: [PostHoverPreview],
   host: {
     class: 'block flex-1 min-h-0 overflow-y-auto',
@@ -177,6 +178,11 @@ export class InboxBulkComponent {
 
   predictionOf(post: DamebooruPostDto): PredictionState | null {
     return this.store.predictions().get(post.id) ?? null;
+  }
+
+  /** Images the AI hasn't seen yet; while queued or running, the overlay shows that instead. */
+  lacksPrediction(post: DamebooruPostDto): boolean {
+    return this.store.needsPrediction().has(post.id) && post.contentType.startsWith('image/') && !this.predictionOf(post);
   }
 
   predictNew(): void {
