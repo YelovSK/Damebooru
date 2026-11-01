@@ -18,7 +18,6 @@ export class InboxMediaComponent {
   private readonly damebooru = inject(DamebooruService);
 
   readonly post = input.required<DamebooruPostDto>();
-  readonly autoplay = input(false);
 
   readonly isVideo = computed(() => getMediaType(this.post().contentType) === 'video');
   readonly previewUrl = computed(() => this.damebooru.getPreviewUrl(this.post().contentHash));
