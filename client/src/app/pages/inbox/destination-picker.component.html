@@ -1,10 +1,21 @@
 <div class="space-y-2">
-    @if (selected().length > 0) {
+    @if (selected().length > 0 || partial().length > 0) {
     <div class="flex flex-wrap gap-2">
         @for (location of selected(); track location.libraryId + location.folder) {
         <span class="inline-flex items-center gap-1 rounded-full border border-accent/40 bg-accent/15 px-3 py-1 text-sm text-fg">
             {{ store.label(location) }}
             <button type="button" class="text-fg-subtle hover:text-danger cursor-pointer" [disabled]="disabled()" (click)="remove(location)" aria-label="Remove">×</button>
+        </span>
+        }
+        @for (entry of partial(); track entry.location.libraryId + entry.location.folder) {
+        <span class="inline-flex items-center gap-1 rounded-full border border-dashed border-accent/40 px-3 py-1 text-sm text-fg-muted">
+            <button type="button" class="cursor-pointer hover:text-fg" [disabled]="disabled()" (click)="addToAll(entry.location)"
+                [title]="'Add to all ' + selectionSize() + ' selected posts'">
+                {{ store.label(entry.location) }}
+                <span class="text-xs text-fg-subtle">{{ entry.count }}/{{ selectionSize() }}</span>
+            </button>
+            <button type="button" class="text-fg-subtle hover:text-danger cursor-pointer" [disabled]="disabled()" (click)="remove(entry.location)"
+                [attr.aria-label]="'Remove from the ' + entry.count + ' posts that have it'">×</button>
         </span>
         }
     </div>

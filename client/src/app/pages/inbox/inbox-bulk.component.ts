@@ -9,7 +9,7 @@ import { PostHoverPreview } from '@shared/components/post-preview-overlay/post-h
 import { PostPreviewOverlayComponent } from '@shared/components/post-preview-overlay/post-preview-overlay.component';
 import { getFileNameFromPath } from '@shared/utils/utils';
 
-import { DestinationPickerComponent } from './destination-picker.component';
+import { DestinationPickerComponent, type PartialDestination } from './destination-picker.component';
 import { InboxMediaComponent } from './inbox-media.component';
 import { ALREADY_IN_LIBRARY_GROUP, InboxStore, type PredictionState, folderKey, groupLocations } from './inbox.store';
 
@@ -21,7 +21,7 @@ interface Group {
 
 /**
  * Posts grouped by where they are suggested to go, each with its own editable destinations.
- * A selection is one post, or a whole group after clicking its title; the side panel edits the selection.
+ * The side panel edits the selection: the active post, or several posts picked with Ctrl/Shift or a group's title.
  */
 @Component({
   selector: 'app-inbox-bulk',
@@ -43,13 +43,16 @@ export class InboxBulkComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly alreadyInLibraryGroup = ALREADY_IN_LIBRARY_GROUP;
+  /** The post the preview shows and the arrow keys move from. */
   readonly activePostId = this.store.selectedPostId;
-  /** Set when a whole group is selected. */
-  readonly activeGroup = signal<string | null>(null);
+  /** Posts selected along with the active one; empty while only the active post is selected. */
+  readonly selectedIds = signal<ReadonlySet<number>>(new Set());
   readonly showHelp = signal(false);
 
   private readonly picker = viewChild(DestinationPickerComponent);
   private lastActiveIndex = 0;
+  /** Where Shift selections start from. */
+  private anchorId: number | null = null;
 
   readonly view = computed(() => {
     const groupOf = this.store.groups();
@@ -84,23 +87,44 @@ export class InboxBulkComponent {
   });
 
   readonly activeRows = computed(() => {
-    const group = this.activeGroup();
-    if (group !== null) {
-      return this.view().groups.find(g => g.key === group)?.posts ?? [];
-    }
+    const ordered = this.view().ordered;
+    const selected = this.selectedIds();
+    const rows = ordered.filter(p => selected.has(p.id));
+    if (rows.length > 0) return rows;
 
-    const post = this.view().ordered.find(p => p.id === this.activePostId());
+    const post = ordered.find(p => p.id === this.activePostId());
     return post ? [post] : [];
   });
   readonly activeIds = computed(() => new Set(this.activeRows().map(p => p.id)));
+  readonly selectedGroups = computed(() => {
+    if (this.selectedIds().size === 0) return new Set<string>();
+    const ids = this.activeIds();
+    return new Set(this.view().groups.filter(g => g.posts.every(p => ids.has(p.id))).map(g => g.key));
+  });
+  /** Every destination in the selection, with how many of the selected posts have it. */
+  private readonly selectionDestinations = computed(() => {
+    const byKey = new Map<string, PartialDestination>();
+    for (const post of this.activeRows()) {
+      for (const location of this.store.draftOf(post.id)) {
+        const entry = byKey.get(folderKey(location));
+        if (entry) entry.count++;
+        else byKey.set(folderKey(location), { location, count: 1 });
+      }
+    }
+    return [...byKey.values()];
+  });
   readonly commonDestinations = computed(() => {
-    const [first, ...rest] = this.activeRows().map(p => this.store.draftOf(p.id));
-    return (first ?? []).filter(l => rest.every(d => d.some(o => folderKey(o) === folderKey(l))));
+    const size = this.activeRows().length;
+    return this.selectionDestinations().filter(d => d.count === size).map(d => d.location);
+  });
+  readonly partialDestinations = computed(() => {
+    const size = this.activeRows().length;
+    return this.selectionDestinations().filter(d => d.count < size);
   });
   readonly canAccept = computed(() => {
     return !this.store.busy() && this.activeRows().some(p => this.store.draftOf(p.id).length > 0);
   });
-  readonly preview = computed(() => this.activeRows()[0] ?? null);
+  readonly preview = computed(() => this.activeRows().find(p => p.id === this.activePostId()) ?? this.activeRows()[0] ?? null);
   /** In list order, so tagging works down the list as shown. */
   readonly imagePosts = computed(() => this.view().ordered.filter(p => p.contentType.startsWith('image/')));
 
@@ -117,8 +141,13 @@ export class InboxBulkComponent {
           return;
         }
 
-        if (this.activeGroup() !== null && this.activeRows().length > 0) return;
-        this.activeGroup.set(null);
+        const remaining = ordered.find(p => this.selectedIds().has(p.id));
+        if (remaining) {
+          this.activePostId.set(remaining.id);
+          return;
+        }
+
+        this.selectedIds.set(new Set());
         this.activePostId.set(ordered[Math.min(this.lastActiveIndex, ordered.length - 1)]?.id ?? null);
       });
     });
@@ -160,15 +189,62 @@ export class InboxBulkComponent {
     this.store.predict(this.imagePosts().map(p => p.id));
   }
 
+  onRowClick(post: DamebooruPostDto, event: MouseEvent): void {
+    if (event.shiftKey) {
+      this.selectRange(post);
+    } else if (event.ctrlKey || event.metaKey) {
+      this.toggleSelected(post);
+    } else {
+      this.activate(post);
+    }
+  }
+
   activate(post: DamebooruPostDto): void {
-    this.activeGroup.set(null);
-    this.activePostId.set(post.id);
-    queueMicrotask(() => this.host.nativeElement.querySelector(`[data-post-id="${post.id}"]`)?.scrollIntoView({ block: 'nearest' }));
+    this.selectedIds.set(new Set());
+    this.anchorId = post.id;
+    this.focusPost(post);
   }
 
   activateGroup(group: Group): void {
-    this.activeGroup.set(group.key);
-    this.activePostId.set(group.posts[0]?.id ?? null);
+    this.selectedIds.set(new Set(group.posts.map(p => p.id)));
+    this.anchorId = group.posts[0]?.id ?? null;
+    this.activePostId.set(this.anchorId);
+  }
+
+  private toggleSelected(post: DamebooruPostDto): void {
+    const next = new Set(this.activeIds());
+    this.anchorId = post.id;
+    if (!next.has(post.id)) {
+      next.add(post.id);
+      this.selectedIds.set(next);
+      this.focusPost(post);
+      return;
+    }
+
+    if (next.size === 1) return;
+    next.delete(post.id);
+    this.selectedIds.set(next);
+    if (post.id === this.activePostId()) {
+      this.activePostId.set(this.activeRows()[0]?.id ?? null);
+    }
+  }
+
+  private selectRange(post: DamebooruPostDto): void {
+    const ordered = this.view().ordered;
+    const from = ordered.findIndex(p => p.id === (this.anchorId ?? this.activePostId()));
+    const to = ordered.findIndex(p => p.id === post.id);
+    if (from < 0 || to < 0) {
+      this.activate(post);
+      return;
+    }
+
+    this.selectedIds.set(new Set(ordered.slice(Math.min(from, to), Math.max(from, to) + 1).map(p => p.id)));
+    this.focusPost(post);
+  }
+
+  private focusPost(post: DamebooruPostDto): void {
+    this.activePostId.set(post.id);
+    queueMicrotask(() => this.host.nativeElement.querySelector(`[data-post-id="${post.id}"]`)?.scrollIntoView({ block: 'nearest' }));
   }
 
   addToRow(post: DamebooruPostDto, location: FolderLocation): void {
@@ -226,7 +302,7 @@ export class InboxBulkComponent {
 
     if (event.ctrlKey && event.key === 'Enter') {
       event.preventDefault();
-      const key = this.activeGroup() ?? this.store.groups().get(this.activePostId() ?? -1);
+      const key = this.store.groups().get(this.activePostId() ?? -1);
       const group = this.view().groups.find(g => g.key === key);
       if (group) this.acceptGroup(group);
       return;
@@ -234,7 +310,12 @@ export class InboxBulkComponent {
 
     if (event.key === 'Escape') {
       this.hoverPreview.close();
-      (document.activeElement as HTMLElement | null)?.blur();
+      const focused = document.activeElement as HTMLElement | null;
+      focused?.blur();
+      if (focused instanceof HTMLInputElement) return;
+
+      this.selectedIds.set(new Set());
+      this.anchorId = this.activePostId();
       return;
     }
 
@@ -247,7 +328,7 @@ export class InboxBulkComponent {
       case 'ArrowDown':
       case 'ArrowUp':
         event.preventDefault();
-        this.move(event.key === 'ArrowDown' ? 1 : -1);
+        this.move(event.key === 'ArrowDown' ? 1 : -1, event.shiftKey);
         return;
       case 'Enter':
         event.preventDefault();
@@ -268,12 +349,16 @@ export class InboxBulkComponent {
     }
   }
 
-  private move(offset: number): void {
+  private move(offset: number, extend: boolean): void {
     const ordered = this.view().ordered;
     const index = ordered.findIndex(p => p.id === this.activePostId());
-    // From a selected group, Down goes to its first post rather than past it.
-    const from = index - (this.activeGroup() !== null && offset > 0 ? 1 : 0);
-    const next = ordered[Math.max(0, Math.min(from + offset, ordered.length - 1))];
-    if (next) this.activate(next);
+    const next = ordered[Math.max(0, Math.min(index + offset, ordered.length - 1))];
+    if (!next) return;
+
+    if (extend) {
+      this.selectRange(next);
+    } else {
+      this.activate(next);
+    }
   }
 }

@@ -7,6 +7,11 @@ import { InboxStore, folderKey } from './inbox.store';
 
 const MAX_RESULTS = 8;
 
+export interface PartialDestination {
+  location: FolderLocation;
+  count: number;
+}
+
 interface SearchResult {
   location: FolderLocation;
   label: string;
@@ -29,6 +34,9 @@ export class DestinationPickerComponent {
   readonly store = inject(InboxStore);
 
   readonly selected = input.required<FolderLocation[]>();
+  /** Destinations only some of the selected posts have; adding one gives it to all of them. */
+  readonly partial = input<PartialDestination[]>([]);
+  readonly selectionSize = input(1);
   readonly disabled = input(false);
   readonly added = output<FolderLocation>();
   readonly removed = output<FolderLocation>();
@@ -100,6 +108,11 @@ export class DestinationPickerComponent {
 
   remove(location: FolderLocation): void {
     this.removed.emit(location);
+    this.focus();
+  }
+
+  addToAll(location: FolderLocation): void {
+    this.added.emit(location);
     this.focus();
   }
 

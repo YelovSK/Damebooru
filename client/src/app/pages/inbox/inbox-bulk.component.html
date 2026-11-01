@@ -30,7 +30,7 @@
         <div class="min-h-0 flex-1 overflow-y-auto p-3 space-y-3">
             @for (group of v.groups; track group.key) {
             <section class="rounded-lg border bg-canvas"
-                [class]="activeGroup() === group.key ? 'border-accent' : 'border-line'">
+                [class]="selectedGroups().has(group.key) ? 'border-accent' : 'border-line'">
                 <div class="sticky -top-3 z-10 flex items-center gap-3 rounded-t-lg border-b border-line bg-canvas px-3 py-2">
                     <button type="button" class="flex min-w-0 flex-1 items-center gap-2 text-left font-semibold cursor-pointer"
                         [class.text-fg]="group.key !== ''" [class.text-fg-muted]="group.key === ''"
@@ -55,7 +55,8 @@
                 <div class="flex gap-3 rounded-md border p-2 cursor-pointer transition-colors" [attr.data-post-id]="post.id"
                     role="option" tabindex="-1" [attr.aria-selected]="activeIds().has(post.id)"
                     [class]="activeIds().has(post.id) ? 'border-accent bg-accent/10' : 'border-transparent hover:bg-raised'"
-                    (click)="activate(post)" (keydown.enter)="activate(post)">
+                    (mousedown)="$event.shiftKey && $event.preventDefault()"
+                    (click)="onRowClick(post, $event)" (keydown.enter)="activate(post)">
                     <div class="relative h-28 w-28 shrink-0 overflow-hidden rounded bg-surface"
                         (mouseenter)="hoverPreview.enter(post)" (mousemove)="hoverPreview.move(post)" (mouseleave)="hoverPreview.leave($event)">
                         <img [src]="thumbnailUrl(post)" [alt]="'Post ' + post.id" class="h-full w-full object-cover" loading="lazy" decoding="async" />
@@ -113,18 +114,22 @@
         @if (showHelp()) {
         <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-line bg-surface p-3 text-xs">
             <dt class="text-fg">↑ / ↓</dt><dd class="text-fg-muted">Move between posts</dd>
+            <dt class="text-fg">Ctrl+click</dt><dd class="text-fg-muted">Add or remove a post from the selection</dd>
+            <dt class="text-fg">Shift+click, Shift+↑ / ↓</dt><dd class="text-fg-muted">Select a range of posts</dd>
+            <dt class="text-fg">Esc</dt><dd class="text-fg-muted">Back to a single post</dd>
             <dt class="text-fg">Enter</dt><dd class="text-fg-muted">Accept the selection</dd>
             <dt class="text-fg">Ctrl+Enter</dt><dd class="text-fg-muted">Accept the whole group</dd>
             <dt class="text-fg">Backspace</dt><dd class="text-fg-muted">Clear destinations, moving the selection to Unsure</dd>
             <dt class="text-fg">Del</dt><dd class="text-fg-muted">Delete from the inbox</dd>
             <dt class="text-fg">Type</dt><dd class="text-fg-muted">Search folders for the selection</dd>
-            <dt class="text-fg">Group title</dt><dd class="text-fg-muted">Select the whole group to edit it at once</dd>
+            <dt class="text-fg">Group title</dt><dd class="text-fg-muted">Select the whole group</dd>
         </dl>
         }
 
         <section class="space-y-2">
             <h2 class="text-sm font-semibold text-fg">Destinations</h2>
-            <app-destination-picker [selected]="commonDestinations()" [disabled]="store.busy()"
+            <app-destination-picker [selected]="commonDestinations()" [partial]="partialDestinations()" [selectionSize]="activeRows().length"
+                [disabled]="store.busy()"
                 (added)="addToSelection($event)" (removed)="removeFromSelection($event)" (commit)="acceptSelection()" />
         </section>
 
