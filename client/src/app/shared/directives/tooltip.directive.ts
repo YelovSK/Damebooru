@@ -5,6 +5,10 @@ import { switchMap, takeUntil, tap } from 'rxjs/operators';
 
 export type TooltipPosition = 'top' | 'bottom' | 'left' | 'right';
 
+const oppositeSide: Record<TooltipPosition, TooltipPosition> = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+
+interface Point { left: number; top: number }
+
 @Directive({
   selector: '[appTooltip]',
   standalone: true,
@@ -89,7 +93,7 @@ export class TooltipDirective {
     if (this.tooltipElement || !this.appTooltip()) return;
 
     this.tooltipElement = document.createElement('div');
-    this.tooltipElement.className = `app-tooltip app-tooltip-${this.tooltipPosition()}`;
+    this.tooltipElement.className = 'app-tooltip';
     this.tooltipElement.textContent = this.appTooltip();
     document.body.appendChild(this.tooltipElement);
 
@@ -116,27 +120,36 @@ export class TooltipDirective {
   private positionTooltip(): void {
     if (!this.tooltipElement) return;
 
-    if (this.tooltipFollowCursor() && this.interactionMode === 'mouse' && this.lastMousePosition) {
-      this.positionTooltipAtCursor(this.lastMousePosition.x, this.lastMousePosition.y);
-      return;
+    const tooltipRect = this.tooltipElement.getBoundingClientRect();
+    const cursor = this.lastMousePosition;
+    const compute = this.tooltipFollowCursor() && this.interactionMode === 'mouse' && cursor
+      ? (side: TooltipPosition) => this.computePositionFromPoint(side, cursor.x, cursor.y, tooltipRect, this.cursorGapPx)
+      : (side: TooltipPosition) => this.computePositionFromRect(side, this.el.nativeElement.getBoundingClientRect(), tooltipRect, this.hostGapPx);
+
+    let side = this.tooltipPosition();
+    let position = compute(side);
+    if (!this.fitsOnSide(side, position, tooltipRect)) {
+      const flipped = compute(oppositeSide[side]);
+      if (this.fitsOnSide(oppositeSide[side], flipped, tooltipRect)) {
+        side = oppositeSide[side];
+        position = flipped;
+      }
     }
 
-    const hostRect = this.el.nativeElement.getBoundingClientRect();
-    const tooltipRect = this.tooltipElement.getBoundingClientRect();
-    const position = this.computePositionFromRect(hostRect, tooltipRect, this.hostGapPx);
+    this.tooltipElement.classList.add(`app-tooltip-${side}`);
     this.applyPosition(this.clampToViewport(position, tooltipRect));
   }
 
-  private positionTooltipAtCursor(clientX: number, clientY: number): void {
-    if (!this.tooltipElement) return;
-
-    const tooltipRect = this.tooltipElement.getBoundingClientRect();
-    const position = this.computePositionFromPoint(clientX, clientY, tooltipRect, this.cursorGapPx);
-    this.applyPosition(this.clampToViewport(position, tooltipRect));
+  /** Only the axis the side moves along matters; the other one is clamped afterwards. */
+  private fitsOnSide(side: TooltipPosition, position: Point, tooltipRect: DOMRect): boolean {
+    const pad = this.viewportPaddingPx;
+    return side === 'top' || side === 'bottom'
+      ? position.top >= pad && position.top + tooltipRect.height <= window.innerHeight - pad
+      : position.left >= pad && position.left + tooltipRect.width <= window.innerWidth - pad;
   }
 
-  private computePositionFromRect(hostRect: DOMRect, tooltipRect: DOMRect, gap: number): { left: number; top: number } {
-    switch (this.tooltipPosition()) {
+  private computePositionFromRect(side: TooltipPosition, hostRect: DOMRect, tooltipRect: DOMRect, gap: number): Point {
+    switch (side) {
       case 'top':
         return {
           left: hostRect.left + (hostRect.width - tooltipRect.width) / 2,
@@ -160,8 +173,8 @@ export class TooltipDirective {
     }
   }
 
-  private computePositionFromPoint(clientX: number, clientY: number, tooltipRect: DOMRect, gap: number): { left: number; top: number } {
-    switch (this.tooltipPosition()) {
+  private computePositionFromPoint(side: TooltipPosition, clientX: number, clientY: number, tooltipRect: DOMRect, gap: number): Point {
+    switch (side) {
       case 'top':
         return {
           left: clientX - tooltipRect.width / 2,
@@ -185,7 +198,7 @@ export class TooltipDirective {
     }
   }
 
-  private clampToViewport(position: { left: number; top: number }, tooltipRect: DOMRect): { left: number; top: number } {
+  private clampToViewport(position: Point, tooltipRect: DOMRect): Point {
     const left = Math.max(
       this.viewportPaddingPx,
       Math.min(position.left, window.innerWidth - tooltipRect.width - this.viewportPaddingPx)
@@ -198,7 +211,7 @@ export class TooltipDirective {
     return { left, top };
   }
 
-  private applyPosition(position: { left: number; top: number }): void {
+  private applyPosition(position: Point): void {
     if (!this.tooltipElement) return;
 
     this.tooltipElement.style.left = `${position.left}px`;
