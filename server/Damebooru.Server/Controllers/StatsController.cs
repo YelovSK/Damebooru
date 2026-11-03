@@ -1,9 +1,12 @@
 using Damebooru.Core.DTOs;
 using Damebooru.Processing.Services;
+using Damebooru.Server.Infrastructure;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Damebooru.Server.Controllers;
 
+[Authorize(Policy = AuthPolicies.StatsRead)]
 [ApiController]
 [Route("api/[controller]")]
 public class StatsController : ControllerBase

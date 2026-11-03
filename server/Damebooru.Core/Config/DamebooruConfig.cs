@@ -70,6 +70,7 @@ public class AuthConfig
     public bool Enabled { get; set; } = true;
     public string Username { get; set; } = "admin";
     public string Password { get; set; } = "change-me";
+    public string ApiKey { get; set; } = string.Empty;
 }
 
 public class ProxyConfig

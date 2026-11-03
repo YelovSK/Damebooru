@@ -69,7 +69,8 @@ if (authEnabled)
                     return Task.CompletedTask;
                 }
             };
-        });
+        })
+        .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyAuthenticationHandler.SchemeName, null);
 }
 
 builder.Services.AddRateLimiter(options =>
@@ -97,6 +98,14 @@ builder.Services.AddAuthorization(options =>
         options.FallbackPolicy = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .Build();
+
+        options.AddPolicy(AuthPolicies.StatsRead, policy => policy
+            .AddAuthenticationSchemes(CookieAuthenticationDefaults.AuthenticationScheme, ApiKeyAuthenticationHandler.SchemeName)
+            .RequireAuthenticatedUser());
+    }
+    else
+    {
+        options.AddPolicy(AuthPolicies.StatsRead, policy => policy.RequireAssertion(_ => true));
     }
 });
 
@@ -255,6 +264,7 @@ static void TrimSecretLikeValues(DamebooruConfig config)
 {
     config.Auth.Username = config.Auth.Username?.Trim() ?? string.Empty;
     config.Auth.Password = config.Auth.Password?.Trim() ?? string.Empty;
+    config.Auth.ApiKey = config.Auth.ApiKey?.Trim() ?? string.Empty;
 
     config.ExternalApis.SauceNao.ApiKey = config.ExternalApis.SauceNao.ApiKey?.Trim() ?? string.Empty;
     config.ExternalApis.Danbooru.Username = config.ExternalApis.Danbooru.Username?.Trim() ?? string.Empty;

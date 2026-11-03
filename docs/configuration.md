@@ -68,6 +68,7 @@ Job schedule cron expressions are evaluated in the server's local time zone. In 
 | `Damebooru:Auth:Enabled` | `Damebooru__Auth__Enabled` | `true` | Enables login protection |
 | `Damebooru:Auth:Username` | `Damebooru__Auth__Username` | `admin` | Login username |
 | `Damebooru:Auth:Password` | `Damebooru__Auth__Password` | `change-me` | Login password; prefer secrets in containers |
+| `Damebooru:Auth:ApiKey` | `Damebooru__Auth__ApiKey` | empty | Read access to `/api/stats` via an `X-Api-Key` header, for dashboards; empty disables it; prefer secrets in containers |
 
 ### Proxy
 
