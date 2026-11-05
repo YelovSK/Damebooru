@@ -32,9 +32,7 @@
     @for (suggestion of suggestions(); track $index) {
     @let isSelected = $index === selectedIndex();
     <li #optionItem (mouseenter)="setSelectedIndex($index)" (click)="selectItem(suggestion)" tabindex="0"
-      (keydown.enter)="selectItem(suggestion)" [class.bg-accent/15]="isSelected" [class.border-l-3]="isSelected"
-      [class.border-l-accent]="isSelected" [class.pl-[calc(1rem-3px)]]="isSelected"
-      [class.selected]="isSelected"
+      (keydown.enter)="selectItem(suggestion)" [class.bg-accent/15]="isSelected" [class.selected]="isSelected"
       class="px-2.5 py-1.5 text-sm rounded-md cursor-pointer transition-all duration-150 mb-0.5 last:mb-0 hover:bg-accent/15 hover:text-fg">
       @if (itemTemplate(); as template) {
       <ng-container [ngTemplateOutlet]="template" [ngTemplateOutletContext]="{ $implicit: suggestion }"></ng-container>
