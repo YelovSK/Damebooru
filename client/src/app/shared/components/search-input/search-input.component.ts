@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject, input, output, signal } from '@angular/core';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { debounceTime, distinctUntilChanged, skip } from 'rxjs';
+import { debounce, distinctUntilChanged, skip, timer } from 'rxjs';
 
 import { FieldLabelDirective, InputDirective } from '@shared/directives';
 
@@ -34,7 +34,7 @@ export class SearchInputComponent {
       .pipe(
         // Do not emit on initial render; parent pages usually perform an explicit first load.
         skip(1),
-        debounceTime(this.debounceMs()),
+        debounce(() => timer(this.debounceMs())),
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef),
       )

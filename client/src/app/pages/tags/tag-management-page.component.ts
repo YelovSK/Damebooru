@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { Subject, catchError, map, of, switchMap } from 'rxjs';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { type ManagedTag, TagCategoryKind } from '@services/api/damebooru/models';
 import { ToastService } from '@services/toast.service';
@@ -86,7 +88,19 @@ export class TagManagementPageComponent {
   createTagCategory = signal(TagCategoryKind.General);
 
   editTag = signal<EditTagModel | null>(null);
-  mergeTagSuggestions = signal<ManagedTag[]>([]);
+  private readonly mergeQuery$ = new Subject<string>();
+  mergeTagSuggestions = toSignal(
+    this.mergeQuery$.pipe(
+      switchMap(query => {
+        if (!query) return of([] as ManagedTag[]);
+        return this.api.getManagedTags(query, 0, 10).pipe(
+          map(result => result.results.filter(tag => tag.id !== this.editTag()?.id)),
+          catchError(() => of([] as ManagedTag[])),
+        );
+      }),
+    ),
+    { initialValue: [] as ManagedTag[] },
+  );
   mergeTargetId = signal<number | null>(null);
 
   constructor() {
@@ -147,7 +161,7 @@ export class TagManagementPageComponent {
       mergeTargetName: '',
     });
     this.mergeTargetId.set(null);
-    this.mergeTagSuggestions.set([]);
+    this.mergeQuery$.next('');
   }
 
   closeEditTagModal(): void {
@@ -179,17 +193,7 @@ export class TagManagementPageComponent {
   }
 
   onMergeQueryChange(query: string): void {
-    if (!query || query.length < 1) {
-      this.mergeTagSuggestions.set([]);
-      return;
-    }
-
-    this.api.getManagedTags(query, 0, 10).subscribe({
-      next: result => {
-        const model = this.editTag();
-        this.mergeTagSuggestions.set(result.results.filter(tag => tag.id !== model?.id));
-      },
-    });
+    this.mergeQuery$.next(query);
   }
 
   onMergeSelection(tag: ManagedTag): void {

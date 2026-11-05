@@ -1,15 +1,9 @@
 <section class="relative w-full">
     <header class="posts-toolbar relative z-30 hidden items-center gap-3 px-3 pb-3 pt-3 md:flex">
         <div class="relative z-20 flex min-w-0 flex-1 items-center gap-2">
-            <app-autocomplete class="min-w-0 flex-1" [value]="currentSearchValue()" [suggestions]="searchSuggestions()" [multi]="true" [suggestAfterSelection]="true"
-                [focusShortcut]="{ modifier: null, key: '/' }" placeholder="Search posts..."
-                (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
-                (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
-                <ng-template let-suggestion>
-                    <ng-container [ngTemplateOutlet]="searchSuggestionTemplate"
-                        [ngTemplateOutletContext]="{ $implicit: suggestion }" />
-                </ng-template>
-            </app-autocomplete>
+            @if (isDesktop()) {
+            <ng-container [ngTemplateOutlet]="searchBox" />
+            }
             <app-post-search-filters [query]="currentSearchValue()" (queryChange)="currentSearchValue.set($event)"
                 (searchTrigger)="onSearch(currentSearchValue())" />
         </div>
@@ -148,15 +142,9 @@
             </div>
 
             <div class="relative z-20">
-                <app-autocomplete [value]="currentSearchValue()" [suggestions]="searchSuggestions()" [multi]="true" [suggestAfterSelection]="true"
-                    [focusShortcut]="{ modifier: null, key: '/' }" placeholder="Search posts..."
-                    (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
-                    (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
-                    <ng-template let-suggestion>
-                        <ng-container [ngTemplateOutlet]="searchSuggestionTemplate"
-                            [ngTemplateOutletContext]="{ $implicit: suggestion }" />
-                    </ng-template>
-                </app-autocomplete>
+                @if (!isDesktop()) {
+                <ng-container [ngTemplateOutlet]="searchBox" />
+                }
             </div>
 
             <app-post-search-filters class="mt-3" layout="inline" [query]="currentSearchValue()"
@@ -177,6 +165,18 @@
             </div>
     </app-mobile-bottom-sheet>
 </section>
+
+<ng-template #searchBox>
+    <app-autocomplete class="min-w-0 flex-1" [value]="currentSearchValue()" [suggestions]="searchSuggestions()" [multi]="true" [debounce]="0" [suggestAfterSelection]="true"
+        [focusShortcut]="{ modifier: null, key: '/' }" placeholder="Search posts..."
+        (queryChange)="onQueryChange($event)" (selection)="onSelection($event)"
+        (searchTrigger)="onSearch($event)" (valueChange)="currentSearchValue.set($event)">
+        <ng-template let-suggestion>
+            <ng-container [ngTemplateOutlet]="searchSuggestionTemplate"
+                [ngTemplateOutletContext]="{ $implicit: suggestion }" />
+        </ng-template>
+    </app-autocomplete>
+</ng-template>
 
 <ng-template #searchSuggestionTemplate let-suggestion>
     @switch (suggestion.kind) {

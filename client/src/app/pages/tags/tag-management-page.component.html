@@ -47,7 +47,7 @@
     <div class="flex items-end gap-2">
       <div class="grow">
         <app-autocomplete [value]="model.mergeTargetName" [suggestions]="mergeTagSuggestions()"
-          placeholder="Search target tag..." [debounce]="200" (queryChange)="onMergeQueryChange($event)"
+          placeholder="Search target tag..." [debounce]="0" (queryChange)="onMergeQueryChange($event)"
           (selection)="onMergeSelection($event)" (valueChange)="updateEditTag({ mergeTargetName: $event })">
           <ng-template let-tag>
             <div class="flex w-full items-center justify-between gap-3">

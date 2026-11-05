@@ -122,7 +122,7 @@
                         </ng-template>
                         @if (editService.isEditing() && editService.currentState(); as state) {
                         <!-- Tag input -->
-                        <app-autocomplete [suggestions]="tagSuggestions()" [multi]="false" [placeholder]="'Add tag...'"
+                        <app-autocomplete [suggestions]="tagSuggestions()" [multi]="false" [debounce]="0" [placeholder]="'Add tag...'"
                             [value]="tagSearchValue()" (queryChange)="onTagQueryChange($event)"
                             (selection)="onTagSelection($event)" (searchTrigger)="onTagSearch($event)"
                             (valueChange)="tagSearchValue.set($event)">

@@ -183,6 +183,13 @@ export class PostsComponent implements AfterViewInit {
   previewPost = signal<DamebooruPostDto | null>(null);
   mobileControlsOpen = signal(false);
 
+  // Matches Tailwind's `md`. The toolbar and bottom sheet are only hidden by CSS, so a search box in each would stay alive and duplicate every suggestion request.
+  private readonly desktopMedia = window.matchMedia("(min-width: 768px)");
+  readonly isDesktop = toSignal(
+    fromEvent<MediaQueryListEvent>(this.desktopMedia, "change").pipe(map((event) => event.matches)),
+    { initialValue: this.desktopMedia.matches },
+  );
+
   readonly mobileControlsLabel = computed(() => {
     const query = this.activeQuery().trim();
     return query.length > 0 ? query : "Posts";

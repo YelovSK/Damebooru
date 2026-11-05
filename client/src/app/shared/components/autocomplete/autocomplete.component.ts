@@ -1,7 +1,7 @@
 import { Component, ChangeDetectionStrategy, signal, input, output, effect, HostListener, type ElementRef, viewChild, viewChildren, contentChild, TemplateRef, untracked, inject, DestroyRef } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { toObservable, takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { debounceTime, distinctUntilChanged, filter, fromEvent, switchMap } from 'rxjs';
+import { debounce, distinctUntilChanged, filter, fromEvent, switchMap, timer } from 'rxjs';
 import { HotkeysService } from '@services/hotkeys.service';
 import { InputDirective } from '@shared/directives';
 
@@ -70,7 +70,7 @@ export class AutocompleteComponent<T> {
     // 2. React to input changes and emit query for suggestions
     toObservable(this.inputValue).pipe(
       takeUntilDestroyed(),
-      debounceTime(this.debounce()),
+      debounce(() => timer(this.debounce())),
       distinctUntilChanged()
     ).subscribe(val => {
       const currentQuery = this.multi() ? this.getLastWord(val) : val;

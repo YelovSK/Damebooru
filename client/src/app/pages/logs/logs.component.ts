@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { type Subscription } from 'rxjs';
 
 import { DamebooruService } from '../../services/api/damebooru/damebooru.service';
 import { type AppLogEntry } from '../../services/api/damebooru/models';
@@ -22,6 +23,7 @@ type LogLevelFilter = 'warning' | 'error' | 'critical' | 'information' | 'debug'
 export class LogsPageComponent {
   private readonly api = inject(DamebooruService);
   private readonly toast = inject(ToastService);
+  private loadRequest?: Subscription;
 
   readonly logs = signal<AppLogEntry[]>([]);
   readonly hasMore = signal(false);
@@ -91,7 +93,8 @@ export class LogsPageComponent {
       ? current[current.length - 1].id
       : undefined;
 
-    this.api.getLogs({
+    this.loadRequest?.unsubscribe();
+    this.loadRequest = this.api.getLogs({
       level: this.level(),
       category: this.categoryQuery().trim() || undefined,
       contains: this.textQuery().trim() || undefined,

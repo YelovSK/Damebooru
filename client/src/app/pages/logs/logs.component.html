@@ -10,7 +10,7 @@
     <app-search-input
       label="Category"
       [value]="categoryQuery()"
-      [debounceMs]="300"
+      [debounceMs]="0"
       placeholder="Category contains..."
       (searchChange)="onCategorySearch($event)">
     </app-search-input>
@@ -18,7 +18,7 @@
     <app-search-input
       label="Message/Exception"
       [value]="textQuery()"
-      [debounceMs]="300"
+      [debounceMs]="0"
       placeholder="Message/exception contains..."
       (searchChange)="onTextSearch($event)">
     </app-search-input>
