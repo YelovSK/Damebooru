@@ -2,7 +2,9 @@ import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, e
 import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CdkMenuTrigger } from '@angular/cdk/menu';
+import { RouterLink } from '@angular/router';
 
+import { AppLinks } from '@app/app.paths';
 import { type DamebooruPostDto, type FolderLocation, type FolderSuggestion } from '@models';
 import { DamebooruService } from '@services/api/damebooru/damebooru.service';
 import { ButtonDirective, MenuDirective, MenuItemDirective } from '@shared/directives';
@@ -27,7 +29,7 @@ interface Group {
 @Component({
   selector: 'app-inbox-bulk',
   standalone: true,
-  imports: [DecimalPipe, CdkMenuTrigger, ButtonDirective, MenuDirective, MenuItemDirective, PostPreviewOverlayComponent, DestinationPickerComponent, InboxMediaComponent],
+  imports: [DecimalPipe, RouterLink, CdkMenuTrigger, ButtonDirective, MenuDirective, MenuItemDirective, PostPreviewOverlayComponent, DestinationPickerComponent, InboxMediaComponent],
   providers: [PostHoverPreview],
   host: {
     class: 'block flex-1 min-h-0 overflow-y-auto',
@@ -39,6 +41,7 @@ interface Group {
 export class InboxBulkComponent {
   readonly store = inject(InboxStore);
   readonly hoverPreview = inject(PostHoverPreview);
+  readonly appLinks = AppLinks;
   private readonly damebooru = inject(DamebooruService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);

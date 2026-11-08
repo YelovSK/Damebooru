@@ -143,7 +143,10 @@
         <app-inbox-media class="min-h-72 flex-1" [post]="post" />
         }
         <p class="text-sm text-fg-muted break-all">
-            {{ activeRows().length > 1 ? (activeRows().length + ' files selected') : fileName(post) }}
+            @if (activeRows().length > 1) {
+            <span>{{ activeRows().length }} files selected ·</span>
+            }
+            <a class="hover:text-accent" [routerLink]="appLinks.post(post.id)">{{ fileName(post) }}</a>
         </p>
 
         <section class="space-y-2">
