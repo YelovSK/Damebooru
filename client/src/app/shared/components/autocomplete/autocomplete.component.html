@@ -28,11 +28,11 @@
     class="absolute left-0 right-0 bg-surface border border-line-strong rounded-lg list-none p-1.5 m-0 z-[500] shadow-[0_15px_35px_rgba(0,0,0,0.6)] overflow-y-auto box-scrollbar"
     [style.top]="dropdownOpensAbove() ? null : 'calc(100% + 8px)'"
     [style.bottom]="dropdownOpensAbove() ? 'calc(100% + 8px)' : null"
-    [style.max-height.px]="dropdownMaxHeightPx()">
+    [style.max-height.px]="dropdownMaxHeightPx()" (mousedown)="$event.preventDefault()">
     @for (suggestion of suggestions(); track $index) {
     @let isSelected = $index === selectedIndex();
-    <li #optionItem (mouseenter)="setSelectedIndex($index)" (click)="selectItem(suggestion)" tabindex="0"
-      (keydown.enter)="selectItem(suggestion)" [class.bg-accent/15]="isSelected" [class.selected]="isSelected"
+    <li #optionItem (mouseenter)="setSelectedIndex($index)" (click)="selectItem(suggestion)"
+      [class.bg-accent/15]="isSelected" [class.selected]="isSelected"
       class="px-2.5 py-1.5 text-sm rounded-md cursor-pointer transition-all duration-150 mb-0.5 last:mb-0 hover:bg-accent/15 hover:text-fg">
       @if (itemTemplate(); as template) {
       <ng-container [ngTemplateOutlet]="template" [ngTemplateOutletContext]="{ $implicit: suggestion }"></ng-container>

@@ -203,8 +203,6 @@ export class AutocompleteComponent<T> {
     } else {
       this.closeDropdown();
     }
-    // Force focus back to input so user can continue typing (multi-tag)
-    this.focusInput();
   }
 
   executeSearch() {
