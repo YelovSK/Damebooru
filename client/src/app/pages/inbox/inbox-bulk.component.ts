@@ -248,7 +248,7 @@ export class InboxBulkComponent {
     this.focusPost(post);
   }
 
-  private focusPost(post: DamebooruPostDto): void {
+  focusPost(post: DamebooruPostDto): void {
     this.activePostId.set(post.id);
     queueMicrotask(() => this.host.nativeElement.querySelector(`[data-post-id="${post.id}"]`)?.scrollIntoView({ block: 'nearest' }));
   }

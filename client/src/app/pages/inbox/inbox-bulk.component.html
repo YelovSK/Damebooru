@@ -128,7 +128,20 @@
 
     <aside class="flex min-h-0 flex-col gap-4 overflow-y-auto p-1">
         @if (preview(); as post) {
+        @if (activeRows().length > 1) {
+        <div class="grid min-h-72 flex-1 grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] content-start gap-1.5 overflow-y-auto rounded-lg bg-sunken p-1.5">
+            @for (row of activeRows(); track row.id) {
+            <button type="button" class="relative aspect-square overflow-hidden rounded border-2 cursor-pointer"
+                [class]="row.id === post.id ? 'border-accent' : 'border-transparent hover:border-line'"
+                (click)="focusPost(row)"
+                (mouseenter)="hoverPreview.enter(row)" (mousemove)="hoverPreview.move(row)" (mouseleave)="hoverPreview.leave($event)">
+                <img [src]="thumbnailUrl(row)" [alt]="fileName(row)" class="h-full w-full object-cover" loading="lazy" decoding="async" />
+            </button>
+            }
+        </div>
+        } @else {
         <app-inbox-media class="min-h-72 flex-1" [post]="post" />
+        }
         <p class="text-sm text-fg-muted break-all">
             {{ activeRows().length > 1 ? (activeRows().length + ' files selected') : fileName(post) }}
         </p>
