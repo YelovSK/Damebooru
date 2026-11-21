@@ -1,0 +1,14 @@
+.toast-enter {
+  animation: toast-slide-in 300ms ease-out;
+}
+
+.toast-leave {
+  animation: toast-slide-in 200ms ease-in reverse;
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}

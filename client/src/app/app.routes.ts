@@ -1,7 +1,6 @@
 import { type Routes } from '@angular/router';
 import { LoginComponent } from '@pages/login/login.component';
 import { PostsComponent } from '@pages/posts/posts.component';
-import { SettingsComponent } from '@pages/settings/settings.component';
 import { MainLayoutComponent } from '@shared/components/main-layout/main-layout.component';
 import { authGuard } from '@services/auth.guard';
 import { librariesResolver } from '@pages/libraries/libraries.resolver';
@@ -32,8 +31,8 @@ export const routes: Routes = [
             { path: AppPaths.tagCategories, redirectTo: `${AppPaths.tags}/categories`, pathMatch: 'full' },
             { path: AppPaths.help, loadComponent: () => import('./pages/help/help.component').then(m => m.HelpComponent) },
             { path: AppPaths.stats, loadComponent: () => import('./pages/stats/stats.component').then(m => m.StatsComponent) },
-            { path: AppPaths.settings.root, component: SettingsComponent },
-            { path: `${AppPaths.settings.root}/:tab`, component: SettingsComponent },
+            { path: AppPaths.settings.root, loadComponent: () => import('./pages/settings/settings.component').then(m => m.SettingsComponent) },
+            { path: `${AppPaths.settings.root}/:tab`, loadComponent: () => import('./pages/settings/settings.component').then(m => m.SettingsComponent) },
         ]
     },
     { path: '**', redirectTo: '' }

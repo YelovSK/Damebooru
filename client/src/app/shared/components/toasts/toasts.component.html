@@ -1,6 +1,6 @@
 <div class="fixed inset-x-0 top-16 z-200 mx-auto flex w-full max-w-[350px] flex-col gap-3 px-3 sm:inset-x-auto sm:right-4 sm:top-20 sm:mx-0 sm:px-0">
   @for (toast of toastService.toasts(); track toast.id) {
-    <div [@toastAnimation] 
+    <div animate.enter="toast-enter" animate.leave="toast-leave"
       class="p-4 shadow-2xl flex items-start gap-3 border-l-4 relative group bg-surface border border-line rounded-xl"
       [class.border-l-success]="toast.type === 'success'"
       [class.border-l-warning]="toast.type === 'warning'"
