@@ -16,6 +16,7 @@ interface OffsetRange {
 @Injectable()
 export class PostsRangeCacheStore {
     private static readonly MAX_CONCURRENT_RANGE_REQUESTS = 2;
+    private static readonly MAX_QUEUED_RANGE_DISTANCE = 2 * POSTS_FETCH_SIZE;
 
     private readonly damebooru = inject(DamebooruService);
     private readonly destroyRef = inject(DestroyRef);
@@ -254,6 +255,28 @@ export class PostsRangeCacheStore {
         });
     }
 
+    private releaseLoadingRange(startOffset: number, endOffset: number): void {
+        this.segmentCacheState.update(current => {
+            const next = new Map(current);
+
+            for (let segmentStart = startOffset; segmentStart < endOffset; segmentStart += POSTS_CACHE_SEGMENT_SIZE) {
+                const segmentIndex = this.offsetToSegmentIndex(segmentStart);
+                const existing = next.get(segmentIndex);
+                if (existing?.status !== 'loading') {
+                    continue;
+                }
+
+                if (existing.items.length > 0) {
+                    next.set(segmentIndex, { status: 'ready', items: existing.items, error: null });
+                } else {
+                    next.delete(segmentIndex);
+                }
+            }
+
+            return next;
+        });
+    }
+
     private markRangeError(startOffset: number, endOffset: number, error: unknown): void {
         this.segmentCacheState.update(current => {
             const next = new Map(current);
@@ -275,6 +298,13 @@ export class PostsRangeCacheStore {
     private drainQueuedRanges(): void {
         if (this.queuedRanges.size === 0) {
             return;
+        }
+
+        for (const [key, range] of this.queuedRanges) {
+            if (this.getDistanceFromHint(range) > PostsRangeCacheStore.MAX_QUEUED_RANGE_DISTANCE) {
+                this.queuedRanges.delete(key);
+                this.releaseLoadingRange(range.start, range.end);
+            }
         }
 
         const candidates = Array.from(this.queuedRanges.values())

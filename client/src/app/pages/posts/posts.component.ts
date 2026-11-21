@@ -317,6 +317,7 @@ export class PostsComponent implements AfterViewInit {
       resolveOffsetForScrollTop: (scrollTop) =>
         this.resolveOffsetForScrollTop(scrollTop),
       onDragSample: (offset) => this.handleFastScrollerDragSample(offset),
+      onDragSettle: () => this.loadVisibleRange(),
       onDragCommit: () => this.onFastScrollerDragCommit(),
     });
 
@@ -368,7 +369,11 @@ export class PostsComponent implements AfterViewInit {
     if (viewport) {
       viewport.renderedRangeStream
         .pipe(auditTime(40), takeUntilDestroyed(this.destroyRef))
-        .subscribe((range) => this.handleRenderedRange(range.start, range.end));
+        .subscribe((range) => {
+          if (!this.fastScrollerDragging()) {
+            this.handleRenderedRange(range.start, range.end);
+          }
+        });
 
       // Emits outside the Angular zone; signal writes schedule change detection only when values change.
       viewport
@@ -703,10 +708,6 @@ export class PostsComponent implements AfterViewInit {
   }
 
   private handleRenderedRange(start: number, end: number): void {
-    if (this.fastScrollerDragging()) {
-      return;
-    }
-
     const rowCount = this.virtualRowCount();
     if (rowCount <= 0) {
       return;

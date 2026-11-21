@@ -12,6 +12,7 @@ interface PostsFastScrollerBindings {
     scrollToOffset: (scrollTop: number) => void;
     resolveOffsetForScrollTop: (scrollTop: number) => number;
     onDragSample: (offset: number) => void;
+    onDragSettle: () => void;
     onDragCommit: () => void;
 }
 
@@ -19,10 +20,12 @@ interface PostsFastScrollerBindings {
 export class PostsFastScrollerController {
     private static readonly FAST_SCROLLER_HIDE_DELAY_MS = 1250;
     private static readonly DRAG_SAMPLE_MIN_INTERVAL_MS = 33;
+    private static readonly DRAG_SETTLE_DELAY_MS = 120;
 
     private bindings: PostsFastScrollerBindings | null = null;
 
     private fastScrollerHideTimer: ReturnType<typeof setTimeout> | null = null;
+    private dragSettleTimer: ReturnType<typeof setTimeout> | null = null;
     private fastScrollerRafId: number | null = null;
     private pendingFastScrollerClientY: number | null = null;
     private fastScrollerPointerId: number | null = null;
@@ -40,6 +43,7 @@ export class PostsFastScrollerController {
 
     dispose(): void {
         this.clearFastScrollerHideTimer();
+        this.clearDragSettleTimer();
         this.cancelFastScrollerRaf();
     }
 
@@ -141,7 +145,25 @@ export class PostsFastScrollerController {
             bindings.onDragSample(targetOffset);
         }
 
+        this.scheduleDragSettle();
         this.reveal();
+    }
+
+    private scheduleDragSettle(): void {
+        this.clearDragSettleTimer();
+        this.dragSettleTimer = setTimeout(() => {
+            this.dragSettleTimer = null;
+            if (this.dragging()) {
+                this.bindings?.onDragSettle();
+            }
+        }, PostsFastScrollerController.DRAG_SETTLE_DELAY_MS);
+    }
+
+    private clearDragSettleTimer(): void {
+        if (this.dragSettleTimer !== null) {
+            clearTimeout(this.dragSettleTimer);
+            this.dragSettleTimer = null;
+        }
     }
 
     private finishFastScrollerPointer(event: PointerEvent): void {
@@ -157,6 +179,7 @@ export class PostsFastScrollerController {
         this.fastScrollerPointerId = null;
         this.dragRailRect = null;
         this.cancelFastScrollerRaf();
+        this.clearDragSettleTimer();
         this.dragging.set(false);
 
         this.bindings?.onDragCommit();

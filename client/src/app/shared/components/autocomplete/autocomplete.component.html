@@ -31,6 +31,8 @@
     [style.max-height.px]="dropdownMaxHeightPx()" (mousedown)="$event.preventDefault()">
     @for (suggestion of suggestions(); track $index) {
     @let isSelected = $index === selectedIndex();
+    <!-- Keyboard selection goes through the input's keydown. Options must not take focus, or mobile hides the keyboard. -->
+    <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
     <li #optionItem (mouseenter)="setSelectedIndex($index)" (click)="selectItem(suggestion)"
       [class.bg-accent/15]="isSelected" [class.selected]="isSelected"
       class="px-2.5 py-1.5 text-sm rounded-md cursor-pointer transition-all duration-150 mb-0.5 last:mb-0 hover:bg-accent/15 hover:text-fg">
