@@ -30,7 +30,6 @@ module.exports = defineConfig([
       "@angular-eslint/no-input-rename": "error",
       "@angular-eslint/no-output-rename": "error",
       "@angular-eslint/no-empty-lifecycle-method": "warn",
-      "@angular-eslint/no-conflicting-lifecycle": "warn",
       "@angular-eslint/sort-lifecycle-methods": "warn",
       "@angular-eslint/component-max-inline-declarations": [
         "error",

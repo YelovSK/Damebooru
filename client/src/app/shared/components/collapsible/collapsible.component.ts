@@ -2,7 +2,6 @@ import {
   Component,
   ChangeDetectionStrategy,
   input,
-  output,
   model,
 } from '@angular/core';
 
@@ -19,9 +18,6 @@ export class CollapsibleComponent {
 
   /** Whether the collapsible is expanded */
   expanded = model<boolean>(false);
-
-  /** Emits when expanded state changes */
-  expandedChange = output<boolean>();
 
   toggle(): void {
     this.expanded.update(v => !v);
