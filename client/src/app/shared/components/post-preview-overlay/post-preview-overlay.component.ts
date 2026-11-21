@@ -4,7 +4,6 @@ import {
   computed,
   inject,
   input,
-  output,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { type DamebooruPostDto } from "@models";
@@ -24,7 +23,6 @@ export class PostPreviewOverlayComponent {
 
   readonly post = input.required<DamebooruPostDto>();
   readonly size = input(90);
-  readonly closed = output<void>();
 
   readonly viewportLimitVw = computed(() => `${this.clampedSizePercent()}vw`);
 
@@ -55,19 +53,6 @@ export class PostPreviewOverlayComponent {
 
   getMediaType(contentType: string) {
     return getMediaType(contentType);
-  }
-
-  onCardLeave(): void {
-    this.closed.emit();
-  }
-
-  onClick(): void {
-    this.closed.emit();
-  }
-
-  onKeydownSpace(event: Event): void {
-    event.preventDefault();
-    this.closed.emit();
   }
 
   private clampedSizePercent(): number {

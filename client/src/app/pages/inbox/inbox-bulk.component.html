@@ -80,7 +80,7 @@
                     (mousedown)="$event.shiftKey && $event.preventDefault()"
                     (click)="onRowClick(post, $event)" (keydown.enter)="activate(post)">
                     <div class="relative h-28 w-28 shrink-0 overflow-hidden rounded bg-surface"
-                        (mouseenter)="hoverPreview.enter(post)" (mousemove)="hoverPreview.move(post)" (mouseleave)="hoverPreview.leave($event)">
+                        (mouseenter)="hoverPreview.enter(post)" (mousemove)="hoverPreview.move(post, $event)" (mouseleave)="hoverPreview.leave()">
                         <img [src]="thumbnailUrl(post)" [alt]="'Post ' + post.id" class="h-full w-full object-cover" loading="lazy" decoding="async" />
                         @if (lacksPrediction(post)) {
                         <span class="pointer-events-none absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.65rem] font-medium text-white/80">No AI</span>
@@ -134,7 +134,7 @@
             <button type="button" class="relative aspect-square overflow-hidden rounded border-2 cursor-pointer"
                 [class]="row.id === post.id ? 'border-accent' : 'border-transparent hover:border-line'"
                 (click)="focusPost(row)"
-                (mouseenter)="hoverPreview.enter(row)" (mousemove)="hoverPreview.move(row)" (mouseleave)="hoverPreview.leave($event)">
+                (mouseenter)="hoverPreview.enter(row)" (mousemove)="hoverPreview.move(row, $event)" (mouseleave)="hoverPreview.leave()">
                 <img [src]="thumbnailUrl(row)" [alt]="fileName(row)" class="h-full w-full object-cover" loading="lazy" decoding="async" />
             </button>
             }
@@ -167,6 +167,6 @@
 </div>
 
 @if (hoverPreview.post(); as preview) {
-<app-post-preview-overlay [post]="preview" (closed)="hoverPreview.close()" />
+<app-post-preview-overlay [post]="preview" />
 }
 }

@@ -30,8 +30,8 @@
                             <a [routerLink]="['/post', cluster.postId]"
                                 class="block h-32 w-32 shrink-0 overflow-hidden rounded-lg bg-sunken sm:h-40 sm:w-40"
                                 (mouseenter)="hoverPreview.enter(cluster.postId)"
-                                (mousemove)="hoverPreview.move(cluster.postId)"
-                                (mouseleave)="hoverPreview.leave($event)">
+                                (mousemove)="hoverPreview.move(cluster.postId, $event)"
+                                (mouseleave)="hoverPreview.leave()">
                                 <img [src]="getThumbnailUrl(cluster)" alt="" class="h-full w-full object-cover" loading="lazy" (error)="onImageError($event)">
                             </a>
 
@@ -140,8 +140,8 @@
                                             aria-label="Compare"
                                             (click)="openCompareGroup(group)"
                                             (mouseenter)="hoverPreview.enter(post.id)"
-                                            (mousemove)="hoverPreview.move(post.id)"
-                                            (mouseleave)="hoverPreview.leave($event)">
+                                            (mousemove)="hoverPreview.move(post.id, $event)"
+                                            (mouseleave)="hoverPreview.leave()">
                                             <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath" class="h-full w-full object-cover" loading="lazy" (error)="onImageError($event)">
                                         </button>
                                         <div class="flex flex-1 flex-col gap-1.5 px-3 pb-2 pt-3">
@@ -342,8 +342,8 @@
                                 @for (post of group.posts; track post.id) {
                                     <a [routerLink]="['/post', post.id]" class="block w-36 overflow-hidden rounded-lg border border-line bg-sunken transition-colors hover:border-line-strong sm:w-40">
                                         <div class="aspect-square overflow-hidden"
-                                            (mouseenter)="hoverPreview.enter(post.id)" (mousemove)="hoverPreview.move(post.id)"
-                                            (mouseleave)="hoverPreview.leave($event)">
+                                            (mouseenter)="hoverPreview.enter(post.id)" (mousemove)="hoverPreview.move(post.id, $event)"
+                                            (mouseleave)="hoverPreview.leave()">
                                             <img [src]="getThumbnailUrl(post)" [alt]="post.relativePath" class="h-full w-full object-cover" loading="lazy" (error)="onImageError($event)">
                                         </div>
                                         <div class="p-2">
@@ -404,7 +404,7 @@
     </app-tabs>
 
     @if (hoverPreview.post(); as preview) {
-    <app-post-preview-overlay [post]="preview" (closed)="hoverPreview.close()" />
+    <app-post-preview-overlay [post]="preview" />
     }
 
     @if (compareGroup(); as group) {

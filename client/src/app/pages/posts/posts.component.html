@@ -96,8 +96,8 @@
         </div>
     </div>
 
-    @if (previewPost(); as preview) {
-    <app-post-preview-overlay [post]="preview" (closed)="closePreview()" />
+    @if (hoverPreview.post(); as preview) {
+    <app-post-preview-overlay [post]="preview" />
     }
 
     <button type="button"

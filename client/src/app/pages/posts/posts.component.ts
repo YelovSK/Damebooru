@@ -49,7 +49,7 @@ import { AppLinks, AppPaths } from "@app/app.paths";
 import { StorageService, STORAGE_KEYS } from "@services/storage.service";
 import { SettingsService } from "@services/settings.service";
 import { PostPreviewOverlayComponent } from "@shared/components/post-preview-overlay/post-preview-overlay.component";
-import { PostPreviewHoverGateService } from "@shared/components/post-preview-overlay/post-preview-hover-gate.service";
+import { PostHoverPreview } from "@shared/components/post-preview-overlay/post-hover-preview";
 import { PostTileComponent } from "@shared/components/post-tile/post-tile.component";
 import { MobileBottomSheetComponent } from "@shared/components/mobile-bottom-sheet/mobile-bottom-sheet.component";
 import { POSTS_CACHE_SEGMENT_SIZE, POSTS_FETCH_SIZE } from "./posts.constants";
@@ -80,7 +80,7 @@ import {
     MenuDirective,
     MenuItemDirective,
   ],
-  providers: [PostsRangeCacheStore, PostsFastScrollerController],
+  providers: [PostsRangeCacheStore, PostsFastScrollerController, PostHoverPreview],
   templateUrl: "./posts.component.html",
   styleUrl: "./posts.component.css",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -97,7 +97,6 @@ export class PostsComponent implements AfterViewInit {
   private static readonly URL_SYNC_DEBOUNCE_MS = 160;
 
   private static readonly SCROLL_IDLE_RESET_MS = 120;
-  private static readonly HOVER_PREVIEW_DELAY_MS = 700;
 
   private readonly viewportShellRef = viewChild<ElementRef<HTMLElement>>("viewportShell");
   private readonly viewportRef = viewChild<CdkVirtualScrollViewport>("postsViewport");
@@ -114,7 +113,6 @@ export class PostsComponent implements AfterViewInit {
 
   private urlSyncTimer: ReturnType<typeof setTimeout> | null = null;
   private scrollIdleTimer: ReturnType<typeof setTimeout> | null = null;
-  private hoverPreviewTimer: ReturnType<typeof setTimeout> | null = null;
 
   private readonly damebooru = inject(DamebooruService);
   private readonly router = inject(Router);
@@ -124,7 +122,7 @@ export class PostsComponent implements AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly rangeCacheStore = inject(PostsRangeCacheStore);
   private readonly fastScroller = inject(PostsFastScrollerController);
-  private readonly previewHoverGate = inject(PostPreviewHoverGateService);
+  readonly hoverPreview = inject(PostHoverPreview);
   private readonly zone = inject(NgZone);
 
   readonly appLinks = AppLinks;
@@ -164,15 +162,6 @@ export class PostsComponent implements AfterViewInit {
     }
     return posts;
   });
-  readonly hoverPreviewEnabled = this.settingsService.enablePostPreviewOnHover;
-  readonly hoverPreviewDelayMs = computed(() => {
-    const raw = this.settingsService.postPreviewDelayMs();
-    if (!Number.isFinite(raw)) {
-      return PostsComponent.HOVER_PREVIEW_DELAY_MS;
-    }
-
-    return Math.max(0, Math.min(5000, Math.round(raw)));
-  });
 
   viewportHeightPx = signal(480);
   columns = signal(1);
@@ -180,7 +169,6 @@ export class PostsComponent implements AfterViewInit {
 
   readonly currentOffset = this.rangeCacheStore.currentOffset;
   isScrolling = signal(false);
-  previewPost = signal<DamebooruPostDto | null>(null);
   mobileControlsOpen = signal(false);
 
   // Matches Tailwind's `md`. The toolbar and bottom sheet are only hidden by CSS, so a search box in each would stay alive and duplicate every suggestion request.
@@ -296,15 +284,6 @@ export class PostsComponent implements AfterViewInit {
       queueMicrotask(() => this.tryApplyPendingAnchor());
     });
 
-    effect(() => {
-      if (this.hoverPreviewEnabled()) {
-        return;
-      }
-
-      this.clearHoverPreviewTimer();
-      this.previewPost.set(null);
-    });
-
     this.fastScroller.configure({
       getRailElement: () => this.fastScrollerRailRef()?.nativeElement ?? null,
       getTotalItems: () => this.totalCount() ?? 0,
@@ -343,7 +322,6 @@ export class PostsComponent implements AfterViewInit {
       this.fastScroller.dispose();
       this.clearUrlSyncTimer();
       this.clearScrollIdleTimer();
-      this.clearHoverPreviewTimer();
       this.virtualRowDataSource.disconnect();
     });
 
@@ -526,54 +504,36 @@ export class PostsComponent implements AfterViewInit {
   }
 
   private handleViewportMouseOver(event: MouseEvent): void {
-    if (!this.hoverPreviewEnabled()) {
-      return;
+    const tile = this.findTile(event.target);
+    if (tile && tile !== this.findTile(event.relatedTarget)) {
+      const post = this.getTilePost(tile);
+      if (post) {
+        this.hoverPreview.enter(post);
+      }
     }
-
-    if (this.previewHoverGate.isSuppressed()) {
-      return;
-    }
-
-    this.schedulePreviewForEventTarget(event.target);
   }
 
   private handleViewportMouseMove(event: MouseEvent): void {
-    if (!this.hoverPreviewEnabled() || !this.previewHoverGate.resumeIfSuppressed()) {
-      return;
-    }
-
-    this.schedulePreviewForEventTarget(event.target);
-  }
-
-  private schedulePreviewForEventTarget(target: EventTarget | null): void {
-    const element = target as HTMLElement | null;
-    const tile = element?.closest(".post-tile");
-    if (!tile) return;
-
-    const idStr = tile.getAttribute("data-post-id");
-    if (idStr) {
-      const postId = parseInt(idStr, 10);
-      if (!Number.isNaN(postId)) {
-        const post = this.postsById().get(postId);
-        if (post) {
-          this.clearHoverPreviewTimer();
-          this.hoverPreviewTimer = setTimeout(() => {
-            this.zone.run(() => this.previewPost.set(post));
-          }, this.hoverPreviewDelayMs());
-        }
-      }
+    const post = this.getTilePost(this.findTile(event.target));
+    if (post) {
+      this.hoverPreview.move(post, event);
     }
   }
 
   private handleViewportMouseOut(event: MouseEvent): void {
-    this.clearHoverPreviewTimer();
-    if (this.previewPost() !== null) {
-      const related = event.relatedTarget as Element | null;
-      if (related?.closest("[data-preview-card]")) {
-        return;
-      }
-      this.zone.run(() => this.previewPost.set(null));
+    const tile = this.findTile(event.target);
+    if (tile && tile !== this.findTile(event.relatedTarget)) {
+      this.hoverPreview.leave();
     }
+  }
+
+  private findTile(target: EventTarget | null): Element | null {
+    return target instanceof Element ? target.closest(".post-tile") : null;
+  }
+
+  private getTilePost(tile: Element | null): DamebooruPostDto | undefined {
+    const postId = Number(tile?.getAttribute("data-post-id"));
+    return Number.isInteger(postId) ? this.postsById().get(postId) : undefined;
   }
 
   @HostListener("document:keydown.escape")
@@ -583,17 +543,7 @@ export class PostsComponent implements AfterViewInit {
       return;
     }
 
-    this.dismissHoverPreview();
-  }
-
-  closePreview(): void {
-    this.dismissHoverPreview();
-  }
-
-  private dismissHoverPreview(): void {
-    this.clearHoverPreviewTimer();
-    this.previewHoverGate.suppressUntilPointerMove();
-    this.previewPost.set(null);
+    this.hoverPreview.close();
   }
 
   openMobileControls(): void {
@@ -740,7 +690,7 @@ export class PostsComponent implements AfterViewInit {
     this.markScrollingActive();
     this.fastScroller.onScrollActivity();
     this.updateScrollDerivedState();
-    this.dismissHoverPreview();
+    this.hoverPreview.close();
   }
 
   private updateScrollDerivedState(): void {
@@ -1078,11 +1028,4 @@ export class PostsComponent implements AfterViewInit {
   }
 
   readonly gridGapPx = PostsComponent.GRID_GAP_PX;
-
-  private clearHoverPreviewTimer(): void {
-    if (this.hoverPreviewTimer !== null) {
-      clearTimeout(this.hoverPreviewTimer);
-      this.hoverPreviewTimer = null;
-    }
-  }
 }

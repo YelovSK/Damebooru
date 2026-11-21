@@ -7,7 +7,7 @@ import { SettingsService } from '@services/settings.service';
 import { PostPreviewHoverGateService } from './post-preview-hover-gate.service';
 
 /**
- * Shows a post in the preview overlay after the pointer rests on its tile.
+ * Shows a post in the preview overlay while the pointer rests on its tile; any movement hides it again.
  * Provide it per component; render `post()` with `app-post-preview-overlay` and wire tile mouse events to it.
  */
 @Injectable()
@@ -51,20 +51,21 @@ export class PostHoverPreview {
     }, this.delayMs());
   }
 
-  move(target: DamebooruPostDto | number): void {
-    if (this.enabled() && this.gate.resumeIfSuppressed()) {
-      this.enter(target);
+  move(target: DamebooruPostDto | number, event: MouseEvent): void {
+    // Browsers fire zero-distance moves when content shifts under a still pointer (scrolling, layout changes).
+    if (!this.enabled() || (event.movementX === 0 && event.movementY === 0)) {
+      return;
     }
+
+    this.gate.resumeIfSuppressed();
+    this.post.set(null);
+    this.enter(target);
   }
 
-  leave(event: MouseEvent): void {
+  leave(): void {
     this.hoveredPostId = null;
     this.clearTimer();
-
-    const related = event.relatedTarget as Element | null;
-    if (!related?.closest('[data-preview-card]')) {
-      this.post.set(null);
-    }
+    this.post.set(null);
   }
 
   close(): void {
