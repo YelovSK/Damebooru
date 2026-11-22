@@ -104,8 +104,6 @@ export class PostsComponent implements AfterViewInit {
 
   private gridResizeObserver?: ResizeObserver;
 
-  private readonly rowCellsCache = new Map<number, GridCell[]>();
-
   private pendingAnchorOffset: number | null = 0;
   private routeAnchorAppliedForQuery: string | null = null;
 
@@ -267,11 +265,6 @@ export class PostsComponent implements AfterViewInit {
   constructor() {
     effect(() => {
       this.virtualRowDataSource.setLength(this.virtualRowCount());
-    });
-
-    effect(() => {
-      this.segmentCache();
-      this.rowCellsCache.clear();
     });
 
     effect(() => {
@@ -438,18 +431,12 @@ export class PostsComponent implements AfterViewInit {
 
     this.density.set(nextDensity);
     this.storage.setItem(STORAGE_KEYS.POSTS_GRID_DENSITY, nextDensity);
-    this.rowCellsCache.clear();
     this.recalculateLayout(true);
   }
 
   getRowCells(rowIndex: number): GridCell[] {
     if (rowIndex < 0) {
       return [];
-    }
-
-    const cached = this.rowCellsCache.get(rowIndex);
-    if (cached) {
-      return cached;
     }
 
     const cells: GridCell[] = [];
@@ -499,7 +486,6 @@ export class PostsComponent implements AfterViewInit {
       });
     }
 
-    this.rowCellsCache.set(rowIndex, cells);
     return cells;
   }
 
@@ -614,7 +600,6 @@ export class PostsComponent implements AfterViewInit {
     this.activeQuery.set(state.query);
     this.currentSearchValue.set(state.query);
 
-    this.rowCellsCache.clear();
     this.rangeCacheStore.reset(state.query);
     this.fastScroller.visible.set(false);
     this.fastScroller.dragging.set(false);
@@ -800,7 +785,6 @@ export class PostsComponent implements AfterViewInit {
 
     if (columnsChanged) {
       this.columns.set(columns);
-      this.rowCellsCache.clear();
     }
 
     if (tileSizeChanged) {
