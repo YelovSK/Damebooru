@@ -17,21 +17,24 @@
         </a>
       }
 
-      <button type="button" [cdkMenuTriggerFor]="manageMenu"
-        class="flex cursor-pointer items-center gap-1 rounded-md px-3 py-2 text-[0.92rem] font-medium text-fg-muted transition-all hover:bg-surface hover:text-fg"
-        [class.!bg-raised]="manageActive()" [class.!text-fg]="manageActive()">
-        Manage
-        <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
-      </button>
-      <ng-template #manageMenu>
-        <div class="min-w-44" appMenu>
-          @for (link of manageLinks(); track link.label) {
-            <a appMenuItem [routerLink]="link.route" routerLinkActive="text-accent">
-              {{ link.label }}
-            </a>
-          }
+      <div class="group relative">
+        <button type="button" aria-haspopup="menu"
+          class="flex cursor-default items-center gap-1 rounded-md px-3 py-2 text-[0.92rem] font-medium text-fg-muted transition-all group-hover:bg-surface group-hover:text-fg"
+          [class.!bg-raised]="manageActive()" [class.!text-fg]="manageActive()">
+          Manage
+          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+        </button>
+        <!-- pt-1 instead of a margin so the space between button and menu still counts as hovering the group. -->
+        <div class="absolute left-0 top-full hidden pt-1 group-hover:block group-has-[:focus-visible]:block">
+          <div class="min-w-44" appMenu>
+            @for (link of manageLinks(); track link.label) {
+              <a appMenuItem [routerLink]="link.route" routerLinkActive="text-accent">
+                {{ link.label }}
+              </a>
+            }
+          </div>
         </div>
-      </ng-template>
+      </div>
     </nav>
 
     <div class="ml-auto hidden items-center gap-1 lg:flex">
