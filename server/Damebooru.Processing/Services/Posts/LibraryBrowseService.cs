@@ -60,11 +60,7 @@ public class LibraryBrowseService
             pageSize = MaxPageSize;
         }
 
-        var baseQuery = _context.Posts
-            .AsNoTracking()
-            .Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId));
-
-        var scopedQuery = ApplyFolderScope(baseQuery, normalizedPath, recursive);
+        var scopedQuery = ApplyFolderScope(_context.Posts.AsNoTracking(), libraryId, normalizedPath, recursive);
         var totalCount = await scopedQuery.CountAsync(cancellationToken);
 
         var posts = await scopedQuery
@@ -149,6 +145,7 @@ public class LibraryBrowseService
         int libraryId,
         int postId,
         string? path,
+        FolderPostOrder order,
         int window,
         int? before,
         int? after,
@@ -157,7 +154,7 @@ public class LibraryBrowseService
         var beforeSize = NormalizeAroundWindowSize(before ?? window);
         var afterSize = NormalizeAroundWindowSize(after ?? window);
         var idWindowSize = Math.Min(Math.Max(beforeSize, afterSize) + 1, MaxAroundIdWindowSize);
-        var idsResult = await GetPostIdsAroundAsync(libraryId, postId, path, idWindowSize, cancellationToken);
+        var idsResult = await GetPostIdsAroundAsync(libraryId, postId, path, order, idWindowSize, cancellationToken);
         if (!idsResult.IsSuccess)
         {
             return Result<PostsAroundDto>.Failure(
@@ -194,6 +191,8 @@ public class LibraryBrowseService
             Items = orderedItems,
             HasPrevious = ids.PrevIds.Count > beforeSize,
             HasNext = ids.NextIds.Count > afterSize,
+            Offset = ids.Position - prevItems.Count,
+            TotalCount = ids.TotalCount,
         });
     }
 
@@ -201,6 +200,7 @@ public class LibraryBrowseService
         int libraryId,
         int postId,
         string? path,
+        FolderPostOrder order,
         int window,
         CancellationToken cancellationToken = default)
     {
@@ -210,13 +210,22 @@ public class LibraryBrowseService
             return Result<AroundPostIds>.Failure(OperationError.InvalidInput, "Invalid folder path.");
         }
 
-        var scopedQuery = ApplyFolderScope(
-            _context.Posts
-                .AsNoTracking()
-                .Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId)),
-            normalizedPath,
-            recursive: false);
+        var scopedQuery = ApplyFolderScope(_context.Posts.AsNoTracking(), libraryId, normalizedPath, recursive: false);
+        var ids = order == FolderPostOrder.Name
+            ? await GetNameOrderedIdsAroundAsync(scopedQuery, libraryId, normalizedPath, postId, windowSize, cancellationToken)
+            : await GetDateOrderedIdsAroundAsync(scopedQuery, postId, windowSize, cancellationToken);
 
+        return ids == null
+            ? Result<AroundPostIds>.Failure(OperationError.NotFound, "Post not found in folder scope.")
+            : Result<AroundPostIds>.Success(ids);
+    }
+
+    private static async Task<AroundPostIds?> GetDateOrderedIdsAroundAsync(
+        IQueryable<Post> scopedQuery,
+        int postId,
+        int windowSize,
+        CancellationToken cancellationToken)
+    {
         var current = await scopedQuery
             .Where(p => p.Id == postId)
             .Select(p => new
@@ -228,15 +237,17 @@ public class LibraryBrowseService
 
         if (current == null)
         {
-            return Result<AroundPostIds>.Failure(OperationError.NotFound, "Post not found in folder scope.");
+            return null;
         }
 
-        var prevIds = await scopedQuery
+        var prevQuery = scopedQuery
             .Where(p => p.Id != current.Id
                 && (
                     p.FileModifiedDate > current.FileModifiedDate
                     || (p.FileModifiedDate == current.FileModifiedDate && p.Id > current.Id)
-                ))
+                ));
+
+        var prevIds = await prevQuery
             .OrderByOldest()
             .Select(p => p.Id)
             .Take(windowSize)
@@ -253,7 +264,67 @@ public class LibraryBrowseService
             .Take(windowSize)
             .ToListAsync(cancellationToken);
 
-        return Result<AroundPostIds>.Success(new AroundPostIds(prevIds, nextIds));
+        var position = await prevQuery.CountAsync(cancellationToken);
+        var totalCount = await scopedQuery.CountAsync(cancellationToken);
+        return new AroundPostIds(prevIds, nextIds, position, totalCount);
+    }
+
+    /// <summary>Sorts the whole folder in memory: natural order can't be expressed in SQL, and a single folder is small.</summary>
+    private static async Task<AroundPostIds?> GetNameOrderedIdsAroundAsync(
+        IQueryable<Post> scopedQuery,
+        int libraryId,
+        string folderPath,
+        int postId,
+        int windowSize,
+        CancellationToken cancellationToken)
+    {
+        var posts = await scopedQuery
+            .Select(p => new
+            {
+                p.Id,
+                Paths = p.PostFiles
+                    .Where(pf => pf.LibraryId == libraryId)
+                    .Select(pf => pf.RelativePath)
+                    .ToList(),
+            })
+            .ToListAsync(cancellationToken);
+
+        var orderedIds = posts
+            .Select(p => new
+            {
+                p.Id,
+                Name = p.Paths
+                    .Select(path => GetDirectChildName(path, folderPath))
+                    .OfType<string>()
+                    .Min(NaturalStringComparer.Instance),
+            })
+            .OrderBy(p => p.Name, NaturalStringComparer.Instance)
+            .ThenBy(p => p.Id)
+            .Select(p => p.Id)
+            .ToList();
+
+        var position = orderedIds.IndexOf(postId);
+        if (position < 0)
+        {
+            return null;
+        }
+
+        var prevStart = Math.Max(0, position - windowSize);
+        var prevIds = orderedIds.GetRange(prevStart, position - prevStart);
+        prevIds.Reverse();
+        var nextIds = orderedIds.GetRange(position + 1, Math.Min(windowSize, orderedIds.Count - position - 1));
+        return new AroundPostIds(prevIds, nextIds, position, orderedIds.Count);
+    }
+
+    private static string? GetDirectChildName(string relativePath, string folderPath)
+    {
+        var name = string.IsNullOrEmpty(folderPath)
+            ? relativePath
+            : relativePath.StartsWith(folderPath + "/", StringComparison.Ordinal)
+                ? relativePath[(folderPath.Length + 1)..]
+                : null;
+
+        return name == null || name.Contains('/') ? null : name;
     }
 
     private static int NormalizeAroundWindowSize(int window)
@@ -262,7 +333,8 @@ public class LibraryBrowseService
     private static int NormalizeAroundIdWindowSize(int window)
         => Math.Clamp(window, 1, MaxAroundIdWindowSize);
 
-    private sealed record AroundPostIds(IReadOnlyList<int> PrevIds, IReadOnlyList<int> NextIds);
+    /// <param name="Position">Index of the anchor post in the whole scope.</param>
+    private sealed record AroundPostIds(IReadOnlyList<int> PrevIds, IReadOnlyList<int> NextIds, int Position, int TotalCount);
 
     private async Task<List<LibraryFolderNodeDto>> GetFoldersInternalAsync(
         int libraryId,
@@ -286,31 +358,26 @@ public class LibraryBrowseService
         return BuildChildFolders(relativePaths, currentPath);
     }
 
-    private static IQueryable<Core.Entities.Post> ApplyFolderScope(
-        IQueryable<Core.Entities.Post> query,
+    private static IQueryable<Post> ApplyFolderScope(
+        IQueryable<Post> query,
+        int libraryId,
         string currentPath,
         bool recursive)
     {
         if (string.IsNullOrEmpty(currentPath))
         {
-            if (recursive)
-            {
-                return query;
-            }
-
-            return query.Where(p => p.PostFiles.Any(pf => !pf.RelativePath.Contains('/')));
+            return recursive
+                ? query.Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId))
+                : query.Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId && !pf.RelativePath.Contains('/')));
         }
 
         var prefix = currentPath + "/";
-        var scoped = query.Where(p => p.PostFiles.Any(pf => pf.RelativePath.StartsWith(prefix)));
-        if (recursive)
-        {
-            return scoped;
-        }
-
-        return scoped.Where(p => p.PostFiles.Any(pf =>
-            pf.RelativePath.StartsWith(prefix)
-            && !pf.RelativePath.Substring(prefix.Length).Contains('/')));
+        return recursive
+            ? query.Where(p => p.PostFiles.Any(pf => pf.LibraryId == libraryId && pf.RelativePath.StartsWith(prefix)))
+            : query.Where(p => p.PostFiles.Any(pf =>
+                pf.LibraryId == libraryId
+                && pf.RelativePath.StartsWith(prefix)
+                && !pf.RelativePath.Substring(prefix.Length).Contains('/')));
     }
 
     private static List<LibraryBrowseBreadcrumbDto> BuildBreadcrumbs(string libraryName, string currentPath)

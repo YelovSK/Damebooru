@@ -84,6 +84,9 @@ public class PostsAroundDto
     public IReadOnlyList<PostDto> Items { get; set; } = [];
     public bool HasPrevious { get; set; }
     public bool HasNext { get; set; }
+    /// <summary>Position of the first item in the whole scope, when the scope can report it.</summary>
+    public int? Offset { get; set; }
+    public int? TotalCount { get; set; }
 }
 
 public class UpdatePostMetadataDto

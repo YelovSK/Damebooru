@@ -1,5 +1,11 @@
 namespace Damebooru.Core.DTOs;
 
+public enum FolderPostOrder
+{
+    Date = 0,
+    Name = 1
+}
+
 public class LibraryBrowseBreadcrumbDto
 {
     public string Name { get; set; } = string.Empty;

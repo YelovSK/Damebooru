@@ -205,7 +205,11 @@ export interface DamebooruPostsAroundDto {
   items?: DamebooruPostDto[];
   hasPrevious?: boolean;
   hasNext?: boolean;
+  offset?: number | null;
+  totalCount?: number | null;
 }
+
+export type FolderPostOrder = 'Date' | 'Name';
 
 export interface StatsOverviewDto {
   postCount: number;

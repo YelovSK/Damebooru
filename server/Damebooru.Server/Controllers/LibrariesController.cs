@@ -119,10 +119,11 @@ public class LibrariesController : ControllerBase
         [FromQuery] int window = 1,
         [FromQuery] int? before = null,
         [FromQuery] int? after = null,
+        [FromQuery] FolderPostOrder order = FolderPostOrder.Date,
         CancellationToken cancellationToken = default)
     {
         return await _libraryBrowseService
-            .GetPostsAroundAsync(id, postId, path, window, before, after, cancellationToken)
+            .GetPostsAroundAsync(id, postId, path, order, window, before, after, cancellationToken)
             .ToHttpResult();
     }
 

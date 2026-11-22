@@ -36,6 +36,8 @@ import { escapeTagName, getFileFormat, getMediaType } from "@shared/utils/utils"
 import { describeSourceUrl } from "@shared/utils/source-url";
 import {
   type DamebooruPostDto,
+  type DamebooruPostsAroundDto,
+  type FolderPostOrder,
   type DamebooruTagDto,
   type SimilarPost,
   type PostAuditEntry,
@@ -117,6 +119,7 @@ export class PostDetailComponent {
   query = input<string | null>("");
   explorerLibraryId = input<string | null>(null);
   explorerPath = input<string | null>(null);
+  explorerOrder = input<string | null>(null);
 
   readonly activeExplorerLibraryId = computed(() =>
     this.parsePositiveInt(this.explorerLibraryId()),
@@ -124,10 +127,17 @@ export class PostDetailComponent {
   readonly activeExplorerPath = computed(() =>
     this.normalizeExplorerPath(this.explorerPath()),
   );
+  readonly activeExplorerOrder = computed<FolderPostOrder>(() =>
+    this.explorerOrder() === "Name" ? "Name" : "Date",
+  );
+  readonly isBrowsingFolderByName = computed(() =>
+    this.activeExplorerLibraryId() !== null && this.activeExplorerOrder() === "Name",
+  );
   readonly detailQueryParams = computed(() => ({
     query: this.query() || null,
     explorerLibraryId: this.activeExplorerLibraryId() ?? null,
     explorerPath: this.activeExplorerPath() || null,
+    explorerOrder: this.activeExplorerOrder() === "Name" ? "Name" : null,
   }));
 
   // Sidebar collapsed state
@@ -152,6 +162,8 @@ export class PostDetailComponent {
   private readonly navigationPosts = signal<DamebooruPostDto[]>([]);
   private readonly navigationHasPrevious = signal(false);
   private readonly navigationHasNext = signal(false);
+  private readonly navigationPositions = signal<ReadonlyMap<number, number>>(new Map());
+  private readonly navigationTotalCount = signal<number | null>(null);
   private readonly initialBeforeCount = 25;
   private readonly initialAfterCount = 25;
   private readonly refillOverlapCount = 10;
@@ -242,6 +254,13 @@ export class PostDetailComponent {
     };
   });
 
+  readonly scopePosition = computed(() => {
+    const id = this.currentPostId();
+    const position = id === null ? undefined : this.navigationPositions().get(id);
+    const total = this.navigationTotalCount();
+    return position === undefined || total === null ? null : { current: position + 1, total };
+  });
+
   similarPosts = signal<SimilarPost[]>([]);
   isSimilarPostsLoading = signal(false);
   private similarPostsLoadedForPostId: number | null = null;
@@ -320,6 +339,8 @@ export class PostDetailComponent {
     this.navigationPosts.set([]);
     this.navigationHasPrevious.set(false);
     this.navigationHasNext.set(false);
+    this.navigationPositions.set(new Map());
+    this.navigationTotalCount.set(null);
     this.navigationRequestsInFlight.clear();
     this.pendingEdgeNavigation = null;
   }
@@ -397,6 +418,7 @@ export class PostDetailComponent {
           parsedExplorerLibraryId,
           anchorId,
           normalizedExplorerPath,
+          this.activeExplorerOrder(),
           Math.max(before, after),
           before,
           after,
@@ -419,6 +441,7 @@ export class PostDetailComponent {
           }
 
           this.mergeNavigationWindow(around.items ?? [], around.hasPrevious ?? false, around.hasNext ?? false, direction);
+          this.recordNavigationPositions(around);
           this.completePendingEdgeNavigation(direction);
         },
         error: (err) => {
@@ -469,6 +492,33 @@ export class PostDetailComponent {
     this.navigationPosts.set(trimmed.posts);
     this.navigationHasPrevious.set(nextHasPrevious);
     this.navigationHasNext.set(nextHasNext);
+  }
+
+  private recordNavigationPositions(around: DamebooruPostsAroundDto) {
+    const offset = around.offset;
+    if (offset == null || around.totalCount == null) {
+      return;
+    }
+
+    const positions = new Map(this.navigationPositions());
+    (around.items ?? []).forEach((post, index) => positions.set(post.id, offset + index));
+    this.navigationPositions.set(positions);
+    this.navigationTotalCount.set(around.totalCount);
+  }
+
+  toggleFolderNameOrder(post: DamebooruPostDto) {
+    const lastSlash = post.relativePath.lastIndexOf("/");
+    const folderScope = this.isBrowsingFolderByName()
+      ? { explorerLibraryId: null, explorerPath: null, explorerOrder: null }
+      : {
+          explorerLibraryId: post.libraryId,
+          explorerPath: lastSlash < 0 ? null : post.relativePath.slice(0, lastSlash),
+          explorerOrder: "Name",
+        };
+
+    this.router.navigate(AppLinks.post(post.id), {
+      queryParams: { query: this.query() || null, ...folderScope },
+    });
   }
 
   private mergeOrderedPosts(
@@ -1424,6 +1474,7 @@ export class PostDetailComponent {
       query: this.query() ?? "",
       explorerLibraryId: this.activeExplorerLibraryId(),
       explorerPath: this.activeExplorerPath(),
+      explorerOrder: this.activeExplorerOrder(),
     });
   }
 

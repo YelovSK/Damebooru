@@ -27,6 +27,7 @@ import {
   type ManagedTag,
   type TagCategoryKind,
   type DamebooruPostsAroundDto,
+  type FolderPostOrder,
   type Comment as DamebooruComment,
   type JobViewModel,
   type JobHistoryResponse,
@@ -516,6 +517,7 @@ export class DamebooruService {
     libraryId: number,
     postId: number,
     path = "",
+    order: FolderPostOrder = "Date",
     window = 1,
     before?: number,
     after?: number,
@@ -524,6 +526,7 @@ export class DamebooruService {
     if (path.trim().length > 0) {
       params = params.set("path", path.trim());
     }
+    params = params.set("order", order);
     params = params.set("window", String(window));
     if (before !== undefined) {
       params = params.set("before", String(before));
